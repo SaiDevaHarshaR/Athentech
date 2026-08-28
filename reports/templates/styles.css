@@ -1,59 +1,45 @@
-@page {
-    size: A4;
-    margin: 1.2cm;
-}
-
 body {
-    font-family: 'Segoe UI', Arial, sans-serif;
+    font-family: Arial, sans-serif;
     font-size: 11px;
     color: #333;
     margin: 0;
-    padding: 0;
+    padding: 20px;
 }
 
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     border-bottom: 2px solid #0a4d8c;
     padding-bottom: 10px;
     margin-bottom: 15px;
 }
 
-.logo {
-    height: 55px;
-}
-
 .report-title {
-    font-size: 26px;
+    font-size: 20px;
     font-weight: bold;
     color: #e30613;
     text-align: center;
-    margin: 10px 0;
+    margin: 12px 0;
 }
 
 .patient-info {
-    display: flex;
-    justify-content: space-between;
     background: #f8f9fa;
-    padding: 10px 15px;
-    border-radius: 6px;
+    padding: 10px;
     margin-bottom: 15px;
     font-size: 12px;
 }
 
 .glance-box {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 
 .glance-card {
-    flex: 1;
-    padding: 12px;
-    border-radius: 8px;
+    display: inline-block;
+    width: 30%;
+    padding: 10px;
+    margin-right: 2%;
+    border-radius: 6px;
     color: white;
-    font-weight: 600;
+    font-weight: bold;
+    text-align: center;
 }
 
 .normal { background: #28a745; }
@@ -61,64 +47,25 @@ body {
 .abnormal { background: #dc3545; }
 
 .test-card {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 14px;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-.test-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
 }
 
 .test-name {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: bold;
 }
-
-.status-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.dot-normal { background: #28a745; }
-.dot-abnormal { background: #dc3545; }
-.dot-borderline { background: #ffc107; }
-
-.range-bar {
-    height: 8px;
-    background: #e9ecef;
-    border-radius: 4px;
-    margin: 8px 0;
-    position: relative;
-    overflow: hidden;
-}
-
-.range-fill {
-    height: 100%;
-    border-radius: 4px;
-}
-
-.fill-normal { background: #28a745; }
-.fill-abnormal { background: #dc3545; }
-.fill-borderline { background: #ffc107; }
 
 .comment {
     font-size: 11px;
     color: #555;
     margin-top: 6px;
-    line-height: 1.4;
 }
 
 .footer {
-    margin-top: 30px;
+    margin-top: 25px;
     font-size: 10px;
     text-align: center;
     color: #666;
