@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+mysql-connector-python
+sqlalchemy
+langchain
+langchain-groq        
+langgraph
+pandas
+openpyxl
+reportlab
+pydantic
+python-multipart
