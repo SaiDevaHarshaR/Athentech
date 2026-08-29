@@ -138,23 +138,6 @@ Open the Chat Widget
 Simply open sahasra_chat_widget.html in your browser.
 The widget points to http://127.0.0.1:8000/ask by default.
 
-API Usage
-Endpoint: POST /ask
-Request body:
-JSON{
-  "question": "Show me all patients",
-  "activation_code": "ATH-1001",          // optional – enables Premium mode
-  "chat_history": [
-    {"role": "user", "content": "previous question"},
-    {"role": "assistant", "content": "previous answer"}
-  ]
-}
-Response:
-JSON{
-  "status": "success",
-  "answer": "Here are the patients currently in the system:\n\n👤 **Ramesh Kumar**\n• UHID: UHID001\n• Age: 42 years\n..."
-}
-
 
 
 ### Notes
