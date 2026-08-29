@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 app = FastAPI(title="Sahasra AI Agent")
 
-# Allow testing from browser
+# Allow frontend to call the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,42 +21,38 @@ class Message(BaseModel):
     content: str
 
 class QueryRequest(BaseModel):
-    activation_code: str
     question: str
+    activation_code: Optional[str] = None
     chat_history: Optional[List[Message]] = []
-
-# Simple mock activation codes
-VALID_CODES = {
-    "ATH-1001": "hospital_demo",
-    "ATH-1002": "hospital_demo"
-}
 
 @app.get("/")
 def home():
     return {"message": "Sahasra AI Agent is running"}
 
+
 @app.post("/ask")
 async def ask_question(req: QueryRequest):
-    # 1. Validate activation code
-    if req.activation_code not in VALID_CODES:
-        raise HTTPException(status_code=401, detail="Invalid activation code")
-
-    db_name = VALID_CODES[req.activation_code]
-
-    # 2. Convert chat history
-    history = []
-    for msg in req.chat_history:
-        if msg.role == "user":
-            history.append(HumanMessage(content=msg.content))
-        else:
-            history.append(AIMessage(content=msg.content))
-
-    # 3. Call the agent
     try:
-        answer = ask_agent(req.question, db_name, history)
+        history = []
+        for msg in req.chat_history:
+            if msg.role == "user":
+                history.append(HumanMessage(content=msg.content))
+            else:
+                history.append(AIMessage(content=msg.content))
+
+        is_premium = bool(req.activation_code)
+
+        answer = ask_agent(
+            question=req.question,
+            db_name="hospital_demo",
+            chat_history=history,
+            is_premium=is_premium
+        )
+
         return {
             "status": "success",
             "answer": answer
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

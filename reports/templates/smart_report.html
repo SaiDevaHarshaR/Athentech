@@ -1,82 +1,1147 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Sahasra Smart Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Sahasra Smart Health Report</title>
+
+    <link rel="stylesheet" href="report.css">
 </head>
+
 <body>
 
+<!-- =========================================================
+     HEADER
+========================================================= -->
+
 <div class="header">
-    <div>
-        <strong style="font-size:17px; color:#0a4d8c;">ATHENTECH</strong><br>
-        <span style="font-size:11px;">Sahasra HIS GenX</span>
+
+    <div class="brand">
+        <div class="brand-name">ATHENTECH</div>
+        <div class="brand-product">Sahasra HIS GenX</div>
     </div>
-    <div style="text-align:right; font-size:11px;">
-        AI Generated Report<br>
-        {{ report_date }}
+
+    <div class="header-meta">
+        <div class="ai-label">SAHASRA AI AGENT</div>
+        <div>Smart Health Intelligence Report</div>
+        <div>{{ report_date }}</div>
     </div>
+
 </div>
 
-<div class="report-title">{{ report_title }}</div>
+
+<!-- =========================================================
+     REPORT TITLE
+========================================================= -->
+
+<div class="report-title">
+    {{ report_title }}
+</div>
+
+
+<!-- =========================================================
+     PATIENT INFORMATION
+========================================================= -->
 
 <div class="patient-info">
-    <div>
-        <strong>Hospital:</strong> {{ hospital_name }}<br>
-        <strong>Generated for:</strong> {{ user_role }}
-    </div>
-    <div>
-        <strong>Activation Code:</strong> {{ activation_code }}<br>
-        <strong>Report ID:</strong> {{ report_id }}
-    </div>
-</div>
 
-<!-- Glance Section -->
-<div class="glance-box">
-    <div class="glance-card normal">
-        Normal<br>
-        <span style="font-size:20px;">{{ normal_count }}</span>
-    </div>
-    <div class="glance-card borderline">
-        Borderline<br>
-        <span style="font-size:20px;">{{ borderline_count }}</span>
-    </div>
-    <div class="glance-card abnormal">
-        Abnormal<br>
-        <span style="font-size:20px;">{{ abnormal_count }}</span>
-    </div>
-</div>
+    <div class="patient-main">
 
-<!-- Test / Data Cards -->
-{% for test in tests %}
-<div class="test-card">
-    <div class="test-header">
-        <div class="test-name">{{ test.name }}</div>
+        <div class="small-label">PATIENT</div>
+
+        <div class="patient-name">
+            {{ patient_name }}
+        </div>
+
+        <div class="patient-details">
+            {{ patient_age }} years
+            &nbsp; • &nbsp;
+            {{ patient_gender }}
+        </div>
+
+    </div>
+
+
+    <div class="patient-meta">
+
         <div>
-            <span class="status-dot dot-{{ test.status }}"></span>
-            <strong>{{ test.value }} {{ test.unit }}</strong>
+            <strong>Hospital:</strong>
+            {{ hospital_name }}
+        </div>
+
+        <div>
+            <strong>Report ID:</strong>
+            {{ report_id }}
+        </div>
+
+        <div>
+            <strong>Generated For:</strong>
+            {{ user_role }}
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     HEALTH SCORE
+========================================================= -->
+
+<div class="health-score-section">
+
+    <div class="score-ring">
+
+        <div class="score-number">
+            {{ health_score }}
+        </div>
+
+        <div class="score-text">
+            / 1000
+        </div>
+
+    </div>
+
+
+    <div class="score-content">
+
+        <div class="score-title">
+            Overall Health Picture
+        </div>
+
+        <div class="score-summary">
+            {{ health_summary }}
+        </div>
+
+
+        <div class="status-legend">
+
+            <div class="legend-item">
+                <span class="legend-dot good"></span>
+                Good
+            </div>
+
+            <div class="legend-item">
+                <span class="legend-dot watch"></span>
+                Watch
+            </div>
+
+            <div class="legend-item">
+                <span class="legend-dot attention"></span>
+                Needs Attention
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     BODY HEALTH MAP
+========================================================= -->
+
+<div id="health-map" class="section-heading">
+
+    <div class="section-icon">
+        🧍
+    </div>
+
+    <div>
+        <div class="section-title">
+            Your Body Health Map
+        </div>
+
+        <div class="section-description">
+            Tap a health area to jump to its detailed explanation.
         </div>
     </div>
 
-    {% if test.range %}
-    <div style="font-size:11px; color:#666;">
-        Reference Range: {{ test.range }}
-    </div>
-    {% endif %}
-
-    <div class="range-bar">
-        <div class="range-fill fill-{{ test.status }}" style="width: {{ test.percentage }}%;"></div>
-    </div>
-
-    {% if test.comment %}
-    <div class="comment">{{ test.comment }}</div>
-    {% endif %}
 </div>
+
+
+<div class="body-map">
+
+
+    <!-- ================= HEAD ================= -->
+
+    <div class="body-row single">
+
+        <a href="#brain" class="body-part status-{{ body.brain.status }}">
+
+            <div class="body-icon">
+                🧠
+            </div>
+
+            <div class="body-name">
+                Brain & Energy
+            </div>
+
+            <div class="body-status">
+                {{ body.brain.label }}
+            </div>
+
+        </a>
+
+    </div>
+
+
+    <!-- ================= HEART / LUNGS ================= -->
+
+    <div class="body-row">
+
+        <a href="#heart" class="body-part status-{{ body.heart.status }}">
+
+            <div class="body-icon">
+                ❤️
+            </div>
+
+            <div class="body-name">
+                Heart
+            </div>
+
+            <div class="body-status">
+                {{ body.heart.label }}
+            </div>
+
+        </a>
+
+
+        <a href="#lungs" class="body-part status-{{ body.lungs.status }}">
+
+            <div class="body-icon">
+                🫁
+            </div>
+
+            <div class="body-name">
+                Lungs
+            </div>
+
+            <div class="body-status">
+                {{ body.lungs.label }}
+            </div>
+
+        </a>
+
+    </div>
+
+
+    <!-- ================= BLOOD ================= -->
+
+    <div class="body-row single">
+
+        <a href="#blood" class="body-part status-{{ body.blood.status }}">
+
+            <div class="body-icon">
+                🩸
+            </div>
+
+            <div class="body-name">
+                Blood
+            </div>
+
+            <div class="body-status">
+                {{ body.blood.label }}
+            </div>
+
+        </a>
+
+    </div>
+
+
+    <!-- ================= BONES / METABOLISM ================= -->
+
+    <div class="body-row">
+
+        <a href="#bones" class="body-part status-{{ body.bones.status }}">
+
+            <div class="body-icon">
+                🦴
+            </div>
+
+            <div class="body-name">
+                Bones
+            </div>
+
+            <div class="body-status">
+                {{ body.bones.label }}
+            </div>
+
+        </a>
+
+
+        <a href="#metabolism" class="body-part status-{{ body.metabolism.status }}">
+
+            <div class="body-icon">
+                🧬
+            </div>
+
+            <div class="body-name">
+                Metabolism
+            </div>
+
+            <div class="body-status">
+                {{ body.metabolism.label }}
+            </div>
+
+        </a>
+
+    </div>
+
+
+    <!-- ================= KIDNEY / LIVER ================= -->
+
+    <div class="body-row">
+
+        <a href="#kidney" class="body-part status-{{ body.kidney.status }}">
+
+            <div class="body-icon">
+                🫘
+            </div>
+
+            <div class="body-name">
+                Kidneys
+            </div>
+
+            <div class="body-status">
+                {{ body.kidney.label }}
+            </div>
+
+        </a>
+
+
+        <a href="#liver" class="body-part status-{{ body.liver.status }}">
+
+            <div class="body-icon">
+                🫀
+            </div>
+
+            <div class="body-name">
+                Liver
+            </div>
+
+            <div class="body-status">
+                {{ body.liver.label }}
+            </div>
+
+        </a>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SUMMARY
+========================================================= -->
+
+<div class="section-heading">
+
+    <div class="section-icon">
+        📊
+    </div>
+
+    <div>
+
+        <div class="section-title">
+            What We Found
+        </div>
+
+        <div class="section-description">
+            A quick summary of your available results.
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="summary-grid">
+
+
+    <div class="summary-card normal-card">
+
+        <div class="summary-icon">
+            🟢
+        </div>
+
+        <div>
+
+            <div class="summary-number">
+                {{ normal_count }}
+            </div>
+
+            <div class="summary-label">
+                Looking Good
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="summary-card borderline-card">
+
+        <div class="summary-icon">
+            🟡
+        </div>
+
+        <div>
+
+            <div class="summary-number">
+                {{ borderline_count }}
+            </div>
+
+            <div class="summary-label">
+                Keep Watching
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="summary-card abnormal-card">
+
+        <div class="summary-icon">
+            🔴
+        </div>
+
+        <div>
+
+            <div class="summary-number">
+                {{ abnormal_count }}
+            </div>
+
+            <div class="summary-label">
+                Needs Attention
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     PRIORITY FINDINGS
+========================================================= -->
+
+{% if priority_findings %}
+
+<div class="section-heading">
+
+    <div class="section-icon">
+        🚨
+    </div>
+
+    <div>
+
+        <div class="section-title">
+            Priority Findings
+        </div>
+
+        <div class="section-description">
+            Important findings identified from the available data.
+        </div>
+
+    </div>
+
+</div>
+
+
+{% for finding in priority_findings %}
+
+<div class="mini-finding">
+
+    <div class="mini-finding-icon">
+        {{ finding.icon }}
+    </div>
+
+    <div class="mini-finding-content">
+
+        <div class="mini-finding-name">
+            {{ finding.name }}
+        </div>
+
+        <div class="mini-finding-value">
+            {{ finding.value }} {{ finding.unit }}
+        </div>
+
+    </div>
+
+    <a href="#{{ finding.anchor }}" class="details-link">
+        View details →
+    </a>
+
+</div>
+
 {% endfor %}
 
-<div class="footer">
-    This report is generated by Sahasra AI Agent | Data sourced only from hospital database<br>
-    Confidential – For internal hospital use only
+{% endif %}
+
+
+<!-- =========================================================
+     PAGE BREAK
+========================================================= -->
+
+<div class="page-break"></div>
+
+
+<!-- =========================================================
+     DETAILED HEALTH FINDINGS
+========================================================= -->
+
+<div class="detail-header">
+
+    <div class="detail-header-icon">
+        🧠
+    </div>
+
+    <div>
+
+        <div class="detail-main-title">
+            Understanding Your Results
+        </div>
+
+        <div class="detail-subtitle">
+            Simple explanations, possible context and next steps.
+        </div>
+
+    </div>
+
 </div>
+
+
+<!-- =========================================================
+     DYNAMIC DETAILED FINDINGS
+========================================================= -->
+
+{% for finding in all_findings %}
+
+<div id="{{ finding.anchor }}" class="detailed-card">
+
+
+    <!-- ================= FINDING HEADER ================= -->
+
+    <div class="detailed-header">
+
+        <div class="detailed-icon">
+            {{ finding.icon }}
+        </div>
+
+        <div class="detailed-name-area">
+
+            <div class="detailed-name">
+                {{ finding.name }}
+            </div>
+
+            <div class="detailed-category">
+                {{ finding.category }}
+            </div>
+
+        </div>
+
+
+        <div class="detailed-result">
+
+            <div class="result-number">
+                {{ finding.value }}
+            </div>
+
+            <div class="result-unit">
+                {{ finding.unit }}
+            </div>
+
+            <span class="status-badge status-{{ finding.status }}">
+                {{ finding.label }}
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================= RANGE ================= -->
+
+    {% if finding.range %}
+
+    <div class="reference">
+
+        <span>Reference Range</span>
+
+        <strong>
+            {{ finding.range }}
+        </strong>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= VISUAL RANGE ================= -->
+
+    {% if finding.percentage %}
+
+    <div class="range-container">
+
+        <div class="range-labels">
+
+            <span>Low</span>
+            <span>Expected</span>
+            <span>High</span>
+
+        </div>
+
+        <div class="range-track">
+
+            <div
+                class="range-indicator status-{{ finding.status }}"
+                style="left: {{ finding.percentage }}%;">
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= SIMPLE WORDS ================= -->
+
+    <div class="info-box simple">
+
+        <div class="info-title">
+            🧒 In Simple Words
+        </div>
+
+        <div class="info-text">
+            {{ finding.simple_explanation }}
+        </div>
+
+    </div>
+
+
+    <!-- ================= WHY ================= -->
+
+    <div class="two-column">
+
+
+        <div class="information-section">
+
+            <div class="information-title">
+                🤔 Why Does It Matter?
+            </div>
+
+            <div class="information-text">
+                {{ finding.why_it_matters }}
+            </div>
+
+        </div>
+
+
+        <div class="information-section">
+
+            <div class="information-title">
+                🔍 Why Was It Flagged?
+            </div>
+
+            <div class="information-text">
+                {{ finding.interpretation }}
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================= FOOD ================= -->
+
+    {% if finding.foods %}
+
+    <div class="action-section food-section">
+
+        <div class="action-header">
+
+            <div class="action-icon">
+                🥗
+            </div>
+
+            <div>
+
+                <div class="action-title">
+                    Food & Nutrition
+                </div>
+
+                <div class="action-subtitle">
+                    Nutrition ideas relevant to this finding.
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="food-list">
+
+            {% for food in finding.foods %}
+
+            <div class="food-item">
+                <span class="food-check">✓</span>
+                {{ food }}
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= LIFESTYLE ================= -->
+
+    {% if finding.lifestyle %}
+
+    <div class="action-section lifestyle-section">
+
+        <div class="action-header">
+
+            <div class="action-icon">
+                🏃
+            </div>
+
+            <div>
+
+                <div class="action-title">
+                    What Can Make It Better?
+                </div>
+
+                <div class="action-subtitle">
+                    General lifestyle actions to discuss or consider.
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="lifestyle-list">
+
+            {% for action in finding.lifestyle %}
+
+            <div class="lifestyle-item">
+
+                <span class="action-number">
+                    {{ loop.index }}
+                </span>
+
+                <span>
+                    {{ action }}
+                </span>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= DOCTOR ================= -->
+
+    {% if finding.doctor %}
+
+    <div class="doctor-section">
+
+        <div class="doctor-icon">
+            👨‍⚕️
+        </div>
+
+        <div>
+
+            <div class="doctor-title">
+                Who Should You Talk To?
+            </div>
+
+            <div class="doctor-text">
+                {{ finding.doctor }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= NEXT STEP ================= -->
+
+    {% if finding.next_step %}
+
+    <div class="next-step-section">
+
+        <div class="next-step-icon">
+            🎯
+        </div>
+
+        <div>
+
+            <div class="next-step-title">
+                What Happens Next?
+            </div>
+
+            <div class="next-step-text">
+                {{ finding.next_step }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================= BACK TO MAP ================= -->
+
+    <div class="back-navigation">
+
+        <a href="#health-map">
+            ↑ Back to Your Body Health Map
+        </a>
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+
+<!-- =========================================================
+     HEALTH CONNECTIONS
+========================================================= -->
+
+{% if health_connections %}
+
+<div class="page-break"></div>
+
+<div class="section-heading">
+
+    <div class="section-icon">
+        🧩
+    </div>
+
+    <div>
+
+        <div class="section-title">
+            Connections We Noticed
+        </div>
+
+        <div class="section-description">
+            Some findings may be better understood when viewed together.
+        </div>
+
+    </div>
+
+</div>
+
+
+{% for connection in health_connections %}
+
+<div class="connection-card">
+
+    <div class="connection-icon">
+        🧩
+    </div>
+
+    <div>
+
+        <div class="connection-title">
+            {{ connection.title }}
+        </div>
+
+        <div class="connection-description">
+            {{ connection.description }}
+        </div>
+
+        {% if connection.action %}
+
+        <div class="connection-action">
+            👨‍⚕️ {{ connection.action }}
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+{% endif %}
+
+
+<!-- =========================================================
+     HEALTH TRENDS
+========================================================= -->
+
+{% if trends %}
+
+<div class="section-heading">
+
+    <div class="section-icon">
+        📈
+    </div>
+
+    <div>
+
+        <div class="section-title">
+            Your Health Over Time
+        </div>
+
+        <div class="section-description">
+            Comparison with previous available results.
+        </div>
+
+    </div>
+
+</div>
+
+
+{% for trend in trends %}
+
+<div class="trend-card">
+
+    <div class="trend-header">
+
+        <div class="trend-name">
+            {{ trend.name }}
+        </div>
+
+        <div class="trend-change trend-{{ trend.direction }}">
+            {{ trend.change }}
+        </div>
+
+    </div>
+
+
+    <div class="trend-points">
+
+        {% for point in trend.points %}
+
+        <div class="trend-point">
+
+            <div class="trend-value">
+                {{ point.value }}
+            </div>
+
+            <div class="trend-date">
+                {{ point.date }}
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    <div class="trend-message">
+        📌 {{ trend.message }}
+    </div>
+
+</div>
+
+{% endfor %}
+
+{% endif %}
+
+
+<!-- =========================================================
+     ACTION PLAN
+========================================================= -->
+
+<div class="page-break"></div>
+
+<div class="section-heading">
+
+    <div class="section-icon">
+        🎯
+    </div>
+
+    <div>
+
+        <div class="section-title">
+            Your Personalized Action Plan
+        </div>
+
+        <div class="section-description">
+            A simple summary of the recommended next steps.
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="action-plan">
+
+
+    {% if action_plan.doctor %}
+
+    <div class="plan-item">
+
+        <div class="plan-number">
+            1
+        </div>
+
+        <div class="plan-content">
+
+            <div class="plan-title">
+                👨‍⚕️ Doctor Review
+            </div>
+
+            <div class="plan-text">
+                {{ action_plan.doctor }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    {% if action_plan.food %}
+
+    <div class="plan-item">
+
+        <div class="plan-number">
+            2
+        </div>
+
+        <div class="plan-content">
+
+            <div class="plan-title">
+                🥗 Nutrition
+            </div>
+
+            <div class="plan-text">
+                {{ action_plan.food }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    {% if action_plan.activity %}
+
+    <div class="plan-item">
+
+        <div class="plan-number">
+            3
+        </div>
+
+        <div class="plan-content">
+
+            <div class="plan-title">
+                🏃 Lifestyle
+            </div>
+
+            <div class="plan-text">
+                {{ action_plan.activity }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    {% if action_plan.followup %}
+
+    <div class="plan-item">
+
+        <div class="plan-number">
+            4
+        </div>
+
+        <div class="plan-content">
+
+            <div class="plan-title">
+                🧪 Follow-up
+            </div>
+
+            <div class="plan-text">
+                {{ action_plan.followup }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+
+<!-- =========================================================
+     DISCLAIMER
+========================================================= -->
+
+<div class="medical-disclaimer">
+
+    <div class="disclaimer-title">
+        ⚠️ Important Medical Information
+    </div>
+
+    <div class="disclaimer-text">
+
+        This report is generated by the Sahasra AI Agent using
+        information available from authorized hospital systems.
+        It is intended to make health information easier to understand
+        and does not replace professional medical diagnosis,
+        treatment or clinical judgment.
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<div class="footer">
+
+    <strong>ATHENTECH</strong>
+    &nbsp;|&nbsp;
+    Sahasra HIS GenX
+    &nbsp;|&nbsp;
+    Sahasra AI Agent
+
+    <br>
+
+    Confidential – Authorized Use Only
+
+    <br>
+
+    Report ID: {{ report_id }}
+
+</div>
+
 
 </body>
 </html>
