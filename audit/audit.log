@@ -6,3 +6,6 @@
 2026-08-30T16:09:25.225188 | premium_query | role=doctor | code=ATH-DOC-001 | q=Show current admissions
 2026-08-30T23:08:01.339614 | premium_query | role=doctor | code=ATH-DOC-001 | q=Show me all patients
 2026-08-30T23:15:57.252297 | premium_query | role=doctor | code=ATH-DOC-001 | q=Show me all patients
+{"ts": "2026-08-31T05:06:11.962274Z", "event": "premium_query", "role": "doctor", "code": "ATH-DOC-002", "question": "Show me all patients", "meta": {"db_name": "hospital_apollo", "hospital": "Apollo Demo Hospital"}}
+{"ts": "2026-08-31T05:06:42.581752Z", "event": "premium_query", "role": "doctor", "code": "ATH-DOC-001", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}
+{"ts": "2026-08-31T05:08:55.810093Z", "event": "premium_query", "role": "doctor", "code": "ATH-DOC-001", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}

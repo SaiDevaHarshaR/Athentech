@@ -40,7 +40,31 @@ def validate_activation_code_mock(code: str):
             "role": "viewer",
             "db_name": "hospital_demo",
             "hospital_name": "City Care Hospital"
+        }, 
+        "ATH-NURSE-002": {
+            "valid": True,
+            "role": "nurse",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
+        },"ATH-1002": {
+                    "valid": True,
+                    "role": "viewer",
+                    "db_name": "hospital_demo",
+                    "hospital_name": "City Care Hospital"
+                }, 
+        "ATH-nurse-001": {
+            "valid": True,
+            "role": "nurse",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
+        }, 
+        "ATH-nurse-002": {
+            "valid": True,
+            "role": "nurse",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
         }
     }
+    
 
     return codes.get(code.upper())
