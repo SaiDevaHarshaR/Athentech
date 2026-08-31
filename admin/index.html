@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sahasra AI — Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/x-icon" href="Favicon.ico">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">S</div><div><h2>Sahasra</h2><span>AI Agent</span></div></div>
+    <nav class="navigation">
+      <button class="nav-item active" data-page="dashboard"><span>⌂</span>Dashboard</button>
+      <button class="nav-item" data-page="licenses"><span>◇</span>License Management</button>
+      <button class="nav-item" data-page="institutions"><span>▦</span>Institute Registry</button>
+      <button class="nav-item" data-page="audit"><span>◷</span>Audit Logs</button>
+      <button class="nav-item" data-page="analytics"><span>⌁</span>Usage &amp; Analytics</button>
+      <button class="nav-item" data-page="roles"><span>♙</span>Roles &amp; Permissions</button>
+      <button class="nav-item" data-page="settings"><span>⚙</span>Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="system-status"><span class="status-dot"></span><div><strong>System Online</strong><small>All services operational</small></div></div>
+      <div class="sidebar-version">Sahasra Admin v1.0</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="mobile-brand"><div class="brand-mark">S</div><strong>Sahasra</strong></div>
+      <div class="global-search"><span>⌕</span><input id="globalSearch" placeholder="Search institutions, licenses..."><kbd>Ctrl K</kbd></div>
+      <div class="admin-profile"><div class="notification">♢<i></i></div><div class="avatar">AD</div><div class="admin-info"><strong>Admin</strong><small>Administrator</small></div><span>⌄</span></div>
+    </header>
+
+    <section class="content">
+      <!-- DASHBOARD -->
+      <div id="dashboardPage" class="page active-page">
+        <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1><p>Quick overview of Sahasra AI operations</p></div><div class="heading-actions"><button class="secondary-btn" id="refreshDashboard">↻ Refresh</button><button class="primary-btn" id="dashboardAdd">+ Add Institution</button></div></div>
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-top"><span>Active Licenses</span><b class="metric-icon blue">◇</b></div><strong id="activeLicenses">0</strong><div class="metric-bottom positive">↑ 12.5% <small>vs last month</small></div></div>
+          <div class="metric-card"><div class="metric-top"><span>Active Hospitals</span><b class="metric-icon purple">▦</b></div><strong id="activeHospitals">0</strong><div class="metric-bottom positive">↑ 8.2% <small>vs last month</small></div></div>
+          <div class="metric-card"><div class="metric-top"><span>Queries Today</span><b class="metric-icon green">⌁</b></div><strong id="queriesToday">0</strong><div class="metric-bottom positive">↑ 18.7% <small>vs yesterday</small></div></div>
+          <div class="metric-card"><div class="metric-top"><span>Failed Validations</span><b class="metric-icon red">!</b></div><strong id="failedValidations">0</strong><div class="metric-bottom negative">↓ 4.3% <small>vs yesterday</small></div></div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="panel"><div class="panel-heading"><div><h3>Usage by hospitals</h3><p>Query distribution across institutions</p></div></div><div class="chart-area"><div class="donut-chart" id="dashboardDonut"><div class="donut-center"><strong id="totalQueries">0</strong><span>Total queries</span></div></div><div class="chart-legend" id="chartLegend"></div></div></div>
+          <div class="panel"><div class="panel-heading"><div><h3>Recent Activity</h3><p>Latest system events</p></div><button class="text-button" data-goto="audit">View all →</button></div><div class="activity-list" id="activityList"></div></div>
+        </div>
+      </div>
+
+      <!-- LICENSES -->
+      <div id="licensesPage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">ACCESS CONTROL</div><h1>License Management</h1><p>Create, manage and monitor activation codes</p></div><button class="primary-btn" id="generateLicense">+ Generate License</button></div>
+        <div class="filter-bar"><span class="filter-title">Filters</span><select id="licenseInstitutionFilter"><option value="all">Institution</option></select><select id="licenseRoleFilter"><option value="all">Role</option></select><select id="licenseStatusFilter"><option value="all">Status</option><option>Active</option><option>Trial</option><option>Suspended</option><option>Revoked</option></select><select id="licensePlanFilter"><option value="all">Plan</option><option>Standard</option><option>Professional</option><option>Enterprise</option></select><div class="registry-search"><span>⌕</span><input id="licenseSearch" placeholder="Search licenses..."></div></div>
+        <div class="table-panel"><div class="table-header"><div><strong>Licenses</strong><span id="licenseCount">0 results</span></div></div><div class="table-wrapper"><table><thead><tr><th>Code</th><th>Institution</th><th>Role</th><th>Plan</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead><tbody id="licenseTable"></tbody></table></div></div>
+      </div>
+
+      <!-- INSTITUTIONS -->
+      <div id="institutionsPage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">MANAGEMENT</div><h1>Institution Registry</h1><p>Manage hospitals and healthcare institutions</p></div><div class="heading-actions"><button class="secondary-btn" id="exportInstitutions">↓ Export</button><button class="primary-btn" id="addInstitution">+ Add Institution</button></div></div>
+        <div class="filter-bar"><span class="filter-title">Filters</span><select id="typeFilter"><option value="all">All Types</option><option>Hospital</option><option>Medical College</option><option>Diagnostic</option><option>Pharmacy</option></select><select id="statusFilter"><option value="all">All Status</option><option>Active</option><option>Trial</option><option>Inactive</option></select><select id="cityFilter"><option value="all">All Cities</option></select><div class="registry-search"><span>⌕</span><input id="registrySearch" placeholder="Search institutions..."></div></div>
+        <div class="table-panel"><div class="table-header"><div><strong>Institutions</strong><span id="institutionCount">0 results</span></div></div><div class="table-wrapper"><table><thead><tr><th>Institution</th><th>Type</th><th>Code</th><th>City</th><th>Status</th><th>Licenses</th><th></th></tr></thead><tbody id="institutionTable"></tbody></table></div></div>
+      </div>
+
+      <!-- AUDIT -->
+      <div id="auditPage" class="page"><div class="page-heading"><div><div class="eyebrow">SECURITY</div><h1>Audit Logs</h1><p>Searchable record of administrative and license activity</p></div></div><div class="filter-bar"><span class="filter-title">Search</span><div class="registry-search full"><span>⌕</span><input id="auditSearch" placeholder="Search audit events..."></div></div><div class="table-panel"><div class="table-header"><div><strong>Activity Log</strong><span id="auditCount">0 events</span></div></div><div class="table-wrapper"><table><thead><tr><th>Time</th><th>Event</th><th>Description</th><th>Actor</th></tr></thead><tbody id="auditTable"></tbody></table></div></div></div>
+
+      <!-- ANALYTICS -->
+      <div id="analyticsPage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">INSIGHTS</div><h1>Usage &amp; Analytics</h1><p>Understand query volume, license activity and failures</p></div></div>
+        <div class="filter-bar"><span class="filter-title">Date Range</span><select id="analyticsRange"><option value="30">Last 30 Days</option><option value="7">Last 7 Days</option><option value="90">Last 90 Days</option></select><select id="analyticsInstitution"><option value="all">Institution</option></select><select id="analyticsRole"><option value="all">Role</option></select><select id="analyticsPlan"><option value="all">Plan</option></select></div>
+        <div class="metric-grid analytics-metrics"><div class="metric-card"><div class="metric-top"><span>Total Queries</span><b class="metric-icon blue">⌁</b></div><strong id="analyticsQueries">28,430</strong></div><div class="metric-card"><div class="metric-top"><span>Unique Codes</span><b class="metric-icon purple">◇</b></div><strong id="analyticsCodes">112</strong></div><div class="metric-card"><div class="metric-top"><span>Avg per License</span><b class="metric-icon green">↗</b></div><strong id="analyticsAverage">18.4</strong></div><div class="metric-card"><div class="metric-top"><span>Peak Hour</span><b class="metric-icon red">◷</b></div><strong id="analyticsPeak">11 AM</strong></div></div>
+        <div class="analytics-grid"><div class="panel wide-panel"><div class="panel-heading"><div><h3>Queries Over Time</h3><p>Daily query volume</p></div></div><canvas id="queryChart" height="220"></canvas></div><div class="panel"><div class="panel-heading"><div><h3>Usage by Role</h3><p>Distribution of queries</p></div></div><div id="roleBars" class="bar-chart"></div></div><div class="panel"><div class="panel-heading"><div><h3>Top Institutions</h3><p>Highest query volume</p></div></div><div id="topInstitutions" class="mini-table"></div></div><div class="panel"><div class="panel-heading"><div><h3>Failure Reasons</h3><p>Validation failures</p></div></div><div class="failure-chart"><div class="pie-chart" id="failurePie"></div><div id="failureLegend" class="chart-legend"></div></div></div></div>
+      </div>
+
+      <!-- ROLES -->
+      <div id="rolesPage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">ACCESS CONTROL</div><h1>Roles &amp; Permissions</h1><p>Define what each role can access</p></div><button class="primary-btn" id="editPermissions">Edit Permissions</button></div>
+        <div class="panel"><div class="role-table"><div class="role-head"><span>Role</span><span>Allowed Modules / Tables</span><span></span></div><div id="roleRows"></div></div></div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div id="settingsPage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">CONFIGURATION</div><h1>Settings</h1><p>Configure Sahasra administration and safety controls</p></div><button class="primary-btn" id="saveSettings">Save Changes</button></div>
+        <div class="settings-grid">
+          <div class="settings-section"><h3>General</h3><div class="setting"><div><strong>Default License Validity</strong><small>How long newly generated licenses remain valid.</small></div><select id="licenseValidity"><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">1 year</option></select></div><div class="setting"><div><strong>Normal Mode (Tavily)</strong><small>Allow public web-search mode when no activation code is present.</small></div><label class="switch"><input id="normalMode" type="checkbox"><span></span></label></div><div class="setting"><div><strong>Global Rate Limit</strong><small>Maximum queries allowed per minute.</small></div><input class="small-input" id="rateLimit" type="number" min="1"></div></div>
+          <div class="settings-section"><h3>Guardrails</h3><div class="setting"><div><strong>Blocked Patterns</strong><small>Comma-separated patterns rejected by the agent.</small></div><input id="blockedPatterns" class="setting-input"></div><div class="setting"><div><strong>Sensitive Data Redaction</strong><small>Redact sensitive fields from generated responses.</small></div><label class="switch"><input id="redaction" type="checkbox"><span></span></label></div></div>
+          <div class="settings-section"><h3>Notifications</h3><div class="setting"><div><strong>Email alerts for expiring licenses</strong><small>Notify administrators before license expiry.</small></div><label class="switch"><input id="emailAlerts" type="checkbox"><span></span></label></div><div class="setting"><div><strong>Slack / WhatsApp webhook</strong><small>Optional notification endpoint.</small></div><input id="webhook" class="setting-input" placeholder="https://..."></div></div>
+          <div class="settings-section"><h3>Admin Users</h3><div id="adminUsers"></div><button class="secondary-btn" id="addAdmin">+ Add Admin User</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- institution/license modal -->
+<div class="modal-overlay" id="modalOverlay"><div class="modal"><div class="modal-header"><div><div class="eyebrow" id="modalEyebrow">INSTITUTION</div><h2 id="modalTitle">Add Institution</h2></div><button class="modal-close" id="closeModal">×</button></div><form id="modalForm"><div id="modalFields"></div><div class="modal-footer"><button type="button" class="secondary-btn" id="cancelModal">Cancel</button><button type="submit" class="primary-btn">Save</button></div></form></div></div>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
