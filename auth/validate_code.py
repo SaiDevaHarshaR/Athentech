@@ -1,43 +1,46 @@
-from typing import Optional, Dict
-from auth.roles import Role
+def validate_activation_code_mock(code: str):
+    codes = {
+        # City Care Hospital
+        "ATH-ADMIN-001": {
+            "valid": True,
+            "role": "admin",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
+        },
+        "ATH-DOC-001": {
+            "valid": True,
+            "role": "doctor",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
+        },
+        "ATH-NURSE-001": {
+            "valid": True,
+            "role": "nurse",
+            "db_name": "hospital_demo",
+            "hospital_name": "City Care Hospital"
+        },
 
-def validate_activation_code_mock(code: str) -> Optional[Dict]:
-    """
-    Mock validation – replace with real API later.
-    Returns role + hospital info.
-    """
-    mock_data = {
+        # Apollo Demo Hospital
+        "ATH-ADMIN-002": {
+            "valid": True,
+            "role": "admin",
+            "db_name": "hospital_apollo",
+            "hospital_name": "Apollo Demo Hospital"
+        },
+        "ATH-DOC-002": {
+            "valid": True,
+            "role": "doctor",
+            "db_name": "hospital_apollo",
+            "hospital_name": "Apollo Demo Hospital"
+        },
+
+        # Generic viewer
         "ATH-1001": {
             "valid": True,
-            "db_name": "hospital_citycare",
-            "hospital_name": "City Care Hospital",
-            "hospital_id": "HOSP001",
-            "role": Role.ADMIN.value,          # ← role comes from backend
-            "user_name": "Dr. Admin"
-        },
-        "ATH-1002": {
-            "valid": True,
+            "role": "viewer",
             "db_name": "hospital_demo",
-            "hospital_name": "Demo Hospital",
-            "hospital_id": "HOSP002",
-            "role": Role.DOCTOR.value,
-            "user_name": "Dr. Sharma"
-        },
-        "ATH-NURSE01": {
-            "valid": True,
-            "db_name": "hospital_demo",
-            "hospital_name": "Demo Hospital",
-            "hospital_id": "HOSP002",
-            "role": Role.NURSE.value,
-            "user_name": "Nurse Priya"
-        },
-        "ATH-LAB01": {
-            "valid": True,
-            "db_name": "hospital_demo",
-            "hospital_name": "Demo Hospital",
-            "hospital_id": "HOSP002",
-            "role": Role.LAB_TECH.value,
-            "user_name": "Lab Tech Ravi"
+            "hospital_name": "City Care Hospital"
         }
     }
-    return mock_data.get(code.upper())
+
+    return codes.get(code.upper())

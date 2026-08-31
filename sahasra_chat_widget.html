@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+<link rel="apple-touch-icon" href="favicon.ico" />
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sahasra AI Assistant</title>
@@ -9,7 +11,7 @@
 
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: #0a5e1f;
+    background: #0f172a;
     height: 100vh;
     display: flex;
     justify-content: center;
@@ -18,18 +20,19 @@
 
   .container {
     width: 100%;
-    max-width: 420px;
+    max-width: 430px;
     height: 100vh;
-    background: #f1f5f9;
+    background: #f8fafc;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
 
+  /* Header */
   .header {
     background: linear-gradient(135deg, #8B008B, #1e293b);
     color: white;
-    padding: 16px 18px;
+    padding: 14px 16px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -48,35 +51,35 @@
   }
 
   .header-info { flex: 1; }
-  .header-info h1 { font-size: 15.5px; font-weight: 600; }
-  .header-info p { font-size: 12px; opacity: 0.65; margin-top: 1px; }
+  .header-info h1 { font-size: 15px; font-weight: 600; }
+  .header-info p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
 
   .badge {
-    font-size: 10px;
-    background: #22c55e;
-    color: white;
-    padding: 3px 8px;
+    font-size: 11px;
+    padding: 4px 10px;
     border-radius: 20px;
     font-weight: 600;
+    background: #22c55e;
+    color: white;
   }
   .badge.premium { background: #f59e0b; }
 
+  /* Chat area */
   .chat {
     flex: 1;
     overflow-y: auto;
-    padding: 18px 14px;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
   .message {
-    max-width: 82%;
+    max-width: 85%;
     padding: 11px 13px;
     border-radius: 14px;
-    font-size: 14.2px;
+    font-size: 14px;
     line-height: 1.5;
-    white-space: pre-wrap;
   }
 
   .bot {
@@ -84,6 +87,7 @@
     border: 1px solid #e2e8f0;
     align-self: flex-start;
     border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
 
   .user {
@@ -100,6 +104,19 @@
     display: block;
   }
 
+  /* Role chip */
+  .role-chip {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  /* Suggestions */
   .suggestions {
     padding: 10px 14px;
     display: flex;
@@ -116,6 +133,7 @@
     border-radius: 20px;
     font-size: 12.5px;
     cursor: pointer;
+    transition: 0.15s;
   }
 
   .suggestions button:hover {
@@ -124,6 +142,7 @@
     border-color: #2563eb;
   }
 
+  /* Input */
   .input-area {
     padding: 12px 14px;
     background: white;
@@ -175,21 +194,21 @@
   </div>
 
 <script>
-
 const chatEl = document.getElementById('chat');
 const suggestionsEl = document.getElementById('suggestions');
 const statusEl = document.getElementById('status');
 const modeBadge = document.getElementById('modeBadge');
 const input = document.getElementById('msg');
 
+const API_URL = "http://127.0.0.1:8000/ask";
+
 let state = {
   mode: 'normal',
   activationCode: null,
+  role: null,
   waitingForCode: false,
   history: []
 };
-
-const API_URL = "http://127.0.0.1:8000/ask";   // your FastAPI
 
 function now() {
   const d = new Date();
@@ -203,16 +222,9 @@ function addMessage(text, type) {
   const div = document.createElement('div');
   div.className = `message ${type}`;
 
-  // Simple markdown rendering
   let formatted = text
-    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')          // **bold**
-    .replace(/\*(.*?)\*/g, '<i>$1</i>')              // *italic*
-    .replace(/\n/g, '<br>')                         // new lines
-    .replace(/• /g, '• ')                           // keep bullets
-    .replace(/👤/g, '👤 ')
-    .replace(/🏥/g, '🏥 ')
-    .replace(/👨‍⚕️/g, '👨‍⚕️ ')
-    .replace(/🩺/g, '🩺 ');
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\n/g, '<br>');
 
   div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
   chatEl.appendChild(div);
@@ -234,13 +246,18 @@ function showSuggestions(list) {
 
 function start() {
   chatEl.innerHTML = '';
-  state = { mode: 'normal', activationCode: null, waitingForCode: false, history: [] };
+  state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
   statusEl.textContent = 'General Mode';
   modeBadge.textContent = 'Normal';
   modeBadge.classList.remove('premium');
 
+  // ===== DISCLAIMER (put it here) =====
   addMessage(
-    `Hello! 👋<br><br>I'm <b>Sahasra AI Assistant</b>.<br><br>You can ask me general questions about hospitals, doctors, specialties, etc.`,
+    `⚠️ <b>Disclaimer</b><br>This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.`,
+    'bot'
+  );
+  addMessage(
+    `Hello! 👋<br><br>I'm <b>Sahasra AI Assistant</b>.<br><br>You can ask general questions about hospitals and doctors.<br><br>Have an activation code? Enter it to access your hospital data.`,
     'bot'
   );
 
@@ -253,7 +270,6 @@ function start() {
 function handleSend() {
   const text = input.value.trim();
   if (!text) return;
-
   addMessage(text, 'user');
   input.value = '';
   processMessage(text);
@@ -261,6 +277,42 @@ function handleSend() {
 
 async function processMessage(text) {
   const q = text.toLowerCase();
+  if (
+  q.includes('download pdf') ||
+  q.includes('generate pdf') ||
+  q.includes('pdf report') ||
+  q.includes('export pdf')
+) {
+  if (!state.lastAnswer) {
+    addMessage('Please ask a data question first, then request the PDF.', 'bot');
+    return;
+  }
+  await downloadPdf(state.lastAnswer);
+  return;
+}
+
+
+  // ===== EXIT PREMIUM =====
+  if (q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
+    state.mode = 'normal';
+    state.activationCode = null;
+    state.role = null;
+    state.hospitalName = null;
+    state.history = [];
+
+    statusEl.textContent = 'General Mode';
+    modeBadge.textContent = 'Normal';
+    modeBadge.classList.remove('premium');
+
+    addMessage(`You have exited Premium mode.<br>Now in <b>Normal Mode</b>.`, 'bot');
+
+    showSuggestions([
+      { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+      { label: 'Enter Activation Code', send: 'Enter activation code' }
+    ]);
+    return;
+  }
+
 
   // User wants to enter code
   if (q.includes('enter activation code') || q.includes('activation code')) {
@@ -272,44 +324,77 @@ async function processMessage(text) {
 
   // Waiting for code
   if (state.waitingForCode) {
-    if (text.toUpperCase().startsWith('ATH-')) {
-      state.mode = 'premium';
-      state.activationCode = text.toUpperCase();
-      state.waitingForCode = false;
+    statusEl.textContent = 'Validating code...';
 
-      statusEl.textContent = 'Premium Connected';
-      modeBadge.textContent = 'Premium';
-      modeBadge.classList.add('premium');
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: "validate",
+          activation_code: text,
+          chat_history: []
+        })
+      });
 
-      addMessage(`✅ Premium activated.<br><br>You now have access to your hospital’s live data.`, 'bot');
+      const data = await response.json();
 
-      showSuggestions([
-        { label: 'Show all patients', send: 'Show me all patients' },
-        { label: 'Current admissions', send: 'Show current admissions' },
-        { label: 'Oldest patient', send: 'Who is the oldest patient?' }
-      ]);
-    } else {
-      addMessage(`Invalid code. Please try again.`, 'bot');
+      if (data.status === 'success' && data.mode === 'premium') {
+        state.mode = 'premium';
+        state.activationCode = text.toUpperCase();   // ← MUST save the code
+        state.role = data.role;
+        state.waitingForCode = false;
+
+        statusEl.textContent = `Premium • ${data.role}`;
+        modeBadge.textContent = 'Premium';
+        modeBadge.classList.add('premium');
+
+        addMessage(
+          `✅ <b>Premium activated</b><br><br>Role: <b>${data.role.toUpperCase()}</b><br>You now have access to hospital live data.`,
+          'bot'
+        );
+
+        showSuggestions([
+          { label: 'Show all patients', send: 'Show me all patients' },
+          { label: 'Current admissions', send: 'Show current admissions' }
+        ]);
+      }else {
+        state.waitingForCode = false;
+        addMessage(`❌ Invalid or expired activation code.`, 'bot');
+        showSuggestions([
+          { label: 'Enter Activation Code', send: 'Enter activation code' },
+          { label: 'Continue in Normal Mode', send: 'hi' }
+        ]);
+      }
+    } catch (err) {
+      addMessage('Could not validate the code. Please try again.', 'bot');
     }
     return;
   }
 
-  // Call the real backend
+  // Normal continue
+  if (q === 'hi' || q.includes('continue without')) {
+    state.waitingForCode = false;
+    addMessage(`Continuing in Normal Mode.`, 'bot');
+    showSuggestions([
+      { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+      { label: 'Enter Activation Code', send: 'Enter activation code' }
+    ]);
+    return;
+  }
+
+  // Call backend
   await callBackend(text);
 }
 
 async function callBackend(question) {
   statusEl.textContent = 'Thinking...';
-
-  // Add user message to history
   state.history.push({ role: 'user', content: question });
 
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         question: question,
         activation_code: state.activationCode,
@@ -318,32 +403,35 @@ async function callBackend(question) {
     });
 
     const data = await response.json();
+    console.log("Backend response:", data);
 
     if (data.status === 'success') {
       addMessage(data.answer, 'bot');
       state.history.push({ role: 'assistant', content: data.answer });
+      state.lastAnswer = data.answer;   // for PDF later
+      saveSession();
     } else {
-      addMessage('Sorry, something went wrong.', 'bot');
+      addMessage(data.answer || 'Something went wrong.', 'bot');
     }
 
   } catch (error) {
-    addMessage('Could not connect to the AI server. Make sure the backend is running.', 'bot');
+    addMessage('Could not connect to the AI server.', 'bot');
     console.error(error);
   }
 
   // Restore status
   if (state.mode === 'premium') {
-    statusEl.textContent = 'Premium Connected';
+    statusEl.textContent = `Premium • ${state.role}`;
   } else {
     statusEl.textContent = 'General Mode';
   }
 
-  // Show suggestions again
+  // Suggestions
   if (state.mode === 'premium') {
     showSuggestions([
       { label: 'Show all patients', send: 'Show me all patients' },
       { label: 'Current admissions', send: 'Show current admissions' },
-      { label: 'Oldest patient', send: 'Who is the oldest patient?' }
+      { label: 'Download PDF', send: 'download pdf' }
     ]);
   } else {
     showSuggestions([
@@ -351,6 +439,85 @@ async function callBackend(question) {
       { label: 'Enter Activation Code', send: 'Enter activation code' }
     ]);
   }
+}
+// ===== SESSION PERSISTENCE =====
+function saveSession() {
+  localStorage.setItem('sahasra_session', JSON.stringify({
+    mode: state.mode,
+    activationCode: state.activationCode,
+    role: state.role,
+    hospitalName: state.hospitalName || null,
+    history: state.history
+  }));
+}
+async function downloadPdf(answerText) {
+  addMessage('Generating PDF report...', 'bot');
+
+  const lines = answerText
+    .split('\n')
+    .map(l => l.replace(/<[^>]*>/g, '').trim())
+    .filter(l => l.length > 0);
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Sahasra AI Report',
+        hospital_name: state.hospitalName || 'Hospital',
+        role: state.role || 'Staff',
+        activation_code: state.activationCode || '',
+        content_lines: lines
+      })
+    });
+
+    if (!response.ok) {
+      addMessage('Failed to generate PDF.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sahasra_report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ PDF downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download PDF. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+function loadSession() {
+  const raw = localStorage.getItem('sahasra_session');
+  if (!raw) return false;
+
+  try {
+    const saved = JSON.parse(raw);
+    state.mode = saved.mode || 'normal';
+    state.activationCode = saved.activationCode || null;
+    state.role = saved.role || null;
+    state.hospitalName = saved.hospitalName || null;
+    state.history = saved.history || [];
+
+    if (state.mode === 'premium') {
+      statusEl.textContent = `Premium • ${state.role}${state.hospitalName ? ' • ' + state.hospitalName : ''}`;
+      modeBadge.textContent = 'Premium';
+      modeBadge.classList.add('premium');
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem('sahasra_session');
 }
 
 start();

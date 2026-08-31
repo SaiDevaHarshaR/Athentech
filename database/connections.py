@@ -2,17 +2,16 @@ import mysql.connector
 from mysql.connector import Error
 from config import settings
 
-def get_hospital_connection(db_name: str):
+def get_hospital_connection(db_name: str = None):
     """
-    Create a connection to a specific hospital database.
-    In real system, db_name will come from activation code.
+    Connect to the hospital MySQL database.
     """
     try:
         connection = mysql.connector.connect(
             host=settings.mysql_host,
             user=settings.mysql_user,
             password=settings.mysql_password,
-            database=db_name
+            database=db_name or settings.mysql_database
         )
         return connection
     except Error as e:

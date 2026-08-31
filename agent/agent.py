@@ -2,6 +2,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from agent.tools import run_sql_query
 from agent.search_tool import web_search
+from agent.guardrails import check_input, check_output
 from config import settings
 from auth.roles import Role, get_allowed_tables
 
@@ -22,8 +23,13 @@ def ask_agent(
     if chat_history is None:
         chat_history = []
 
+    # ========== GUARDRAILS (INPUT) ==========
+    ok, msg = check_input(question)
+    if not ok:
+        return msg
+    # =======================================
+
     if is_premium:
-        # ---------- PREMIUM MODE ----------
         allowed_tables = ', '.join(sorted(get_allowed_tables(Role(role))))
 
         system_prompt = f"""
@@ -35,22 +41,32 @@ Current user role: {role}
 Allowed tables for this role: {allowed_tables}
 
 You have a tool called "run_sql_query".
-You MUST use this tool to answer any question about patients, admissions, labs, wards, pharmacy, etc.
+You MUST use this tool to answer any question about patients or admissions.
 
-### Database Schema:
-- patients (uhid, patient_name, age, gender, registration_date, phone, blood_group)
-- admissions (admission_id, uhid, admission_date, department, doctor_name, status, ward_id, bed_number)
-- wards (ward_id, ward_name, department, total_beds, occupied_beds, available_beds)
-- labs (lab_id, uhid, test_name, status, ordered_date, completed_date, result, doctor_name)
-- pharmacy (medicine_id, medicine_name, stock_quantity, unit, expiry_date, location)
-- prescriptions (prescription_id, uhid, medicine_name, dosage, quantity, prescribed_by, prescribed_date, status)
+### Exact Database Schema (use ONLY these columns):
 
-Rules:
+Table: patients
+- uhid
+- patient_name
+- age
+- gender
+- registration_date
+
+Table: admissions
+- admission_id
+- uhid
+- admission_date
+- department
+- doctor_name
+- status
+
+### Rules:
 - Only write SELECT queries
+- Use ONLY the columns listed above
+- Do NOT use ward_id, bed_number, phone, blood_group or any other column
 - Always use the tool when data is needed
 - Format the final answer with bullet points and emojis
 - Never use markdown tables
-- If the tool returns "Access Denied", clearly tell the user they don't have permission
 """
 
         llm_with_tools = llm.bind_tools([run_sql_query])
@@ -64,8 +80,7 @@ Rules:
         response = llm_with_tools.invoke(messages)
 
         if response.tool_calls:
-            tool_results = []
-
+            result = None
             for tool_call in response.tool_calls:
                 if tool_call["name"] == "run_sql_query":
                     args = tool_call["args"]
@@ -73,7 +88,6 @@ Rules:
                     args["db_name"] = db_name
 
                     result = run_sql_query.invoke(args)
-                    tool_results.append(result)
 
                     messages.append(response)
                     messages.append(ToolMessage(
@@ -81,22 +95,21 @@ Rules:
                         tool_call_id=tool_call["id"]
                     ))
 
-            # Force a clean final answer
             messages.append(HumanMessage(
                 content="Based on the tool result above, give a clear and helpful final answer. Use bullet points and emojis. Do not mention that you received data."
             ))
 
             final = llm_with_tools.invoke(messages)
+            answer = final.content if final.content else str(result)
+        else:
+            answer = response.content if response.content else "I could not find relevant data."
 
-            if final.content and final.content.strip():
-                return final.content
-            else:
-                return "Here’s what I found:\n\n" + "\n\n".join(tool_results)
-
-        return response.content if response.content else "I could not find relevant data for your question."
+        # ========== GUARDRAILS (OUTPUT) ==========
+        return check_output(answer)
+        # ========================================
 
     else:
-        # ---------- NORMAL MODE ----------
+        # NORMAL MODE
         normal_prompt = """
 You are Sahasra AI Assistant.
 You help users with questions about hospitals, doctors, specialties and healthcare in India.
@@ -110,9 +123,7 @@ Rules:
 - Never invent doctor names.
 - Never use markdown tables.
 """
-
         llm_with_tools = llm.bind_tools([web_search])
-
         messages = [SystemMessage(content=normal_prompt)]
         messages.extend(chat_history)
         messages.append(HumanMessage(content=question))
@@ -128,8 +139,11 @@ Rules:
                         content=str(result),
                         tool_call_id=tool_call["id"]
                     ))
-
             final = llm_with_tools.invoke(messages)
-            return final.content if final.content else "No relevant information found."
+            answer = final.content if final.content else "No relevant information found."
+        else:
+            answer = response.content if response.content else "I could not find an answer."
 
-        return response.content if response.content else "I could not find an answer."
+        # ========== GUARDRAILS (OUTPUT) ==========
+        return check_output(answer)
+        # ========================================
