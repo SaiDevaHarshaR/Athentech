@@ -1,5 +1,5 @@
 const KEY = 'sahasraAdminState';
-
+const API_BASE = "http://127.0.0.1:8000";
 const roles = [
     'Admin',
     'Doctor',
@@ -1580,175 +1580,53 @@ function renderLicenses() {
 }
 
 
-function licenseFields(
-    license = {}
-) {
-
+function licenseFields(license = {}) {
     return `
-
         <div class="form-grid">
-
             <div class="form-group">
-
-                <label>
-                    Institution
-                </label>
-
+                <label>Institution</label>
                 <select name="institutionId">
-
-                    ${
-                        state.institutions
-                            .map(institution => `
-
-                                <option
-                                    value="${institution.id}"
-
-                                    ${
-                                        license.institutionId ===
-                                        institution.id
-                                            ? 'selected'
-                                            : ''
-                                    }
-                                >
-                                    ${institution.name}
-                                </option>
-
-                            `)
-                            .join('')
-                    }
-
+                    ${state.institutions.map(institution => `
+                        <option value="${institution.id}" ${license.institutionId === institution.id ? 'selected' : ''}>
+                            ${institution.name}
+                        </option>
+                    `).join('')}
                 </select>
-
             </div>
 
-
             <div class="form-group">
-
-                <label>
-                    Role
-                </label>
-
+                <label>Role</label>
                 <select name="role">
-
-                    ${
-                        roles
-                            .map(role => `
-
-                                <option
-                                    ${
-                                        license.role === role
-                                            ? 'selected'
-                                            : ''
-                                    }
-                                >
-                                    ${role}
-                                </option>
-
-                            `)
-                            .join('')
-                    }
-
+                    ${roles.map(role => `
+                        <option ${license.role === role ? 'selected' : ''}>${role}</option>
+                    `).join('')}
                 </select>
-
             </div>
 
+            <div class="form-group">
+                <label>Phone</label>
+                <input name="phone" placeholder="9876543210" value="${license.phone || ''}" required>
+            </div>
 
             <div class="form-group">
+                <label>DOB Year</label>
+                <input name="dobYear" placeholder="1995" value="${license.dobYear || ''}" required>
+            </div>
 
-                <label>
-                    Plan
-                </label>
-
+            <div class="form-group">
+                <label>Plan</label>
                 <select name="plan">
-
-                    ${
-                        [
-                            'Standard',
-                            'Professional',
-                            'Enterprise'
-                        ]
-
-                        .map(plan => `
-
-                            <option
-                                ${
-                                    license.plan === plan
-                                        ? 'selected'
-                                        : ''
-                                }
-                            >
-                                ${plan}
-                            </option>
-
-                        `)
-                        .join('')
-                    }
-
+                    ${['Standard', 'Professional', 'Enterprise'].map(plan => `
+                        <option ${license.plan === plan ? 'selected' : ''}>${plan}</option>
+                    `).join('')}
                 </select>
-
             </div>
-
-
-            <div class="form-group">
-
-                <label>
-                    Status
-                </label>
-
-                <select name="status">
-
-                    ${
-                        [
-                            'Active',
-                            'Trial',
-                            'Suspended',
-                            'Revoked'
-                        ]
-
-                        .map(status => `
-
-                            <option
-                                ${
-                                    license.status === status
-                                        ? 'selected'
-                                        : ''
-                                }
-                            >
-                                ${status}
-                            </option>
-
-                        `)
-                        .join('')
-                    }
-
-                </select>
-
-            </div>
-
-
-            <div class="form-group">
-
-                <label>
-                    Expiry
-                </label>
-
-                <input
-                    name="expiry"
-                    value="${license.expiry || '15-Dec'}"
-                >
-
-            </div>
-
         </div>
-
     `;
-
 }
 
 
-function openLicense(
-    license = null
-) {
+function openLicense(license = null) {
 
     openModal(
 
@@ -1810,70 +1688,57 @@ function openLicense(
             }
 
             else {
+  // call backend API (no local random code)
+  (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/admin/licenses/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institution_id: Number(data.institutionId),
+          role: data.role,
+          phone: data.phone,
+          dob_year: data.dobYear,
+          plan: data.plan || "Standard",
+          valid_days: 90
+        })
+      });
 
-                const prefix =
+      const result = await response.json();
 
-                    `ATH-${data.role
-                        .toUpperCase()
-                        .replace(/ /g, '-')
-                        .slice(0, 8)}`;
+      if (result.status !== "success") {
+        toast(result.message || "Failed to generate license");
+        return;
+      }
 
+      const license = result.license;
 
-                const code =
+      state.licenses.unshift({
+        id: license.id,
+        code: license.code,
+        institutionId: Number(data.institutionId),
+        role: data.role,
+        plan: license.plan,
+        status: license.status,
+        expiry: license.expiry_date,
+        usage: 0,
+        phone: data.phone,
+        dobYear: data.dobYear
+      });
 
-                    `${prefix}-` +
+      save();
+      addActivity("License generated", license.code);
+      renderLicenses();
+      toast(`Generated: ${license.code}`);
+      alert(`Activation Code:\n${license.code}`);
+    } catch (err) {
+      console.error(err);
+      toast("Could not reach license API");
+    }
+  })();
 
-                    `${String(
-                        Math.floor(
-                            Math.random() * 9999
-                        )
-                    ).padStart(4, '0')}`;
-
-
-                state.licenses.push({
-
-                    id:
-                        Date.now(),
-
-                    code,
-
-                    institutionId:
-                        Number(
-                            data.institutionId
-                        ),
-
-                    role:
-                        data.role,
-
-                    plan:
-                        data.plan,
-
-                    status:
-                        data.status,
-
-                    expiry:
-                        data.expiry,
-
-                    usage:
-                        0
-
-                });
-
-
-                addActivity(
-
-                    'License generated',
-
-                    code
-
-                );
-
-
-                toast(
-                    'License generated'
-                );
-
-            }
+  return;
+}
 
 
             save();

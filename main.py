@@ -9,9 +9,13 @@ from auth.roles import Role
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import time
+from auth.license_service import validate_license
 from audit.log import audit
 from fastapi.responses import StreamingResponse
 from reports.pdf_generator import generate_smart_report
+from pydantic import BaseModel
+from auth.license_service import create_license, validate_license, list_licenses, revoke_license
+from database.license_db import init_license_db, seed_demo_institutions
 
 app = FastAPI(title="Sahasra AI Agent")
 
@@ -19,6 +23,8 @@ app = FastAPI(title="Sahasra AI Agent")
 RATE = {}
 LIMIT = 30        
 WINDOW = 60
+init_license_db()
+seed_demo_institutions()
 # Allow frontend to call the API
 app.add_middleware(
     CORSMiddleware,
@@ -36,7 +42,52 @@ class QueryRequest(BaseModel):
     question: str
     activation_code: Optional[str] = None
     chat_history: Optional[List[Message]] = []
+class GenerateLicenseRequest(BaseModel):
+    institution_id: int
+    role: str
+    phone: str
+    dob_year: str
+    plan: str = "Standard"
+    valid_days: int = 90
 
+class ValidateLicenseRequest(BaseModel):
+    code: str
+
+class RevokeLicenseRequest(BaseModel):
+    code: str
+
+@app.post("/admin/licenses/generate")
+def api_generate_license(req: GenerateLicenseRequest):
+    try:
+        data = create_license(
+            institution_id=req.institution_id,
+            role=req.role,
+            phone=req.phone,
+            dob_year=req.dob_year,
+            plan=req.plan,
+            valid_days=req.valid_days
+        )
+        return {"status": "success", "license": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/licenses/validate")
+def api_validate_license(req: ValidateLicenseRequest):
+    result = validate_license(req.code)
+    if not result.get("valid"):
+        return {"status": "error", "message": result.get("reason", "invalid")}
+    return {"status": "success", "license": result}
+
+@app.get("/admin/licenses")
+def api_list_licenses():
+    return {"status": "success", "licenses": list_licenses()}
+
+@app.post("/admin/licenses/revoke")
+def api_revoke_license(req: RevokeLicenseRequest):
+    ok = revoke_license(req.code)
+    if not ok:
+        return {"status": "error", "message": "Code not found"}
+    return {"status": "success", "message": "License revoked"}
 @app.get("/")
 def home():
     return {"message": "Sahasra AI Agent is running"}
@@ -114,12 +165,12 @@ async def ask_question(req: QueryRequest):
         hospital_name = "Demo Hospital"
 
         if req.activation_code:
-            validation = validate_activation_code_mock(req.activation_code)
-            if validation and validation.get("valid"):
+            validation = validate_license(req.activation_code)
+            if validation.get("valid"):
                 is_premium = True
                 role = validation.get("role", "viewer")
                 db_name = validation.get("db_name", "hospital_demo")
-                hospital_name = validation.get("hospital_name", "Demo Hospital")
+                hospital_name = validation.get("hospital_name", "Hospital")
             else:
                 return {
                     "status": "error",
