@@ -1737,49 +1737,40 @@ window.copyLicense =
     };
 
 
-window.licenseAction =
-    (id, action) => {
+window.licenseAction = async (id, action) => {
+  const license = state.licenses.find(x => x.id === id);
+  if (!license) return;
 
-        const license =
-            state.licenses.find(
-                x => x.id === id
-            );
+  const statusMap = {
+    Suspend: "Suspended",
+    Revoke: "Revoked",
+    Activate: "Active"
+  };
+  const newStatus = statusMap[action] || action;
 
+  try {
+    const res = await fetch(`${API_BASE}/admin/licenses/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: license.code, status: newStatus })
+    });
+    const data = await res.json();
+    if (data.status !== "success") {
+      toast(data.message || "Failed");
+      return;
+    }
 
-        if (!license) return;
-
-
-        if (action === 'Suspend') {
-
-            license.status =
-                'Suspended';
-
-        }
-
-
-        addActivity(
-
-            `License ${action.toLowerCase()}`,
-
-            license.code
-
-        );
-
-
-        save();
-
-        renderLicenses();
-
-        renderDashboard();
-
-
-        toast(
-            `License ${action.toLowerCase()}ed`
-        );
-
-    };
-
-
+    license.status = newStatus;
+    save();
+    addActivity(`License ${newStatus}`, license.code);
+    renderLicenses();
+    renderDashboard();
+    toast(`License ${newStatus}`);
+  } catch (e) {
+    console.error(e);
+    toast("Could not update license status");
+  }
+};
 // =========================================================
 // ANALYTICS
 // =========================================================
@@ -3029,7 +3020,42 @@ $('addAdmin')
 
     };
 
+async function loadLicensesFromAPI() {
+  const res = await fetch(`${API_BASE}/admin/licenses`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load licenses");
 
+  state.licenses = data.licenses.map(l => ({
+    id: l.id,
+    code: l.code,
+    institutionId: l.institution_id,
+    role: l.role,
+    plan: l.plan,
+    status: l.status,
+    expiry: l.expiry_date,
+    usage: 0
+  }));
+  save();
+  renderLicenses();
+}
+
+async function loadInstitutionsFromAPI() {
+  const res = await fetch(`${API_BASE}/admin/institutions`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load institutions");
+
+  state.institutions = data.institutions.map(i => ({
+    id: i.id,
+    name: i.name,
+    type: i.type,
+    code: i.client_prefix,
+    city: i.city,
+    status: i.status,
+    db_name: i.db_name
+  }));
+  save();
+  renderInstitutions();
+}
 // =========================================================
 // EXPORT INSTITUTIONS
 // =========================================================

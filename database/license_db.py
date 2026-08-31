@@ -25,6 +25,12 @@ def init_license_db():
         created_at TEXT
     )
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS role_permissions (
+    role TEXT PRIMARY KEY,
+    tables_csv TEXT NOT NULL
+    )
+    """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS licenses (

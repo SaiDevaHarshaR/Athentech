@@ -16,7 +16,10 @@ from reports.pdf_generator import generate_smart_report
 from pydantic import BaseModel
 from auth.license_service import create_license, validate_license, list_licenses, revoke_license
 from database.license_db import init_license_db, seed_demo_institutions
-
+from auth.license_service import (
+    create_license, validate_license, list_licenses, revoke_license,
+    list_institutions, create_institution, set_license_status
+)
 app = FastAPI(title="Sahasra AI Agent")
 
 
@@ -33,6 +36,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+class InstitutionCreateRequest(BaseModel):
+    name: str
+    client_prefix: str
+    db_name: str
+    type: str = "Hospital"
+    city: str = ""
+    status: str = "Active"
+
+class LicenseStatusRequest(BaseModel):
+    code: str
+    status: str  # Active / Suspended / Revoked
+
+@app.get("/admin/institutions")
+def api_list_institutions():
+    return {"status": "success", "institutions": list_institutions()}
+
+@app.post("/admin/institutions")
+def api_create_institution(req: InstitutionCreateRequest):
+    try:
+        data = create_institution(
+            name=req.name,
+            client_prefix=req.client_prefix,
+            db_name=req.db_name,
+            type_=req.type,
+            city=req.city,
+            status=req.status
+        )
+        return {"status": "success", "institution": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/admin/licenses/status")
+def api_set_license_status(req: LicenseStatusRequest):
+    ok = set_license_status(req.code, req.status)
+    if not ok:
+        return {"status": "error", "message": "License not found"}
+    return {"status": "success", "message": f"License marked {req.status}"}
 
 class Message(BaseModel):
     role: str
