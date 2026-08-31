@@ -31,6 +31,20 @@ def init_license_db():
     tables_csv TEXT NOT NULL
     )
     """)
+    defaults = {
+    "admin": "patients,admissions,labs,pharmacy,wards,prescriptions,billing",
+    "doctor": "patients,admissions,labs,wards",
+    "nurse": "patients,admissions,wards,labs",
+    "lab_tech": "patients,labs",
+    "pharmacist": "patients,pharmacy,prescriptions",
+    "reception": "patients,admissions",
+    "viewer": "patients,admissions"
+    }
+    for role, tables in defaults.items():
+        cur.execute(
+            "INSERT OR IGNORE INTO role_permissions(role, tables_csv) VALUES (?, ?)",
+            (role, tables)
+        )
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS licenses (

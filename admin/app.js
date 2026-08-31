@@ -56,6 +56,42 @@ const rolePermissions = {
 };
 
 
+async function loadInstitutionsFromAPI() {
+  const res = await fetch(`${API_BASE}/admin/institutions`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load institutions");
+
+  state.institutions = data.institutions.map(i => ({
+    id: i.id,
+    name: i.name,
+    type: i.type,
+    code: i.client_prefix,
+    city: i.city,
+    status: i.status,
+    db_name: i.db_name
+  }));
+  save();
+}
+
+async function loadLicensesFromAPI() {
+  const res = await fetch(`${API_BASE}/admin/licenses`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load licenses");
+
+  state.licenses = data.licenses.map(l => ({
+    id: l.id,
+    code: l.code,
+    institutionId: l.institution_id,
+    role: l.role,
+    plan: l.plan,
+    status: l.status,
+    expiry: l.expiry_date,
+    usage: 0
+  }));
+  save();
+}
+
+
 const seed = {
 
     institutions: [
@@ -449,67 +485,31 @@ document
 // =========================================================
 
 function renderDashboard() {
+    const active = activeLicenses();
+    const licenseCount = active.length;
 
-    const active =
-        activeLicenses();
+    const hospitals = state.institutions.filter(
+        x => x.status === 'Active'
+    ).length;
 
+    const queries = state.licenses.reduce(
+        (sum, license) => sum + license.usage,
+        0
+    ) + 18420;
 
-    const licenseCount =
-        active.length;
+    const failed = Math.max(
+        2,
+        Math.round(licenseCount * 0.18)
+    );
 
-
-    const hospitals =
-        state.institutions.filter(
-            x => x.status === 'Active'
-        ).length;
-
-
-    const queries =
-        state.licenses.reduce(
-            (sum, license) =>
-                sum + license.usage,
-            0
-        ) + 18420;
-
-
-    const failed =
-        Math.max(
-            2,
-            Math.round(
-                licenseCount * 0.18
-            )
-        );
-
-
-    $('activeLicenses')
-        .textContent =
-        licenseCount;
-
-
-    $('activeHospitals')
-        .textContent =
-        hospitals;
-
-
-    $('queriesToday')
-        .textContent =
-        queries.toLocaleString();
-
-
-    $('totalQueries')
-        .textContent =
-        queries.toLocaleString();
-
-
-    $('failedValidations')
-        .textContent =
-        failed;
-
+    $('activeLicenses').textContent = licenseCount;
+    $('activeHospitals').textContent = hospitals;
+    $('queriesToday').textContent = queries.toLocaleString();
+    $('totalQueries').textContent = queries.toLocaleString();
+    $('failedValidations').textContent = failed;
 
     renderDashboardChart();
-
     renderDashboardActivities();
-
 }
 
 
@@ -1170,89 +1170,41 @@ function openInstitution(
                     institution,
                     object
                 );
-
-
                 addActivity(
-
                     'Institution updated',
-
                     `${object.name} was updated`
-
                 );
-
-
-                toast(
-                    'Institution updated'
-                );
-
-            }
-
-            else {
-
+                toast('Institution updated');
+            } else {
                 state.institutions.push(
                     object
                 );
-
-
                 addActivity(
-
                     'Institution registered',
-
                     `${object.name} was added`
-
                 );
-
-
-                toast(
-                    'Institution added'
-                );
-
-            }
-
-
+                toast('Institution added'); }
             save();
-
             closeModal();
-
             renderInstitutions();
-
             renderDashboard();
-
         }
-
     );
-
 }
-
-
 window.editInstitution =
     id => {
-
-        openInstitution(
-            inst(id)
-        );
-
+        openInstitution(inst(id) );
     };
-
-
 window.toggleInstitution =
     id => {
-
         const institution =
             inst(id);
-
-
         institution.status =
-
             institution.status ===
             'Inactive'
-
                 ? 'Active'
                 : 'Inactive';
-
-
         addActivity(
-
             institution.status === 'Active'
                 ? 'Institution activated'
                 : 'Institution deactivated',
@@ -1260,42 +1212,25 @@ window.toggleInstitution =
             institution.name
 
         );
-
-
         save();
-
         renderInstitutions();
-
         renderDashboard();
-
-
         toast(
-
             `${institution.name} is ` +
             `${institution.status}`
-
         );
-
     };
-
-
 window.viewInstitutionLicenses =
     id => {
-
         const institution =
             inst(id);
-
-
         const count =
             state.licenses.filter(
                 license =>
                     license.institutionId ===
                     id
             ).length;
-
-
         toast(
-
             `${institution.name}: ` +
             `${count} license` +
             (
@@ -1303,85 +1238,49 @@ window.viewInstitutionLicenses =
                     ? 's'
                     : ''
             )
-
         );
-
     };
-
-
 // =========================================================
 // LICENSE MANAGEMENT
 // =========================================================
-
 function renderLicenses() {
-
     fillSelect(
-
         'licenseInstitutionFilter',
-
         state.institutions.map(
             institution =>
                 String(institution.id)
         ),
-
         'Institution'
-
     );
-
-
     const institutionSelect =
         $('licenseInstitutionFilter');
-
-
     [...institutionSelect.options]
         .forEach(option => {
-
-            if (
-                option.value !== 'all'
-            ) {
-
+            if (option.value !== 'all') {
                 const institution =
                     inst(option.value);
-
-
                 option.textContent =
                     institution?.name ||
                     option.value;
-
             }
-
         });
-
-
     fillSelect(
         'licenseRoleFilter',
         roles,
         'Role'
     );
-
-
     const search =
         $('licenseSearch')
             .value
             .toLowerCase();
-
-
     const institution =
         institutionSelect.value;
-
-
     const role =
         $('licenseRoleFilter').value;
-
-
     const status =
         $('licenseStatusFilter').value;
-
-
     const plan =
         $('licensePlanFilter').value;
-
-
     const rows =
         state.licenses.filter(
             license => {
@@ -1759,7 +1658,6 @@ window.licenseAction = async (id, action) => {
       toast(data.message || "Failed");
       return;
     }
-
     license.status = newStatus;
     save();
     addActivity(`License ${newStatus}`, license.code);
@@ -2404,64 +2302,45 @@ function renderFailureChart() {
             .join('');
 
 }
-
-
 // =========================================================
 // ROLES & PERMISSIONS
 // =========================================================
 
-function renderRoles() {
-
-    $('roleRows').innerHTML =
-
-        roles
-            .map(
-                role => `
-
-                    <div class="role-row">
-
-                        <div class="role-name">
-                            ${role}
-                        </div>
-
-                        <div class="chips">
-
-                            ${
-                                rolePermissions[role]
-                                    .map(
-                                        permission => `
-
-                                            <span class="chip">
-                                                ${permission}
-                                            </span>
-
-                                        `
-                                    )
-                                    .join('')
-                            }
-
-                        </div>
-
-                        <button
-                            class="row-action"
-                            onclick="
-                                editRole(
-                                    '${role}'
-                                )
-                            "
-                        >
-                            Edit
-                        </button>
-
-                    </div>
-
-                `
-            )
-            .join('');
-
+async function renderRoles() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/roles`);
+    const data = await res.json();
+    if (data.status !== "success") throw new Error("Failed to load roles");
+    const rolesData = data.roles;
+    const container = $("roleRows");
+    container.innerHTML = Object.entries(rolesData).map(([role, tables]) => `
+      <div class="role-row" style="display:flex;gap:10px;align-items:center;margin:8px 0;">
+        <span style="width:120px;"><b>${role}</b></span>
+        <input class="role-tables" data-role="${role}" value="${tables.join(", ")}" style="flex:1;padding:8px;" />
+        <button class="secondary-btn" onclick="saveRole('${role}')">Save</button>
+      </div>
+    `).join("");
+  } catch (e) {
+    console.error(e);
+    toast("Could not load roles");
+  }
 }
-
-
+window.saveRole = async (role) => {
+  const input = document.querySelector(`.role-tables[data-role="${role}"]`);
+  const tables = input.value.split(",").map(t => t.trim()).filter(Boolean);
+  try {
+    const res = await fetch(`${API_BASE}/admin/roles`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, tables })
+    });
+    const data = await res.json();
+    toast(data.status === "success" ? `Saved ${role}` : "Failed to save role");
+  } catch (e) {
+    console.error(e);
+    toast("Could not save role");
+  }
+};
 window.editRole =
     role => {
 
@@ -3019,47 +2898,9 @@ $('addAdmin')
         );
 
     };
-
-async function loadLicensesFromAPI() {
-  const res = await fetch(`${API_BASE}/admin/licenses`);
-  const data = await res.json();
-  if (data.status !== "success") throw new Error("Failed to load licenses");
-
-  state.licenses = data.licenses.map(l => ({
-    id: l.id,
-    code: l.code,
-    institutionId: l.institution_id,
-    role: l.role,
-    plan: l.plan,
-    status: l.status,
-    expiry: l.expiry_date,
-    usage: 0
-  }));
-  save();
-  renderLicenses();
-}
-
-async function loadInstitutionsFromAPI() {
-  const res = await fetch(`${API_BASE}/admin/institutions`);
-  const data = await res.json();
-  if (data.status !== "success") throw new Error("Failed to load institutions");
-
-  state.institutions = data.institutions.map(i => ({
-    id: i.id,
-    name: i.name,
-    type: i.type,
-    code: i.client_prefix,
-    city: i.city,
-    status: i.status,
-    db_name: i.db_name
-  }));
-  save();
-  renderInstitutions();
-}
 // =========================================================
 // EXPORT INSTITUTIONS
 // =========================================================
-
 $('exportInstitutions')
     .onclick =
     () => {
@@ -3092,8 +2933,6 @@ $('exportInstitutions')
             )
 
         ].join('\n');
-
-
         const blob =
             new Blob(
                 [csv],
@@ -3102,38 +2941,24 @@ $('exportInstitutions')
                         'text/csv'
                 }
             );
-
-
         const link =
             document.createElement(
                 'a'
             );
-
-
         link.href =
             URL.createObjectURL(
                 blob
             );
-
-
         link.download =
             'sahasra-institutions.csv';
-
-
         link.click();
-
-
         toast(
             'CSV exported'
         );
-
     };
-
-
 // =========================================================
 // FILTER EVENTS
 // =========================================================
-
 [
     'registrySearch',
     'typeFilter',
@@ -3150,8 +2975,6 @@ $('exportInstitutions')
 
     }
 );
-
-
 [
     'licenseSearch',
     'licenseInstitutionFilter',
@@ -3161,16 +2984,12 @@ $('exportInstitutions')
 ]
 .forEach(
     id => {
-
         $(id).addEventListener(
             'input',
             renderLicenses
         );
-
     }
 );
-
-
 [
     'analyticsRange',
     'analyticsInstitution',
@@ -3179,23 +2998,17 @@ $('exportInstitutions')
 ]
 .forEach(
     id => {
-
         $(id).addEventListener(
             'change',
             renderAnalytics
         );
-
     }
 );
-
-
 $('auditSearch')
     .addEventListener(
         'input',
         renderAudit
     );
-
-
 // =========================================================
 // GLOBAL SEARCH
 // =========================================================
@@ -3204,79 +3017,38 @@ $('globalSearch')
     .addEventListener(
         'input',
         event => {
-
             const query =
                 event.target.value.trim();
-
-
             if (!query) return;
-
-
-            navigate(
-                'institutions'
-            );
-
-
+            navigate('institutions');
             $('registrySearch')
                 .value =
                 query;
-
-
             renderInstitutions();
-
         }
     );
-
-
 // =========================================================
 // KEYBOARD SHORTCUTS
 // =========================================================
-
 document.addEventListener(
     'keydown',
     event => {
 
-        if (
-
-            (event.ctrlKey ||
-                event.metaKey)
-
-            &&
-
-            event.key.toLowerCase()
-                === 'k'
-
-        ) {
-
+        if ( (event.ctrlKey ||event.metaKey)  &&  event.key.toLowerCase() === 'k' ) {
             event.preventDefault();
-
             $('globalSearch')
                 .focus();
-
-        }
-
-
-        if (
-            event.key ===
-            'Escape'
-        ) {
-
+        } if ( event.key ==='Escape') {
             closeModal();
-
         }
-
     }
 );
-
-
 // =========================================================
 // RESPONSIVE CHART
 // =========================================================
-
 window.addEventListener(
     'resize',
     () => {
-
         if (
             $('analyticsPage')
                 .classList
@@ -3284,29 +3056,32 @@ window.addEventListener(
                     'active-page'
                 )
         ) {
-
             renderAnalytics();
-
         }
-
     }
 );
-
-
 // =========================================================
 // INITIAL LOAD
 // =========================================================
-
 renderDashboard();
-
 renderInstitutions();
-
 renderLicenses();
-
 renderAnalytics();
-
 renderRoles();
-
 renderSettings();
-
 renderAudit();
+let bootstrapped = false;
+async function bootstrapAdmin() {
+  if (bootstrapped) return;
+  bootstrapped = true;
+
+  try {
+    await loadInstitutionsFromAPI();
+    await loadLicensesFromAPI();
+  } catch (e) {
+    console.error("Bootstrap failed:", e);
+  }
+
+  navigate("dashboard");
+}
+bootstrapAdmin();

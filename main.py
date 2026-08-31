@@ -14,17 +14,25 @@ from audit.log import audit
 from fastapi.responses import StreamingResponse
 from reports.pdf_generator import generate_smart_report
 from pydantic import BaseModel
+from auth.license_service import get_role_permissions, update_role_permissions, list_institutions, set_license_status
 from auth.license_service import create_license, validate_license, list_licenses, revoke_license
 from database.license_db import init_license_db, seed_demo_institutions
 from auth.license_service import (
-    create_license, validate_license, list_licenses, revoke_license,
-    list_institutions, create_institution, set_license_status
+    create_license,
+    validate_license,
+    list_licenses,
+    revoke_license,
+    list_institutions,
+    create_institution,
+    set_license_status,
+    get_role_permissions,
+    update_role_permissions
 )
 app = FastAPI(title="Sahasra AI Agent")
 
 
 RATE = {}
-LIMIT = 30        
+LIMIT = 300
 WINDOW = 60
 init_license_db()
 seed_demo_institutions()
@@ -36,6 +44,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+class RolePermissionUpdate(BaseModel):
+    role: str
+    tables: list[str]
+
+class LicenseStatusRequest(BaseModel):
+    code: str
+    status: str
+
+@app.get("/admin/institutions")
+def api_list_institutions():
+    return {"status": "success", "institutions": list_institutions()}
+
+@app.post("/admin/licenses/status")
+def api_set_license_status(req: LicenseStatusRequest):
+    ok = set_license_status(req.code, req.status)
+    if not ok:
+        return {"status": "error", "message": "License not found"}
+    return {"status": "success", "message": f"License marked {req.status}"}
+
+@app.get("/admin/roles")
+def api_get_roles():
+    return {"status": "success", "roles": get_role_permissions()}
+
+@app.put("/admin/roles")
+def api_update_role(req: RolePermissionUpdate):
+    update_role_permissions(req.role, req.tables)
+    return {"status": "success"}
 class InstitutionCreateRequest(BaseModel):
     name: str
     client_prefix: str

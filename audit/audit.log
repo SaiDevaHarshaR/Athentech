@@ -10,3 +10,4 @@
 {"ts": "2026-08-31T05:06:42.581752Z", "event": "premium_query", "role": "doctor", "code": "ATH-DOC-001", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}
 {"ts": "2026-08-31T05:08:55.810093Z", "event": "premium_query", "role": "doctor", "code": "ATH-DOC-001", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}
 {"ts": "2026-08-31T09:09:25.631882Z", "event": "premium_query", "role": "nurse", "code": "CCARE-NURSE-21095", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}
+{"ts": "2026-08-31T10:49:17.826795Z", "event": "premium_query", "role": "admin", "code": "CCARE-ADMIN-82962", "question": "Show me all patients", "meta": {"db_name": "hospital_demo", "hospital": "City Care Hospital"}}
