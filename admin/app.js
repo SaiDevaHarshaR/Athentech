@@ -1627,134 +1627,86 @@ function licenseFields(license = {}) {
 
 
 function openLicense(license = null) {
-
     openModal(
-
         'LICENSE',
-
-        license
-            ? 'Edit License'
-            : 'Generate License',
-
-        licenseFields(
-            license || {}
-        ),
-
+        license ? 'Edit License' : 'Generate License',
+        licenseFields(license || {}),
         data => {
-
+            // ===== EDIT existing license =====
             if (license) {
+                Object.assign(license, {
+                    institutionId: Number(data.institutionId),
+                    role: data.role,
+                    plan: data.plan
+                });
 
-                Object.assign(
-
-                    license,
-
-                    {
-
-                        institutionId:
-                            Number(
-                                data.institutionId
-                            ),
-
-                        role:
-                            data.role,
-
-                        plan:
-                            data.plan,
-
-                        status:
-                            data.status,
-
-                        expiry:
-                            data.expiry
-
-                    }
-
-                );
-
-
-                addActivity(
-
-                    'License updated',
-
-                    license.code
-
-                );
-
-
-                toast(
-                    'License updated'
-                );
-
+                addActivity('License updated', license.code);
+                toast('License updated');
+                save();
+                closeModal();
+                renderLicenses();
+                renderDashboard();
+                return;
             }
 
-            else {
-  // call backend API (no local random code)
-  (async () => {
-    try {
-      const response = await fetch(`${API_BASE}/admin/licenses/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          institution_id: Number(data.institutionId),
-          role: data.role,
-          phone: data.phone,
-          dob_year: data.dobYear,
-          plan: data.plan || "Standard",
-          valid_days: 90
-        })
-      });
+            // ===== GENERATE new license via API =====
+            if (!data.phone || !data.dobYear) {
+                toast('Phone and DOB Year are required');
+                return;
+            }
 
-      const result = await response.json();
+            (async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/admin/licenses/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            institution_id: Number(data.institutionId),
+                            role: data.role,
+                            phone: data.phone,
+                            dob_year: data.dobYear,
+                            plan: data.plan || 'Standard',
+                            valid_days: 90
+                        })
+                    });
 
-      if (result.status !== "success") {
-        toast(result.message || "Failed to generate license");
-        return;
-      }
+                    const result = await response.json();
 
-      const license = result.license;
+                    if (result.status !== 'success') {
+                        toast(result.message || 'Failed to generate license');
+                        return;
+                    }
 
-      state.licenses.unshift({
-        id: license.id,
-        code: license.code,
-        institutionId: Number(data.institutionId),
-        role: data.role,
-        plan: license.plan,
-        status: license.status,
-        expiry: license.expiry_date,
-        usage: 0,
-        phone: data.phone,
-        dobYear: data.dobYear
-      });
+                    const created = result.license;
 
-      save();
-      addActivity("License generated", license.code);
-      renderLicenses();
-      toast(`Generated: ${license.code}`);
-      alert(`Activation Code:\n${license.code}`);
-    } catch (err) {
-      console.error(err);
-      toast("Could not reach license API");
-    }
-  })();
+                    state.licenses.unshift({
+                        id: created.id,
+                        code: created.code,
+                        institutionId: Number(data.institutionId),
+                        role: data.role,
+                        plan: created.plan,
+                        status: created.status,
+                        expiry: created.expiry_date,
+                        usage: 0,
+                        phone: data.phone,
+                        dobYear: data.dobYear
+                    });
 
-  return;
-}
-
-
-            save();
-
-            closeModal();
-
-            renderLicenses();
-
-            renderDashboard();
-
+                    addActivity('License generated', created.code);
+                    save();
+                    closeModal();
+                    renderLicenses();
+                    renderDashboard();
+                    toast(`Generated: ${created.code}`);
+                    alert(`Activation Code:\n${created.code}`);
+                } catch (err) {
+                    console.error(err);
+                    toast('Could not reach license API. Is backend running?');
+                }
+            })();
         }
-
     );
-
 }
-
 
 window.editLicense =
     id => {
