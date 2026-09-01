@@ -14,18 +14,32 @@ llm = ChatGroq(
     api_key=settings.groq_api_key
 )
 
-MAX_TOOL_ROUNDS = 5  # describe_table + run_sql_query can chain a few times before we force an answer
+MAX_TOOL_ROUNDS = 5  # a chain like describe_table -> run_sql_query, or web_search -> web_search again, gets a few rounds before we force an answer
 
 
-def _run_tool_loop(llm_with_tools, messages, role: str, db_name: str, tools_by_name: dict):
+def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     """
     Repeatedly invokes the LLM and executes any tool calls it makes,
     feeding results back in, until it stops calling tools or we hit
-    MAX_TOOL_ROUNDS. Needed because a real query often takes more than
-    one tool call now (describe_table to learn columns, THEN
-    run_sql_query with the right column names) — a single-shot
-    "call tools once, then answer" loop can't handle that chain.
+    MAX_TOOL_ROUNDS. Used by BOTH premium mode (describe_table ->
+    run_sql_query can chain) and normal mode (web_search can get called
+    more than once for a follow-up search).
+
+    Previously normal mode only ever handled a single round: if the model
+    called web_search a second time instead of writing a final answer,
+    `final.content` would be empty (it's a tool-call response, not text)
+    and the code silently fell back to "No relevant information found" —
+    even when the first search had already returned real results. This
+    unified loop fixes that for both modes at once.
+
+    tool_extra_kwargs: {tool_name: {kwarg: value}} — extra arguments
+    forced onto specific tools' calls (e.g. role/db_name for the SQL
+    tools, which must come from the validated license, never from
+    whatever the LLM put in its tool-call args). Tools not listed get
+    called with exactly the args the LLM provided — needed because
+    web_search's signature doesn't accept role/db_name at all.
     """
+    tool_extra_kwargs = tool_extra_kwargs or {}
     response = llm_with_tools.invoke(messages)
 
     for _ in range(MAX_TOOL_ROUNDS):
@@ -39,10 +53,7 @@ def _run_tool_loop(llm_with_tools, messages, role: str, db_name: str, tools_by_n
                 result = f"Error: unknown tool '{tool_call['name']}'."
             else:
                 args = dict(tool_call["args"])
-                # role/db_name always come from the validated license, never
-                # from whatever the LLM put in its tool-call arguments.
-                args["role"] = role
-                args["db_name"] = db_name
+                args.update(tool_extra_kwargs.get(tool_call["name"], {}))
                 result = tool_fn.invoke(args)
 
             messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
@@ -121,7 +132,13 @@ to their role or isn't in the system yet.
         messages.extend(chat_history)
         messages.append(HumanMessage(content=f"User Question: {question}"))
 
-        answer = _run_tool_loop(llm_with_tools, messages, role, db_name, tools_by_name)
+        answer = _run_tool_loop(
+            llm_with_tools, messages, tools_by_name,
+            tool_extra_kwargs={
+                "run_sql_query": {"role": role, "db_name": db_name},
+                "describe_table": {"role": role, "db_name": db_name},
+            }
+        )
         if not answer:
             answer = "I could not find relevant data."
 
@@ -139,31 +156,24 @@ You have a tool called "web_search" to find real and current information.
 
 Rules:
 - Use the web_search tool when the user asks about specific hospitals, doctors, ratings, or locations.
+- If your first search doesn't return enough to answer well, try again with a
+  more specific or differently-worded query before giving up.
 - After getting search results, give a clean, helpful summary.
 - Use bullet points and light emojis.
 - Never invent doctor names.
 - Never use markdown tables.
 """
-        llm_with_tools = llm.bind_tools([web_search])
+        tools = [web_search]
+        tools_by_name = {t.name: t for t in tools}
+        llm_with_tools = llm.bind_tools(tools)
+
         messages = [SystemMessage(content=normal_prompt)]
         messages.extend(chat_history)
         messages.append(HumanMessage(content=question))
 
-        response = llm_with_tools.invoke(messages)
-
-        if response.tool_calls:
-            for tool_call in response.tool_calls:
-                if tool_call["name"] == "web_search":
-                    result = web_search.invoke(tool_call["args"])
-                    messages.append(response)
-                    messages.append(ToolMessage(
-                        content=str(result),
-                        tool_call_id=tool_call["id"]
-                    ))
-            final = llm_with_tools.invoke(messages)
-            answer = final.content if final.content else "No relevant information found."
-        else:
-            answer = response.content if response.content else "I could not find an answer."
+        answer = _run_tool_loop(llm_with_tools, messages, tools_by_name)
+        if not answer:
+            answer = "I could not find an answer."
 
         # ========== GUARDRAILS (OUTPUT) ==========
         return check_output(answer)
