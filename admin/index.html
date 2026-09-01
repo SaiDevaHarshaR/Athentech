@@ -36,6 +36,37 @@
     #adminLoginError {
       margin-top: 12px; font-size: 12.5px; color: #dc2626; min-height: 16px;
     }
+
+    .topbar-dropdown-wrap { position: relative; }
+    .notification, .admin-profile-btn {
+      background: none; border: none; cursor: pointer; font: inherit; color: inherit;
+      display: flex; align-items: center; gap: 8px; position: relative;
+    }
+    #notificationDot {
+      position: absolute; top: -2px; right: -2px; width: 8px; height: 8px;
+      border-radius: 50%; background: #dc2626; display: inline-block;
+    }
+    .topbar-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 500;
+      width: 280px; background: #fff; border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.18); overflow: hidden;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    .topbar-dropdown.hidden { display: none; }
+    .topbar-dropdown-header {
+      padding: 10px 14px; font-size: 12px; font-weight: 700; color: #64748b;
+      border-bottom: 1px solid #eef1f5; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .topbar-notification-item {
+      padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f4f6f8; color: #1e293b;
+    }
+    .topbar-notification-item small { display: block; color: #94a3b8; margin-top: 2px; }
+    .topbar-dropdown-footer, .topbar-dropdown-item {
+      width: 100%; text-align: left; padding: 10px 14px; border: none; background: none;
+      font-size: 13px; cursor: pointer; color: #334155;
+    }
+    .topbar-dropdown-footer:hover, .topbar-dropdown-item:hover { background: #f8fafc; }
+    .topbar-empty { padding: 14px; font-size: 13px; color: #94a3b8; }
   </style>
 </head>
 <body>
@@ -73,7 +104,24 @@
     <header class="topbar">
       <div class="mobile-brand"><div class="brand-mark">S</div><strong>Sahasra</strong></div>
       <div class="global-search"><span>⌕</span><input id="globalSearch" placeholder="Search institutions, licenses..."><kbd>Ctrl K</kbd></div>
-      <div class="admin-profile"><div class="notification">♢<i></i></div><div class="avatar">AD</div><div class="admin-info"><strong>Admin</strong><small>Administrator</small></div><span>⌄</span></div>
+      <div class="admin-profile">
+        <div class="topbar-dropdown-wrap">
+          <button id="notificationBell" class="notification" type="button" aria-label="Notifications">♢<i id="notificationDot" style="display:none;"></i></button>
+          <div id="notificationPanel" class="topbar-dropdown hidden">
+            <div class="topbar-dropdown-header">Recent activity</div>
+            <div id="notificationList"></div>
+            <button id="notificationViewAll" class="topbar-dropdown-footer" type="button">View all in Audit Logs</button>
+          </div>
+        </div>
+        <div class="topbar-dropdown-wrap">
+          <button id="adminProfileBtn" class="admin-profile-btn" type="button">
+            <div class="avatar">AD</div><div class="admin-info"><strong>Admin</strong><small>Administrator</small></div><span>⌄</span>
+          </button>
+          <div id="adminProfileMenu" class="topbar-dropdown hidden">
+            <button id="adminLogoutBtn" class="topbar-dropdown-item" type="button">Log out</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <section class="content">

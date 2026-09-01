@@ -2971,21 +2971,102 @@ $('auditSearch')
 // =========================================================
 // GLOBAL SEARCH
 // =========================================================
+// Previously only ever searched institutions, even though the
+// placeholder promised "institutions, licenses". Now checks license
+// codes too and routes to whichever page actually has a match.
 
 $('globalSearch')
     .addEventListener(
         'input',
         event => {
-            const query =
-                event.target.value.trim();
+            const query = event.target.value.trim();
             if (!query) return;
-            navigate('institutions');
-            $('registrySearch')
-                .value =
-                query;
-            renderInstitutions();
+
+            const q = query.toLowerCase();
+            const matchesInstitution = state.institutions.some(i =>
+                i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)
+            );
+            const matchesLicense = state.licenses.some(l =>
+                l.code.toLowerCase().includes(q)
+            );
+
+            if (!matchesInstitution && matchesLicense) {
+                navigate('licenses');
+                $('licenseSearch').value = query;
+                renderLicenses();
+            } else {
+                navigate('institutions');
+                $('registrySearch').value = query;
+                renderInstitutions();
+            }
         }
     );
+
+// =========================================================
+// TOPBAR: NOTIFICATIONS + ADMIN PROFILE MENU
+// =========================================================
+
+function closeTopbarDropdowns() {
+    $('notificationPanel').classList.add('hidden');
+    $('adminProfileMenu').classList.add('hidden');
+}
+
+function updateNotificationDot() {
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const hasRecentFailure = (state.auditEvents || []).some(e =>
+        e.event === 'invalid_code_attempt' && new Date(e.ts).getTime() >= dayAgo
+    );
+    $('notificationDot').style.display = hasRecentFailure ? 'inline-block' : 'none';
+}
+
+function renderNotificationPanel() {
+    const events = (state.auditEvents || []).slice(0, 5);
+    const listEl = $('notificationList');
+
+    if (events.length === 0) {
+        listEl.innerHTML = '<div class="topbar-empty">No recent activity yet.</div>';
+    } else {
+        listEl.innerHTML = events.map(e => {
+            const item = auditEventToActivity(e);
+            return `
+                <div class="topbar-notification-item">
+                    <strong>${item.title}</strong>
+                    <small>${item.description} — ${formatRelativeTime(item.ts)}</small>
+                </div>
+            `;
+        }).join('');
+    }
+
+    updateNotificationDot();
+}
+
+$('notificationBell').addEventListener('click', event => {
+    event.stopPropagation();
+    $('adminProfileMenu').classList.add('hidden');
+    renderNotificationPanel();
+    $('notificationPanel').classList.toggle('hidden');
+});
+
+$('notificationViewAll').addEventListener('click', () => {
+    closeTopbarDropdowns();
+    navigate('audit');
+});
+
+$('adminProfileBtn').addEventListener('click', event => {
+    event.stopPropagation();
+    $('notificationPanel').classList.add('hidden');
+    $('adminProfileMenu').classList.toggle('hidden');
+});
+
+$('adminLogoutBtn').addEventListener('click', () => {
+    clearAdminToken();
+    bootstrapped = false;
+    closeTopbarDropdowns();
+    showLoginOverlay();
+});
+
+document.addEventListener('click', () => closeTopbarDropdowns());
+
 // =========================================================
 // KEYBOARD SHORTCUTS
 // =========================================================
@@ -3047,6 +3128,7 @@ async function bootstrapAdmin() {
     await loadSettingsFromAPI();  // real admin-configured settings
     renderInstitutions();
     renderLicenses();
+    updateNotificationDot();
   } catch (e) {
     console.error("Bootstrap failed:", e);
     bootstrapped = false; // allow retry after re-login
