@@ -67,6 +67,29 @@ def init_license_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
+    # Defaults match what was previously hardcoded in main.py/guardrails.py,
+    # so applying no changes here keeps existing behavior identical.
+    default_settings = {
+        "license_validity_days": "90",
+        "normal_mode_enabled": "true",     # allow non-premium web-search chat
+        "rate_limit_per_minute": "300",
+        "extra_blocked_patterns": "",      # comma-separated, ADDED to the built-in guardrail patterns
+        "output_redaction_enabled": "true",
+        "email_alerts_enabled": "false",
+        "webhook_url": "",
+    }
+    for key, value in default_settings.items():
+        cur.execute(
+            "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
+            (key, value)
+        )
+
     conn.commit()
     conn.close()
 

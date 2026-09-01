@@ -180,6 +180,115 @@ async function loadLicensesFromAPI() {
   save();
 }
 
+function formatRelativeTime(isoString) {
+  if (!isoString) return '';
+  const then = new Date(isoString).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+
+  if (diffSeconds < 60) return 'Just now';
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+}
+
+// Converts one real audit/audit.log record into the same shape the
+// activity feed / audit table already render ({icon, title, description,
+// ts, actor}) — same shape addActivity() produces, so both real events
+// and local admin-action notices can be merged and sorted together.
+function auditEventToActivity(e) {
+  const roleLabel = e.role ? e.role.toUpperCase() : null;
+
+  if (e.event === 'premium_query') {
+    return {
+      icon: '◇',
+      title: 'Premium query',
+      description: `${roleLabel || 'Unknown role'} at ${e.meta?.hospital || 'unknown hospital'} asked: "${e.question || ''}"`,
+      ts: e.ts,
+      actor: roleLabel || 'Staff'
+    };
+  }
+
+  if (e.event === 'invalid_code_attempt') {
+    return {
+      icon: '!',
+      title: 'Invalid activation attempt',
+      description: `Code ${e.code || 'unknown'} was rejected (${e.meta?.reason || 'invalid'})`,
+      ts: e.ts,
+      actor: 'System'
+    };
+  }
+
+  return {
+    icon: '•',
+    title: e.event || 'Event',
+    description: e.question || '',
+    ts: e.ts,
+    actor: roleLabel || 'System'
+  };
+}
+
+// Real audit trail from the backend (audit/audit.log) — this is what
+// actually matters for compliance: who queried what, and every rejected
+// activation attempt. Kept separately from state.activities (which mixes
+// this in with local admin-action notices for the dashboard/audit views)
+// so callers that specifically need the raw real events still can.
+async function loadAuditFromAPI() {
+  const res = await authFetch(`${API_BASE}/admin/audit?limit=500`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load audit log");
+
+  state.auditEvents = data.events;
+
+  // Merge real events into the activity feed alongside local admin-action
+  // notices (institution registered, etc.), sorted newest-first by real
+  // timestamp, so the dashboard/audit page shows one true timeline
+  // instead of two disconnected fake/real feeds.
+  // Only keep local notices that have a real timestamp (i.e. created by
+  // addActivity() after this fix) — filters out the old static seed
+  // entries like '8 min ago' that have no ts and would otherwise show a
+  // blank time forever.
+  const localOnly = state.activities.filter(a => !a.fromAudit && a.ts);
+  const realOnes = state.auditEvents.map(e => ({ ...auditEventToActivity(e), fromAudit: true }));
+
+  state.activities = [...localOnly, ...realOnes]
+    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+    .slice(0, 100);
+
+  // Real usage-per-license count, replacing the old hardcoded seed numbers.
+  const usageByCode = {};
+  for (const e of state.auditEvents) {
+    if (e.event === 'premium_query' && e.code) {
+      usageByCode[e.code] = (usageByCode[e.code] || 0) + 1;
+    }
+  }
+  state.licenses.forEach(l => {
+    l.usage = usageByCode[l.code] || 0;
+  });
+
+  save();
+}
+
+async function loadSettingsFromAPI() {
+  const res = await authFetch(`${API_BASE}/admin/settings`);
+  const data = await res.json();
+  if (data.status !== "success") throw new Error("Failed to load settings");
+
+  state.settings = {
+    validity: String(data.settings.license_validity_days),
+    normalMode: data.settings.normal_mode_enabled,
+    rateLimit: data.settings.rate_limit_per_minute,
+    blockedPatterns: data.settings.extra_blocked_patterns.join(', '),
+    redaction: data.settings.output_redaction_enabled,
+    emailAlerts: data.settings.email_alerts_enabled,
+    webhook: data.settings.webhook_url
+  };
+  save();
+}
+
 
 const seed = {
 
@@ -457,7 +566,7 @@ function addActivity(
 
         description,
 
-        time: 'Just now',
+        ts: new Date().toISOString(),
 
         actor
 
@@ -754,7 +863,7 @@ function renderDashboardActivities() {
                     </div>
 
                     <span class="activity-time">
-                        ${activity.time}
+                        ${formatRelativeTime(activity.ts)}
                     </span>
 
                 </div>
@@ -1243,25 +1352,40 @@ function openInstitution(
         data => {
 
             if (institution) {
-                // NOTE: there's no PUT /admin/institutions endpoint on the
-                // backend yet, so edits only update local display state and
-                // WILL NOT persist after a refresh. Only creation is wired
-                // to the real API below. Ask me to add a real update
-                // endpoint if you need edits to stick.
-                Object.assign(institution, {
-                    name: data.name.trim(),
-                    code: data.code.trim().toUpperCase(),
-                    db_name: data.db_name.trim(),
-                    type: data.type,
-                    city: data.city.trim(),
-                    status: data.status,
-                });
-                addActivity('Institution updated (local display only — not saved to server)', `${institution.name} was updated`);
-                toast('Updated locally only — no server-side edit endpoint yet');
-                save();
-                closeModal();
-                renderInstitutions();
-                renderDashboard();
+                // Now wired to the real PATCH endpoint.
+                (async () => {
+                    try {
+                        const res = await authFetch(`${API_BASE}/admin/institutions/${institution.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: data.name.trim(),
+                                client_prefix: data.code.trim().toUpperCase(),
+                                db_name: data.db_name.trim(),
+                                type: data.type,
+                                city: data.city.trim(),
+                                status: data.status,
+                            }),
+                        });
+                        const result = await res.json();
+
+                        if (!res.ok || result.status !== 'success') {
+                            toast(result.message || 'Failed to update institution');
+                            return;
+                        }
+
+                        addActivity('Institution updated', `${data.name.trim()} was updated`);
+                        toast('Institution updated');
+                        closeModal();
+
+                        await loadInstitutionsFromAPI();
+                        renderInstitutions();
+                        renderDashboard();
+                    } catch (err) {
+                        console.error(err);
+                        toast('Could not reach the server to update the institution');
+                    }
+                })();
                 return;
             }
 
@@ -1309,28 +1433,36 @@ window.editInstitution =
     };
 window.toggleInstitution =
     id => {
-        const institution =
-            inst(id);
-        institution.status =
-            institution.status ===
-            'Inactive'
-                ? 'Active'
-                : 'Inactive';
-        addActivity(
-            institution.status === 'Active'
-                ? 'Institution activated'
-                : 'Institution deactivated',
+        const institution = inst(id);
+        const newStatus = institution.status === 'Inactive' ? 'Active' : 'Inactive';
 
-            institution.name
+        (async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/admin/institutions/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus }),
+                });
+                const result = await res.json();
 
-        );
-        save();
-        renderInstitutions();
-        renderDashboard();
-        toast(
-            `${institution.name} is ` +
-            `${institution.status}`
-        );
+                if (!res.ok || result.status !== 'success') {
+                    toast(result.message || 'Failed to update status');
+                    return;
+                }
+
+                await loadInstitutionsFromAPI();
+                addActivity(
+                    newStatus === 'Active' ? 'Institution activated' : 'Institution deactivated',
+                    institution.name
+                );
+                renderInstitutions();
+                renderDashboard();
+                toast(`${institution.name} is ${newStatus}`);
+            } catch (err) {
+                console.error(err);
+                toast('Could not reach the server to update status');
+            }
+        })();
     };
 window.viewInstitutionLicenses =
     id => {
@@ -1788,168 +1920,76 @@ window.licenseAction = async (id, action) => {
 function renderAnalytics() {
 
     fillSelect(
-
         'analyticsInstitution',
-
-        state.institutions.map(
-            institution =>
-                String(institution.id)
-        ),
-
+        state.institutions.map(institution => String(institution.id)),
         'Institution'
-
     );
 
+    const institutionSelect = $('analyticsInstitution');
 
-    const institutionSelect =
-        $('analyticsInstitution');
+    [...institutionSelect.options].forEach(option => {
+        if (option.value !== 'all') {
+            option.textContent = inst(option.value)?.name || option.value;
+        }
+    });
 
+    fillSelect('analyticsRole', roles, 'Role');
+    fillSelect('analyticsPlan', ['Standard', 'Professional', 'Enterprise'], 'Plan');
 
-    [...institutionSelect.options]
-        .forEach(option => {
+    const range = Number($('analyticsRange').value);
+    const institution = institutionSelect.value;
+    const role = $('analyticsRole').value;
+    const plan = $('analyticsPlan').value;
 
-            if (
-                option.value !== 'all'
-            ) {
+    const licenses = state.licenses.filter(license =>
+        (institution === 'all' || String(license.institutionId) === institution) &&
+        (role === 'all' || license.role === role) &&
+        (plan === 'all' || license.plan === plan)
+    );
 
-                option.textContent =
-                    inst(option.value)
-                        ?.name ||
-                    option.value;
+    // Real analytics: derived from actual audit/audit.log events
+    // (state.auditEvents, loaded by loadAuditFromAPI), not fabricated
+    // numbers. Previously this synthesized fake totals via
+    // `base + range * 730` — that line invented up to 730 fake queries
+    // per day regardless of what actually happened.
+    const licenseCodes = new Set(licenses.map(l => l.code));
+    const rangeStartMs = Date.now() - range * 24 * 60 * 60 * 1000;
 
-            }
+    const relevantEvents = (state.auditEvents || []).filter(e =>
+        e.event === 'premium_query' &&
+        licenseCodes.has(e.code) &&
+        new Date(e.ts).getTime() >= rangeStartMs
+    );
 
+    const queries = relevantEvents.length;
+    const codes = licenses.length;
+    const average = codes ? (queries / codes).toFixed(1) : '0.0';
+
+    $('analyticsQueries').textContent = queries.toLocaleString();
+    $('analyticsCodes').textContent = codes;
+    $('analyticsAverage').textContent = average;
+
+    // Real peak hour from actual query timestamps, instead of a
+    // hardcoded '11 AM'. Shows 'N/A' when there's not enough data yet
+    // rather than pretending to know.
+    if (relevantEvents.length === 0) {
+        $('analyticsPeak').textContent = 'N/A';
+    } else {
+        const hourCounts = {};
+        relevantEvents.forEach(e => {
+            const hour = new Date(e.ts).getHours();
+            hourCounts[hour] = (hourCounts[hour] || 0) + 1;
         });
-
-
-    fillSelect(
-        'analyticsRole',
-        roles,
-        'Role'
-    );
-
-
-    fillSelect(
-
-        'analyticsPlan',
-
-        [
-            'Standard',
-            'Professional',
-            'Enterprise'
-        ],
-
-        'Plan'
-
-    );
-
-
-    const range =
-        Number(
-            $('analyticsRange').value
+        const peakHour = Number(
+            Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0][0]
         );
+        const displayHour = ((peakHour % 12) || 12) + (peakHour < 12 ? ' AM' : ' PM');
+        $('analyticsPeak').textContent = displayHour;
+    }
 
-
-    const institution =
-        institutionSelect.value;
-
-
-    const role =
-        $('analyticsRole').value;
-
-
-    const plan =
-        $('analyticsPlan').value;
-
-
-    const licenses =
-        state.licenses.filter(
-            license =>
-
-                (
-                    institution === 'all' ||
-
-                    String(
-                        license.institutionId
-                    ) === institution
-                )
-
-                &&
-
-                (
-                    role === 'all' ||
-
-                    license.role === role
-                )
-
-                &&
-
-                (
-                    plan === 'all' ||
-
-                    license.plan === plan
-                )
-        );
-
-
-    const base =
-        licenses.reduce(
-            (sum, license) =>
-                sum + license.usage,
-            0
-        );
-
-
-    const queries =
-        base + range * 730;
-
-
-    const codes =
-        licenses.length;
-
-
-    const average =
-        codes
-            ? (queries / codes).toFixed(1)
-            : '0.0';
-
-
-    $('analyticsQueries')
-        .textContent =
-        queries.toLocaleString();
-
-
-    $('analyticsCodes')
-        .textContent =
-        codes;
-
-
-    $('analyticsAverage')
-        .textContent =
-        average;
-
-
-    $('analyticsPeak')
-        .textContent =
-        '11 AM';
-
-
-    drawLineChart(
-        queries,
-        range
-    );
-
-
-    renderRoleBars(
-        licenses
-    );
-
-
-    renderTopInstitutions(
-        licenses
-    );
-
-
+    drawLineChart(relevantEvents, range);
+    renderRoleBars(licenses);
+    renderTopInstitutions(licenses);
     renderFailureChart();
 
 }
@@ -1959,212 +1999,66 @@ function renderAnalytics() {
 // LINE CHART
 // =========================================================
 
-function drawLineChart(
-    total,
-    days
-) {
+function drawLineChart(events, days) {
 
-    const canvas =
-        $('queryChart');
+    const canvas = $('queryChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = 220;
 
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
 
-    const ctx =
-        canvas.getContext('2d');
+    const points = days <= 7 ? 7 : days <= 30 ? 12 : 15;
 
+    // Real day-bucketed counts from actual audit events, instead of a
+    // fabricated sine-wave curve derived from one fake total number.
+    const bucketMs = (days * 24 * 60 * 60 * 1000) / points;
+    const rangeStartMs = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    const dpr =
-        window.devicePixelRatio || 1;
+    const values = Array.from({ length: points }, (_, index) => {
+        const bucketStart = rangeStartMs + index * bucketMs;
+        const bucketEnd = bucketStart + bucketMs;
+        return events.filter(e => {
+            const t = new Date(e.ts).getTime();
+            return t >= bucketStart && t < bucketEnd;
+        }).length;
+    });
 
-
-    const width =
-        canvas.clientWidth;
-
-
-    const height =
-        220;
-
-
-    canvas.width =
-        width * dpr;
-
-
-    canvas.height =
-        height * dpr;
-
-
-    ctx.scale(
-        dpr,
-        dpr
-    );
-
-
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-
-    const points =
-
-        days <= 7
-            ? 7
-            : days <= 30
-                ? 12
-                : 15;
-
-
-    const values =
-
-        Array.from(
-            { length: points },
-
-            (_, index) =>
-
-                Math.round(
-
-                    total *
-
-                    (
-                        0.55 +
-
-                        Math.sin(
-                            index * 1.15
-                        ) * 0.12 +
-
-                        index /
-                        (points * 2)
-                    )
-
-                    /
-
-                    points
-
-                )
-
-        );
-
-
-    const max =
-        Math.max(...values) * 1.18;
-
-
-    const min =
-        0;
-
+    const max = Math.max(...values, 1) * 1.18;
+    const min = 0;
 
     // Grid
-
-    ctx.strokeStyle =
-        '#ececf1';
-
-
-    ctx.lineWidth =
-        1;
-
-
-    for (
-        let y = 0;
-        y < 5;
-        y++
-    ) {
-
-        const yy =
-            20 +
-            y *
-            (height - 50) /
-            4;
-
-
+    ctx.strokeStyle = '#ececf1';
+    ctx.lineWidth = 1;
+    for (let y = 0; y < 5; y++) {
+        const yy = 20 + y * (height - 50) / 4;
         ctx.beginPath();
-
-        ctx.moveTo(
-            35,
-            yy
-        );
-
-        ctx.lineTo(
-            width - 10,
-            yy
-        );
-
+        ctx.moveTo(35, yy);
+        ctx.lineTo(width - 10, yy);
         ctx.stroke();
-
     }
 
-
     // Line
-
     ctx.beginPath();
-
-
-    values.forEach(
-        (value, index) => {
-
-            const x =
-                35 +
-
-                index *
-                (width - 50) /
-                (points - 1);
-
-
-            const y =
-
-                height -
-                30 -
-
-                (
-                    value - min
-                )
-
-                /
-
-                (
-                    max - min
-                )
-
-                *
-
-                (
-                    height - 60
-                );
-
-
-            if (index === 0) {
-
-                ctx.moveTo(
-                    x,
-                    y
-                );
-
-            }
-
-            else {
-
-                ctx.lineTo(
-                    x,
-                    y
-                );
-
-            }
-
+    values.forEach((value, index) => {
+        const x = 35 + index * (width - 50) / (points - 1);
+        const y = height - 30 - (value - min) / (max - min) * (height - 60);
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
         }
-    );
-
-
-    ctx.strokeStyle =
-        '#6756e8';
-
-
-    ctx.lineWidth =
-        3;
-
-
+    });
+    ctx.strokeStyle = '#6756e8';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
 }
+
 
 
 // =========================================================
@@ -2326,92 +2220,55 @@ function renderTopInstitutions(
 
 function renderFailureChart() {
 
-    const reasons = [
+    // Real breakdown of why activation attempts failed, from
+    // invalid_code_attempt events in the real audit log — previously
+    // this was 4 completely hardcoded percentages (42/26/18/14) that
+    // never reflected anything that actually happened.
+    const failureEvents = (state.auditEvents || []).filter(e => e.event === 'invalid_code_attempt');
 
-        ['Invalid code', 42],
+    const reasonLabels = {
+        invalid_code: 'Invalid code',
+        inactive: 'Inactive license',
+        expired: 'Expired license',
+    };
 
-        ['Rate limit', 26],
+    const colors = ['#6756e8', '#43a7e9', '#f0a44c', '#dc6269', '#8a8a8a'];
 
-        ['Expired license', 18],
+    if (failureEvents.length === 0) {
+        $('failurePie').style.background = '#e5e7eb';
+        $('failureLegend').innerHTML = '<div class="empty">No failed activation attempts recorded yet.</div>';
+        return;
+    }
 
-        ['Other', 14]
+    const counts = {};
+    failureEvents.forEach(e => {
+        const reason = e.meta?.reason || 'other';
+        counts[reason] = (counts[reason] || 0) + 1;
+    });
 
-    ];
-
-
-    const colors = [
-
-        '#6756e8',
-
-        '#43a7e9',
-
-        '#f0a44c',
-
-        '#dc6269'
-
-    ];
-
+    const total = failureEvents.length;
+    const reasons = Object.entries(counts).map(([reason, count]) => [
+        reasonLabels[reason] || reason,
+        Math.round((count / total) * 100)
+    ]);
 
     let current = 0;
-
     const parts = [];
+    reasons.forEach((reason, index) => {
+        const color = colors[index % colors.length];
+        parts.push(`${color} ${current}% ${current + reason[1]}%`);
+        current += reason[1];
+    });
 
+    $('failurePie').style.background = `conic-gradient(${parts.join(',')})`;
 
-    reasons.forEach(
-        (reason, index) => {
-
-            parts.push(
-
-                `${colors[index]} ` +
-
-                `${current}% ` +
-
-                `${current + reason[1]}%`
-
-            );
-
-
-            current +=
-                reason[1];
-
-        }
-    );
-
-
-    $('failurePie').style.background =
-
-        `conic-gradient(${parts.join(',')})`;
-
-
-    $('failureLegend').innerHTML =
-
-        reasons
-            .map(
-                (reason, index) => `
-
-                    <div class="legend-item">
-
-                        <span
-                            class="legend-dot"
-                            style="
-                                background:
-                                ${colors[index]}
-                            "
-                        ></span>
-
-                        <span>
-                            ${reason[0]}
-                        </span>
-
-                        <span class="legend-value">
-                            ${reason[1]}%
-                        </span>
-
-                    </div>
-
-                `
-            )
-            .join('');
+    $('failureLegend').innerHTML = reasons.map((reason, index) => `
+        <div class="legend-item">
+            <span class="legend-dot" style="background: ${colors[index % colors.length]}"></span>
+            <span>${reason[0]}</span>
+            <span class="legend-value">${reason[1]}%</span>
+        </div>
+    `).join('');
 
 }
 // =========================================================
@@ -2673,7 +2530,7 @@ function renderAudit() {
                     <tr>
 
                         <td>
-                            ${activity.time}
+                            ${formatRelativeTime(activity.ts)}
                         </td>
 
                         <td>
@@ -2863,56 +2720,41 @@ $('saveSettings')
     .onclick =
     () => {
 
-        state.settings = {
-
-            validity:
-                $('licenseValidity')
-                    .value,
-
-            normalMode:
-                $('normalMode')
-                    .checked,
-
-            rateLimit:
-                Number(
-                    $('rateLimit')
-                        .value
-                ),
-
-            blockedPatterns:
-                $('blockedPatterns')
-                    .value,
-
-            redaction:
-                $('redaction')
-                    .checked,
-
-            emailAlerts:
-                $('emailAlerts')
-                    .checked,
-
-            webhook:
-                $('webhook')
-                    .value
-
+        const payload = {
+            license_validity_days: Number($('licenseValidity').value),
+            normal_mode_enabled: $('normalMode').checked,
+            rate_limit_per_minute: Number($('rateLimit').value),
+            extra_blocked_patterns: $('blockedPatterns').value
+                .split(',')
+                .map(p => p.trim())
+                .filter(Boolean),
+            output_redaction_enabled: $('redaction').checked,
+            email_alerts_enabled: $('emailAlerts').checked,
+            webhook_url: $('webhook').value,
         };
 
+        (async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/admin/settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const result = await res.json();
 
-        save();
+                if (!res.ok || result.status !== 'success') {
+                    toast(result.message || 'Failed to save settings');
+                    return;
+                }
 
-
-        addActivity(
-
-            'Settings updated',
-
-            'Administrative configuration changed'
-
-        );
-
-
-        toast(
-            'Settings saved'
-        );
+                await loadSettingsFromAPI();
+                addActivity('Settings updated', 'Administrative configuration changed');
+                toast('Settings saved');
+            } catch (err) {
+                console.error(err);
+                toast('Could not reach the server to save settings');
+            }
+        })();
 
     };
 
@@ -3196,6 +3038,8 @@ async function bootstrapAdmin() {
   try {
     await loadInstitutionsFromAPI();
     await loadLicensesFromAPI();
+    await loadAuditFromAPI();     // real audit events + real per-license usage counts
+    await loadSettingsFromAPI();  // real admin-configured settings
     renderInstitutions();
     renderLicenses();
   } catch (e) {

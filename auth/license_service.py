@@ -169,6 +169,41 @@ def create_institution(name, client_prefix, db_name, type_="Hospital", city="", 
     }
 
 
+def update_institution(institution_id: int, **fields):
+    """
+    Partial update — only fields explicitly passed are changed.
+    Allowed fields: name, client_prefix, db_name, type, city, status.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise ValueError("Institution not found")
+
+    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status"}
+    updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
+
+    if "client_prefix" in updates:
+        updates["client_prefix"] = updates["client_prefix"].upper()
+
+    if not updates:
+        conn.close()
+        return dict(existing)
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    cur.execute(
+        f"UPDATE institutions SET {set_clause} WHERE id = ?",
+        (*updates.values(), institution_id)
+    )
+    conn.commit()
+
+    updated = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    conn.close()
+    return dict(updated)
+
+
 def get_role_permissions():
     conn = get_conn()
     rows = conn.execute("SELECT role, tables_csv FROM role_permissions").fetchall()
@@ -186,3 +221,56 @@ def update_role_permissions(role: str, tables: list):
     )
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Settings — runtime-configurable values previously hardcoded in main.py /
+# guardrails.py. Stored as plain key-value text; caller is responsible for
+# interpreting types (see get_settings() below, which does that conversion).
+# ---------------------------------------------------------------------------
+
+def get_settings() -> dict:
+    conn = get_conn()
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    conn.close()
+    raw = {r["key"]: r["value"] for r in rows}
+
+    return {
+        "license_validity_days": int(raw.get("license_validity_days", 90) or 90),
+        "normal_mode_enabled": raw.get("normal_mode_enabled", "true") == "true",
+        "rate_limit_per_minute": int(raw.get("rate_limit_per_minute", 300) or 300),
+        "extra_blocked_patterns": [
+            p.strip() for p in (raw.get("extra_blocked_patterns", "") or "").split(",") if p.strip()
+        ],
+        "output_redaction_enabled": raw.get("output_redaction_enabled", "true") == "true",
+        "email_alerts_enabled": raw.get("email_alerts_enabled", "false") == "true",
+        "webhook_url": raw.get("webhook_url", ""),
+    }
+
+
+def update_settings(**fields) -> dict:
+    conn = get_conn()
+    cur = conn.cursor()
+
+    serializers = {
+        "license_validity_days": lambda v: str(int(v)),
+        "normal_mode_enabled": lambda v: "true" if v else "false",
+        "rate_limit_per_minute": lambda v: str(int(v)),
+        "extra_blocked_patterns": lambda v: ",".join(v) if isinstance(v, list) else str(v),
+        "output_redaction_enabled": lambda v: "true" if v else "false",
+        "email_alerts_enabled": lambda v: "true" if v else "false",
+        "webhook_url": lambda v: str(v),
+    }
+
+    for key, value in fields.items():
+        if key not in serializers or value is None:
+            continue
+        cur.execute(
+            "INSERT INTO settings(key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, serializers[key](value))
+        )
+
+    conn.commit()
+    conn.close()
+    return get_settings()
