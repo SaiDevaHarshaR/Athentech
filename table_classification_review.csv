@@ -1,0 +1,704 @@
+table,row_count,category,reasoning
+mstAppBookingNo,3,admissions,booking number definitions
+mstAppBookingSlots,2,admissions,booking slot schedule
+trnInvStatus,3467507,billing,invoice status tracking
+trnMODEOFCOLLECTIONSDET,2068747,billing,collection mode details
+mstTallyRegLedger,992281,billing,ledger entries
+trnReferalManagementDET,939839,billing,referral bill details
+trnReferalMgmtBillDtls,667701,billing,referral bill details
+trnInvPayDetails,664191,billing,invoice payment details
+trnReferalManagementPRI,123282,billing,primary referral management
+trnReferalPayments,122171,billing,referral payments
+mstRefDoc,65533,billing,reference document for billing
+trnMergedDocBillDtls_Referral,42840,billing,merged doc referral billing
+trnMergedDocBillDtls,40548,billing,merged document billing
+trnCompPayments,27096,billing,company payments (retry)
+trnInvoiceGeneration,23511,billing,invoice creation data
+trnInvoicePayments,20965,billing,payment transaction details
+trnCompPayModeDetails,16266,billing,payment mode details
+trnPayModeChangeLog,11770,billing,payment mode change log
+trnDelCreditBill,9074,billing,deleted credit bill
+trnInvStatusUpdateLog,4186,billing,invoice status update log
+trnTrackCreditAmts_New,3090,billing,credit amount tracking (retry)
+mstPaymentDetails,2361,billing,payment transaction records
+trnReferalMgmtBillDtls_Del,2350,billing,deleted referral bill details
+trnReferalManagementDET_Delete,2137,billing,deleted referral bill details
+trnReferalPartialPayments,1322,billing,partial payments
+trnCCOutRptRemarks,894,billing,billing remarks (retry)
+mstTempAppPaymentdtls,240,billing,payment details
+trnReferalManagementPRI_Del,183,billing,deleted primary referral
+trnTempDayCollAll,183,billing,daily collection summary (retry)
+msttempTallyRegLedger,155,billing,ledger entries
+mstTallyLedgerMaster,121,billing,ledger master
+trnReferalPayments_Del,77,billing,deleted referral payments
+trnRejBillsCancellationLog,70,billing,rejected bill cancellation log
+trnCCPayments,70,billing,company payments (retry)
+mstReportStatus,69,billing,report status tracking
+trnAppInvPRI,47,billing,invoice primary data
+trnInvoiceTestLog,39,billing,invoice test log entries
+mstMemPlanSEC,38,billing,secondary membership plan
+tblTempLedgerOrg,35,billing,org ledger totals
+mstMemPlans,33,billing,membership plans
+mstMemPlanWiseBenefits,19,billing,plan benefits
+trnTempBranchWiseColl,18,billing,branch collection summary (retry)
+TRNCOMPPAYMENTSRENOVA,10,billing,company payments (retry)
+mstHeaderPayType,9,billing,payment type header
+mstTaxCategory,9,billing,tax categories
+tblAppAgentTrack,9,billing,agent bill tracking
+trnCompWiseConcessions,9,billing,invoice concessions
+mstInvoiceSlipText,6,billing,invoice slip text
+tblAppAgentAssignBill,6,billing,bill assignment to agent
+mstConcePerson,4,billing,concession holders
+mstCoupons,4,billing,coupon definitions
+mstAppAdditionalCharges,3,billing,additional charge definitions
+mstConceGiven,2,billing,concession names for billing
+mstMemPlanPRI,2,billing,membership plan primary
+mstMemPlansWiseAdditionalCharges,2,billing,additional charges
+tblAppRepoCharges,2,billing,repository charge definitions
+CC_Invoice,0,billing,invoice records
+CC_InvoiceNew,0,billing,invoice records
+Customers,0,billing,customer list
+DayCollection_MobileApp,0,billing,daily collection summary
+mstCCInvestigationRates,0,billing,pricing for investigations
+mstCCReg,0,billing,client registration with balances
+mstCouponInvDtls,0,billing,coupon usage details
+mstDocDeptInvDiscount,0,billing,invoice discount
+mstFiles,0,billing,billing attachment
+mstLuxaryTax,0,billing,room tax for luxury rooms
+mstOrgDeptDiscount,0,billing,department discount rates
+mstRefDocAmtMapping,0,billing,doc amount mapping
+mstRefdocMapping,0,billing,doc to subdept mapping
+mstTallyLedgerTypeInfo,0,billing,ledger type info
+msttariffUpdations,0,billing,tariff updates
+msttariffUpdations_StorecProc,0,billing,tariff updates
+PaymentGatewayResponse,0,billing,payment transaction data
+TARIFFTABLE,0,billing,tariff rates for services
+tblCCInvDetails,0,billing,invoice details
+tblCreditPeriodGen,0,billing,credit period
+tblInvoiceSms,0,billing,invoice and SMS details
+tblTempLedger,0,billing,ledger totals
+trnAcntVouPaymntModeOfColctnDetails,0,billing,payment mode details
+trnAgeingReport,0,billing,accounts receivable ageing
+trnBillingCycleInvoiceGeneration,0,billing,invoice generation cycle
+trnBillingCycleRates,0,billing,billing rates
+trnBulkCancelLog,0,billing,bulk invoice cancellation
+trnCRBillNo,0,billing,credit bill
+trnCreditSales,0,billing,credit sales
+trnPaymntGtAcknowledgement,0,billing,payment acknowledgement record
+trnReferalCancellation,0,billing,referral cancellation billing
+trnReferalPartialPayments_Del,0,billing,deleted partial payments
+trnVoucherGen,0,billing,voucher generation for payments
+trnCC_ClubbedReport,0,billing,clubbed billing report (retry)
+trnCC_CshCryPayments,0,billing,payment records (retry)
+trnCC_CshCryPayModeDetails,0,billing,payment mode details (retry)
+trnCCInvoiceGeneration,0,billing,invoice generation (retry)
+trnCCPayments1,0,billing,payment summary (retry)
+trnCCPayModeDetails,0,billing,payment mode info (retry)
+trnClubbed,0,billing,clubbed bills (retry)
+trnClubbedReport,0,billing,clubbed report (retry)
+trnEcommPrintTrack,0,billing,print tracking (retry)
+trnExecutiveCashPayment,0,billing,cash payment transaction (retry)
+trnExecutiveDenomination,0,billing,cash denomination record (retry)
+trnHVAdditionalCharges,0,billing,additional charges (retry)
+trnTariffUpdate,0,billing,tariff update (retry)
+trnTempMonColl,0,billing,billing monetary collection (retry)
+trnTempRejBills,0,billing,billing rejected bills (retry)
+trnTempShiftCollecRpt,0,billing,billing shift collection (retry)
+trnTrackCreditAmts,0,billing,billing credit tracking (retry)
+mstRefDoctor,43963,doctors,doctor master data
+trnMergedDoctors,1272,doctors,merged doctor records
+mstReferralGroup,107,doctors,referral group info
+mstSpecialization,50,doctors,doctor specialization lookup
+mstCCRefDoctor,0,doctors,doctor reference
+mstDoctor,0,doctors,doctor master
+mstDoctorNew,0,doctors,doctor master
+mstDoctorSlab,0,doctors,doctor fee slab
+mstMapAuthDoc,0,doctors,auth doc mapping
+mstMapSubAuthDoc,0,doctors,sub auth doc mapping
+mstRefDocClinicInfo,0,doctors,clinic info for docs
+mstRefDoctorNew,0,doctors,doctor master data
+mstReferalContacts,0,doctors,referral contact list
+mstSchedule,0,doctors,doctor schedule slots
+mstTimings,0,doctors,doctor schedule
+tblTimings,0,doctors,doctor slot timings
+trnDoctorWeeklyOffs,0,doctors,doctor off days (retry)
+trnRefGroupInvMapping,278746,inventory,group to inventory mapping
+PriceUpdateLog,61560,inventory,log of inventory price changes
+mstInvPackagesLog,50440,inventory,log of package rates
+trnGRNDetails,15524,inventory,goods received detail (retry)
+trnPurchaseOrderDtls,13562,inventory,purchase order line items
+PriceUpdate,13011,inventory,price update for inventory items
+trnStock,12756,inventory,stock inventory (retry)
+mstMachineParameters,8414,inventory,machine parameters
+trnPurchaseOrderPendingDtls,5988,inventory,pending purchase order lines
+trnGrnTAndC,3651,inventory,grn terms conditions (retry)
+trnGRNMaster,3638,inventory,grn master record (retry)
+mstItems,2555,inventory,master list of items
+trnPOTAndC,2452,inventory,purchase order terms & conditions
+trnPurchaseOrder,2433,inventory,purchase order header
+KOMPPRICE,1443,inventory,price list
+trnCompModificationLog,1385,inventory,inventory modification log (retry)
+trnItemTrack,1254,inventory,inventory item tracking
+mstItemsR,944,inventory,alternate item list
+trnOpeningStock,902,inventory,opening stock
+trnTempInvDET,750,inventory,inventory detail (retry)
+mstTempAppInvDtls,401,inventory,temp inventory details
+ATTAPUR-PRICE,345,inventory,price list
+KonnectStock,262,inventory,stock levels
+mstUNITS,198,inventory,unit master
+mstSuppliers,144,inventory,supplier master
+mstInvPrecautions,125,inventory,precautions for inventory items
+BNREDDY-PRICE,107,inventory,price list
+tblInvTemplates,73,inventory,inventory templates
+mstAppDiseaseInvDtls,58,inventory,disease inventory details
+mstSubItemType,43,inventory,item type master
+mstMachineInvMethodMap,34,inventory,machine to method mapping
+mstMachineMethodMap,26,inventory,maps machines to methods
+trnDeptConsumptionDET,25,inventory,department consumption
+trnDeptConsumptionPRI,25,inventory,department consumption header
+mstUOM,19,inventory,UOM master
+mstItemType,7,inventory,item type definitions
+trnGrnReturnsDetails,6,inventory,grn return detail (retry)
+trnGrnReturns,5,inventory,grn return master (retry)
+mstManufacturers,4,inventory,manufacturer details
+mstUOMMapping,4,inventory,UOM mapping
+mstAntibiotics,3,inventory,master list of antibiotics
+mstOutSourceInvMapping,3,inventory,outsourced inventory mapping
+mstItemUnit,1,inventory,unit definitions
+mstRack,1,inventory,storage rack info
+mstTray,1,inventory,inventory tray
+RackMaster,1,inventory,rack master for inventory
+SetInventoryTypes,1,inventory,inventory type definitions
+trnConsignment,1,inventory,consignment inventory
+trnConsignmentDtls,1,inventory,consignment details
+trnQuotation,1,inventory,quotation header
+trnQuotationDetails,1,inventory,quotation line items
+trnQuotationTAndC,1,inventory,quotation terms & conditions
+EcomRateVsAIPL,0,inventory,price list
+LEELA,0,inventory,price list
+mdata,0,inventory,price list
+mstConsumptionMaster,0,inventory,item consumption master
+mstDIS_INV_INSERT,0,inventory,inventory insert log
+mstInvConsumables,0,inventory,consumable inventory
+mstInvInventoryMap,0,inventory,inventory mapping
+mstInvPackages2,0,inventory,package rates for lab tests
+mstInvPrecautionsLog,0,inventory,log of inventory precautions
+mstInvScheduleDet,0,inventory,schedule for inventory items
+mstItemDeptAccess,0,inventory,department access to items
+mstItemSubUnit,0,inventory,sub-unit definitions
+mstItemTrayMap,0,inventory,tray mapping for items
+mstItemUnitMapping,0,inventory,unit mapping
+mstMachine,0,inventory,machine inventory
+mstMachineMaster,0,inventory,machine master data
+mstMachineOrg,0,inventory,machine tariff info
+mstMachineParameters1,0,inventory,duplicate machine parameters
+mstMedRack,0,inventory,medication rack
+mstMedTray,0,inventory,medication tray
+mstROLROQDeptMapping,0,inventory,item to department mapping with reorder levels
+mstStoresSubDepartment,0,inventory,store subdepartment mapping
+mstSuppliersRegistration,0,inventory,supplier registration
+Newtariff2019,0,inventory,inventory tariff data
+SURENDRA,0,inventory,inventory item details
+tblInvcodes,0,inventory,inventory codes and rates
+tblPOIndDtls,0,inventory,purchase order details
+tblPOIndMst,0,inventory,purchase order master
+tblShipmentDtls,0,inventory,shipment details
+tblShipmentMst,0,inventory,shipment master
+trnBranchIndentDET,0,inventory,branch requisition details
+trnBranchIndentPRI,0,inventory,branch requisition primary
+trnBranchIssueDET,0,inventory,item issue details
+trnBranchIssuePRI,0,inventory,item issue primary
+trnBranchReturnDET,0,inventory,item return details
+trnBranchReturnPRI,0,inventory,item return primary
+trnConsumtionDetails,0,inventory,item consumption
+trnDailyConsumptionDtls,0,inventory,daily consumption
+trnPOFreeQtyDetails,0,inventory,purchase order free quantity details
+trnPOTermsConditions,0,inventory,purchase order terms details
+trnPurchase,0,inventory,purchase transaction record
+trnPurchaseReturnDetails,0,inventory,purchase return line details
+trnPurchaseReturns,0,inventory,purchase return header
+trnPurcPaymnt,0,inventory,purchase payment record
+trnPurcPaymntModeOfColctnDetails,0,inventory,purchase payment collection details
+trnPurcRetPaymntModeOfColctnDetails,0,inventory,purchase return payment details
+trnQuotationFreeQtyDetails,0,inventory,quotation free quantity details
+trnQuotationTermsConditions,0,inventory,quotation terms details
+trnFormDeptInvMapping,0,inventory,inventory mapping (retry)
+trnFormInvDeduction,0,inventory,inventory deduction (retry)
+trnGRNConcession,0,inventory,GRN concession (retry)
+trnGRNDetails26feb2020,0,inventory,GRN details (retry)
+trnGRNFreeQtyDetails,0,inventory,free quantity details (retry)
+trnInventoryConsumption,0,inventory,inventory consumption (retry)
+trnInventSupplierPaymts,0,inventory,supplier payments (retry)
+trnStock26feb2020,0,inventory,stock details (retry)
+trnStockINVConsumption,0,inventory,stock consumption (retry)
+trnStockTransfer,0,inventory,stock transfer (retry)
+trnStoresLedger,0,inventory,stores ledger (retry)
+trnStoresMODEOFCOLLECTIONSDET,0,inventory,collection mode (retry)
+trnParamResult,11089648,labs,lab results
+tblEqpResults,7774180,labs,lab results
+mstOrgInvestigationRates,3798804,labs,lab investigation rates
+trnINVLABDET,2990701,labs,lab test billing (retry)
+trnINVLABPRI,1794581,labs,lab priority info
+trnStatusTracking,887246,labs,sample status tracking
+trnDescResult,776714,labs,lab result description (retry)
+trnSampleLogisAcknow,635314,labs,sample logistics acknowledgement
+trnSampleLogisDet,632359,labs,sample logistics details
+mstInvPackages,477391,labs,test package catalog
+trnTempAbnormalReport,318157,labs,lab abnormal report (retry)
+mstParameterTemplate,237585,labs,parameter templates
+tblVitrosUploadedData,116984,labs,lab test uploads
+mstInvestigationsDtls,97853,labs,investigation details
+mstInvestigationsDtls_PriceLog,91066,labs,investigation price log
+trnTempAutoAuthentication,88448,labs,lab auto authentication (retry)
+trnSampleLogisPri,78979,labs,sample logistics primary
+tblA15UploadedData,59708,labs,uploaded lab test data
+trnAuthDeletionTrack,26817,labs,result entry deletion tracking
+mstInvestigationsDtlsLog,24920,labs,investigation details log
+mstOrgInvestigationRatesLogistics,20223,labs,lab rates logistics
+mstLabDescTemp,7657,labs,lab test description temp
+mstInvestigations,3886,labs,main investigations list
+trnOutSrcSamplesDtls,3585,labs,outsourced samples
+mstParameterTemplateLog,2689,labs,parameter template logs
+tblAppCart,1606,labs,test cart details
+trnOutSrcSamplesPRI,1249,labs,outsourced samples
+mstParameterCalculation,1125,labs,parameter calculation rules
+mstInvestigationsLog,831,labs,investigation log
+trnINVLABDETLOC16,746,labs,lab bill detail record
+mstInvestigationAPI,531,labs,investigation API mapping
+trnCompTempLabInvDetails,321,labs,lab invoice details
+mstParameterHead,240,labs,parameter head definitions
+trnCompTempINVLABPRI,132,labs,lab invoice header
+trnResultwithheld,116,labs,withheld lab results
+mstLabMachine,52,labs,lab machine details
+mstMethod,42,labs,lab method definitions
+trnDifferentialCount,23,labs,lab differential count (retry)
+mstSampleType,14,labs,sample type lookup
+mstOrganismType,5,labs,microbiology organism types
+SampleTypes,5,labs,sample type definitions
+mstInvestigationConcForm,4,labs,investigation form details
+mstInvestigationMapping,3,labs,investigation mapping
+trnRCLResponsePkgDtls,3,labs,lab package response details
+trnRCLResponseStatus,3,labs,lab response status
+TrayMaster,2,labs,tray for sample handling
+trnAppSampleTracking,2,labs,sample tracking
+TRNINVLABPRISWEEJA,2,labs,lab priority record
+mstBNProspec,0,labs,lab test specifications
+mstCCINVPACKAGES,0,labs,grouping of lab tests
+mstInvDisease,0,labs,disease-test mapping
+mstInvestigationsCLUBBED,0,labs,clubbed investigations
+mstInvestigationsDtls2019,0,labs,investigation details 2019
+mstInvestigationsDtlsExport,0,labs,exported investigation details
+mstInvestigationsExport,0,labs,exported investigations
+mstlabdesc,0,labs,lab test description
+mstLabDescSHine,0,labs,lab test description (shine)
+mstLabMachine1,0,labs,lab machine details (duplicate)
+mstOLTestParamsMapping,0,labs,maps lab test parameters
+mstOrgInvestigationRates1,0,labs,lab investigation rates
+mstOrgInvestigationRates2,0,labs,lab investigation rates
+mstOrgInvestigationRates3,0,labs,lab investigation rates
+RADLABS,0,labs,lab test rates
+Rajesh_Pack,0,labs,test package details
+TBLEQPRESULTS1,0,labs,lab results
+trn_SampleLogisAcknow,0,labs,sample logistics acknowledgement
+trn_SampleLogisDet,0,labs,sample logistics details
+trn_SampleLogisPri,0,labs,sample logistics primary
+trnBarcodeNoModification,0,labs,sample barcode changes
+trnCC_Clubbed,0,labs,clubbed lab requests
+trnCC_ClubbedParamResult,0,labs,clubbed param results
+trnCC_ClubbedParamResults,0,labs,clubbed param results mapping
+trnLabReceipts,0,labs,lab receipt records
+trnlifeberries,0,labs,lab bill detail record
+TRNLIFEBERRIESPRI,0,labs,lab priority info
+trnOLAPILogDtls,0,labs,lab sample log
+trnOLReportsLogDtls,0,labs,lab report log
+trnOLStatusLogDtls,0,labs,lab status log
+trnParamUnitsLoc1,0,labs,parameter units for lab tests
+trnPatientResultsTemp,0,labs,temporary patient test results
+trnCC_DescResult,0,labs,lab description result (retry)
+trnCC_InvLabDet,0,labs,lab test details (retry)
+trnCC_InvStatus,0,labs,lab status updates (retry)
+trnCC_ParamResult,0,labs,parameter results (retry)
+trnCC_SampleLogisAcknow,0,labs,sample acknowledgement (retry)
+trnCC_SampleLogisDet,0,labs,sample logistics details (retry)
+trnCC_SampleLogisPri,0,labs,sample logistics primary (retry)
+trnDescResult_Audit1,0,labs,audit description result (retry)
+trnDescResultFiles,0,labs,result files (retry)
+trnEvolkoLab,0,labs,lab upload status (retry)
+trnEvolkoResults,0,labs,lab result files (retry)
+trnTempINVLABPRI,0,labs,lab invoice patient data (retry)
+trnTempInvStatus,0,labs,lab invoice status (retry)
+trnTempLabInvDetails,0,labs,lab invoice details (retry)
+mstPatientRegistration,929644,patients,patient registration
+trnPatDtlsModificationLog,47489,patients,patient detail change log
+tblAppDeviceRegistration,580,patients,patient device registration
+mstAppAddress,456,patients,patient address records
+trnTempPatientRepeateVisits,260,patients,patient repeat visits (retry)
+trnTempInvPRI,240,patients,patient personal info (retry)
+mstPatientGetData,115,patients,patient messaging data
+mstMembershipSEC,59,patients,secondary membership info
+mstMembershipPRI,24,patients,primary membership info
+trnComplaints,17,patients,patient complaints (retry)
+mstProofType,5,patients,document type reference
+tblAppNotification,3,patients,patient notifications
+mstPatientSourceGetData,0,patients,patient source info
+mstProofOfDocuments,0,patients,patient document records
+tbl_PatientCallData,0,patients,patient call information
+tblTempBulkPosting,0,patients,patient bulk posting
+trnOPConsultationDetails,0,patients,consultation details
+trnCC_InvLabPri,0,patients,patient lab info (retry)
+trnCC_PatDtlsModificationLog,0,patients,patient detail changes (retry)
+trnDeptPharmaIndentDET,54611,pharmacy,pharmacy indent details
+trnDeptPharmaIssueDET,43612,pharmacy,pharmacy issue details
+trnDeptPharmaIssuePRI,8316,pharmacy,pharmacy issue header
+trnDeptPharmaIndentPRI,8063,pharmacy,pharmacy indent header
+trnDeptPharmaReturnDET,3,pharmacy,pharmacy return details
+trnDeptPharmaReturnPRI,2,pharmacy,pharmacy return header
+mstGeneric,0,pharmacy,generic drug catalog
+trnDeptPharmaIssueDET26feb2020,0,pharmacy,pharmacy issue details
+trnDeptPharmaReturnDET26feb2020,0,pharmacy,pharmacy return details
+trnOutwards,0,pharmacy,drug outwards
+trnUserLog,2617926,skip,user login log
+mstOrgInvestigationRates15062022,1512922,skip,heuristic: looks like a dated/backup/log table
+trnParamRanges,1239463,skip,parameter ranges
+mstOrgInvestigationRates17112021,1091804,skip,heuristic: looks like a dated/backup/log table
+mstOrgInvestigationRates_Log,912399,skip,heuristic: looks like a dated/backup/log table
+mstOrgInvestigationRates_Audit,853962,skip,heuristic: looks like a dated/backup/log table
+trnParamResult_Log,786788,skip,heuristic: looks like a dated/backup/log table
+trnRefGroupInvMapping_Audit,610286,skip,heuristic: looks like a dated/backup/log table
+trnUserWS,598265,skip,workstation log
+mstOrgInvestigationRatesLOC041910,562231,skip,heuristic: looks like a dated/backup/log table
+trnUserFormAccessTrack,447608,skip,system config (retry)
+trnReportPrintDtls,291081,skip,print log
+trnReportViewTrack,277352,skip,report view tracking
+mstSMSService,155122,skip,SMS service logs
+mstInvestigationsDtls_Audit,143506,skip,heuristic: looks like a dated/backup/log table
+trndescresult16122022,124984,skip,heuristic: looks like a dated/backup/log table
+trnParamUnitsLoc,115959,skip,parameter units
+mstOrgInvestigationRatesLOC0109062021,99985,skip,heuristic: looks like a dated/backup/log table
+trnParamRangesLog,78386,skip,parameter ranges log
+mstInvestigationsDtls24112023,62126,skip,heuristic: looks like a dated/backup/log table
+mstRoleDtls_Log,54853,skip,heuristic: looks like a dated/backup/log table
+mstinvestigationsdtls05052023,52078,skip,heuristic: looks like a dated/backup/log table
+trnParamAccreditation,44795,skip,accreditation config
+mstInvestigationsDtls15062022,37863,skip,heuristic: looks like a dated/backup/log table
+mstWHUserRights,35981,skip,user rights
+mstHeaderText,32247,skip,header text config
+trnParamRangesAudit,25101,skip,parameter ranges audit
+mstOrgInvestigationRatesLogistics15022022,24802,skip,heuristic: looks like a dated/backup/log table
+trnWhatsAppLog,23161,skip,WhatsApp outbound message log
+mstInvPackages04092021,19757,skip,heuristic: looks like a dated/backup/log table
+mstWHUserRights_Log,18786,skip,heuristic: looks like a dated/backup/log table
+trnParamRangesKonnect31082021,13630,skip,heuristic: looks like a dated/backup/log table
+mstRefDoctor29062022,12670,skip,heuristic: looks like a dated/backup/log table
+trnWhatsAppIncomeDtls,9883,skip,WhatsApp inbound message log
+mstAppOtpGeneration,7535,skip,OTP system
+mstRefDoctorBak02102021,6933,skip,heuristic: looks like a dated/backup/log table
+mstOrganisation_Audit,5367,skip,heuristic: looks like a dated/backup/log table
+trnAppLastActivity,5145,skip,app activity logs
+mstDescriptionShortCutKeys08042023,4702,skip,heuristic: looks like a dated/backup/log table
+mstAppUserReg_New,4026,skip,user registration
+mstAppLog,4009,skip,application log
+trnPurchaseOrderPendingDtls_Log,3965,skip,heuristic: looks like a dated/backup/log table
+trnMarkRefDrMapping,3846,skip,doctor reference mapping
+DBChangeLog,3286,skip,system change log
+trnParameterAudit,3172,skip,parameter audit
+trnReferalManagementDET_Log,2971,skip,heuristic: looks like a dated/backup/log table
+mstUsers_Log,2947,skip,heuristic: looks like a dated/backup/log table
+MSTLABDESCTEMP10052022,2893,skip,heuristic: looks like a dated/backup/log table
+trnParameter,2707,skip,parameter
+mstAppAuthentication,2527,skip,user authentication data
+trnstock_050224@k,2461,skip,heuristic: looks like a dated/backup/log table
+mstTemplate,2343,skip,template config
+ErrorLog,2213,skip,error log
+trnParameter21042022,2093,skip,heuristic: looks like a dated/backup/log table
+mstChangePWD_Track,1916,skip,password change log
+mstCompLocAccess,1872,skip,company location access
+trnParameterLog,1654,skip,parameter log
+mstOrganisation,1645,skip,organization config
+trnDateChanges_Log,1442,skip,heuristic: looks like a dated/backup/log table
+mstDescriptionShortCutKeys,1271,skip,UI shortcut config
+trnstock11042023,1193,skip,heuristic: looks like a dated/backup/log table
+mstChangePWD_Track_CC,1095,skip,password change log
+trnPayTypeConversion_Log,1072,skip,heuristic: looks like a dated/backup/log table
+trnStock08042023,1004,skip,heuristic: looks like a dated/backup/log table
+MSTORGANISATION22092023,981,skip,heuristic: looks like a dated/backup/log table
+mstOrganisationLog,961,skip,org change log
+mstUserIPAddrMapping,809,skip,user IP mapping
+mstUsersDeptMapping,801,skip,user-department mapping
+mstUserRoles,798,skip,role definitions
+mstUsers,793,skip,user accounts
+Scroll,711,skip,"system configuration, unclear purpose"
+mstArea,662,skip,area definitions
+KONNECTRADIOLOGY,636,skip,radiology templates
+BNREDDYAMTBAKUP05102021,625,skip,heuristic: looks like a dated/backup/log table
+mstInvestigationAPI_Log,600,skip,heuristic: looks like a dated/backup/log table
+trnParamHelpValuesLog,595,skip,parameter log
+mstRoles_Log,586,skip,heuristic: looks like a dated/backup/log table
+TRNDESCRESULT20122022,575,skip,heuristic: looks like a dated/backup/log table
+trnParamHelpValues,553,skip,parameter
+mstChangepw,506,skip,password change log
+mstWHMenuItems,506,skip,menu items
+MSTITEMS11042023,490,skip,heuristic: looks like a dated/backup/log table
+trnParamAccreditationKonnect31082021,430,skip,heuristic: looks like a dated/backup/log table
+tblSmsCount,395,skip,SMS count config
+trnParamUnitsLocKonnect31082021,394,skip,heuristic: looks like a dated/backup/log table
+TBLWARANGAL,370,skip,location data
+trnDescResult_Log,350,skip,heuristic: looks like a dated/backup/log table
+mstUserWSMapping,293,skip,user workstation mapping
+mstAgeCategory,271,skip,age category lookup
+mstUsers16072022,267,skip,heuristic: looks like a dated/backup/log table
+tblClientDocInfo,241,skip,client documents
+mstPaymentGateway,191,skip,payment gateway config
+mstAuthorisations,180,skip,authorisation config
+mstUNITSKonnect31082021,175,skip,heuristic: looks like a dated/backup/log table
+trnParamDefaultValues,160,skip,parameter
+KonnectPathlabsClients,128,skip,client list
+mstUSPTrans,103,skip,parameter transactions
+mstLabDescTempBAK30082021,99,skip,heuristic: looks like a dated/backup/log table
+trnParamDefaultValuesLog,76,skip,parameter log
+tblCCRefCustomInfo,69,skip,custom client info
+mstAppArea,63,skip,area master data
+mstCity,60,skip,city reference
+mstSMSTemplate,55,skip,SMS template
+mstSubDepartment,54,skip,master department config
+mstSMSParameters,53,skip,SMS parameters
+mstDeptMap,46,skip,department mapping reference
+tblDDetails,46,skip,version details
+mstWorkStations,44,skip,workstation config
+trnParameterKonnect31082021,43,skip,heuristic: looks like a dated/backup/log table
+mstFormDeptMapping,41,skip,form-department mapping config
+mstTermAndCondition,41,skip,terms config
+mstUSP,41,skip,system parameters
+tblCCMenuItems,41,skip,UI menu
+mstDistrict,40,skip,location lookup
+mstHeader,39,skip,generic header config
+mstChangePWD_NewFormat,35,skip,password change log
+mstLocation,35,skip,generic location config
+mstState,34,skip,state lookup
+tblsysMAC,34,skip,system MAC config
+mstUSP_Backup,34,skip,heuristic: looks like a dated/backup/log table
+trnSQLBackupLog,32,skip,backup log
+mstTallyERPConfig,31,skip,ERP config
+tblCOMPMenuItems,26,skip,UI menu
+trnDifferentialCount_Log,25,skip,heuristic: looks like a dated/backup/log table
+mstAppDiseases,23,skip,disease master list
+trnSampleLogisPriBak,23,skip,heuristic: looks like a dated/backup/log table
+mstAppPopularInvDtls,22,skip,UI inventory details
+trnSampleLogisPri_Log,22,skip,heuristic: looks like a dated/backup/log table
+mstAppPaymentParams,20,skip,payment config
+tblCCAvenueResponse,20,skip,payment gateway
+USPValues,18,skip,system parameters
+mstAppFeedbackTypeReason,17,skip,feedback reason definitions
+mstWHMenuItems_CC,17,skip,menu items
+mstAppPopularCategoryInvDtls_Backup,16,skip,heuristic: looks like a dated/backup/log table
+mstSMSCredentialsBackup,15,skip,SMS config backup
+tblBulletin,15,skip,system bulletin
+mstAppDocuments,13,skip,document storage
+mstAppPopularCategory_Backup,13,skip,heuristic: looks like a dated/backup/log table
+mstAppContactUs,12,skip,contact information
+mstMonths,12,skip,system config
+mstOutsource,12,skip,outsourcing config
+mstWhatsapTemplateDtls,12,skip,WhatsApp template details
+mstYear,12,skip,year reference
+trnLoginOTPTrack,12,skip,user authentication log
+trnParamAntibiotics,12,skip,antibiotic parameters
+trnSendNotification,12,skip,notification system
+mstSalutation,11,skip,lookup table
+mstAppPopularCategoryInvDtls,10,skip,UI inventory details
+mstAppTermAndConditions,10,skip,terms & conditions
+mstBanner,10,skip,UI banner
+mstDenomination,10,skip,currency denomination reference
+tblWhatsAppResponse,10,skip,WhatsApp response log
+mstAppPopularCategory,9,skip,UI category
+mstBarcodeYear,9,skip,barcode year
+mstDepartment,9,skip,department reference
+tblCallMenus,9,skip,UI menu
+tblCallUserRights,9,skip,user rights
+trnAppFeedback,9,skip,app feedback logs
+mstNotificationParameters,8,skip,notification config
+mstOrgType,8,skip,org type lookup
+mstAppRadiologyCategoryInvDtls,7,skip,UI radiology inventory
+mstNotificationTemplate,7,skip,notification templates
+mstScheduleDays,7,skip,schedule config
+mstSMSCredentials,7,skip,SMS config
+mstWhatsapSMSCredentials,7,skip,WhatsApp credentials
+mstSMSCredentials_29092023,7,skip,heuristic: looks like a dated/backup/log table
+mstAppMenu,6,skip,UI menu
+mstAppRadiologyCategory,6,skip,UI radiology category
+mstIDMaster,6,skip,ID type master
+mstNotificationDataParams,6,skip,notification config
+mstAcntHeader,5,skip,account header config
+mstAppUserMenuitems,5,skip,UI menu items
+mstDepartmentType,5,skip,department type reference
+mstHub,5,skip,hub location config
+mstPaymentMethod,5,skip,payment method config
+mstTallyMenuItems,5,skip,menu config
+tblCarrier,5,skip,carrier config
+mstAppAPIKey,4,skip,API key storage
+mstAppEcomBookMngrFlowList,4,skip,e-commerce booking flow
+mstAppFeedbackType,4,skip,feedback type definitions
+mstAppMenuitems,4,skip,UI menu items
+mstTransType,4,skip,transaction type config
+trnAuditDocuments,4,skip,audit document metadata
+MobileAppForms,3,skip,app form config
+mstClientType,3,skip,client type reference
+mstCountry,3,skip,country reference
+mstTemplateForm,3,skip,template form config
+mstWHMenuItems_RefDoc,3,skip,menu items
+trnParamBoxCount,3,skip,parameter
+mstDeviceReg,2,skip,device registration
+mstUserHubMapping,2,skip,user-hub mapping
+mstWhatsapTemplateMst,2,skip,WhatsApp template master
+mstOLCompanies_Log,2,skip,heuristic: looks like a dated/backup/log table
+HospitalInfo,1,skip,hospital metadata
+Interface,1,skip,db connection config
+mstBackupSettings,1,skip,backup config
+mstEmailCredintials,1,skip,email credentials
+mstOLClients,1,skip,external client config
+mstOLCompanies,1,skip,external company config
+mstScrollText,1,skip,UI scroll text
+mstSettings,1,skip,system settings
+mstsettingsApp,1,skip,app config
+mstSMSTemplateParameters,1,skip,SMS template parameters
+mstWhatsapSettings,1,skip,WhatsApp settings
+tblConnection,1,skip,DB connection
+tblDIAGVERSION,1,skip,diagnostic version
+tblVERSION,1,skip,version info
+trnDailyMailSentLog,1,skip,system log
+trnMarkCCMapping,1,skip,configuration mapping
+trnOrgSendMailIDLog,1,skip,mail log
+trnReportFooter,1,skip,report footer config
+trnRptEmailSentLogNew,1,skip,email log
+URL,1,skip,system config
+ELMAH_Error,0,skip,error log
+MobileAppTrack,0,skip,app usage tracking
+MobileMACAddress,0,skip,app usage tracking
+mstAppAgentVersion,0,skip,system version info
+mstAppArticles,0,skip,content articles
+mstAppCCFeedback,0,skip,feedback records
+mstAppEcommercePrices,0,skip,e-commerce pricing
+mstAppHVDevicesReg,0,skip,device registration
+mstAppOrganisation,0,skip,organisation config
+mstAppParameters,0,skip,system parameters
+mstAppReferal,0,skip,referral system
+mstAPPReferalContacts,0,skip,referral contacts
+mstAppReportInfo,0,skip,report metadata
+mstAppVersion,0,skip,app version
+mstCCAppVersion,0,skip,app version tracking
+mstCCIDProof,0,skip,ID proof reference
+mstChangepw_CC,0,skip,password change log
+mstChangepw_Track,0,skip,password change log
+mstDisease,0,skip,disease lookup
+mstDiseaseInvDtls,0,skip,disease inventory mapping
+mstDiseases,0,skip,disease lookup
+mstDocOTPGen,0,skip,OTP generation
+mstInActiveMenuItems,0,skip,inactive menu items
+mstMACAddress,0,skip,MAC address config
+mstOrganisation1,0,skip,organization config
+mstOrganisationType,0,skip,org type lookup
+mstOrgDocs,0,skip,org documents
+mstPatientGetDataSent,0,skip,sent message log
+mstPaymentGateWayResponse,0,skip,gateway response log
+mstPaymentGatewayTemp,0,skip,temporary payment data
+mstPayumoneyGatewayResponse,0,skip,gateway response log
+mstPharmaSettings,0,skip,pharmacy config
+mstProcWiseActivities,0,skip,procedure activity log
+mstPromotionalSMS,0,skip,SMS template
+mstReportPrintSettings,0,skip,report print config
+mstscrolltext1,0,skip,UI scroll text
+mstScrollText5,0,skip,UI scroll text
+mstSMSTemplate1,0,skip,SMS template
+mstSMSTemplate2,0,skip,SMS template
+mstSMSTemplateBackup,0,skip,SMS template backup
+mstSpecializationSMS,0,skip,specialization SMS config
+mstTokenExp,0,skip,token expiry
+mstVersion,0,skip,system version
+mstVoccutainer,0,skip,voucher container config
+mstVoccutainerMapping,0,skip,voucher mapping
+mstWhatsappSMSPromo,0,skip,promo messages
+mstWHMenuItems_CC_1,0,skip,menu items
+mstwhuserrights1,0,skip,user rights
+sqlmapoutput,0,skip,system log output
+sysdiagrams,0,skip,system diagram metadata
+tbl_Mob_App_FeedBack,0,skip,non-clinical patient feedback
+tblCallStatus,0,skip,call status config
+tblCCMenuItems1,0,skip,UI menu
+tblccref,0,skip,reference mapping
+tblCCScrollEntry,0,skip,scroll config
+TBLCOMPCODE,0,skip,company code mapping
+TBLCOMPCODELATEST1,0,skip,code mapping
+tblConcernedForms,0,skip,form list
+tblCourierItems,0,skip,courier items
+tblExport,0,skip,export config
+tblLDSLAddress,0,skip,address config
+tblLegalSettings,0,skip,legal config
+tblmachineparameters,0,skip,machine config
+TBLREFDOC,0,skip,reference docs config
+tblRequestForm,0,skip,request form config
+tblScrollEntry,0,skip,scroll text config
+tblShipmentType,0,skip,shipment type config
+trnDashBoard,0,skip,system dashboard
+trnDashBoardReports,0,skip,system dashboard
+trnMachineAutoAuthLog,0,skip,machine auth log
+trnNewMessages,0,skip,system message log
+trnParamAntibiotics_Inv,0,skip,antibiotic parameters
+trnParameter1,0,skip,parameter
+trnParameterCalculation,0,skip,parameter calculation
+trnParamResult_InchargeAudit,0,skip,lab results audit
+trnRptEmailSentLog,0,skip,email log
+trnUserLog_CC,0,skip,user login log
+trnWhatsAppStatusTrack,0,skip,WhatsApp status tracking
+mstAppDevices_Log,0,skip,heuristic: looks like a dated/backup/log table
+mstInvestigationsDtls09012020,0,skip,heuristic: looks like a dated/backup/log table
+mstOLTestParamsMapping_Log,0,skip,heuristic: looks like a dated/backup/log table
+TBLMACHPARAMBAK,0,skip,heuristic: looks like a dated/backup/log table
+tempCCInvRates,0,skip,heuristic: looks like a dated/backup/log table
+tempHeaderText,0,skip,heuristic: looks like a dated/backup/log table
+tempLocInvRates,0,skip,heuristic: looks like a dated/backup/log table
+TempTableGenReports,0,skip,heuristic: looks like a dated/backup/log table
+trnBillingCycleRates_Log,0,skip,heuristic: looks like a dated/backup/log table
+trnCC_DescResult_Temp,0,skip,heuristic: looks like a dated/backup/log table
+trnCCPayments17112020,0,skip,heuristic: looks like a dated/backup/log table
+trnDescResult_Audit,0,skip,heuristic: looks like a dated/backup/log table
+trnDescResult_Temp,0,skip,heuristic: looks like a dated/backup/log table
+trnFormDeptInvMapping_Log,0,skip,heuristic: looks like a dated/backup/log table
+trnINVLABPRI_08092020,0,skip,heuristic: looks like a dated/backup/log table
+trnITUtilities_Temp,0,skip,heuristic: looks like a dated/backup/log table
+trnTempDates,0,skip,config (retry)
+trnTempResponseCredentials,0,skip,credentials (retry)
+mstLocationUsers,4317,staff,user to location mapping
+mstRoleDtls,4086,staff,role details
+mstLocAuthorisation,823,staff,location authorisation
+mstAppAgentStatus,166,staff,agent status tracking
+mstRoles,60,staff,role definitions
+mstEmpMapping_ASM,44,staff,user-employee mapping
+tblAgentAppDeviceRegistration,40,staff,agent device registration
+mstEmpTarget,25,staff,employee target
+mstAppAgentAreaMapping,21,staff,agent area assignments
+mstAgentMaster,12,staff,staff master
+trnDeptComplaint,10,staff,inter-department complaint
+mstDesignation,7,staff,staff role lookup
+mstAppAgentLeaves,4,staff,agent leave records
+mstReferenceSource,4,staff,source reference for staff
+mstMapTechDoc,3,staff,tech authorization mapping
+tblAppAgentNotification,3,staff,agent notifications
+mstAppBMs,2,staff,branch manager info
+mstEmpMapping_GM,2,staff,user-employee mapping
+mstEmpMapping_RSM,2,staff,user-employee mapping
+mstRejectReason,2,staff,rejection reason lookup
+mstShifts,1,staff,shift schedule
+tbl_CallUsers,1,staff,user account information
+mstAgentLeaves,0,staff,staff leave records
+mstAppAgentAssignDispatchOrders,0,staff,agent dispatch assignments
+mstEmpAdvances,0,staff,employee advance
+mstEmpExpenditure,0,staff,employee expense
+mstEmpLeaves,0,staff,employee leave
+mstEmpPlans,0,staff,employee plan
+mstEmpSchedules,0,staff,employee schedule
+mstEmpTasks,0,staff,employee task
+mstRouteBoy,0,staff,personnel for sample transport
+tblMobileAppReg,0,staff,user registration
+trnRouteBoyMarkMapping,0,staff,route boy mapping
+trnCCUserMapping,0,staff,user mapping (retry)
+trnCertificates,0,staff,employee certificates (retry)
+trnEmpMapping,0,staff,employee mapping (retry)

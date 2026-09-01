@@ -70,15 +70,30 @@ def verify_admin_token(token: str) -> str:
 
 
 def check_admin_credentials(username: str, password: str) -> bool:
-    if not settings.admin_password_hash:
+    from auth.admin_service import verify_admin_login, list_admins
+
+    if verify_admin_login(username, password):
+        return True
+
+    if not list_admins():
+        # Bootstrap fallback: only reachable if the admins table is
+        # genuinely empty (fresh install, seed_bootstrap_admin() hasn't
+        # run, or ADMIN_* env vars were never set). Normal operation
+        # never hits this — real accounts live in the DB.
+        if settings.admin_password_hash:
+            username_ok = hmac.compare_digest(username, settings.admin_username)
+            pw_hash = hashlib.sha256(password.encode()).hexdigest()
+            password_ok = hmac.compare_digest(pw_hash, settings.admin_password_hash)
+            if username_ok and password_ok:
+                return True
+
         raise RuntimeError(
-            "ADMIN_PASSWORD_HASH is not set. Run auth/generate_admin_hash.py "
-            "and add the values to your .env file."
+            "No admin accounts exist yet. Run auth/generate_admin_hash.py and set "
+            "ADMIN_USERNAME/ADMIN_PASSWORD_HASH/ADMIN_SECRET_KEY in .env for the first "
+            "bootstrap login, then create real named accounts via the admin panel."
         )
-    username_ok = hmac.compare_digest(username, settings.admin_username)
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
-    password_ok = hmac.compare_digest(pw_hash, settings.admin_password_hash)
-    return username_ok and password_ok
+
+    return False
 
 
 def require_admin(authorization: str = Header(default=None)) -> str:

@@ -24,9 +24,13 @@ from auth.license_service import (
     update_settings,
 )
 from auth.admin_auth import require_admin, create_admin_token, check_admin_credentials
+from auth.admin_service import list_admins, create_admin, set_admin_status, change_admin_password
 from audit.log import audit, read_audit_log
 from reports.pdf_generator import generate_smart_report
-from database.license_db import init_license_db, seed_demo_institutions
+from database.license_db import init_license_db, seed_demo_institutions, seed_bootstrap_admin
+from notifications.email import send_alert_email
+from notifications.webhook import send_webhook_alert
+from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
 from config import settings
 
 app = FastAPI(title="Sahasra AI Agent")
@@ -36,6 +40,8 @@ RATE = {}
 
 init_license_db()
 seed_demo_institutions()
+seed_bootstrap_admin()  # one-time migration: legacy .env admin -> real admins table, see auth/admin_service.py
+start_background_expiry_checker()  # actually fires the "email alerts for expiring licenses" setting
 
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
 app.add_middleware(
@@ -74,6 +80,18 @@ async def security_middleware(request: Request, call_next):
     response.headers["Cache-Control"] = "no-store"
 
     return response
+
+
+def _log_admin_action(admin: str, action: str, target: str = "", meta: dict = None):
+    """
+    Real per-admin accountability: every mutating admin action gets
+    logged with the actual authenticated admin's username, not just a
+    generic 'Admin' label. Visible in /admin/audit and the Audit Logs
+    page alongside the existing premium_query / invalid_code_attempt
+    events.
+    """
+    audit(event="admin_action", role=None, code=None, question=f"{action}: {target}",
+          meta={"actor": admin, "action": action, "target": target, **(meta or {})})
 
 
 # ---------- Request/response models ----------
@@ -147,6 +165,20 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+class AdminCreateRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+
+
+class AdminStatusRequest(BaseModel):
+    status: str  # Active / Inactive
+
+
+class AdminPasswordRequest(BaseModel):
+    new_password: str
+
+
 class SettingsUpdateRequest(BaseModel):
     license_validity_days: Optional[int] = None
     normal_mode_enabled: Optional[bool] = None
@@ -155,6 +187,11 @@ class SettingsUpdateRequest(BaseModel):
     output_redaction_enabled: Optional[bool] = None
     email_alerts_enabled: Optional[bool] = None
     webhook_url: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    alert_email_to: Optional[str] = None
 
 
 # ---------- Public ----------
@@ -171,14 +208,59 @@ def api_admin_login(req: AdminLoginRequest):
     try:
         ok = check_admin_credentials(req.username, req.password)
     except RuntimeError as e:
-        # ADMIN_PASSWORD_HASH / ADMIN_SECRET_KEY not configured yet.
+        # No admin accounts exist yet — see auth/admin_auth.py for the bootstrap flow.
         raise HTTPException(status_code=500, detail=str(e))
 
     if not ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_admin_token(req.username)
+    audit(event="admin_login", role=None, code=None, question=None, meta={"actor": req.username})
     return {"status": "success", "token": token}
+
+
+# ---------- Admin: user accounts (auth required) ----------
+# Real multi-admin accounts, replacing the single shared login — see
+# auth/admin_service.py. Any logged-in admin can manage other admins;
+# there's no role hierarchy (super-admin vs regular) yet.
+
+@app.get("/admin/users")
+def api_list_admin_users(admin: str = Depends(require_admin)):
+    return {"status": "success", "admins": list_admins()}
+
+
+@app.post("/admin/users")
+def api_create_admin_user(req: AdminCreateRequest, admin: str = Depends(require_admin)):
+    try:
+        data = create_admin(req.username, req.password, req.display_name)
+        _log_admin_action(admin, "Created admin account", req.username)
+        return {"status": "success", "admin": data}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/admin/users/{username}/status")
+def api_set_admin_status(username: str, req: AdminStatusRequest, admin: str = Depends(require_admin)):
+    try:
+        ok = set_admin_status(username, req.status)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    if not ok:
+        return {"status": "error", "message": "Admin not found"}
+    _log_admin_action(admin, f"Set admin status to {req.status}", username)
+    return {"status": "success"}
+
+
+@app.post("/admin/users/{username}/password")
+def api_change_admin_password(username: str, req: AdminPasswordRequest, admin: str = Depends(require_admin)):
+    try:
+        ok = change_admin_password(username, req.new_password)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    if not ok:
+        return {"status": "error", "message": "Admin not found"}
+    _log_admin_action(admin, "Changed admin password", username)
+    return {"status": "success"}
 
 
 # ---------- Admin: institutions (auth required) ----------
@@ -199,6 +281,7 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
             city=req.city,
             status=req.status,
         )
+        _log_admin_action(admin, "Created institution", req.name)
         return {"status": "success", "institution": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -208,6 +291,8 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
 def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, admin: str = Depends(require_admin)):
     try:
         data = update_institution(institution_id, **req.model_dump(exclude_unset=True))
+        _log_admin_action(admin, "Updated institution", data.get("name", str(institution_id)),
+                           meta={"changes": req.model_dump(exclude_unset=True)})
         return {"status": "success", "institution": data}
     except ValueError as e:
         return {"status": "error", "message": str(e)}
@@ -236,7 +321,9 @@ def api_generate_license(req: GenerateLicenseRequest, admin: str = Depends(requi
             dob_year=req.dob_year,
             plan=req.plan,
             valid_days=valid_days,
+            created_by=admin,  # real admin username, not the old hardcoded "admin" literal
         )
+        _log_admin_action(admin, "Generated license", data.get("code", ""))
         return {"status": "success", "license": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -247,6 +334,7 @@ def api_set_license_status(req: LicenseStatusRequest, admin: str = Depends(requi
     ok = set_license_status(req.code, req.status)
     if not ok:
         return {"status": "error", "message": "License not found"}
+    _log_admin_action(admin, f"Set license status to {req.status}", req.code)
     return {"status": "success", "message": f"License marked {req.status}"}
 
 
@@ -255,6 +343,7 @@ def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_a
     ok = revoke_license(req.code)
     if not ok:
         return {"status": "error", "message": "Code not found"}
+    _log_admin_action(admin, "Revoked license", req.code)
     return {"status": "success", "message": "License revoked"}
 
 
@@ -268,6 +357,7 @@ def api_get_roles(admin: str = Depends(require_admin)):
 @app.put("/admin/roles")
 def api_update_role(req: RolePermissionUpdate, admin: str = Depends(require_admin)):
     update_role_permissions(req.role, req.tables)
+    _log_admin_action(admin, "Updated role permissions", req.role, meta={"tables": req.tables})
     return {"status": "success"}
 
 
@@ -280,15 +370,47 @@ def api_get_settings(admin: str = Depends(require_admin)):
 
 @app.put("/admin/settings")
 def api_update_settings(req: SettingsUpdateRequest, admin: str = Depends(require_admin)):
-    updated = update_settings(**req.model_dump(exclude_unset=True))
+    changed_fields = req.model_dump(exclude_unset=True)
+    updated = update_settings(**changed_fields)
+    # Don't log secret values (smtp_password) into the audit trail.
+    safe_changes = {k: v for k, v in changed_fields.items() if k != "smtp_password"}
+    _log_admin_action(admin, "Updated settings", "", meta={"changes": safe_changes})
     return {"status": "success", "settings": updated}
 
 
+# ---------- Admin: notifications (auth required) ----------
+# Makes the email/webhook settings actually do something you can verify
+# right now, instead of wondering whether they're wired up at all.
+
+@app.post("/admin/notifications/test")
+def api_test_notifications(admin: str = Depends(require_admin)):
+    email_ok, email_msg = send_alert_email(
+        "Sahasra AI: Test Alert",
+        f"This is a test alert triggered manually by {admin} from the admin panel."
+    )
+    webhook_ok, webhook_msg = send_webhook_alert("test_alert", {"triggered_by": admin})
+
+    _log_admin_action(admin, "Sent test notification", "",
+                       meta={"email_ok": email_ok, "webhook_ok": webhook_ok})
+
+    return {
+        "status": "success",
+        "email": {"success": email_ok, "message": email_msg},
+        "webhook": {"success": webhook_ok, "message": webhook_msg},
+    }
+
+
+@app.post("/admin/notifications/check-expiring")
+def api_check_expiring_licenses(admin: str = Depends(require_admin)):
+    """Manually trigger the same expiry check the background job runs daily — useful to verify it actually works without waiting a day."""
+    result = check_and_alert()
+    return {"status": "success", "result": result}
+
+
 # ---------- Admin: audit log (auth required) ----------
-# Real compliance data — every premium query and every invalid activation
-# attempt, read straight from audit/audit.log. This is NOT the same thing
-# as the admin panel's old local "recent activity" feed, which only ever
-# showed made-up demo events.
+# Real compliance data — every premium query, invalid activation attempt,
+# and now every admin action (who created/edited/revoked what), read
+# straight from audit/audit.log.
 
 @app.get("/admin/audit")
 def api_get_audit(limit: int = 500, admin: str = Depends(require_admin)):
@@ -420,6 +542,6 @@ async def ask_question(req: QueryRequest):
         if "rate_limit" in msg.lower() or "429" in msg:
             return {
                 "status": "error",
-                "answer": "AI rate limit reached. Please wait 15 seconds and try again."
+                "answer": "AI rate limit reached. Please wait 15 seconds and try again.",
             }
-    
+        raise HTTPException(status_code=500, detail=msg)

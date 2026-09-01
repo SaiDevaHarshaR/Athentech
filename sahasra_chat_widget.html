@@ -218,12 +218,23 @@ function now() {
   return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function addMessage(text, type) {
   const div = document.createElement('div');
   div.className = `message ${type}`;
 
-  let formatted = text
+  // Escape raw text FIRST — text can contain real data pulled from the
+  // hospital DB (patient names, etc). Without escaping first, any HTML
+  // characters in that data would render as live markup instead of
+  // plain text — a real injection risk, not just a formatting bug.
+  let formatted = escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.*?)\*/g, '<i>$1</i>')
     .replace(/\n/g, '<br>');
 
   div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
@@ -253,11 +264,11 @@ function start() {
 
   // ===== DISCLAIMER (put it here) =====
   addMessage(
-    `⚠️ <b>Disclaimer</b><br>This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.`,
+    `⚠️ **Disclaimer**\nThis assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.`,
     'bot'
   );
   addMessage(
-    `Hello! 👋<br><br>I'm <b>Sahasra AI Assistant</b>.<br><br>You can ask general questions about hospitals and doctors.<br><br>Have an activation code? Enter it to access your hospital data.`,
+    `Hello! 👋\n\nI'm **Sahasra AI Assistant**.\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
     'bot'
   );
 
@@ -304,7 +315,7 @@ async function processMessage(text) {
     modeBadge.textContent = 'Normal';
     modeBadge.classList.remove('premium');
 
-    addMessage(`You have exited Premium mode.<br>Now in <b>Normal Mode</b>.`, 'bot');
+    addMessage(`You have exited Premium mode.\nNow in **Normal Mode**.`, 'bot');
 
     showSuggestions([
       { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
@@ -350,7 +361,7 @@ async function processMessage(text) {
         modeBadge.classList.add('premium');
 
         addMessage(
-          `✅ <b>Premium activated</b><br><br>Role: <b>${data.role.toUpperCase()}</b><br>You now have access to hospital live data.`,
+          `✅ **Premium activated**\n\nRole: **${data.role.toUpperCase()}**\nYou now have access to hospital live data.`,
           'bot'
         );
 

@@ -5,6 +5,14 @@ class Settings(BaseSettings):
     groq_api_key: str
     tavily_api_key: str = ""
 
+    # --- LLM provider selection ---
+    # Defaults to "groq" so nothing changes unless you explicitly set this.
+    # Set LLM_PROVIDER=openai or LLM_PROVIDER=anthropic in .env to switch.
+    llm_provider: str = "groq"
+    llm_model: str = ""  # optional override; blank = provider's default model below
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+
     # MSSQL Settings
     mssql_server: str = "192.168.0.163,1433"
     mssql_database: str = "H022-KonnectLIS_Test"

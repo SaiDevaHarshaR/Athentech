@@ -1,4 +1,3 @@
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from agent.tools import run_sql_query, describe_table
 from agent.search_tool import web_search
@@ -6,13 +5,68 @@ from agent.guardrails import check_input, check_output
 from config import settings
 from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
-llm = ChatGroq(
-    model="openai/gpt-oss-20b",
-    temperature=0,
-    api_key=settings.groq_api_key
-)
+import time
+
+
+def _build_llm():
+    """
+    Builds the chat model based on settings.llm_provider (default "groq",
+    so existing setups are unaffected unless LLM_PROVIDER is set in .env).
+    OpenAI/Anthropic require settings.llm_model to be set explicitly —
+    model identifiers change over time and a wrong hardcoded guess here
+    would fail silently or point at a deprecated model, so we require you
+    to check your provider's current docs and set it rather than guess.
+    """
+    provider = (settings.llm_provider or "groq").lower()
+
+    if provider == "openai":
+        from langchain_openai import ChatOpenAI
+        if not settings.llm_model:
+            raise RuntimeError(
+                "LLM_PROVIDER=openai requires LLM_MODEL to be set in .env "
+                "(e.g. LLM_MODEL=gpt-4o) — check platform.openai.com/docs "
+                "for current model names."
+            )
+        return ChatOpenAI(model=settings.llm_model, temperature=0, api_key=settings.openai_api_key)
+
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        if not settings.llm_model:
+            raise RuntimeError(
+                "LLM_PROVIDER=anthropic requires LLM_MODEL to be set in .env "
+                "(e.g. LLM_MODEL=claude-sonnet-4-5) — check docs.anthropic.com "
+                "for current model names."
+            )
+        return ChatAnthropic(model=settings.llm_model, temperature=0, api_key=settings.anthropic_api_key)
+
+    # default: groq
+    from langchain_groq import ChatGroq
+    return ChatGroq(
+        model=settings.llm_model or "openai/gpt-oss-20b",
+        temperature=0,
+        api_key=settings.groq_api_key
+    )
+
+
+llm = _build_llm()
 MAX_TOOL_ROUNDS = 2          # was 5 → too many LLM calls
 MAX_HISTORY = 4              # keep only last 4 messages # a chain like describe_table -> run_sql_query, or web_search -> web_search again, gets a few rounds before we force an answer
+
+
+def _is_rate_limit_error(e: Exception) -> bool:
+    """
+    Provider-agnostic rate-limit detection. The old code imported Groq's
+    specific RateLimitError class — that only ever catches Groq rate
+    limits. OpenAI and Anthropic raise their OWN, differently-named
+    exception classes for the same situation, so switching providers
+    with the old code meant rate limits would raise unhandled instead of
+    triggering the retry/backoff below. Checking the message text works
+    the same way regardless of which SDK raised it.
+    """
+    msg = str(e).lower()
+    return "rate_limit" in msg or "rate limit" in msg or "429" in msg
+
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
 
@@ -46,6 +100,16 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         if response is None:
             return "AI rate limit reached while processing tools. Wait 1 minute and try again."
 
+    # The loop above only checks tool_calls at the TOP of each iteration,
+    # using the previous response — so the response from the last
+    # iteration was never actually checked. Without this, a completely
+    # normal 2-round question (describe_table -> run_sql_query -> done)
+    # gets its real final answer silently discarded here, and an
+    # unnecessary 4th network call gets forced below for no reason —
+    # extra latency on every single typical question.
+    if not getattr(response, "tool_calls", None):
+        return response.content if response.content else None
+
     # final forced answer (also with retry)
     messages.append(HumanMessage(
         content="Give your best final answer now based on everything above. Do not call any more tools."
@@ -54,14 +118,15 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
-from groq import RateLimitError
-import time
+
 
 def _invoke_with_retry(llm_with_tools, messages, retries=1):
     for i in range(retries + 1):
         try:
             return llm_with_tools.invoke(messages)
-        except RateLimitError:
+        except Exception as e:
+            if not _is_rate_limit_error(e):
+                raise  # not a rate limit — don't swallow real errors silently
             if i == retries:
                 return None
             time.sleep(20)  # wait longer, fewer retries
@@ -99,6 +164,17 @@ You are Sahasra AI Assistant for {hospital_name}.
 You can ONLY answer using data from the hospital database.
 Never invent any information, table names, or column names.
 
+### Topic boundary (strict):
+You ONLY answer questions about this hospital's data — patients, admissions,
+labs, pharmacy, billing/collections, doctors, staff, inventory, and similar
+hospital/diagnostics/healthcare operations topics.
+If a question is unrelated to hospital/healthcare/diagnostics operations
+(e.g. shopping, entertainment, general trivia, weather, sports, coding
+help, unrelated businesses), do NOT answer it — politely decline with:
+"I can only help with questions about {hospital_name}'s hospital data.
+That's outside what I can answer here." Do not call describe_table or
+run_sql_query for an off-topic question.
+
 Current user role: {role}
 
 ### Tables you are allowed to query (real table names):
@@ -118,10 +194,31 @@ to their role or isn't in the system yet.
 
 ### Rules:
 - Only SELECT queries — never INSERT/UPDATE/DELETE/DROP etc.
-- Format the final answer with bullet points and emojis
 - Never use markdown tables
 - If describe_table or run_sql_query returns an access-denied or error
   message, explain that plainly to the user instead of making something up
+
+### Answer style (match this exactly):
+- Start with one emoji + **bold title** matching the subject: 💰 revenue/
+  collection, 🧑‍🤝‍🧑 patients, 🧪 labs, ⏳ pending, ⏱️ TAT, 🚨 critical,
+  👨‍⚕️ doctors, 📮 outstanding, 📊 general.
+- Group key numbers on one line with " · " between them, not one per line.
+- Breakdowns (payment mode, department, etc.) as short bullets with value + %.
+- Comparisons always show direction: ▲ up / ▼ down, never a bare number.
+- **bold** for numbers/labels, *italic* only for a genuinely useful caveat.
+- Keep it as compact as the example below — don't pad with extra sentences.
+
+Example of the exact target style, for "today's collection at Kukatpally":
+
+💰 **Revenue & Collection** · Kukatpally · Today
+**Gross:** ₹85,000 · **Net:** ₹78,200 · **Collected:** ₹74,500
+
+• **Cash:** ₹28,200 (38%)
+• **UPI:** ₹32,700 (44%)
+• **Card:** ₹13,600 (18%)
+
+▲8.4% vs yesterday
+
 ### Efficiency rules (mandatory):
 - Use at most 1 describe_table call unless absolutely needed
 - Always use SELECT TOP 10
@@ -158,6 +255,15 @@ to their role or isn't in the system yet.
 You are Sahasra AI Assistant.
 You help users with questions about hospitals, doctors, specialties and healthcare in India.
 
+### Topic boundary (strict):
+You ONLY answer questions about hospitals, doctors, medical specialties,
+diagnostics, pharmacy, and healthcare topics. If a question is unrelated
+(e.g. shopping malls, entertainment, general trivia, weather, sports,
+coding help, or any other non-healthcare topic), do NOT answer it, even
+if you know the answer or could search for it — politely decline with:
+"I can only help with hospital and healthcare-related questions." Do not
+call web_search for an off-topic question.
+
 You have a tool called "web_search" to find real and current information.
 
 Rules:
@@ -165,7 +271,7 @@ Rules:
 - If your first search doesn't return enough to answer well, try again with a
   more specific or differently-worded query before giving up.
 - After getting search results, give a clean, helpful summary.
-- Use bullet points and light emojis.
+- Use **bold** for key names/numbers, bullet points, and one light relevant emoji at the start.
 - Never invent doctor names.
 - Never use markdown tables.
 """

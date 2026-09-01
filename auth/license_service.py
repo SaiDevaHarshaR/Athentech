@@ -245,6 +245,11 @@ def get_settings() -> dict:
         "output_redaction_enabled": raw.get("output_redaction_enabled", "true") == "true",
         "email_alerts_enabled": raw.get("email_alerts_enabled", "false") == "true",
         "webhook_url": raw.get("webhook_url", ""),
+        "smtp_host": raw.get("smtp_host", ""),
+        "smtp_port": int(raw.get("smtp_port", 587) or 587),
+        "smtp_user": raw.get("smtp_user", ""),
+        "smtp_password": raw.get("smtp_password", ""),
+        "alert_email_to": raw.get("alert_email_to", ""),
     }
 
 
@@ -260,6 +265,11 @@ def update_settings(**fields) -> dict:
         "output_redaction_enabled": lambda v: "true" if v else "false",
         "email_alerts_enabled": lambda v: "true" if v else "false",
         "webhook_url": lambda v: str(v),
+        "smtp_host": lambda v: str(v),
+        "smtp_port": lambda v: str(int(v)),
+        "smtp_user": lambda v: str(v),
+        "smtp_password": lambda v: str(v),
+        "alert_email_to": lambda v: str(v),
     }
 
     for key, value in fields.items():

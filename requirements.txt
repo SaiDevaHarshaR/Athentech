@@ -5,6 +5,8 @@ mysql-connector-python
 sqlalchemy
 langchain
 langchain-groq        
+langchain-openai
+langchain-anthropic
 langgraph
 pandas
 openpyxl
@@ -13,3 +15,5 @@ pydantic
 pyodbc
 jinja2
 python-multipart
+pytest
+pypdf

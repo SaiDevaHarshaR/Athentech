@@ -1,7 +1,10 @@
 from langchain_core.tools import tool
+import pandas as pd
+
 from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
+from auth.table_relationships import get_relationships_for_table
 
 
 @tool
@@ -44,6 +47,18 @@ def describe_table(table_name: str, role: str = "viewer", db_name: str = None) -
         lines = [f"Columns for {clean_table_name}:"]
         for col_name, data_type in rows:
             lines.append(f"• {col_name} ({data_type})")
+
+        # Reviewed join relationships, if any are known for this table —
+        # included here (not a separate tool) so the agent gets join
+        # guidance for free instead of costing another round-trip to ask
+        # for it. See auth/table_relationships.py and
+        # discover_table_relationships.py.
+        relationships = get_relationships_for_table(clean_table_name)
+        if relationships:
+            lines.append("\nKnown joins:")
+            for col, to_table, to_col in relationships:
+                lines.append(f"• {clean_table_name}.{col} = {to_table}.{to_col}")
+
         return "\n".join(lines)
 
     except Exception as e:
@@ -62,6 +77,10 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
+    # Real role-based table access check (default-deny for unmapped tables).
+    # NOTE: `role` and `db_name` here are set by agent.py from the validated
+    # license, not taken from the LLM's tool-call args — do not let this
+    # function be called with caller-supplied role/db_name from anywhere else.
     try:
         role_enum = Role(role)
     except ValueError:
@@ -76,30 +95,22 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
         return "Error: Could not connect to the hospital database."
 
     try:
-        cursor = conn.cursor()
-        cursor.execute(query)
+        df = pd.read_sql(query, conn)
+        conn.close()
 
-        if not cursor.description:
+        if df.empty:
             return "No data found for this query."
 
-        columns = [col[0] for col in cursor.description]
-        rows = cursor.fetchmany(50)  # safety limit
+        # Limit rows for safety (very important on real DB)
+        df = df.head(50)
 
-        if not rows:
-            return "No data found for this query."
-
+        # Clean readable format
         lines = []
-        for row in rows:
-            item = [f"{columns[i]}: {row[i]}" for i in range(len(columns))]
+        for _, row in df.iterrows():
+            item = [f"{col}: {row[col]}" for col in df.columns]
             lines.append("• " + " | ".join(item))
 
         return "\n".join(lines)
 
     except Exception as e:
         return f"Query failed: {str(e)}"
-
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass

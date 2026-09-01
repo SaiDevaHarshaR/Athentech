@@ -284,7 +284,12 @@ async function loadSettingsFromAPI() {
     blockedPatterns: data.settings.extra_blocked_patterns.join(', '),
     redaction: data.settings.output_redaction_enabled,
     emailAlerts: data.settings.email_alerts_enabled,
-    webhook: data.settings.webhook_url
+    webhook: data.settings.webhook_url,
+    smtpHost: data.settings.smtp_host,
+    smtpPort: data.settings.smtp_port,
+    smtpUser: data.settings.smtp_user,
+    smtpPassword: data.settings.smtp_password,
+    alertEmailTo: data.settings.alert_email_to,
   };
   save();
 }
@@ -2445,71 +2450,75 @@ function renderSettings() {
         settings.emailAlerts;
 
 
+    $('smtpHost').value = settings.smtpHost || '';
+    $('smtpPort').value = settings.smtpPort || 587;
+    $('smtpUser').value = settings.smtpUser || '';
+    $('smtpPassword').value = settings.smtpPassword || '';
+    $('alertEmailTo').value = settings.alertEmailTo || '';
+
+
     $('webhook')
         .value =
         settings.webhook;
 
 
-    $('adminUsers').innerHTML =
-
-        state.admins
-            .map(
-                (admin, index) => `
-
-                    <div class="admin-user">
-
-                        <div>
-
-                            <strong>
-                                ${admin.name}
-                            </strong>
-
-                            <small>
-                                ${admin.email}
-                                ·
-                                ${admin.role}
-                            </small>
-
-                        </div>
-
-                        <button
-                            class="row-action"
-                            onclick="
-                                removeAdmin(
-                                    ${index}
-                                )
-                            "
-                        >
-                            Remove
-                        </button>
-
-                    </div>
-
-                `
-            )
-            .join('');
+    renderAdminUsersList();
 
 }
 
 
-window.removeAdmin =
-    index => {
+function renderAdminUsersList() {
+    $('adminUsers').innerHTML =
+        (state.admins || [])
+            .map(admin => `
+                <div class="admin-user">
+                    <div>
+                        <strong>${admin.display_name || admin.username}</strong>
+                        <small>${admin.username} · ${admin.status}${admin.last_login_at ? ' · last login ' + formatRelativeTime(admin.last_login_at) : ' · never logged in'}</small>
+                    </div>
+                    <button
+                        class="row-action"
+                        onclick="toggleAdminStatus('${admin.username}', '${admin.status === 'Active' ? 'Inactive' : 'Active'}')"
+                    >
+                        ${admin.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                </div>
+            `)
+            .join('') || '<div class="empty">No admin accounts yet.</div>';
+}
 
-        state.admins.splice(
-            index,
-            1
-        );
+
+async function loadAdminsFromAPI() {
+    const res = await authFetch(`${API_BASE}/admin/users`);
+    const data = await res.json();
+    if (data.status !== "success") throw new Error("Failed to load admin users");
+    state.admins = data.admins;
+    save();
+}
 
 
-        save();
-
-        renderSettings();
-
-        toast(
-            'Admin user removed'
-        );
-
-    };
+window.toggleAdminStatus = (username, newStatus) => {
+    (async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${username}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            const result = await res.json();
+            if (!res.ok || result.status !== 'success') {
+                toast(result.message || 'Failed to update admin status');
+                return;
+            }
+            await loadAdminsFromAPI();
+            renderAdminUsersList();
+            toast(`${username} is now ${newStatus}`);
+        } catch (err) {
+            console.error(err);
+            toast('Could not reach the server');
+        }
+    })();
+};
 
 
 // =========================================================
@@ -2753,6 +2762,11 @@ $('saveSettings')
             output_redaction_enabled: $('redaction').checked,
             email_alerts_enabled: $('emailAlerts').checked,
             webhook_url: $('webhook').value,
+            smtp_host: $('smtpHost').value,
+            smtp_port: Number($('smtpPort').value) || 587,
+            smtp_user: $('smtpUser').value,
+            smtp_password: $('smtpPassword').value,
+            alert_email_to: $('alertEmailTo').value,
         };
 
         (async () => {
@@ -2781,6 +2795,34 @@ $('saveSettings')
     };
 
 
+$('testNotifications')
+    .onclick = () => {
+        (async () => {
+            const btn = $('testNotifications');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                const res = await authFetch(`${API_BASE}/admin/notifications/test`, { method: 'POST' });
+                const result = await res.json();
+                if (!res.ok) {
+                    toast('Failed to send test alert');
+                    return;
+                }
+                const parts = [];
+                parts.push(`Email: ${result.email.success ? 'sent' : 'failed - ' + result.email.message}`);
+                parts.push(`Webhook: ${result.webhook.success ? 'sent' : 'failed - ' + result.webhook.message}`);
+                toast(parts.join(' | '));
+            } catch (err) {
+                console.error(err);
+                toast('Could not reach the server');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send Test Alert';
+            }
+        })();
+    };
+
+
 // =========================================================
 // ADD ADMIN
 // =========================================================
@@ -2796,84 +2838,61 @@ $('addAdmin')
             'Add Admin User',
 
             `
-
                 <div class="form-grid">
 
                     <div class="form-group">
-
-                        <label>
-                            Name
-                        </label>
-
-                        <input
-                            name="name"
-                            required
-                        >
-
+                        <label>Username</label>
+                        <input name="username" required autocomplete="off">
                     </div>
 
-
                     <div class="form-group">
-
-                        <label>
-                            Email
-                        </label>
-
-                        <input
-                            name="email"
-                            type="email"
-                            required
-                        >
-
+                        <label>Display Name</label>
+                        <input name="display_name">
                     </div>
 
-
                     <div class="form-group">
-
-                        <label>
-                            Role
-                        </label>
-
-                        <select name="role">
-
-                            <option>
-                                Admin
-                            </option>
-
-                            <option>
-                                Super Admin
-                            </option>
-
-                        </select>
-
+                        <label>Password</label>
+                        <input name="password" type="password" required minlength="8">
+                        <small>At least 8 characters.</small>
                     </div>
 
                 </div>
-
             `,
 
             data => {
+                (async () => {
+                    try {
+                        const res = await authFetch(`${API_BASE}/admin/users`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: data.username.trim(),
+                                password: data.password,
+                                display_name: (data.display_name || '').trim(),
+                            }),
+                        });
+                        const result = await res.json();
 
-                state.admins.push(
-                    data
-                );
+                        if (!res.ok || result.status !== 'success') {
+                            toast(result.message || 'Failed to create admin user');
+                            return;
+                        }
 
-
-                save();
-
-                closeModal();
-
-                renderSettings();
-
-                toast(
-                    'Admin user added'
-                );
-
+                        closeModal();
+                        await loadAdminsFromAPI();
+                        renderAdminUsersList();
+                        toast('Admin user added');
+                    } catch (err) {
+                        console.error(err);
+                        toast('Could not reach the server');
+                    }
+                })();
             }
 
         );
 
     };
+
 // =========================================================
 // EXPORT INSTITUTIONS
 // =========================================================
@@ -3143,6 +3162,7 @@ async function bootstrapAdmin() {
     await loadLicensesFromAPI();
     await loadAuditFromAPI();     // real audit events + real per-license usage counts
     await loadSettingsFromAPI();  // real admin-configured settings
+    await loadAdminsFromAPI();    // real multi-admin accounts
     renderInstitutions();
     renderLicenses();
     updateNotificationDot();
