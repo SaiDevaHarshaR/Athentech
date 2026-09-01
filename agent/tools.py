@@ -1,14 +1,62 @@
 from langchain_core.tools import tool
 import pandas as pd
+
 from database.connection import get_hospital_connection
-from auth.roles import Role, can_access_table
+from auth.roles import Role
+from auth.table_access import check_query_access, check_table_access
+
+
+@tool
+def describe_table(table_name: str, role: str = "viewer", db_name: str = None) -> str:
+    """
+    Look up the real column names and data types for a specific hospital
+    database table. Call this BEFORE writing a SELECT query for a table
+    you haven't queried yet in this conversation — do not guess column
+    names, they will not match a demo/generic schema.
+    """
+    try:
+        role_enum = Role(role)
+    except ValueError:
+        return f"Error: unknown role '{role}'."
+
+    allowed, result = check_table_access(role_enum, table_name)
+    if not allowed:
+        return result
+    clean_table_name = result
+
+    conn = get_hospital_connection(db_name)
+    if not conn:
+        return "Error: Could not connect to the hospital database."
+
+    try:
+        query = (
+            "SELECT COLUMN_NAME, DATA_TYPE "
+            "FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE LOWER(TABLE_NAME) = ? "
+            "ORDER BY ORDINAL_POSITION"
+        )
+        cursor = conn.cursor()
+        cursor.execute(query, (clean_table_name,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return f"No columns found for table '{clean_table_name}' — check the table name."
+
+        lines = [f"Columns for {clean_table_name}:"]
+        for col_name, data_type in rows:
+            lines.append(f"• {col_name} ({data_type})")
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Failed to describe table: {str(e)}"
+
 
 @tool
 def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     """
     Execute a SELECT SQL query on the real hospital MSSQL database.
-    Only SELECT queries are allowed.
-    Access is restricted based on user role.
+    Only SELECT queries are allowed. Access is restricted based on user role.
     """
     query = query.strip()
 
@@ -16,19 +64,20 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
-    # Basic role-based protection (you will improve this later)
-    query_lower = query.lower()
-    sensitive_tables = [
-        "mstpatientregistration", "tblclientdocinfo", "trnmergeddocbilldtls_referral",
-        "trnpurchaseorder", "mstlocationusers"
-    ]
-    
-    for table in sensitive_tables:
-        if table in query_lower.replace("[", "").replace("]", "").replace("dbo.", ""):
-            # You can make this stricter later
-            pass
+    # Real role-based table access check (default-deny for unmapped tables).
+    # NOTE: `role` and `db_name` here are set by agent.py from the validated
+    # license, not taken from the LLM's tool-call args — do not let this
+    # function be called with caller-supplied role/db_name from anywhere else.
+    try:
+        role_enum = Role(role)
+    except ValueError:
+        return f"Error: unknown role '{role}'."
 
-    conn = get_hospital_connection()
+    allowed, reason = check_query_access(role_enum, query)
+    if not allowed:
+        return reason
+
+    conn = get_hospital_connection(db_name)
     if not conn:
         return "Error: Could not connect to the hospital database."
 

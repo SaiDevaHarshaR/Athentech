@@ -1,22 +1,14 @@
-from fastapi import FastAPI, HTTPException
+import time
+
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
+
 from agent.agent import ask_agent
 from langchain_core.messages import HumanMessage, AIMessage
-from auth.validate_code import validate_activation_code_mock
-from auth.roles import Role
-from fastapi import Request
-from fastapi.responses import JSONResponse
-import time
-from auth.license_service import validate_license
-from audit.log import audit
-from fastapi.responses import StreamingResponse
-from reports.pdf_generator import generate_smart_report
-from pydantic import BaseModel
-from auth.license_service import get_role_permissions, update_role_permissions, list_institutions, set_license_status
-from auth.license_service import create_license, validate_license, list_licenses, revoke_license
-from database.license_db import init_license_db, seed_demo_institutions
+
 from auth.license_service import (
     create_license,
     validate_license,
@@ -26,146 +18,32 @@ from auth.license_service import (
     create_institution,
     set_license_status,
     get_role_permissions,
-    update_role_permissions
+    update_role_permissions,
 )
-app = FastAPI(title="Sahasra AI Agent")
+from auth.admin_auth import require_admin, create_admin_token, check_admin_credentials
+from audit.log import audit
+from reports.pdf_generator import generate_smart_report
+from database.license_db import init_license_db, seed_demo_institutions
+from config import settings
 
+app = FastAPI(title="Sahasra AI Agent")
 
 RATE = {}
 LIMIT = 300
 WINDOW = 60
+
 init_license_db()
 seed_demo_institutions()
-# Allow frontend to call the API
+
+# CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-class RolePermissionUpdate(BaseModel):
-    role: str
-    tables: list[str]
 
-class LicenseStatusRequest(BaseModel):
-    code: str
-    status: str
-
-@app.get("/admin/institutions")
-def api_list_institutions():
-    return {"status": "success", "institutions": list_institutions()}
-
-@app.post("/admin/licenses/status")
-def api_set_license_status(req: LicenseStatusRequest):
-    ok = set_license_status(req.code, req.status)
-    if not ok:
-        return {"status": "error", "message": "License not found"}
-    return {"status": "success", "message": f"License marked {req.status}"}
-
-@app.get("/admin/roles")
-def api_get_roles():
-    return {"status": "success", "roles": get_role_permissions()}
-
-@app.put("/admin/roles")
-def api_update_role(req: RolePermissionUpdate):
-    update_role_permissions(req.role, req.tables)
-    return {"status": "success"}
-class InstitutionCreateRequest(BaseModel):
-    name: str
-    client_prefix: str
-    db_name: str
-    type: str = "Hospital"
-    city: str = ""
-    status: str = "Active"
-
-class LicenseStatusRequest(BaseModel):
-    code: str
-    status: str  # Active / Suspended / Revoked
-
-@app.get("/admin/institutions")
-def api_list_institutions():
-    return {"status": "success", "institutions": list_institutions()}
-
-@app.post("/admin/institutions")
-def api_create_institution(req: InstitutionCreateRequest):
-    try:
-        data = create_institution(
-            name=req.name,
-            client_prefix=req.client_prefix,
-            db_name=req.db_name,
-            type_=req.type,
-            city=req.city,
-            status=req.status
-        )
-        return {"status": "success", "institution": data}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/admin/licenses/status")
-def api_set_license_status(req: LicenseStatusRequest):
-    ok = set_license_status(req.code, req.status)
-    if not ok:
-        return {"status": "error", "message": "License not found"}
-    return {"status": "success", "message": f"License marked {req.status}"}
-
-class Message(BaseModel):
-    role: str
-    content: str
-
-class QueryRequest(BaseModel):
-    question: str
-    activation_code: Optional[str] = None
-    chat_history: Optional[List[Message]] = []
-class GenerateLicenseRequest(BaseModel):
-    institution_id: int
-    role: str
-    phone: str
-    dob_year: str
-    plan: str = "Standard"
-    valid_days: int = 90
-
-class ValidateLicenseRequest(BaseModel):
-    code: str
-
-class RevokeLicenseRequest(BaseModel):
-    code: str
-
-@app.post("/admin/licenses/generate")
-def api_generate_license(req: GenerateLicenseRequest):
-    try:
-        data = create_license(
-            institution_id=req.institution_id,
-            role=req.role,
-            phone=req.phone,
-            dob_year=req.dob_year,
-            plan=req.plan,
-            valid_days=req.valid_days
-        )
-        return {"status": "success", "license": data}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/licenses/validate")
-def api_validate_license(req: ValidateLicenseRequest):
-    result = validate_license(req.code)
-    if not result.get("valid"):
-        return {"status": "error", "message": result.get("reason", "invalid")}
-    return {"status": "success", "license": result}
-
-@app.get("/admin/licenses")
-def api_list_licenses():
-    return {"status": "success", "licenses": list_licenses()}
-
-@app.post("/admin/licenses/revoke")
-def api_revoke_license(req: RevokeLicenseRequest):
-    ok = revoke_license(req.code)
-    if not ok:
-        return {"status": "error", "message": "Code not found"}
-    return {"status": "success", "message": "License revoked"}
-@app.get("/")
-def home():
-    return {"message": "Sahasra AI Agent is running"}
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
@@ -187,34 +65,192 @@ async def security_middleware(request: Request, call_next):
     response.headers["Cache-Control"] = "no-store"
 
     return response
+
+
+# ---------- Request/response models ----------
+
+class RolePermissionUpdate(BaseModel):
+    role: str
+    tables: list[str]
+
+
+class LicenseStatusRequest(BaseModel):
+    code: str
+    status: str  # Active / Suspended / Revoked
+
+
+class InstitutionCreateRequest(BaseModel):
+    name: str
+    client_prefix: str
+    db_name: str
+    type: str = "Hospital"
+    city: str = ""
+    status: str = "Active"
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class QueryRequest(BaseModel):
+    question: str
+    activation_code: Optional[str] = None
+    chat_history: Optional[List[Message]] = []
+
+
+class GenerateLicenseRequest(BaseModel):
+    institution_id: int
+    role: str
+    phone: str
+    dob_year: str
+    plan: str = "Standard"
+    valid_days: int = 90
+
+
+class ValidateLicenseRequest(BaseModel):
+    code: str
+
+
+class RevokeLicenseRequest(BaseModel):
+    code: str
+
+
 class PDFRequest(BaseModel):
     title: str = "Sahasra AI Report"
     hospital_name: str = "Hospital"
     role: str = "Staff"
     activation_code: str = ""
-    content_lines: list[str] = []   # bullet points / answer lines
+    content_lines: list[str] = []
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+# ---------- Public ----------
+
+@app.get("/")
+def home():
+    return {"message": "Sahasra AI Agent is running"}
+
+
+# ---------- Admin auth ----------
+
+@app.post("/admin/login")
+def api_admin_login(req: AdminLoginRequest):
+    try:
+        ok = check_admin_credentials(req.username, req.password)
+    except RuntimeError as e:
+        # ADMIN_PASSWORD_HASH / ADMIN_SECRET_KEY not configured yet.
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not ok:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_admin_token(req.username)
+    return {"status": "success", "token": token}
+
+
+# ---------- Admin: institutions (auth required) ----------
+
+@app.get("/admin/institutions")
+def api_list_institutions(admin: str = Depends(require_admin)):
+    return {"status": "success", "institutions": list_institutions()}
+
+
+@app.post("/admin/institutions")
+def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
+    try:
+        data = create_institution(
+            name=req.name,
+            client_prefix=req.client_prefix,
+            db_name=req.db_name,
+            type_=req.type,
+            city=req.city,
+            status=req.status,
+        )
+        return {"status": "success", "institution": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ---------- Admin: licenses (auth required) ----------
+
+@app.get("/admin/licenses")
+def api_list_licenses(admin: str = Depends(require_admin)):
+    return {"status": "success", "licenses": list_licenses()}
+
+
+@app.post("/admin/licenses/generate")
+def api_generate_license(req: GenerateLicenseRequest, admin: str = Depends(require_admin)):
+    try:
+        data = create_license(
+            institution_id=req.institution_id,
+            role=req.role,
+            phone=req.phone,
+            dob_year=req.dob_year,
+            plan=req.plan,
+            valid_days=req.valid_days,
+        )
+        return {"status": "success", "license": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/admin/licenses/status")
+def api_set_license_status(req: LicenseStatusRequest, admin: str = Depends(require_admin)):
+    ok = set_license_status(req.code, req.status)
+    if not ok:
+        return {"status": "error", "message": "License not found"}
+    return {"status": "success", "message": f"License marked {req.status}"}
+
+
+@app.post("/admin/licenses/revoke")
+def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_admin)):
+    ok = revoke_license(req.code)
+    if not ok:
+        return {"status": "error", "message": "Code not found"}
+    return {"status": "success", "message": "License revoked"}
+
+
+# ---------- Admin: roles (auth required) ----------
+
+@app.get("/admin/roles")
+def api_get_roles(admin: str = Depends(require_admin)):
+    return {"status": "success", "roles": get_role_permissions()}
+
+
+@app.put("/admin/roles")
+def api_update_role(req: RolePermissionUpdate, admin: str = Depends(require_admin)):
+    update_role_permissions(req.role, req.tables)
+    return {"status": "success"}
+
+
+# ---------- Admin utility: raw code validation (auth required) ----------
+# Not used by the public chat widget (which validates via /ask with
+# question="validate"). Gated because an unauthenticated version of this
+# is a ready-made oracle for brute-forcing activation codes.
+
+@app.post("/licenses/validate")
+def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(require_admin)):
+    result = validate_license(req.code)
+    if not result.get("valid"):
+        return {"status": "error", "message": result.get("reason", "invalid")}
+    return {"status": "success", "license": result}
+
+
+# ---------- Reports ----------
 
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
-    # Convert answer lines into the structure your template expects
-    tests = []
-    for i, line in enumerate(req.content_lines):
-        tests.append({
-            "name": line[:80],
-            "value": "",
-            "unit": "",
-            "range": "",
-            "status": "normal",
-            "percentage": 70,
-            "comment": line
-        })
-
     data = {
         "report_title": req.title,
         "hospital_name": req.hospital_name,
         "user_role": req.role,
         "activation_code": req.activation_code,
-        "content_lines": req.content_lines
+        "content_lines": req.content_lines,
     }
 
     pdf_file = generate_smart_report(data)
@@ -222,8 +258,12 @@ async def generate_pdf(req: PDFRequest):
     return StreamingResponse(
         pdf_file,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"}
+        headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"},
     )
+
+
+# ---------- Public: ask ----------
+
 @app.post("/ask")
 async def ask_question(req: QueryRequest):
     try:
@@ -249,41 +289,30 @@ async def ask_question(req: QueryRequest):
             else:
                 return {
                     "status": "error",
-                    "answer": "Invalid or expired activation code."
+                    "answer": "Invalid or expired activation code.",
                 }
-        if is_premium and req.question.strip().lower() != "validate":
+
+        is_validate_ping = req.question.strip().lower() == "validate"
+
+        if is_premium and not is_validate_ping:
             audit(
                 event="premium_query",
                 role=role,
                 code=req.activation_code,
                 question=req.question,
-                meta={"db_name": db_name, "hospital": hospital_name}
+                meta={"db_name": db_name, "hospital": hospital_name},
             )
 
-        answer = ask_agent(
-            question=req.question,
-            db_name=db_name,
-            chat_history=history,
-            is_premium=is_premium,
-            role=role,
-            hospital_name=hospital_name
-        )
-
-        return {
-            "status": "success",
-            "answer": answer,
-            "mode": "premium" if is_premium else "normal",
-            "role": role if is_premium else None,
-            "hospital_name": hospital_name if is_premium else None
-        }
-
-        if req.question.strip().lower() == "validate":
+        # Fast-path: the widget sends question="validate" right after the
+        # user enters an activation code, just to confirm it worked and
+        # learn the role/hospital name. No need to invoke the LLM for that.
+        if is_validate_ping:
             return {
                 "status": "success",
-                "answer": "Code validated",
+                "answer": "Code validated" if is_premium else "Invalid or expired activation code.",
                 "mode": "premium" if is_premium else "normal",
                 "role": role if is_premium else None,
-                "hospital_name": hospital_name if is_premium else None
+                "hospital_name": hospital_name if is_premium else None,
             }
 
         answer = ask_agent(
@@ -292,7 +321,7 @@ async def ask_question(req: QueryRequest):
             chat_history=history,
             is_premium=is_premium,
             role=role,
-            hospital_name=hospital_name
+            hospital_name=hospital_name,
         )
 
         return {
@@ -300,7 +329,7 @@ async def ask_question(req: QueryRequest):
             "answer": answer,
             "mode": "premium" if is_premium else "normal",
             "role": role if is_premium else None,
-            "hospital_name": hospital_name if is_premium else None
+            "hospital_name": hospital_name if is_premium else None,
         }
 
     except Exception as e:

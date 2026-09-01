@@ -1,5 +1,94 @@
 const KEY = 'sahasraAdminState';
 const API_BASE = "http://127.0.0.1:8000";
+
+// ---------- Admin auth ----------
+const TOKEN_KEY = 'sahasraAdminToken';
+
+function getAdminToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setAdminToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearAdminToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function showLoginOverlay(message) {
+  const overlay = document.getElementById('adminLoginOverlay');
+  if (overlay) overlay.classList.remove('hidden');
+  const errEl = document.getElementById('adminLoginError');
+  if (errEl) errEl.textContent = message || '';
+}
+
+function hideLoginOverlay() {
+  const overlay = document.getElementById('adminLoginOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+// Wraps fetch(): attaches the admin bearer token, and on 401 clears the
+// stored token and re-shows the login screen instead of silently failing.
+async function authFetch(url, options = {}) {
+  const token = getAdminToken();
+  const headers = Object.assign({}, options.headers || {}, {
+    'Authorization': token ? `Bearer ${token}` : ''
+  });
+  const res = await fetch(url, Object.assign({}, options, { headers }));
+
+  if (res.status === 401) {
+    clearAdminToken();
+    showLoginOverlay('Session expired. Please sign in again.');
+    throw new Error('Not authenticated');
+  }
+  return res;
+}
+
+async function handleAdminLogin(e) {
+  e.preventDefault();
+  const username = document.getElementById('adminUsername').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const btn = document.getElementById('adminLoginBtn');
+  const errEl = document.getElementById('adminLoginError');
+
+  btn.disabled = true;
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      errEl.textContent = data.detail || 'Invalid username or password.';
+      btn.disabled = false;
+      return;
+    }
+
+    setAdminToken(data.token);
+    hideLoginOverlay();
+    bootstrapAdmin();
+  } catch (err) {
+    errEl.textContent = 'Could not reach the server. Is the API running?';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('adminLoginForm');
+  if (form) form.addEventListener('submit', handleAdminLogin);
+
+  if (!getAdminToken()) {
+    showLoginOverlay();
+  } else {
+    hideLoginOverlay();
+  }
+});
 const roles = [
     'Admin',
     'Doctor',
@@ -57,7 +146,7 @@ const rolePermissions = {
 
 
 async function loadInstitutionsFromAPI() {
-  const res = await fetch(`${API_BASE}/admin/institutions`);
+  const res = await authFetch(`${API_BASE}/admin/institutions`);
   const data = await res.json();
   if (data.status !== "success") throw new Error("Failed to load institutions");
 
@@ -74,7 +163,7 @@ async function loadInstitutionsFromAPI() {
 }
 
 async function loadLicensesFromAPI() {
-  const res = await fetch(`${API_BASE}/admin/licenses`);
+  const res = await authFetch(`${API_BASE}/admin/licenses`);
   const data = await res.json();
   if (data.status !== "success") throw new Error("Failed to load licenses");
 
@@ -1028,6 +1117,22 @@ function institutionFields(
             <div class="form-group">
 
                 <label>
+                    Database Name
+                </label>
+
+                <input
+                    name="db_name"
+                    value="${institution.db_name || ''}"
+                    placeholder="e.g. H022-KonnectLIS_Test"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
                     Type
                 </label>
 
@@ -1137,57 +1242,64 @@ function openInstitution(
 
         data => {
 
-            const object = {
-
-                id:
-                    institution
-                        ? institution.id
-                        : Date.now(),
-
-                name:
-                    data.name.trim(),
-
-                code:
-                    data.code
-                        .trim()
-                        .toUpperCase(),
-
-                type:
-                    data.type,
-
-                city:
-                    data.city.trim(),
-
-                status:
-                    data.status
-
-            };
-
-
             if (institution) {
+                // NOTE: there's no PUT /admin/institutions endpoint on the
+                // backend yet, so edits only update local display state and
+                // WILL NOT persist after a refresh. Only creation is wired
+                // to the real API below. Ask me to add a real update
+                // endpoint if you need edits to stick.
+                Object.assign(institution, {
+                    name: data.name.trim(),
+                    code: data.code.trim().toUpperCase(),
+                    db_name: data.db_name.trim(),
+                    type: data.type,
+                    city: data.city.trim(),
+                    status: data.status,
+                });
+                addActivity('Institution updated (local display only — not saved to server)', `${institution.name} was updated`);
+                toast('Updated locally only — no server-side edit endpoint yet');
+                save();
+                closeModal();
+                renderInstitutions();
+                renderDashboard();
+                return;
+            }
 
-                Object.assign(
-                    institution,
-                    object
-                );
-                addActivity(
-                    'Institution updated',
-                    `${object.name} was updated`
-                );
-                toast('Institution updated');
-            } else {
-                state.institutions.push(
-                    object
-                );
-                addActivity(
-                    'Institution registered',
-                    `${object.name} was added`
-                );
-                toast('Institution added'); }
-            save();
-            closeModal();
-            renderInstitutions();
-            renderDashboard();
+            // Create: call the real backend so this institution actually
+            // exists in licenses.db and can be used for license generation.
+            (async () => {
+                try {
+                    const res = await authFetch(`${API_BASE}/admin/institutions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: data.name.trim(),
+                            client_prefix: data.code.trim().toUpperCase(),
+                            db_name: data.db_name.trim(),
+                            type: data.type,
+                            city: data.city.trim(),
+                            status: data.status,
+                        }),
+                    });
+                    const result = await res.json();
+
+                    if (!res.ok || result.status !== 'success') {
+                        toast(result.message || 'Failed to create institution');
+                        return;
+                    }
+
+                    addActivity('Institution registered', `${data.name.trim()} was added`);
+                    toast('Institution added');
+                    closeModal();
+
+                    await loadInstitutionsFromAPI();
+                    renderInstitutions();
+                    renderDashboard();
+                } catch (err) {
+                    console.error(err);
+                    toast('Could not reach the server to create the institution');
+                }
+            })();
         }
     );
 }
@@ -1556,7 +1668,7 @@ function openLicense(license = null) {
 
             (async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/admin/licenses/generate`, {
+                    const response = await authFetch(`${API_BASE}/admin/licenses/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1648,7 +1760,7 @@ window.licenseAction = async (id, action) => {
   const newStatus = statusMap[action] || action;
 
   try {
-    const res = await fetch(`${API_BASE}/admin/licenses/status`, {
+    const res = await authFetch(`${API_BASE}/admin/licenses/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: license.code, status: newStatus })
@@ -2308,7 +2420,7 @@ function renderFailureChart() {
 
 async function renderRoles() {
   try {
-    const res = await fetch(`${API_BASE}/admin/roles`);
+    const res = await authFetch(`${API_BASE}/admin/roles`);
     const data = await res.json();
     if (data.status !== "success") throw new Error("Failed to load roles");
     const rolesData = data.roles;
@@ -2329,7 +2441,7 @@ window.saveRole = async (role) => {
   const input = document.querySelector(`.role-tables[data-role="${role}"]`);
   const tables = input.value.split(",").map(t => t.trim()).filter(Boolean);
   try {
-    const res = await fetch(`${API_BASE}/admin/roles`, {
+    const res = await authFetch(`${API_BASE}/admin/roles`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role, tables })
@@ -3072,14 +3184,23 @@ renderSettings();
 renderAudit();
 let bootstrapped = false;
 async function bootstrapAdmin() {
+  if (!getAdminToken()) {
+    // Not logged in yet — the login overlay is already shown.
+    // handleAdminLogin() will call bootstrapAdmin() again after sign-in.
+    return;
+  }
+
   if (bootstrapped) return;
   bootstrapped = true;
 
   try {
     await loadInstitutionsFromAPI();
     await loadLicensesFromAPI();
+    renderInstitutions();
+    renderLicenses();
   } catch (e) {
     console.error("Bootstrap failed:", e);
+    bootstrapped = false; // allow retry after re-login
   }
 
   navigate("dashboard");

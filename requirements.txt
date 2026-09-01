@@ -11,4 +11,5 @@ openpyxl
 reportlab
 pydantic
 pyodbc
+jinja2
 python-multipart

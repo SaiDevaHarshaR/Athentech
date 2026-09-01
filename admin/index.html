@@ -9,8 +9,48 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/x-icon" href="Favicon.ico">
+  <style>
+    #adminLoginOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0f172a;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    #adminLoginOverlay.hidden { display: none; }
+    .admin-login-card {
+      width: 100%; max-width: 360px;
+      background: #ffffff; border-radius: 12px;
+      padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    .admin-login-card h1 { font-size: 18px; margin-bottom: 4px; color: #0f172a; }
+    .admin-login-card p { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+    .admin-login-card label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin: 12px 0 4px; }
+    .admin-login-card input {
+      width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;
+    }
+    .admin-login-card button {
+      width: 100%; margin-top: 20px; padding: 10px 12px; border: none; border-radius: 8px;
+      background: #0f172a; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    .admin-login-card button:disabled { opacity: 0.6; cursor: not-allowed; }
+    #adminLoginError {
+      margin-top: 12px; font-size: 12.5px; color: #dc2626; min-height: 16px;
+    }
+  </style>
 </head>
 <body>
+<div id="adminLoginOverlay">
+  <form class="admin-login-card" id="adminLoginForm">
+    <h1>Sahasra Admin</h1>
+    <p>Sign in to manage institutions, licenses and roles.</p>
+    <label for="adminUsername">Username</label>
+    <input id="adminUsername" name="username" autocomplete="username" required>
+    <label for="adminPassword">Password</label>
+    <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" id="adminLoginBtn">Sign in</button>
+    <div id="adminLoginError"></div>
+  </form>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="brand-mark">S</div><div><h2>Sahasra</h2><span>AI Agent</span></div></div>
