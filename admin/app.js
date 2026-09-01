@@ -690,20 +690,25 @@ function renderDashboard() {
         x => x.status === 'Active'
     ).length;
 
-    const queries = state.licenses.reduce(
-        (sum, license) => sum + license.usage,
-        0
-    ) + 18420;
+    // Real totals from actual audit events — previously this added a
+    // hardcoded +18420 fake padding on top of the real number, and
+    // "failed validations" was a fabricated formula (licenseCount * 0.18)
+    // with no connection to anything that actually happened.
+    const events = state.auditEvents || [];
 
-    const failed = Math.max(
-        2,
-        Math.round(licenseCount * 0.18)
-    );
+    const totalQueries = events.filter(e => e.event === 'premium_query').length;
+
+    const todayStr = new Date().toDateString();
+    const queriesToday = events.filter(e =>
+        e.event === 'premium_query' && new Date(e.ts).toDateString() === todayStr
+    ).length;
+
+    const failed = events.filter(e => e.event === 'invalid_code_attempt').length;
 
     $('activeLicenses').textContent = licenseCount;
     $('activeHospitals').textContent = hospitals;
-    $('queriesToday').textContent = queries.toLocaleString();
-    $('totalQueries').textContent = queries.toLocaleString();
+    $('queriesToday').textContent = queriesToday.toLocaleString();
+    $('totalQueries').textContent = totalQueries.toLocaleString();
     $('failedValidations').textContent = failed;
 
     renderDashboardChart();
