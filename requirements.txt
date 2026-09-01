@@ -10,4 +10,5 @@ pandas
 openpyxl
 reportlab
 pydantic
+pyodbc
 python-multipart

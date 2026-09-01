@@ -1,17 +1,19 @@
-import sqlite3
-from typing import Optional
+import pyodbc
+from config import settings
 
-def get_hospital_connection(db_name: str = "hospital_demo"):
-    """
-    Connect to the hospital database.
-    For testing we are using SQLite.
-    Later we will switch to MySQL easily.
-    """
+def get_hospital_connection(db_name: str = None):
     try:
-        # For now we only have one test database
-        connection = sqlite3.connect("hospital_demo.db")
-        connection.row_factory = sqlite3.Row   # so we can get column names
-        return connection
+        connection_string = (
+            "DRIVER={SQL Server};"
+            f"SERVER={settings.mssql_server};"
+            f"DATABASE={settings.mssql_database};"
+            f"UID={settings.mssql_user};"
+            f"PWD={settings.mssql_password};"
+        )
+
+        conn = pyodbc.connect(connection_string, timeout=10)
+        return conn
+
     except Exception as e:
-        print(f"Database connection error: {e}")
+        print(f"MSSQL Connection Error: {e}")
         return None
