@@ -1,73 +1,71 @@
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-
 from agent.tools import run_sql_query, describe_table
 from agent.search_tool import web_search
 from agent.guardrails import check_input, check_output
 from config import settings
 from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
-
 llm = ChatGroq(
     model="openai/gpt-oss-20b",
     temperature=0,
     api_key=settings.groq_api_key
 )
-
-MAX_TOOL_ROUNDS = 5  # a chain like describe_table -> run_sql_query, or web_search -> web_search again, gets a few rounds before we force an answer
-
-
+MAX_TOOL_ROUNDS = 2          # was 5 → too many LLM calls
+MAX_HISTORY = 4              # keep only last 4 messages # a chain like describe_table -> run_sql_query, or web_search -> web_search again, gets a few rounds before we force an answer
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
-    """
-    Repeatedly invokes the LLM and executes any tool calls it makes,
-    feeding results back in, until it stops calling tools or we hit
-    MAX_TOOL_ROUNDS. Used by BOTH premium mode (describe_table ->
-    run_sql_query can chain) and normal mode (web_search can get called
-    more than once for a follow-up search).
-
-    Previously normal mode only ever handled a single round: if the model
-    called web_search a second time instead of writing a final answer,
-    `final.content` would be empty (it's a tool-call response, not text)
-    and the code silently fell back to "No relevant information found" —
-    even when the first search had already returned real results. This
-    unified loop fixes that for both modes at once.
-
-    tool_extra_kwargs: {tool_name: {kwarg: value}} — extra arguments
-    forced onto specific tools' calls (e.g. role/db_name for the SQL
-    tools, which must come from the validated license, never from
-    whatever the LLM put in its tool-call args). Tools not listed get
-    called with exactly the args the LLM provided — needed because
-    web_search's signature doesn't accept role/db_name at all.
-    """
     tool_extra_kwargs = tool_extra_kwargs or {}
-    response = llm_with_tools.invoke(messages)
+
+    response = _invoke_with_retry(llm_with_tools, messages)
+    if response is None:
+        return "AI rate limit reached. Please wait about 1 minute, clear chat history, and try a shorter question."
 
     for _ in range(MAX_TOOL_ROUNDS):
-        if not response.tool_calls:
+        if not getattr(response, "tool_calls", None):
             return response.content if response.content else None
 
         messages.append(response)
+
         for tool_call in response.tool_calls:
             tool_fn = tools_by_name.get(tool_call["name"])
             if not tool_fn:
                 result = f"Error: unknown tool '{tool_call['name']}'."
             else:
-                args = dict(tool_call["args"])
+                args = dict(tool_call.get("args") or {})
                 args.update(tool_extra_kwargs.get(tool_call["name"], {}))
                 result = tool_fn.invoke(args)
 
-            messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
+            # hard-trim huge tool results (major token saver)
+            result_text = str(result)
+            if len(result_text) > 2500:
+                result_text = result_text[:2500] + "\n...[truncated]"
 
-        response = llm_with_tools.invoke(messages)
+            messages.append(ToolMessage(content=result_text, tool_call_id=tool_call["id"]))
 
-    # Hit the round limit — ask once more for a final answer with no more tool use.
+        response = _invoke_with_retry(llm_with_tools, messages)
+        if response is None:
+            return "AI rate limit reached while processing tools. Wait 1 minute and try again."
+
+    # final forced answer (also with retry)
     messages.append(HumanMessage(
         content="Give your best final answer now based on everything above. Do not call any more tools."
     ))
-    final = llm.invoke(messages)
+    final = _invoke_with_retry(llm, messages, retries=0)
+    if final is None:
+        return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
+from groq import RateLimitError
+import time
 
-
+def _invoke_with_retry(llm_with_tools, messages, retries=1):
+    for i in range(retries + 1):
+        try:
+            return llm_with_tools.invoke(messages)
+        except RateLimitError:
+            if i == retries:
+                return None
+            time.sleep(20)  # wait longer, fewer retries
+    return None
 def ask_agent(
     question: str,
     db_name: str = "hospital_demo",
@@ -78,6 +76,8 @@ def ask_agent(
 ):
     if chat_history is None:
         chat_history = []
+    if chat_history and len(chat_history) > MAX_HISTORY:
+        chat_history = chat_history[-MAX_HISTORY:]
 
     # ========== GUARDRAILS (INPUT) ==========
     ok, msg = check_input(question)
@@ -122,6 +122,12 @@ to their role or isn't in the system yet.
 - Never use markdown tables
 - If describe_table or run_sql_query returns an access-denied or error
   message, explain that plainly to the user instead of making something up
+### Efficiency rules (mandatory):
+- Use at most 1 describe_table call unless absolutely needed
+- Always use SELECT TOP 10
+- Select only needed columns, never SELECT * on large tables
+- Keep answers short
+- If question is broad (like "payment details"), ask for a filter OR return TOP 10 recent rows only
 """
 
         tools = [describe_table, run_sql_query]

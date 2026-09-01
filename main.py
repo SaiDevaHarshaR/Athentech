@@ -416,4 +416,10 @@ async def ask_question(req: QueryRequest):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        msg = str(e)
+        if "rate_limit" in msg.lower() or "429" in msg:
+            return {
+                "status": "error",
+                "answer": "AI rate limit reached. Please wait 15 seconds and try again."
+            }
+    

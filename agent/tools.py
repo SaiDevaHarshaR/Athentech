@@ -1,6 +1,4 @@
 from langchain_core.tools import tool
-import pandas as pd
-
 from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
@@ -64,10 +62,6 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
-    # Real role-based table access check (default-deny for unmapped tables).
-    # NOTE: `role` and `db_name` here are set by agent.py from the validated
-    # license, not taken from the LLM's tool-call args — do not let this
-    # function be called with caller-supplied role/db_name from anywhere else.
     try:
         role_enum = Role(role)
     except ValueError:
@@ -82,22 +76,30 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
         return "Error: Could not connect to the hospital database."
 
     try:
-        df = pd.read_sql(query, conn)
-        conn.close()
+        cursor = conn.cursor()
+        cursor.execute(query)
 
-        if df.empty:
+        if not cursor.description:
             return "No data found for this query."
 
-        # Limit rows for safety (very important on real DB)
-        df = df.head(50)
+        columns = [col[0] for col in cursor.description]
+        rows = cursor.fetchmany(50)  # safety limit
 
-        # Clean readable format
+        if not rows:
+            return "No data found for this query."
+
         lines = []
-        for _, row in df.iterrows():
-            item = [f"{col}: {row[col]}" for col in df.columns]
+        for row in rows:
+            item = [f"{columns[i]}: {row[i]}" for i in range(len(columns))]
             lines.append("• " + " | ".join(item))
 
         return "\n".join(lines)
 
     except Exception as e:
         return f"Query failed: {str(e)}"
+
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
