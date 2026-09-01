@@ -21,6 +21,7 @@ Two ways this gets used:
 
 import copy
 import os
+import re
 import uuid
 from datetime import datetime
 from io import BytesIO
@@ -181,6 +182,27 @@ def _resolve_asset_path(uri: str, rel: str = None) -> str:
     return os.path.join(_template_dir(), uri.lstrip("/"))
 
 
+_TAG_WITH_ID_RE = re.compile(r'<([a-zA-Z][\w-]*)\b[^>]*\bid="([\w-]+)"[^>]*>')
+
+
+def _add_link_targets(html: str) -> str:
+    """
+    xhtml2pdf/reportlab only recognizes <a name="..."> as a link
+    destination for internal jump-links — it ignores id="..." entirely,
+    even though that's what every element in the template (and every
+    <a href="#anchor">) actually uses. Rather than rewrite the template's
+    id attributes (which CSS and any future JS also rely on), this
+    injects a matching <a name="..."></a> right before each *whole
+    opening tag* that has an id, so internal links like "View details →"
+    and "Back to Your Body Health Map" actually become clickable in the
+    PDF, without corrupting the tag itself.
+    """
+    return _TAG_WITH_ID_RE.sub(
+        lambda m: f'<a name="{m.group(2)}"></a>' + m.group(0),
+        html,
+    )
+
+
 def generate_smart_report(data: dict) -> BytesIO:
     data = data or {}
 
@@ -203,6 +225,7 @@ def generate_smart_report(data: dict) -> BytesIO:
     template = env.get_template("smart_report.html")
 
     html_content = template.render(**merged)
+    html_content = _add_link_targets(html_content)
 
     pdf_file = BytesIO()
     pisa_status = pisa.CreatePDF(

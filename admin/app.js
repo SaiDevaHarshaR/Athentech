@@ -610,7 +610,11 @@ const pages = {
 };
 
 
+let currentAdminPage = 'dashboard';
+
 function navigate(page) {
+
+    currentAdminPage = page;
 
     Object.values(pages).forEach(
         p => p.classList.remove('active-page')
@@ -656,6 +660,19 @@ function navigate(page) {
     renderers[page]();
 
 }
+
+// "X min ago" labels were computed once at render time and then frozen —
+// they'd only update on your next click/refresh, so "10 secs ago" could
+// sit there for 20 minutes looking wrong. This just re-renders the
+// time-sensitive bits every 30s if you're actually looking at them,
+// without refetching anything from the server.
+setInterval(() => {
+    if (currentAdminPage === 'dashboard') {
+        renderDashboardActivities();
+    } else if (currentAdminPage === 'audit') {
+        renderAudit();
+    }
+}, 30000);
 
 
 document
