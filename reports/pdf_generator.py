@@ -21,13 +21,13 @@ Two ways this gets used:
 
 import copy
 import os
-import re
+import tempfile
 import uuid
 from datetime import datetime
 from io import BytesIO
 
 from jinja2 import Environment, FileSystemLoader, Undefined
-from xhtml2pdf import pisa
+from playwright.sync_api import sync_playwright
 
 
 # ---------------------------------------------------------------------------
@@ -168,42 +168,19 @@ def build_findings_from_content_lines(content_lines: list) -> list:
     return findings
 
 
-def _resolve_asset_path(uri: str, rel: str = None) -> str:
-    """
-    xhtml2pdf needs an absolute filesystem path for relative <link>/<img>
-    references (it can't resolve "report.css" on its own from an HTML
-    string that has no base URL). This maps any relative asset reference
-    in the template to the reports/templates/ folder.
-    """
-    if uri.startswith(("http://", "https://", "data:")):
-        return uri
-    if os.path.isabs(uri) and os.path.exists(uri):
-        return uri
-    return os.path.join(_template_dir(), uri.lstrip("/"))
-
-
-_TAG_WITH_ID_RE = re.compile(r'<([a-zA-Z][\w-]*)\b[^>]*\bid="([\w-]+)"[^>]*>')
-
-
-def _add_link_targets(html: str) -> str:
-    """
-    xhtml2pdf/reportlab only recognizes <a name="..."> as a link
-    destination for internal jump-links — it ignores id="..." entirely,
-    even though that's what every element in the template (and every
-    <a href="#anchor">) actually uses. Rather than rewrite the template's
-    id attributes (which CSS and any future JS also rely on), this
-    injects a matching <a name="..."></a> right before each *whole
-    opening tag* that has an id, so internal links like "View details →"
-    and "Back to Your Body Health Map" actually become clickable in the
-    PDF, without corrupting the tag itself.
-    """
-    return _TAG_WITH_ID_RE.sub(
-        lambda m: f'<a name="{m.group(2)}"></a>' + m.group(0),
-        html,
-    )
-
-
 def generate_smart_report(data: dict) -> BytesIO:
+    """
+    Renders via a real headless Chromium browser (Playwright) instead of
+    xhtml2pdf. xhtml2pdf could not render emoji fonts or CSS grid/flexbox
+    layouts at all — a hard limitation of that library, not something
+    fixable with more CSS tuning. A real browser engine renders exactly
+    what you'd see viewing the HTML normally: real emoji, real layout.
+
+    As a side effect this also makes the old xhtml2pdf-specific
+    _add_link_targets() workaround unnecessary — real browsers already
+    treat id="..." as a valid link target for <a href="#id">, so internal
+    jump-links (View details, Back to Health Map) work natively.
+    """
     data = data or {}
 
     # Fallback: if the caller only gave us plain content_lines and no
@@ -223,22 +200,36 @@ def generate_smart_report(data: dict) -> BytesIO:
         undefined=NoDataUndefined,
     )
     template = env.get_template("smart_report.html")
-
     html_content = template.render(**merged)
-    html_content = _add_link_targets(html_content)
 
-    pdf_file = BytesIO()
-    pisa_status = pisa.CreatePDF(
-        html_content,
-        dest=pdf_file,
-        link_callback=_resolve_asset_path,
-    )
+    # Written to a temp file INSIDE the templates folder so relative
+    # asset references (report.css) resolve naturally via a real
+    # file:// base URL — no custom path-resolution hack needed, unlike
+    # the old xhtml2pdf link_callback approach.
+    fd, temp_path = tempfile.mkstemp(suffix=".html", dir=_template_dir())
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(html_content)
 
-    if pisa_status.err:
-        raise Exception("Error creating PDF")
+        pdf_bytes = _render_pdf_with_chromium(temp_path)
+    finally:
+        os.remove(temp_path)
 
+    pdf_file = BytesIO(pdf_bytes)
     pdf_file.seek(0)
     return pdf_file
+
+
+def _render_pdf_with_chromium(html_file_path: str) -> bytes:
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            page = browser.new_page()
+            page.goto(f"file://{html_file_path}")
+            pdf_bytes = page.pdf(format="A4", print_background=True)
+        finally:
+            browser.close()
+    return pdf_bytes
 
 
 def _template_dir() -> str:

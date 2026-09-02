@@ -1,4 +1,4 @@
-from reports.pdf_generator import generate_smart_report, build_findings_from_content_lines, _add_link_targets
+from reports.pdf_generator import generate_smart_report, build_findings_from_content_lines
 
 
 def test_empty_data_does_not_crash():
@@ -23,16 +23,12 @@ def test_content_lines_fallback_produces_findings():
     assert findings[0]["simple_explanation"] == "Line one"
 
 
-def test_add_link_targets_inserts_before_tag_not_inside_it():
-    html = '<div id="finding-1" class="card">content</div>'
-    result = _add_link_targets(html)
-    assert '<a name="finding-1"></a>' in result
-    # the anchor must come BEFORE the tag, not get injected into its attributes
-    assert '<div <a name=' not in result
-    assert result.index('<a name="finding-1">') < result.index('<div id="finding-1"')
-
-
 def test_full_pdf_generates_clickable_internal_links():
+    # Now rendered by a real browser (Playwright/Chromium) instead of
+    # xhtml2pdf — real browsers treat id="..." as a valid link target
+    # natively, so this no longer needs the old <a name> injection hack
+    # to work. Testing the observable behavior (real link annotations in
+    # the output PDF), not the removed implementation detail.
     from pypdf import PdfReader
     from io import BytesIO
 

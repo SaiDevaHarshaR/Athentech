@@ -442,7 +442,16 @@ async def generate_pdf(req: PDFRequest):
         "content_lines": req.content_lines,
     }
 
-    pdf_file = generate_smart_report(data)
+    # generate_smart_report uses Playwright's sync API (launches a real
+    # browser to render) — that's a ~0.7s blocking call. Running it
+    # directly here would freeze the whole async event loop for that
+    # long on every PDF request, stalling any other concurrent request
+    # (chat, admin panel, everything) for the duration. run_in_executor
+    # runs it in a background thread instead, so only this one request
+    # waits on it.
+    import asyncio
+    loop = asyncio.get_event_loop()
+    pdf_file = await loop.run_in_executor(None, generate_smart_report, data)
 
     return StreamingResponse(
         pdf_file,
@@ -538,10 +547,4 @@ async def ask_question(req: QueryRequest):
         }
 
     except Exception as e:
-        msg = str(e)
-        if "rate_limit" in msg.lower() or "429" in msg:
-            return {
-                "status": "error",
-                "answer": "AI rate limit reached. Please wait 15 seconds and try again.",
-            }
-        raise HTTPException(status_code=500, detail=msg)
+        raise HTTPException(status_code=500, detail=str(e))

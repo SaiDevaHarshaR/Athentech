@@ -11,6 +11,7 @@ langgraph
 pandas
 openpyxl
 reportlab
+playwright
 pydantic
 pyodbc
 jinja2
