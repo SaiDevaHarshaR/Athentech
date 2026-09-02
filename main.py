@@ -14,9 +14,11 @@ from auth.license_service import (
     validate_license,
     list_licenses,
     revoke_license,
+    delete_license,
     list_institutions,
     create_institution,
     update_institution,
+    delete_institution,
     set_license_status,
     get_role_permissions,
     update_role_permissions,
@@ -308,9 +310,31 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
 def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, admin: str = Depends(require_admin)):
     try:
         data = update_institution(institution_id, **req.model_dump(exclude_unset=True))
+        # Don't log the raw db_password into the audit trail — same
+        # reasoning as excluding smtp_password from the settings-update
+        # audit log elsewhere: the audit log is meant to record WHAT
+        # changed, not BE a place secrets end up in plaintext.
+        safe_changes = {k: v for k, v in req.model_dump(exclude_unset=True).items() if k != "db_password"}
+        if "db_password" in req.model_dump(exclude_unset=True):
+            safe_changes["db_password"] = "[changed]"
         _log_admin_action(admin, "Updated institution", data.get("name", str(institution_id)),
-                           meta={"changes": req.model_dump(exclude_unset=True)})
+                           meta={"changes": safe_changes})
         return {"status": "success", "institution": data}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.delete("/admin/institutions/{institution_id}")
+def api_delete_institution(institution_id: int, admin: str = Depends(require_admin)):
+    try:
+        result = delete_institution(institution_id)
+        _log_admin_action(
+            admin, "Deleted institution", result["institution_name"],
+            meta={"licenses_removed": result["licenses_removed"]},
+        )
+        return {"status": "success", "deleted": result}
     except ValueError as e:
         return {"status": "error", "message": str(e)}
     except Exception as e:
@@ -362,6 +386,15 @@ def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_a
         return {"status": "error", "message": "Code not found"}
     _log_admin_action(admin, "Revoked license", req.code)
     return {"status": "success", "message": "License revoked"}
+
+
+@app.delete("/admin/licenses/{code}")
+def api_delete_license(code: str, admin: str = Depends(require_admin)):
+    ok = delete_license(code)
+    if not ok:
+        return {"status": "error", "message": "Code not found"}
+    _log_admin_action(admin, "Deleted license", code)
+    return {"status": "success", "message": "License deleted"}
 
 
 # ---------- Admin: roles (auth required) ----------
@@ -491,6 +524,9 @@ async def generate_patient_report(req: PatientReportRequest):
     role = validation.get("role", "viewer")
     db_name = validation.get("db_name")
     hospital_name = validation.get("hospital_name", "Hospital")
+    db_server = validation.get("db_server")
+    db_user = validation.get("db_user")
+    db_password = validation.get("db_password")
 
     from agent.agent import llm as agent_llm
 
@@ -499,7 +535,8 @@ async def generate_patient_report(req: PatientReportRequest):
 
     try:
         report_data = await loop.run_in_executor(
-            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm
+            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
+            db_server, db_user, db_password,
         )
     except PatientNotFound:
         raise HTTPException(status_code=404, detail=f"No patient found matching '{req.patient_identifier}'.")
@@ -537,6 +574,9 @@ async def ask_question(req: QueryRequest):
         role = "viewer"
         db_name = "hospital_demo"
         hospital_name = "Demo Hospital"
+        db_server = None
+        db_user = None
+        db_password = None
 
         if req.activation_code:
             validation = validate_license(req.activation_code)
@@ -545,6 +585,9 @@ async def ask_question(req: QueryRequest):
                 role = validation.get("role", "viewer")
                 db_name = validation.get("db_name", "hospital_demo")
                 hospital_name = validation.get("hospital_name", "Hospital")
+                db_server = validation.get("db_server")
+                db_user = validation.get("db_user")
+                db_password = validation.get("db_password")
             else:
                 # Real failure event — previously invalid attempts were
                 # never recorded anywhere, so the admin panel's "failed
@@ -597,6 +640,9 @@ async def ask_question(req: QueryRequest):
             is_premium=is_premium,
             role=role,
             hospital_name=hospital_name,
+            db_server=db_server,
+            db_user=db_user,
+            db_password=db_password,
         )
 
         return {

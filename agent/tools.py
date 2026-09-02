@@ -7,7 +7,14 @@ from auth.table_relationships import get_relationships_for_table
 
 
 @tool
-def describe_table(table_name: str, role: str = "viewer", db_name: str = None) -> str:
+def describe_table(
+    table_name: str,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
     """
     Look up the real column names and data types for a specific hospital
     database table. Call this BEFORE writing a SELECT query for a table
@@ -24,7 +31,7 @@ def describe_table(table_name: str, role: str = "viewer", db_name: str = None) -
         return result
     clean_table_name = result
 
-    conn = get_hospital_connection(db_name)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: Could not connect to the hospital database."
 
@@ -64,7 +71,14 @@ def describe_table(table_name: str, role: str = "viewer", db_name: str = None) -
 
 
 @tool
-def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
+def run_sql_query(
+    query: str,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
     """
     Execute a SELECT SQL query on the real hospital MSSQL database.
     Only SELECT queries are allowed. Access is restricted based on user role.
@@ -90,7 +104,7 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     if not allowed:
         return reason
 
-    conn = get_hospital_connection(db_name)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: Could not connect to the hospital database."
 

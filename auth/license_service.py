@@ -164,17 +164,38 @@ def set_license_status(code: str, status: str):
     return changed > 0
 
 
+def delete_license(code: str) -> bool:
+    """
+    Permanently removes a license. Unlike revoke_license (which just
+    marks it Revoked so the code stops working but the record stays for
+    audit history), this actually deletes the row — for cleaning up
+    real junk (test codes, typos) rather than a license you might need
+    to reference later.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM licenses WHERE code = ?", (code.upper(),))
+    conn.commit()
+    changed = cur.rowcount
+    conn.close()
+    return changed > 0
+
+
+def _sanitize_institution(row_dict: dict) -> dict:
+    """Never let the raw db_password leave this module — same pattern
+    list_institutions() already used, now shared so create/update can't
+    accidentally leak it back to the browser in the API response."""
+    d = dict(row_dict)
+    d["has_db_password"] = bool(d.get("db_password"))
+    d.pop("db_password", None)
+    return d
+
+
 def list_institutions():
     conn = get_conn()
     rows = conn.execute("SELECT * FROM institutions ORDER BY id ASC").fetchall()
     conn.close()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["has_db_password"] = bool(d.get("db_password"))
-        d.pop("db_password", None)  # don't send password to browser list
-        out.append(d)
-    return out
+    return [_sanitize_institution(dict(r)) for r in rows]
 
 def create_institution(
     name: str,
@@ -213,7 +234,7 @@ def create_institution(
     inst_id = cur.lastrowid
     row = cur.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,)).fetchone()
     conn.close()
-    return dict(row)
+    return _sanitize_institution(dict(row))
 
 
 def update_institution(institution_id: int, **fields):
@@ -239,7 +260,7 @@ def update_institution(institution_id: int, **fields):
         conn.close()
         raise ValueError("Institution not found")
 
-    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status"}
+    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password"}
     updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
 
     if "client_prefix" in updates:
@@ -247,7 +268,7 @@ def update_institution(institution_id: int, **fields):
 
     if not updates:
         conn.close()
-        return dict(existing)
+        return _sanitize_institution(dict(existing))
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     cur.execute(
@@ -258,7 +279,34 @@ def update_institution(institution_id: int, **fields):
 
     updated = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
     conn.close()
-    return dict(updated)
+    return _sanitize_institution(dict(updated))
+
+
+def delete_institution(institution_id: int) -> dict:
+    """
+    Permanently removes an institution AND every license tied to it —
+    otherwise deleting an institution would leave orphaned licenses
+    pointing at an institution_id that no longer exists, which would
+    break validate_license() the next time one of those codes is used.
+    Returns how many licenses were removed alongside it, so the caller
+    can tell the admin what actually happened.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise ValueError("Institution not found")
+
+    cur.execute("DELETE FROM licenses WHERE institution_id = ?", (institution_id,))
+    licenses_removed = cur.rowcount
+
+    cur.execute("DELETE FROM institutions WHERE id = ?", (institution_id,))
+    conn.commit()
+    conn.close()
+
+    return {"institution_name": existing["name"], "licenses_removed": licenses_removed}
 
 
 def get_role_permissions():

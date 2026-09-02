@@ -125,6 +125,9 @@ def ask_agent(
     is_premium: bool = False,
     role: str = "viewer",
     hospital_name: str = "Demo Hospital",
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
 ):
     if chat_history is None:
         chat_history = []
@@ -251,8 +254,14 @@ Example of the exact target style, for "today's collection at Kukatpally":
             messages,
             tools_by_name,
             tool_extra_kwargs={
-                "run_sql_query": {"role": role, "db_name": db_name},
-                "describe_table": {"role": role, "db_name": db_name},
+                "run_sql_query": {
+                    "role": role, "db_name": db_name,
+                    "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                },
+                "describe_table": {
+                    "role": role, "db_name": db_name,
+                    "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                },
             },
         )
         if not answer:

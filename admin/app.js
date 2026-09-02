@@ -1176,6 +1176,18 @@ function renderInstitutions() {
                                 ◉
                             </button>
 
+                            <button
+                                class="row-action"
+                                title="Delete institution and all its licenses"
+                                onclick="
+                                    deleteInstitution(
+                                        ${institution.id}
+                                    )
+                                "
+                            >
+                                🗑
+                            </button>
+
                         </div>
 
                     </td>
@@ -1545,6 +1557,43 @@ window.toggleInstitution =
             }
         })();
     };
+window.deleteInstitution =
+    id => {
+        const institution = inst(id);
+        if (!institution) return;
+
+        const licenseCount = state.licenses.filter(l => l.institutionId === id).length;
+        const warning = licenseCount > 0
+            ? `Delete "${institution.name}" AND its ${licenseCount} license(s)? This cannot be undone.`
+            : `Delete "${institution.name}"? This cannot be undone.`;
+
+        if (!confirm(warning)) return;
+
+        (async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/admin/institutions/${id}`, {
+                    method: 'DELETE',
+                });
+                const result = await res.json();
+
+                if (!res.ok || result.status !== 'success') {
+                    toast(result.message || 'Failed to delete institution');
+                    return;
+                }
+
+                addActivity('Institution deleted', `${institution.name} and ${result.deleted.licenses_removed} license(s) removed`);
+                await loadInstitutionsFromAPI();
+                await loadLicensesFromAPI();
+                renderInstitutions();
+                renderLicenses();
+                renderDashboard();
+                toast(`${institution.name} deleted`);
+            } catch (err) {
+                console.error(err);
+                toast('Could not reach the server to delete the institution');
+            }
+        })();
+    };
 window.viewInstitutionLicenses =
     id => {
         const institution =
@@ -1772,6 +1821,18 @@ function renderLicenses() {
                                 Suspend
                             </button>
 
+                            <button
+                                class="row-action"
+                                title="Permanently delete this license"
+                                onclick="
+                                    deleteLicense(
+                                        '${license.code}'
+                                    )
+                                "
+                            >
+                                🗑
+                            </button>
+
                         </div>
 
                     </td>
@@ -1992,6 +2053,29 @@ window.licenseAction = async (id, action) => {
   } catch (e) {
     console.error(e);
     toast("Could not update license status");
+  }
+};
+
+window.deleteLicense = async (code) => {
+  if (!confirm(`Permanently delete license ${code}? This cannot be undone.`)) return;
+
+  try {
+    const res = await authFetch(`${API_BASE}/admin/licenses/${code}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (data.status !== "success") {
+      toast(data.message || "Failed to delete license");
+      return;
+    }
+    addActivity("License deleted", code);
+    await loadLicensesFromAPI();
+    renderLicenses();
+    renderDashboard();
+    toast(`License ${code} deleted`);
+  } catch (e) {
+    console.error(e);
+    toast("Could not reach the server to delete the license");
   }
 };
 // =========================================================
