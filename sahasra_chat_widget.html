@@ -288,18 +288,33 @@ function handleSend() {
 
 async function processMessage(text) {
   const q = text.toLowerCase();
-  if (
-  q.includes('download pdf') ||
-  q.includes('generate pdf') ||
-  q.includes('pdf report') ||
-  q.includes('export pdf')
-) {
-  if (!state.lastAnswer) {
-    addMessage('Please ask a data question first, then request the PDF.', 'bot');
+  // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
+  // missed anything phrased naturally, like "download a report pdf about
+  // X" — "download" and "pdf" are both there, just not adjacent, so it
+  // fell through to the LLM instead of triggering the PDF export. Now
+  // matches "pdf" plus any reasonable action word, in any order/spacing.
+  const mentionsPdf = q.includes('pdf');
+  const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
+
+  if (mentionsPdf && hasActionWord) {
+    // If the request names a specific patient (UHID pattern, e.g.
+    // KDX26929648), fetch a REAL fresh report for that one patient
+    // instead of just re-wrapping whatever the last chat answer said.
+    // This is what makes it a "Smart Report" rather than a generic
+    // PDF-ification of old text — a targeted database lookup, not a
+    // re-hash of a previous unrelated answer (e.g. a 5-patient list).
+    const uhidMatch = text.match(/\b([A-Z]{2,6}\d{3,})\b/i);
+    if (uhidMatch) {
+      await downloadPatientReport(uhidMatch[1]);
+      return;
+    }
+
+    if (!state.lastAnswer) {
+      addMessage('Please ask a data question first, then request the PDF.', 'bot');
+      return;
+    }
+    await downloadPdf(state.lastAnswer);
     return;
-  }
-  await downloadPdf(state.lastAnswer);
-  return;
 }
 
 
@@ -500,6 +515,42 @@ async function downloadPdf(answerText) {
     addMessage('✅ PDF downloaded successfully.', 'bot');
   } catch (err) {
     addMessage('Could not download PDF. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+async function downloadPatientReport(patientIdentifier) {
+  addMessage(`Generating Smart Report for ${patientIdentifier}...`, 'bot');
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-patient-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_identifier: patientIdentifier,
+        activation_code: state.activationCode || ''
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || 'Failed to generate the patient report.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patient_report_${patientIdentifier}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ Patient report downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download the patient report. Please try again.', 'bot');
     console.error(err);
   }
 }

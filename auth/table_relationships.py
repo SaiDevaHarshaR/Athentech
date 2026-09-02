@@ -12,7 +12,20 @@ Example, once reviewed:
 """
 
 REAL_TABLE_RELATIONSHIPS = {
-    # Populate from your reviewed table_relationships_review.csv
+    # Populated from table_relationships_review.csv — the 8 tables that
+    # directly link to the patient table (mstpatientregistration).
+    # trninvlabdetloc16 and trninvlabprisweeja look like a location-
+    # specific or personal dev/backup copy (unusual suffixes) rather than
+    # the main table — included anyway since a redundant join isn't
+    # harmful, just worth a look if duplicate rows show up in reports.
+    "trninvlabdet": [("PATID", "mstpatientregistration", "ID")],
+    "trninvlabdetloc16": [("PATID", "mstpatientregistration", "ID")],
+    "trninvlabpri": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trninvlabprisweeja": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trnlifeberries": [("PATID", "mstpatientregistration", "ID")],
+    "trnlifeberriespri": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trnmodeofcollectionsdet": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trntempinvstatus": [("PATIENTID", "mstpatientregistration", "ID")],
 }
 
 

@@ -168,6 +168,44 @@ def build_findings_from_content_lines(content_lines: list) -> list:
     return findings
 
 
+ORGAN_CATEGORY_ALIASES = {
+    "brain": ["neuro", "brain", "cognitive", "mental"],
+    "heart": ["heart", "cardiac", "cardiovascular"],
+    "lungs": ["lung", "respiratory", "pulmonary"],
+    "blood": ["blood", "hematology", "hemoglobin", "cbc", "anemia"],
+    "bones": ["bone", "skeletal", "calcium", "vitamin d", "orthop"],
+    "metabolism": ["metabolism", "metabolic", "sugar", "glucose", "diabetes", "thyroid", "lipid", "cholesterol"],
+    "kidney": ["kidney", "renal"],
+    "liver": ["liver", "hepatic"],
+}
+
+
+def _compute_organ_links(all_findings: list) -> dict:
+    """
+    The organ-map boxes in the template ("Your Body Health Map") are
+    meant to jump to the relevant detailed finding for that organ — but
+    there's no dedicated per-organ section in the template, only
+    per-finding ones. This matches each organ to the first finding whose
+    category plausibly relates to it (by keyword), and falls back to the
+    health-map section itself (a harmless self-link) if nothing matches,
+    rather than linking to an id="brain" anchor that was never defined
+    anywhere in the document at all — silently dead until now regardless
+    of any rendering engine, always missing 8 anchor targets.
+    """
+    links = {organ: "health-map" for organ in ORGAN_CATEGORY_ALIASES}
+
+    for finding in all_findings or []:
+        category = str(finding.get("category", "") or "").lower()
+        anchor = finding.get("anchor")
+        if not anchor or not category:
+            continue
+        for organ, keywords in ORGAN_CATEGORY_ALIASES.items():
+            if links[organ] == "health-map" and any(kw in category for kw in keywords):
+                links[organ] = anchor
+
+    return links
+
+
 def generate_smart_report(data: dict) -> BytesIO:
     """
     Renders via a real headless Chromium browser (Playwright) instead of
@@ -194,6 +232,7 @@ def generate_smart_report(data: dict) -> BytesIO:
 
     merged.setdefault("report_date", datetime.now().strftime("%d/%m/%Y %H:%M"))
     merged.setdefault("report_id", str(uuid.uuid4())[:8].upper())
+    merged["organ_links"] = _compute_organ_links(merged.get("all_findings"))
 
     env = Environment(
         loader=FileSystemLoader(_template_dir()),
@@ -203,7 +242,7 @@ def generate_smart_report(data: dict) -> BytesIO:
     html_content = template.render(**merged)
 
     # Written to a temp file INSIDE the templates folder so relative
-    # asset references (report.css) resolve naturally via a real
+    # asset references (styles.css) resolve naturally via a real
     # file:// base URL — no custom path-resolution hack needed, unlike
     # the old xhtml2pdf link_callback approach.
     fd, temp_path = tempfile.mkstemp(suffix=".html", dir=_template_dir())

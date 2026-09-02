@@ -27,6 +27,7 @@ from auth.admin_auth import require_admin, create_admin_token, check_admin_crede
 from auth.admin_service import list_admins, create_admin, set_admin_status, change_admin_password
 from audit.log import audit, read_audit_log
 from reports.pdf_generator import generate_smart_report
+from reports.patient_report_generator import build_patient_report_data, PatientNotFound, PatientAmbiguous
 from database.license_db import init_license_db, seed_demo_institutions, seed_bootstrap_admin
 from notifications.email import send_alert_email
 from notifications.webhook import send_webhook_alert
@@ -158,6 +159,11 @@ class PDFRequest(BaseModel):
     role: str = "Staff"
     activation_code: str = ""
     content_lines: list[str] = []
+
+
+class PatientReportRequest(BaseModel):
+    patient_identifier: str  # UHID or name
+    activation_code: str
 
 
 class AdminLoginRequest(BaseModel):
@@ -457,6 +463,50 @@ async def generate_pdf(req: PDFRequest):
         pdf_file,
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"},
+    )
+
+
+@app.post("/generate-patient-report")
+async def generate_patient_report(req: PatientReportRequest):
+    """
+    The REAL Smart Report — looks up one specific real patient and
+    builds their report from freshly-queried real data, instead of
+    just re-wrapping whatever the last chat answer happened to say.
+    """
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+
+    role = validation.get("role", "viewer")
+    db_name = validation.get("db_name")
+    hospital_name = validation.get("hospital_name", "Hospital")
+
+    from agent.agent import llm as agent_llm
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    try:
+        report_data = await loop.run_in_executor(
+            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm
+        )
+    except PatientNotFound:
+        raise HTTPException(status_code=404, detail=f"No patient found matching '{req.patient_identifier}'.")
+    except PatientAmbiguous as e:
+        names = ", ".join(f"{c['name']} (UHID: {c['uhid']})" for c in e.candidates[:5])
+        raise HTTPException(
+            status_code=409,
+            detail=f"Multiple matching patients found: {names}. Please specify the UHID instead."
+        )
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    pdf_file = await loop.run_in_executor(None, generate_smart_report, report_data)
+
+    return StreamingResponse(
+        pdf_file,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=patient_report.pdf"},
     )
 
 

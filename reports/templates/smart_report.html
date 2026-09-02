@@ -7,7 +7,7 @@
 
     <title>Sahasra Smart Health Report</title>
 
-    <link rel="stylesheet" href="report.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
@@ -170,7 +170,7 @@
 
     <div class="body-row single">
 
-        <a href="#brain" class="body-part status-{{ body.brain.status }}">
+        <a href="#{{ organ_links.brain }}" class="body-part status-{{ body.brain.status }}">
 
             <div class="body-icon">
                 🧠
@@ -193,7 +193,7 @@
 
     <div class="body-row">
 
-        <a href="#heart" class="body-part status-{{ body.heart.status }}">
+        <a href="#{{ organ_links.heart }}" class="body-part status-{{ body.heart.status }}">
 
             <div class="body-icon">
                 ❤️
@@ -210,7 +210,7 @@
         </a>
 
 
-        <a href="#lungs" class="body-part status-{{ body.lungs.status }}">
+        <a href="#{{ organ_links.lungs }}" class="body-part status-{{ body.lungs.status }}">
 
             <div class="body-icon">
                 🫁
@@ -233,7 +233,7 @@
 
     <div class="body-row single">
 
-        <a href="#blood" class="body-part status-{{ body.blood.status }}">
+        <a href="#{{ organ_links.blood }}" class="body-part status-{{ body.blood.status }}">
 
             <div class="body-icon">
                 🩸
@@ -256,7 +256,7 @@
 
     <div class="body-row">
 
-        <a href="#bones" class="body-part status-{{ body.bones.status }}">
+        <a href="#{{ organ_links.bones }}" class="body-part status-{{ body.bones.status }}">
 
             <div class="body-icon">
                 🦴
@@ -273,7 +273,7 @@
         </a>
 
 
-        <a href="#metabolism" class="body-part status-{{ body.metabolism.status }}">
+        <a href="#{{ organ_links.metabolism }}" class="body-part status-{{ body.metabolism.status }}">
 
             <div class="body-icon">
                 🧬
@@ -296,7 +296,7 @@
 
     <div class="body-row">
 
-        <a href="#kidney" class="body-part status-{{ body.kidney.status }}">
+        <a href="#{{ organ_links.kidney }}" class="body-part status-{{ body.kidney.status }}">
 
             <div class="body-icon">
                 🫘
@@ -313,7 +313,7 @@
         </a>
 
 
-        <a href="#liver" class="body-part status-{{ body.liver.status }}">
+        <a href="#{{ organ_links.liver }}" class="body-part status-{{ body.liver.status }}">
 
             <div class="body-icon">
                 🫀
