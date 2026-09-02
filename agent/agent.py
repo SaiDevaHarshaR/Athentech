@@ -5,17 +5,14 @@ from agent.guardrails import check_input, check_output
 from config import settings
 from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
+from auth.schema_pack import schema_hint_for_prompt
 import time
 
 
 def _build_llm():
     """
-    Builds the chat model based on settings.llm_provider (default "groq",
-    so existing setups are unaffected unless LLM_PROVIDER is set in .env).
-    OpenAI/Anthropic require settings.llm_model to be set explicitly —
-    model identifiers change over time and a wrong hardcoded guess here
-    would fail silently or point at a deprecated model, so we require you
-    to check your provider's current docs and set it rather than guess.
+    Builds the chat model based on settings.llm_provider (default "groq").
+    OpenAI requires settings.llm_model to be set explicitly in .env.
     """
     provider = (settings.llm_provider or "groq").lower()
 
@@ -24,38 +21,43 @@ def _build_llm():
         if not settings.llm_model:
             raise RuntimeError(
                 "LLM_PROVIDER=openai requires LLM_MODEL to be set in .env "
-                "(e.g. LLM_MODEL=gpt-4o) — check platform.openai.com/docs "
-                "for current model names."
+                "(e.g. LLM_MODEL=gpt-4o)."
             )
-        return ChatOpenAI(model=settings.llm_model, temperature=0, api_key=settings.openai_api_key)
+        return ChatOpenAI(
+            model=settings.llm_model,
+            temperature=0,
+            api_key=settings.openai_api_key,
+        )
 
-
-    # default: groq
     from langchain_groq import ChatGroq
     return ChatGroq(
         model=settings.llm_model or "openai/gpt-oss-20b",
         temperature=0,
-        api_key=settings.groq_api_key
+        api_key=settings.groq_api_key,
     )
 
 
 llm = _build_llm()
-MAX_TOOL_ROUNDS = 2          # was 5 → too many LLM calls
-MAX_HISTORY = 4              # keep only last 4 messages # a chain like describe_table -> run_sql_query, or web_search -> web_search again, gets a few rounds before we force an answer
+MAX_TOOL_ROUNDS = 2
+MAX_HISTORY = 4
 
 
 def _is_rate_limit_error(e: Exception) -> bool:
-    """
-    Provider-agnostic rate-limit detection. The old code imported Groq's
-    specific RateLimitError class — that only ever catches Groq rate
-    limits. OpenAI and Anthropic raise their OWN, differently-named
-    exception classes for the same situation, so switching providers
-    with the old code meant rate limits would raise unhandled instead of
-    triggering the retry/backoff below. Checking the message text works
-    the same way regardless of which SDK raised it.
-    """
     msg = str(e).lower()
     return "rate_limit" in msg or "rate limit" in msg or "429" in msg
+
+
+def _invoke_with_retry(runnable, messages, retries=1):
+    for i in range(retries + 1):
+        try:
+            return runnable.invoke(messages)
+        except Exception as e:
+            if not _is_rate_limit_error(e):
+                raise
+            if i == retries:
+                return None
+            time.sleep(20)
+    return None
 
 
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
@@ -63,7 +65,10 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
 
     response = _invoke_with_retry(llm_with_tools, messages)
     if response is None:
-        return "AI rate limit reached. Please wait about 1 minute, clear chat history, and try a shorter question."
+        return (
+            "AI rate limit reached. Please wait about 1 minute, "
+            "clear chat history, and try a shorter question."
+        )
 
     for _ in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
@@ -80,55 +85,46 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                 args.update(tool_extra_kwargs.get(tool_call["name"], {}))
                 result = tool_fn.invoke(args)
 
-            # hard-trim huge tool results (major token saver)
             result_text = str(result)
             if len(result_text) > 2500:
                 result_text = result_text[:2500] + "\n...[truncated]"
 
-            messages.append(ToolMessage(content=result_text, tool_call_id=tool_call["id"]))
+            messages.append(
+                ToolMessage(content=result_text, tool_call_id=tool_call["id"])
+            )
 
         response = _invoke_with_retry(llm_with_tools, messages)
         if response is None:
-            return "AI rate limit reached while processing tools. Wait 1 minute and try again."
+            return (
+                "AI rate limit reached while processing tools. "
+                "Wait 1 minute and try again."
+            )
 
-    # The loop above only checks tool_calls at the TOP of each iteration,
-    # using the previous response — so the response from the last
-    # iteration was never actually checked. Without this, a completely
-    # normal 2-round question (describe_table -> run_sql_query -> done)
-    # gets its real final answer silently discarded here, and an
-    # unnecessary 4th network call gets forced below for no reason —
-    # extra latency on every single typical question.
+    # Check final response after last loop iteration
     if not getattr(response, "tool_calls", None):
         return response.content if response.content else None
 
-    # final forced answer (also with retry)
-    messages.append(HumanMessage(
-        content="Give your best final answer now based on everything above. Do not call any more tools."
-    ))
+    messages.append(
+        HumanMessage(
+            content=(
+                "Give your best final answer now based on everything above. "
+                "Do not call any more tools."
+            )
+        )
+    )
     final = _invoke_with_retry(llm, messages, retries=0)
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
 
 
-def _invoke_with_retry(llm_with_tools, messages, retries=1):
-    for i in range(retries + 1):
-        try:
-            return llm_with_tools.invoke(messages)
-        except Exception as e:
-            if not _is_rate_limit_error(e):
-                raise  # not a rate limit — don't swallow real errors silently
-            if i == retries:
-                return None
-            time.sleep(20)  # wait longer, fewer retries
-    return None
 def ask_agent(
     question: str,
     db_name: str = "hospital_demo",
     chat_history: list = None,
     is_premium: bool = False,
     role: str = "viewer",
-    hospital_name: str = "Demo Hospital"
+    hospital_name: str = "Demo Hospital",
 ):
     if chat_history is None:
         chat_history = []
@@ -148,7 +144,14 @@ def ask_agent(
             return check_output(f"Unknown role '{role}'.")
 
         allowed_tables = list_allowed_tables_for_role(role_enum)
-        allowed_tables_str = ", ".join(allowed_tables) if allowed_tables else "(none mapped yet)"
+        allowed_tables_str = (
+            ", ".join(allowed_tables) if allowed_tables else "(none mapped yet)"
+        )
+
+        # Built HERE only (after allowed_tables exists)
+        schema_hints = schema_hint_for_prompt(
+            list(allowed_tables) if allowed_tables else []
+        )
 
         system_prompt = f"""
 You are Sahasra AI Assistant for {hospital_name}.
@@ -181,6 +184,9 @@ Current user role: {role}
 Any table not in that list will be rejected — do not attempt to query it,
 and tell the user plainly if what they're asking about isn't available
 to their role or isn't in the system yet.
+
+### Schema guidance
+{schema_hints}
 
 ### How to answer a data question:
 1. Pick the relevant table(s) from the allowed list above.
@@ -241,18 +247,18 @@ Example of the exact target style, for "today's collection at Kukatpally":
         messages.append(HumanMessage(content=f"User Question: {question}"))
 
         answer = _run_tool_loop(
-            llm_with_tools, messages, tools_by_name,
+            llm_with_tools,
+            messages,
+            tools_by_name,
             tool_extra_kwargs={
                 "run_sql_query": {"role": role, "db_name": db_name},
                 "describe_table": {"role": role, "db_name": db_name},
-            }
+            },
         )
         if not answer:
             answer = "I could not find relevant data."
 
-        # ========== GUARDRAILS (OUTPUT) ==========
         return check_output(answer)
-        # ========================================
 
     else:
         # NORMAL MODE
@@ -292,6 +298,4 @@ Rules:
         if not answer:
             answer = "I could not find an answer."
 
-        # ========== GUARDRAILS (OUTPUT) ==========
         return check_output(answer)
-        # ========================================

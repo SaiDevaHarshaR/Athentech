@@ -26,6 +26,23 @@ REAL_TABLE_RELATIONSHIPS = {
     "trnlifeberriespri": [("PATIENTID", "mstpatientregistration", "ID")],
     "trnmodeofcollectionsdet": [("PATIENTID", "mstpatientregistration", "ID")],
     "trntempinvstatus": [("PATIENTID", "mstpatientregistration", "ID")],
+
+
+   
+    # Patient core
+    "mstpatientregistration": [],
+
+
+    # ---- BILLING / COLLECTIONS (EDIT TO REAL NAMES) ----
+    # Example patterns common in LIS/HIS — verify in your DB:
+    "trnmodeofcollections": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trnmodeofcollectionsdet": [("PATIENTID", "mstpatientregistration", "ID")],
+    # Add real receipt/bill tables when confirmed, e.g.:
+    # "trnbillheader": [("PATIENTID", "mstpatientregistration", "ID")],
+    # "trnbilldetail": [("BILLID", "trnbillheader", "ID")],
+    # "trnreceipt": [("PATIENTID", "mstpatientregistration", "ID")],
+
+
 }
 
 
