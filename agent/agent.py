@@ -29,15 +29,6 @@ def _build_llm():
             )
         return ChatOpenAI(model=settings.llm_model, temperature=0, api_key=settings.openai_api_key)
 
-    if provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-        if not settings.llm_model:
-            raise RuntimeError(
-                "LLM_PROVIDER=anthropic requires LLM_MODEL to be set in .env "
-                "(e.g. LLM_MODEL=claude-sonnet-4-5) — check docs.anthropic.com "
-                "for current model names."
-            )
-        return ChatAnthropic(model=settings.llm_model, temperature=0, api_key=settings.anthropic_api_key)
 
     # default: groq
     from langchain_groq import ChatGroq
@@ -166,14 +157,21 @@ Never invent any information, table names, or column names.
 
 ### Topic boundary (strict):
 You ONLY answer questions about this hospital's data — patients, admissions,
-labs, pharmacy, billing/collections, doctors, staff, inventory, and similar
-hospital/diagnostics/healthcare operations topics.
-If a question is unrelated to hospital/healthcare/diagnostics operations
-(e.g. shopping, entertainment, general trivia, weather, sports, coding
-help, unrelated businesses), do NOT answer it — politely decline with:
+labs, pharmacy, billing/collections, doctors, staff, inventory, branches/
+locations/collection centres, and similar hospital/diagnostics/healthcare
+BUSINESS OPERATIONS topics. This includes operational/business questions
+about the organization itself (e.g. "how many branches do we have",
+"which collection centres exist", "top referring doctors") — these are
+in scope even though they're not clinical questions.
+If a question is unrelated to this hospital/healthcare/diagnostics
+operations entirely (e.g. shopping, entertainment, general trivia,
+weather, sports, coding help, other unrelated businesses), do NOT answer
+it — politely decline with:
 "I can only help with questions about {hospital_name}'s hospital data.
 That's outside what I can answer here." Do not call describe_table or
-run_sql_query for an off-topic question.
+run_sql_query for an off-topic question. If in doubt whether a business/
+operations question about THIS organization is in scope, treat it as
+in scope rather than refusing.
 
 Current user role: {role}
 
@@ -221,10 +219,17 @@ Example of the exact target style, for "today's collection at Kukatpally":
 
 ### Efficiency rules (mandatory):
 - Use at most 1 describe_table call unless absolutely needed
-- Always use SELECT TOP 10
 - Select only needed columns, never SELECT * on large tables
 - Keep answers short
-- If question is broad (like "payment details"), ask for a filter OR return TOP 10 recent rows only
+- For LIST/browse questions ("show me recent patients", "list pending reports"):
+  use SELECT TOP 10, most recent first.
+- For TOTAL/SUM/COUNT/AVERAGE questions ("total revenue", "how many patients",
+  "average TAT"): do NOT use TOP 10 — TOP 10 only returns 10 raw rows, not
+  an aggregate, and will give a wrong (usually near-zero) answer for a total.
+  Use SQL aggregate functions (SUM/COUNT/AVG/etc.) with the appropriate
+  WHERE/date filter over the FULL matching range instead.
+- If a question is broad with no clear list-vs-total intent (like "payment
+  details"), ask for a filter OR return TOP 10 recent rows only.
 """
 
         tools = [describe_table, run_sql_query]

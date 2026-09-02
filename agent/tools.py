@@ -73,6 +73,11 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
     """
     query = query.strip()
 
+    # Logged so wrong-table/wrong-column/wrong-date-format issues can
+    # actually be diagnosed instead of guessed at — previously nothing
+    # showed what SQL the agent was really generating.
+    print(f"[run_sql_query] role={role} db={db_name}\nSQL: {query}")
+
     # Safety: Only SELECT
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
@@ -98,6 +103,8 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
         df = pd.read_sql(query, conn)
         conn.close()
 
+        print(f"[run_sql_query] returned {len(df)} row(s)")
+
         if df.empty:
             return "No data found for this query."
 
@@ -113,4 +120,5 @@ def run_sql_query(query: str, role: str = "viewer", db_name: str = None) -> str:
         return "\n".join(lines)
 
     except Exception as e:
+        print(f"[run_sql_query] FAILED: {e}")
         return f"Query failed: {str(e)}"
