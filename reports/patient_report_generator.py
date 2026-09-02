@@ -43,12 +43,35 @@ def _get_columns(conn, table_name: str) -> list:
 
 
 def _find_column(columns: list, keywords: list, exclude: list = None) -> str:
-    """First column whose name contains any keyword and none of the excludes."""
+    """
+    Tries an EXACT match first (case-insensitive whole column name equals
+    a keyword) — most reliable, no ambiguity. Only falls back to
+    substring matching if nothing matched exactly, and even then skips
+    anything containing an excluded word.
+
+    The substring fallback is genuinely risky for short keywords: "age"
+    is a substring of "package", "storage", "image", "message",
+    "average", "coverage", "usage", "manage", "stage" — a real bug
+    found in production where a PACKAGEID column got matched as a
+    patient's age (a package ID number displayed as "929641 years").
+    Callers should pass those as `exclude` for ambiguity-prone keywords.
+    """
     exclude = exclude or []
+    columns_lower = {c.lower(): c for c in columns}
+
+    # Tier 1: exact match
+    for kw in keywords:
+        if kw in columns_lower:
+            return columns_lower[kw]
+
+    # Tier 2: substring match, skipping known false-positive containers
     for col in columns:
         lower = col.lower()
-        if any(k in lower for k in keywords) and not any(e in lower for e in exclude):
+        if any(e in lower for e in exclude):
+            continue
+        if any(k in lower for k in keywords):
             return col
+
     return None
 
 
@@ -78,13 +101,19 @@ def find_patient(identifier: str, db_name: str) -> dict:
         if not columns:
             raise PatientNotFound(f"Could not find columns for {PATIENT_TABLE}.")
 
-        id_col = _find_column(columns, ["id"], exclude=["uhid"]) or columns[0]
+        id_col = _find_column(columns, ["id"], exclude=["uhid", "valid", "paid"]) or columns[0]
         uhid_col = _find_column(columns, ["uhid"])
-        name_col = _find_column(columns, ["name"], exclude=["username", "hospname", "hospitalname"])
-        age_col = _find_column(columns, ["age"])
+        name_col = _find_column(columns, ["name", "patientname"], exclude=["username", "hospname", "hospitalname", "surname"])
+        age_col = _find_column(
+            columns, ["age", "patientage", "ageyrs", "age_years"],
+            exclude=["package", "storage", "image", "message", "average", "coverage", "usage", "manage", "stage", "damage"]
+        )
         dob_col = _find_column(columns, ["dob", "birth"])
         gender_col = _find_column(columns, ["gender", "sex"])
         reg_date_col = _find_column(columns, ["regdate", "registrationdate", "regdt"])
+
+        print(f"[find_patient] Discovered columns: id={id_col}, uhid={uhid_col}, "
+              f"name={name_col}, age={age_col}, dob={dob_col}, gender={gender_col}, reg_date={reg_date_col}")
 
         select_cols = [c for c in [id_col, uhid_col, name_col, age_col, dob_col, gender_col, reg_date_col] if c]
 
@@ -117,11 +146,23 @@ def find_patient(identifier: str, db_name: str) -> dict:
 
 def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, dob_col, gender_col, reg_date_col) -> dict:
     row_dict = dict(zip(select_cols, row))
+
+    age_value = row_dict.get(age_col, "-no_data")
+    # Safety net independent of the column-detection fix above: if
+    # whatever landed here doesn't look like a plausible human age,
+    # don't display it as one. Catches this class of bug even against a
+    # schema we haven't seen, not just the specific PACKAGEID case found
+    # in production.
+    if isinstance(age_value, (int, float)) and not (0 <= age_value <= 130):
+        print(f"[find_patient] WARNING: age value {age_value} from column '{age_col}' "
+              f"is not a plausible age — showing -no_data instead. Check column detection.")
+        age_value = "-no_data"
+
     return {
         "patient_id": row_dict.get(id_col),
         "uhid": row_dict.get(uhid_col, "-no_data"),
         "name": row_dict.get(name_col, "-no_data"),
-        "age": row_dict.get(age_col, "-no_data"),
+        "age": age_value,
         "dob": row_dict.get(dob_col, "-no_data"),
         "gender": row_dict.get(gender_col, "-no_data"),
         "registration_date": row_dict.get(reg_date_col, "-no_data"),
@@ -145,6 +186,7 @@ def gather_patient_data(patient_id, db_name: str, role: Role) -> dict:
         raise ConnectionError("Could not connect to the hospital database.")
 
     gathered = {}
+    tables_checked = 0
     try:
         for table_name, relationships in REAL_TABLE_RELATIONSHIPS.items():
             category = REAL_TABLE_TO_CATEGORY.get(table_name)
@@ -154,18 +196,28 @@ def gather_patient_data(patient_id, db_name: str, role: Role) -> dict:
             for column, joins_to_table, joins_to_column in relationships:
                 if joins_to_table != PATIENT_TABLE:
                     continue
+                tables_checked += 1
                 try:
                     cursor = conn.cursor()
                     query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?"
                     cursor.execute(query, (patient_id,))
                     col_names = [d[0] for d in cursor.description]
                     rows = cursor.fetchall()
+                    print(f"[gather_patient_data] {table_name}.{column} = {patient_id}: {len(rows)} row(s)")
                     if rows:
                         gathered[table_name] = [dict(zip(col_names, r)) for r in rows]
-                except Exception:
-                    continue  # skip tables that error (bad assumption about a column, etc.) rather than fail the whole report
+                except Exception as e:
+                    # Previously silently skipped with no visibility at all —
+                    # a genuine SQL error (e.g. a type mismatch between
+                    # patient_id and the join column) looked identical to
+                    # "no data exists" with nothing printed either way.
+                    print(f"[gather_patient_data] {table_name}.{column} query FAILED (not just empty): {e}")
+                    continue
     finally:
         conn.close()
+
+    print(f"[gather_patient_data] Checked {tables_checked} table(s) for patient_id={patient_id}, "
+          f"found real data in {len(gathered)} of them.")
 
     return gathered
 

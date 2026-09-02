@@ -89,28 +89,52 @@ def validate_license(code: str):
         "SELECT * FROM licenses WHERE code = ?",
         (code.upper(),)
     ).fetchone()
-    conn.close()
 
     if not row:
+        conn.close()
         return {"valid": False, "reason": "invalid_code"}
 
     if row["status"] not in ("Active", "Trial"):
+        conn.close()
         return {"valid": False, "reason": "inactive"}
 
     if row["expiry_date"] < datetime.utcnow().date().isoformat():
+        conn.close()
         return {"valid": False, "reason": "expired"}
+
+    # Load institution connection settings
+    inst = conn.execute(
+        "SELECT * FROM institutions WHERE id = ?",
+        (row["institution_id"],)
+    ).fetchone()
+    conn.close()
+
+    db_name = row["db_name"]
+    db_server = None
+    db_user = None
+    db_password = None
+    hospital_name = row["hospital_name"]
+
+    if inst:
+        db_name = inst["db_name"] or db_name
+        hospital_name = inst["name"] or hospital_name
+        db_server = inst["db_server"]
+        db_user = inst["db_user"]
+        db_password = inst["db_password"]
 
     return {
         "valid": True,
         "code": row["code"],
         "role": row["role"],
-        "db_name": row["db_name"],
-        "hospital_name": row["hospital_name"],
+        "db_name": db_name,
+        "hospital_name": hospital_name,
         "plan": row["plan"],
         "status": row["status"],
-        "expiry_date": row["expiry_date"]
+        "expiry_date": row["expiry_date"],
+        "db_server": db_server,       # None → use .env fallback later
+        "db_user": db_user,
+        "db_password": db_password,
     }
-
 
 def list_licenses():
     conn = get_conn()
@@ -144,35 +168,68 @@ def list_institutions():
     conn = get_conn()
     rows = conn.execute("SELECT * FROM institutions ORDER BY id ASC").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["has_db_password"] = bool(d.get("db_password"))
+        d.pop("db_password", None)  # don't send password to browser list
+        out.append(d)
+    return out
 
-
-def create_institution(name, client_prefix, db_name, type_="Hospital", city="", status="Active"):
+def create_institution(
+    name: str,
+    client_prefix: str,
+    db_name: str,
+    type_: str = "Hospital",
+    city: str = "",
+    status: str = "Active",
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+):
     conn = get_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("""
-        INSERT INTO institutions (name, client_prefix, type, city, db_name, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (name, client_prefix.upper(), type_, city, db_name, status, now))
+    cur.execute(
+        """
+        INSERT INTO institutions
+        (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            name,
+            client_prefix.upper(),
+            type_,
+            city,
+            db_name,
+            db_server,
+            db_user,
+            db_password,
+            status,
+            now,
+        ),
+    )
     conn.commit()
     inst_id = cur.lastrowid
+    row = cur.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,)).fetchone()
     conn.close()
-    return {
-        "id": inst_id,
-        "name": name,
-        "client_prefix": client_prefix.upper(),
-        "type": type_,
-        "city": city,
-        "db_name": db_name,
-        "status": status
-    }
+    return dict(row)
 
 
 def update_institution(institution_id: int, **fields):
     """
     Partial update — only fields explicitly passed are changed.
-    Allowed fields: name, client_prefix, db_name, type, city, status.
+    allowed_fields = {
+    "name",
+    "client_prefix",
+    "db_name",
+    "type",
+    "city",
+    "status",
+    "db_server",
+    "db_user",
+    "db_password",
+}
     """
     conn = get_conn()
     cur = conn.cursor()

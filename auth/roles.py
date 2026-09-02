@@ -11,28 +11,36 @@ class Role(str, Enum):
     VIEWER = "viewer"
 
 
+# DEFAULT role permissions — a reasonable starting point, NOT a confirmed
+# policy from AthenTech. "For each role, we can't determine what data
+# they can see — tough to say" is a real open question on their end;
+# this is a documented proposal to review, not an assumption to trust
+# blindly. See ROLE_PERMISSIONS_PROPOSAL.md for the reasoning behind
+# each role, and change these via the admin panel's Roles & Permissions
+# page once AthenTech actually confirms a policy — no code change or
+# redeploy needed for that, it's a live-editable setting.
 ROLE_PERMISSIONS: Dict[Role, Set[str]] = {
     Role.ADMIN: {
         "patients", "admissions", "labs", "pharmacy", "wards",
         "prescriptions", "doctors", "staff", "billing", "inventory"
     },
     Role.DOCTOR: {
-        "patients", "admissions", "labs", "wards"
+        "patients", "admissions", "labs", "wards", "doctors"
     },
     Role.NURSE: {
         "patients", "admissions", "wards", "labs"
     },
     Role.LAB_TECH: {
-        "patients", "labs"
+        "patients", "labs", "inventory"
     },
     Role.PHARMACIST: {
-        "patients", "pharmacy", "prescriptions"
+        "patients", "pharmacy", "prescriptions", "inventory"
     },
     Role.RECEPTION: {
-        "patients", "admissions"
+        "patients", "admissions", "billing"
     },
     Role.VIEWER: {
-        "patients", "admissions"
+        "patients"
     }
 }
 

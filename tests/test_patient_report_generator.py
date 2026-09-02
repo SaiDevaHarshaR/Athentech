@@ -103,11 +103,15 @@ def test_gather_patient_data_uses_relationships_and_respects_role(monkeypatch):
     with patch("reports.patient_report_generator.get_hospital_connection", return_value=conn), \
          patch("reports.patient_report_generator.REAL_TABLE_TO_CATEGORY", {"trninvoicepayments": "billing"}):
         result_admin = gather_patient_data(42, "testdb", Role.ADMIN)
-        result_reception = gather_patient_data(42, "testdb", Role.RECEPTION)
+        # Reception was intentionally given billing access in a recent
+        # policy update (front-desk staff typically handle payments) —
+        # viewer is the role that still has no billing access, use that
+        # to test the "role without access" case instead.
+        result_viewer = gather_patient_data(42, "testdb", Role.VIEWER)
 
     assert "trninvoicepayments" in result_admin
     assert result_admin["trninvoicepayments"][0]["Amount"] == 500
-    assert "trninvoicepayments" not in result_reception  # reception has no billing access
+    assert "trninvoicepayments" not in result_viewer  # viewer has no billing access
 
 
 def test_generate_structured_report_stays_honest_with_no_data():

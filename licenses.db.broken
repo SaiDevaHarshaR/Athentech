@@ -1,0 +1,54 @@
+-- Institutions
+CREATE TABLE institutions (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(200) NOT NULL,
+    client_prefix NVARCHAR(20) NOT NULL UNIQUE,
+    type NVARCHAR(50),
+    city NVARCHAR(100),
+    db_name NVARCHAR(100) NOT NULL,
+    status NVARCHAR(20) DEFAULT 'Active',
+    created_at DATETIME2 DEFAULT SYSUTCDATETIME()
+);
+
+-- Licenses
+CREATE TABLE licenses (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code NVARCHAR(50) NOT NULL UNIQUE,
+    institution_id INT NOT NULL,
+    client_prefix NVARCHAR(20) NOT NULL,
+    role NVARCHAR(30) NOT NULL,
+    plan NVARCHAR(30) DEFAULT 'Standard',
+    phone NVARCHAR(20),
+    dob_year NVARCHAR(10),
+    user_ref NVARCHAR(100),
+    db_name NVARCHAR(100) NOT NULL,
+    hospital_name NVARCHAR(200) NOT NULL,
+    status NVARCHAR(20) DEFAULT 'Active',
+    expiry_date DATE,
+    created_by NVARCHAR(50) DEFAULT 'admin',
+    created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_licenses_institution FOREIGN KEY (institution_id) REFERENCES institutions(id)
+);
+
+-- Role Permissions
+CREATE TABLE role_permissions (
+    role NVARCHAR(30) PRIMARY KEY,
+    tables_csv NVARCHAR(MAX) NOT NULL
+);
+
+-- Settings
+CREATE TABLE settings (
+    [key] NVARCHAR(100) PRIMARY KEY,
+    value NVARCHAR(MAX)
+);
+
+-- Admins
+CREATE TABLE admins (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    username NVARCHAR(100) NOT NULL UNIQUE,
+    password_hash NVARCHAR(128) NOT NULL,
+    display_name NVARCHAR(100),
+    status NVARCHAR(20) DEFAULT 'Active',
+    created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+    last_login_at DATETIME2
+);

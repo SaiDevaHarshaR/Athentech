@@ -111,18 +111,26 @@ class InstitutionCreateRequest(BaseModel):
     name: str
     client_prefix: str
     db_name: str
+    db_server: str | None = None
+    db_user: str | None = None
+    db_password: str | None = None    
     type: str = "Hospital"
     city: str = ""
     status: str = "Active"
+
 
 
 class InstitutionUpdateRequest(BaseModel):
     name: Optional[str] = None
     client_prefix: Optional[str] = None
     db_name: Optional[str] = None
+    db_server: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
     type: Optional[str] = None
     city: Optional[str] = None
     status: Optional[str] = None
+
 
 
 class Message(BaseModel):
@@ -283,9 +291,12 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
             name=req.name,
             client_prefix=req.client_prefix,
             db_name=req.db_name,
+            db_server=req.db_server,
+            db_user=req.db_user,
+            db_password=req.db_password,            
             type_=req.type,
             city=req.city,
-            status=req.status,
+            status=req.status
         )
         _log_admin_action(admin, "Created institution", req.name)
         return {"status": "success", "institution": data}

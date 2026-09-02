@@ -1249,9 +1249,7 @@ function institutionFields(
 
             </div>
 
-
-            <div class="form-group">
-
+                <div class="form-group">
                 <label>
                     Database Name
                 </label>
@@ -1264,6 +1262,59 @@ function institutionFields(
                 >
 
             </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    DB Server(host,port)
+                </label>
+
+                <input
+                    name="db_server"
+                    value="${institution.db_server || ''}"
+                    placeholder="e.g. p2.athentech.in,52434"
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    DB Username
+                </label>
+
+                <input
+                    name="db_user"
+                    value="${institution.db_user || ''}"
+                    placeholder="e.g. readonly_user"
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    DB Password
+                </label>
+
+                <input
+                    name="db_password"
+                    type="password"
+                    value=""
+                    placeholder="${institution.has_db_password ? '(saved — leave blank to keep)' : 'DB password'}"
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    Type
+                </label>
 
 
             <div class="form-group">
@@ -1389,6 +1440,9 @@ function openInstitution(
                                 name: data.name.trim(),
                                 client_prefix: data.code.trim().toUpperCase(),
                                 db_name: data.db_name.trim(),
+                                db_server: data.db_server || null,
+                                db_user: data.db_user || null,
+                                db_password: data.db_password || null,
                                 type: data.type,
                                 city: data.city.trim(),
                                 status: data.status,

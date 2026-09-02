@@ -21,10 +21,23 @@ def init_license_db():
         type TEXT,
         city TEXT,
         db_name TEXT NOT NULL,
+        db_server TEXT,
+        db_user TEXT,
+        db_password TEXT,
         status TEXT DEFAULT 'Active',
         created_at TEXT
     )
     """)
+        # Migrate old institutions table (add columns if missing)
+    existing = {
+        row[1] for row in cur.execute("PRAGMA table_info(institutions)").fetchall()
+    }
+    if "db_server" not in existing:
+        cur.execute("ALTER TABLE institutions ADD COLUMN db_server TEXT")
+    if "db_user" not in existing:
+        cur.execute("ALTER TABLE institutions ADD COLUMN db_user TEXT")
+    if "db_password" not in existing:
+        cur.execute("ALTER TABLE institutions ADD COLUMN db_password TEXT")
     cur.execute("""
     CREATE TABLE IF NOT EXISTS role_permissions (
     role TEXT PRIMARY KEY,
