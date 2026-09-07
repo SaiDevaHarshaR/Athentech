@@ -10,7 +10,7 @@ class _FakeCursor:
 
     def execute(self, q, params=None):
         self.last_query = q
-        self._r = self.conn.location_rows if "mstlocationusers" in q else self.conn.collection_rows
+        self._r = self.conn.location_rows if "trntempdaycollall" in q else self.conn.collection_rows
 
     def fetchall(self):
         return self._r
