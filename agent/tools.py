@@ -160,8 +160,13 @@ def get_verified_day_collection(
     a freshly-written query has repeatedly guessed wrong column/value
     names for this exact pattern.
 
-    date_from and date_to MUST be 'YYYY-MM-DD' (convert "today"/
-    "yesterday"/"this month" to real dates yourself before calling).
+    date_from and date_to: pass a real 'YYYY-MM-DD' string, OR pass the
+    literal word "today", "yesterday", "this_month_start", or
+    "this_year_start" and let the tool resolve it. DO NOT compute the
+    actual calendar date yourself for these — your own sense of "today's
+    date" is not reliable for this and has caused real wrong answers
+    (a date years in the past) in production. Just pass the word "today"
+    or "yesterday" literally as the string value.
     location_keyword: the distinctive part of the location name from
     the question (e.g. "Kompally") — partial match, don't need the
     exact full stored name.
