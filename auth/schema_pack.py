@@ -112,6 +112,14 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "itself is likely wrong (e.g. a duplicate/similarly-named location matched instead), not a "
         "genuine no-data-today situation.",
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
+        "- SAME PRINCIPLE APPLIES TO DEPARTMENT/CATEGORY CODES, not just locations: never assume "
+        "DEPTCODE = 'Radiology' (or any exact string guess for a department/category name) is "
+        "correct without checking. Before filtering by a department name you're assuming (Radiology, "
+        "Pathology, Microbiology, etc.), run a quick DISTINCT query on that column first (e.g. "
+        "SELECT DISTINCT DEPTCODE FROM trninvlabdet) to see the REAL values actually stored, then "
+        "match against what you find — not what you assumed the value would be. A zero-row result "
+        "from an assumed exact-match department filter is much more likely a wrong guess than a "
+        "genuine zero, same as the location case above.",
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
         "reflect a data lag rather than genuinely zero activity.",
