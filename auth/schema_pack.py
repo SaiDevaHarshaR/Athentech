@@ -13,7 +13,9 @@ KNOWN_OPERATIONAL_TABLES = [
     "mstpatientregistration",
     "tblclientdocinfo",
 
-    # day collection / branch collection (best first guesses for "day collection")
+    # day collection / branch collection — trnmodeofcollectionsdet confirmed
+    # live; trntempdaycollall confirmed STALE as of Sept 2026 (see
+    # BILLING_COLLECTION_PRIORITY below for the full explanation)
     "daycollection_mobileapp",
     "trntempdaycollall",
     "trntempbranchwisecoll",
@@ -53,8 +55,10 @@ KNOWN_OPERATIONAL_TABLES = [
 ]
 
 BILLING_COLLECTION_PRIORITY = [
-    "trntempdaycollall",           # primary day collection summary
-    "trnmodeofcollectionsdet",     # payment mode line details
+    "trnmodeofcollectionsdet",     # confirmed live/current — prefer this for "today"/"this month"/recent dates
+    "trntempdaycollall",           # CONFIRMED STALE as of Sept 2026 — has no data even for "yesterday" in
+                                    # live testing, last real data seen was ~July 2026. Only useful for
+                                    # historical date ranges before it stopped updating, never for current/recent.
     "trntempbranchwisecoll",
     "daycollection_mobileapp",     # may be empty
     "trninvoicepayments",
@@ -69,11 +73,17 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
 
     lines = [
         "Preferred tables for common questions:",
-        "- day collection → prefer trntempdaycollall (LOCATION, BILLDATE, TOTALCASH, TOTALUPI, TOTALCREDITCARDS, etc.)",
+        "- day collection for TODAY/THIS MONTH/recent dates → prefer trnmodeofcollectionsdet "
+        "(MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID) — confirmed to have current live data.",
+        "- trntempdaycollall is CONFIRMED STALE as of Sept 2026 (empirically tested: has no rows even "
+        "for yesterday's date, last real data was around July 2026). Only use it for a question "
+        "explicitly asking about a historical date before ~August 2026 — never for \"today\"/\"this "
+        "month\"/\"recent\". If a query against it returns 0 rows for a current/recent date, that is "
+        "very likely this staleness, not a real zero — say so plainly rather than reporting a "
+        "confident zero, and try trnmodeofcollectionsdet instead if you haven't already.",
         "- payment mode / who paid → trnmodeofcollectionsdet (MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID)",
-        "- daycollection_mobileapp may be empty; fall back to trntempdaycollall",
+        "- daycollection_mobileapp may be empty; try trnmodeofcollectionsdet instead",
         "- patients/registration → mstpatientregistration",
-        "- day collection / branch collection → try daycollection_mobileapp, trntempdaycollall, trntempbranchwisecoll (if allowed)",
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
         "- invoice/payments → trninvoicepayments, mstpaymentdetails, trninvpaydetails (if allowed)",
         "- labs → trninvlabdet, trninvlabpri, trnparamresult, mstinvestigations (if allowed)",
@@ -81,6 +91,9 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
+        "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
+        "that as a confident zero — say plainly that no data was found for that filter and it may "
+        "reflect a data lag rather than genuinely zero activity.",
     ]
 
     if billing:
