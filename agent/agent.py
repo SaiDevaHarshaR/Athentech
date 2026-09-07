@@ -38,7 +38,16 @@ def _build_llm():
 
 
 llm = _build_llm()
-MAX_TOOL_ROUNDS = 2
+MAX_TOOL_ROUNDS = 6
+# Was 2 — enough for one focused metric group (describe_table + run_sql_query
+# on a single table) but not for a broad multi-source dashboard question
+# needing several different tables (patients + billing + labs + radiology
+# + reports). Raised to allow up to ~3 full describe+query pairs. This
+# does NOT slow down simple questions — the loop still exits the moment
+# the model stops calling tools, so a 2-round question is still exactly
+# as fast as before. It only allows MORE rounds for questions that
+# genuinely need them, at the cost of real latency on those specific
+# broad questions (accepted tradeoff — revisit if it's too slow).
 MAX_HISTORY = 4
 
 
@@ -261,7 +270,11 @@ numbers from your actual query results — never invented ones:
 ```
 
 Field notes:
-- `stats`: the top KPI row(s), 3-5 typical. Every card should have this.
+- `stats`: the top KPI row(s) — can be as few as 3 or as many as 10+,
+  they wrap into rows automatically. Every card should have this.
+- `meta`: optional — short icon+text lines under the title for context
+  like scope/date, e.g. {{"icon": "📍", "text": "All Branches"}},
+  {{"icon": "📅", "text": "Today (01 Sep 2026)"}}.
 - `bar_section`: optional — only include when there's a real breakdown
   by category to show. `value` must be a plain NUMBER (used to compute
   proportional bar widths) — put any formatted/currency text in `extra`
@@ -273,7 +286,28 @@ Field notes:
 - `footer`: optional — one closing total/summary line.
 - Omit any field you don't have real data for — don't invent a
   bar_section or callout just to fill the shape. A card with just
-  `stats` and no breakdown is completely valid.
+  `stats` and no breakdown is completely valid — see the second example
+  below, a broad multi-metric overview with no bar_section at all:
+
+```dashboard-card
+{{
+  "icon": "📊",
+  "title": "Diagnostics Management Dashboard",
+  "meta": [
+    {{"icon": "📍", "text": "All Branches"}},
+    {{"icon": "📅", "text": "Today (01 Sep 2026)"}}
+  ],
+  "stats": [
+    {{"label": "PATIENTS", "value": "486"}},
+    {{"label": "BILLS", "value": "512"}},
+    {{"label": "GROSS", "value": "₹8.46L"}},
+    {{"label": "NET", "value": "₹7.97L"}},
+    {{"label": "COLLECTED", "value": "₹7.12L"}},
+    {{"label": "LAB TESTS", "value": "1,842"}},
+    {{"label": "RADIOLOGY", "value": "174"}}
+  ]
+}}
+```
 - Output NOTHING outside the fenced block for this format — no text
   before or after it.
 
