@@ -161,7 +161,15 @@ def get_day_collection(
             "no_data": True,
         }
 
-    breakdown = [{"mode": r[0], "amount": float(r[1] or 0)} for r in rows]
+    breakdown = [{"mode": r[0], "amount": float(r[1]) if r[1] is not None else None} for r in rows]
+    print(f"[get_day_collection] raw rows: {[(r[0], r[1]) for r in rows]}")
+    # If PAIDAMOUNT summed to NULL (not a real 0), that's a genuinely
+    # different situation from "really collected zero" — could mean
+    # those transactions have a null amount rather than a zero one,
+    # which is worth surfacing honestly rather than silently coalescing
+    # to a plain 0.00 as if it were the same thing.
+    had_null_amounts = any(b["amount"] is None for b in breakdown)
+    breakdown = [{"mode": b["mode"], "amount": b["amount"] or 0.0} for b in breakdown]
     total = sum(b["amount"] for b in breakdown)
 
     return {
@@ -169,6 +177,7 @@ def get_day_collection(
         "location_id": location_id,
         "date_from": date_from,
         "date_to": date_to,
+        "had_null_amounts": had_null_amounts,
         "total": total,
         "breakdown": breakdown,
     }
