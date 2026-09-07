@@ -90,13 +90,21 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
-        "- NEVER filter a location/branch name with exact equality (e.g. LOCATION = 'Konnect "
-        "Diagnostics Kompally') — the user's wording will often not exactly match the stored value "
-        "(e.g. the real stored name might just be 'Kompally'). Use LIKE '%keyword%' with the most "
-        "distinctive word from what the user said instead (e.g. LIKE '%Kompally%'), so a close-but-"
-        "not-exact name still matches. If a location filter returns 0 rows, that is more likely a "
-        "name-matching problem than genuinely no data — try a broader LIKE before concluding there's "
-        "no data, and if you already used exact equality, retry with LIKE before answering.",
+        "- CRITICAL — LOCATIONID vs location NAME are different things, do not confuse them: "
+        "LOCATIONID (or similar *ID columns) holds a numeric/short CODE (like '4' or 'LOC04'), NOT "
+        "a name — 'LOCATIONID LIKE %Kompally%' will NEVER match anything, regardless of whether the "
+        "data exists, because the column doesn't contain names at all. If the table you're querying "
+        "only has a LOCATIONID column (no text name column), you must resolve the name to an ID "
+        "FIRST, then filter by that ID:\n"
+        "    SELECT ... FROM trnmodeofcollectionsdet\n"
+        "    WHERE LOCATIONID IN (SELECT Id FROM mstlocationusers WHERE LocationName LIKE '%Kompally%')\n"
+        "    AND DATEOFBILL = ...\n"
+        "  (describe_table on mstlocationusers first to get its real column names — 'LocationName' "
+        "above is illustrative, not guaranteed correct.) If the table DOES have a text location name "
+        "column directly (e.g. trntempdaycollall.LOCATION), just LIKE-match that column directly, no "
+        "resolution step needed. If a location filter returns 0 rows after doing this correctly, "
+        "THEN it may be genuinely no data (or the earlier data-lag issue) — but check whether you "
+        "matched a code against a name before concluding that.",
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
