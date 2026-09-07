@@ -830,7 +830,7 @@ async function processMessage(text) {
 
         showSuggestions([
           { label: 'Show all patients', send: 'Show me all patients' },
-          { label: 'Current admissions', send: 'Show current admissions' }
+          { label: "Today's collection", send: "Today's collection data" }
         ]);
       }else {
         state.waitingForCode = false;
@@ -904,7 +904,7 @@ async function callBackend(question) {
   if (state.mode === 'premium') {
     showSuggestions([
       { label: 'Show all patients', send: 'Show me all patients' },
-      { label: 'Current admissions', send: 'Show current admissions' },
+      { label: "Today's collection", send: "Today's collection data" },
       { label: 'Download PDF', send: 'download pdf' }
     ]);
   } else {
