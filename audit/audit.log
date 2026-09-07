@@ -277,3 +277,4 @@
 {"ts": "2026-09-07T09:55:02.272061Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "give Konnect diagnostics Kompally's today's day collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-07T09:55:19.277046Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "give Konnect diagnostics Kompally's yesterday's day collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-07T09:55:42.515267Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "shut up mate, the data is very well available", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-07T10:05:46.352491Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

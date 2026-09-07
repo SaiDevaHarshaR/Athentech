@@ -23,15 +23,32 @@ def _build_llm():
                 "LLM_PROVIDER=openai requires LLM_MODEL to be set in .env "
                 "(e.g. LLM_MODEL=gpt-4o)."
             )
+        print(f"[agent] Using OpenAI — model: {settings.llm_model}")
         return ChatOpenAI(
             model=settings.llm_model,
             temperature=0,
             api_key=settings.openai_api_key,
         )
 
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        if not settings.llm_model:
+            raise RuntimeError(
+                "LLM_PROVIDER=anthropic requires LLM_MODEL to be set in .env "
+                "(e.g. LLM_MODEL=claude-sonnet-4-5)."
+            )
+        print(f"[agent] Using Anthropic — model: {settings.llm_model}")
+        return ChatAnthropic(
+            model=settings.llm_model,
+            temperature=0,
+            api_key=settings.anthropic_api_key,
+        )
+
+    model_name = settings.llm_model or "openai/gpt-oss-20b"
+    print(f"[agent] Using Groq — model: {model_name}")
     from langchain_groq import ChatGroq
     return ChatGroq(
-        model=settings.llm_model or "openai/gpt-oss-20b",
+        model=model_name,
         temperature=0,
         api_key=settings.groq_api_key,
     )

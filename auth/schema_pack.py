@@ -107,6 +107,13 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "location name before presenting the answer. If you truly cannot resolve it, say the location "
         "code plainly as a code (e.g. \"location code LOC04\") rather than presenting it as if it were "
         "already a name.",
+        "- GENERAL RULE: your first query returning 0 rows is NOT automatically the final answer. You "
+        "have room for several tool calls — use it. Before telling the user 'no data available', ask "
+        "yourself what could be wrong with the query itself: wrong table (try another from the "
+        "preferred list above), exact-match filter that should be LIKE, wrong date column, or a "
+        "column name you guessed instead of confirming with describe_table. Try at least one genuinely "
+        "different approach before concluding there's no data. Only report 'no data' after a real "
+        "second attempt, not after one query that happened to return nothing.",
     ]
 
     if billing:
