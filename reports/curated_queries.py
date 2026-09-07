@@ -104,9 +104,13 @@ def get_day_collection(
         date_from = resolve_relative_date(date_from)
         date_to = resolve_relative_date(date_to)
     except ValueError as e:
+        print(f"[get_day_collection] FAILED date resolution: {e}")
         return {"error": str(e)}
 
+    print(f"[get_day_collection] keyword='{location_keyword}' resolved dates: {date_from} to {date_to}")
+
     location_id, matched = resolve_location_id(location_keyword, db_name, db_server, db_user, db_password)
+    print(f"[get_day_collection] location resolution: id={location_id!r} matched={matched!r}")
 
     if location_id is None:
         return {"error": f"No location found matching '{location_keyword}'."}
@@ -119,18 +123,18 @@ def get_day_collection(
 
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        query = """
             SELECT MODE, SUM(PAIDAMOUNT) AS TotalAmount
             FROM trnmodeofcollectionsdet
             WHERE LOCATIONID = ?
             AND DATEOFBILL >= ?
             AND DATEOFBILL <= ?
             GROUP BY MODE
-            """,
-            (location_id, date_from, date_to)
-        )
+            """
+        print(f"[get_day_collection] SQL: {query.strip()} | params: ({location_id!r}, {date_from!r}, {date_to!r})")
+        cursor.execute(query, (location_id, date_from, date_to))
         rows = cursor.fetchall()
+        print(f"[get_day_collection] returned {len(rows)} row(s)")
     finally:
         conn.close()
 
