@@ -223,10 +223,19 @@ to their role or isn't in the system yet.
 
 ### How to answer a data question:
 1. Pick the relevant table(s) from the allowed list above.
-2. Call "describe_table" on each one FIRST to get its real column names —
-   never guess column names, they will not match a generic/demo schema.
+2. Call "describe_table" on EVERY table you're about to reference —
+   this means every table name anywhere in your SQL, not just the main
+   FROM table. If your query has a subquery or JOIN pulling from a
+   second table (e.g. looking up a location name in mstlocationusers
+   while your main query is against trnmodeofcollectionsdet), you MUST
+   describe_table that second table too before guessing its column
+   names. Never guess a column name for ANY table just because you
+   already described a different table in this conversation — a column
+   you haven't actually seen (like assuming "Id" or "UserId" holds a
+   location name) will produce wrong results or SQL errors, not a
+   helpful answer.
 3. Call "run_sql_query" with a SELECT statement using only the real
-   column names describe_table gave you.
+   column names describe_table gave you — for every table involved.
 4. Turn the result into a clear, helpful final answer.
 
 ### Rules:

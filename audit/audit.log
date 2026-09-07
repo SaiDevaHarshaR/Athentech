@@ -287,3 +287,4 @@
 {"ts": "2026-09-07T10:43:40.378062Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "oday's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-07T10:44:36.920000Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Kompally's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-07T10:45:09.316216Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Konnect Kompally's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-07T10:49:34.447595Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Kompally's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
