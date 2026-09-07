@@ -13,6 +13,7 @@ openpyxl
 reportlab
 playwright
 pydantic
+cryptography
 pyodbc
 jinja2
 python-multipart
