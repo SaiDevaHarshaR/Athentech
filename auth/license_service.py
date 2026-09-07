@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from database.license_db import get_conn
 from auth.code_generator import generate_activation_code
+from auth.secrets_crypto import encrypt_secret, decrypt_secret
 
 
 def create_license(
@@ -120,7 +121,9 @@ def validate_license(code: str):
         hospital_name = inst["name"] or hospital_name
         db_server = inst["db_server"]
         db_user = inst["db_user"]
-        db_password = inst["db_password"]
+        # decrypt_secret() transparently handles legacy plaintext too —
+        # safe to call even before the migration script has run.
+        db_password = decrypt_secret(inst["db_password"])
 
     return {
         "valid": True,
@@ -225,7 +228,7 @@ def create_institution(
             db_name,
             db_server,
             db_user,
-            db_password,
+            encrypt_secret(db_password),
             status,
             now,
         ),
@@ -265,6 +268,9 @@ def update_institution(institution_id: int, **fields):
 
     if "client_prefix" in updates:
         updates["client_prefix"] = updates["client_prefix"].upper()
+
+    if "db_password" in updates:
+        updates["db_password"] = encrypt_secret(updates["db_password"])
 
     if not updates:
         conn.close()
@@ -353,7 +359,7 @@ def get_settings() -> dict:
         "smtp_host": raw.get("smtp_host", ""),
         "smtp_port": int(raw.get("smtp_port", 587) or 587),
         "smtp_user": raw.get("smtp_user", ""),
-        "smtp_password": raw.get("smtp_password", ""),
+        "smtp_password": decrypt_secret(raw.get("smtp_password", "")),
         "alert_email_to": raw.get("alert_email_to", ""),
     }
 
@@ -373,12 +379,19 @@ def update_settings(**fields) -> dict:
         "smtp_host": lambda v: str(v),
         "smtp_port": lambda v: str(int(v)),
         "smtp_user": lambda v: str(v),
-        "smtp_password": lambda v: str(v),
+        "smtp_password": lambda v: encrypt_secret(str(v)),
         "alert_email_to": lambda v: str(v),
     }
 
     for key, value in fields.items():
         if key not in serializers or value is None:
+            continue
+        if key == "smtp_password" and value == "":
+            # An empty string here means "the admin left this blank",
+            # not "clear the password" — the GET endpoint never sends
+            # the real value back, so the form always starts blank.
+            # Wiping the real saved password on every unrelated settings
+            # save would be a serious, easy-to-trigger regression.
             continue
         cur.execute(
             "INSERT INTO settings(key, value) VALUES (?, ?) "
