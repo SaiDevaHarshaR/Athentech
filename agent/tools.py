@@ -4,6 +4,21 @@ from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
 from auth.table_relationships import get_relationships_for_table
+from config import settings
+
+
+def _apply_query_timeout(conn) -> None:
+    """
+    Kill long-running SELECTs so a huge unindexed table can't hang the agent.
+    Uses settings.query_timeout_seconds (default 25).
+    """
+    try:
+        seconds = int(getattr(settings, "query_timeout_seconds", 25) or 25)
+        if seconds > 0:
+            # pyodbc: connection.timeout is query timeout in seconds (0 = none)
+            conn.timeout = seconds
+    except Exception:
+        pass
 
 
 @tool
@@ -36,6 +51,7 @@ def describe_table(
         return "Error: Could not connect to the hospital database."
 
     try:
+        _apply_query_timeout(conn)
         query = (
             "SELECT COLUMN_NAME, DATA_TYPE "
             "FROM INFORMATION_SCHEMA.COLUMNS "
@@ -90,7 +106,10 @@ def run_sql_query(
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
-    banned = [" insert ", " update ", " delete ", " drop ", " alter ", " truncate ", " exec ", " merge ", " xp_"]
+    banned = [
+        " insert ", " update ", " delete ", " drop ", " alter ",
+        " truncate ", " exec ", " merge ", " xp_",
+    ]
     qpad = f" {query.lower()} "
     if any(b in qpad for b in banned):
         return "Error: Only read-only SELECT is allowed."
@@ -109,6 +128,7 @@ def run_sql_query(
         return "Error: Could not connect to the hospital database."
 
     try:
+        _apply_query_timeout(conn)
         cursor = conn.cursor()
         cursor.execute(query)
 
