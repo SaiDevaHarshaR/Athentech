@@ -15,8 +15,41 @@ that its contents are certain, unlike the general agent's guesses.
 """
 
 import re
+from datetime import date, timedelta
 
 from database.connection import get_hospital_connection
+
+
+def resolve_relative_date(value: str) -> str:
+    """
+    Converts a relative date keyword to a real YYYY-MM-DD string using
+    the ACTUAL server clock (datetime.now()) — never the caller's own
+    idea of what "today" is. This exists because an LLM asked to
+    convert "yesterday" into a literal date will use its own internal
+    sense of the current date, which can be badly stale (anchored near
+    its training cutoff, not the real current date) — a real bug found
+    in production: "yesterday" was resolved to a date years in the
+    past. Explicit YYYY-MM-DD values pass through unchanged.
+    """
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        return value
+
+    today = date.today()
+    keyword = value.strip().lower()
+
+    if keyword == "today":
+        return today.isoformat()
+    if keyword == "yesterday":
+        return (today - timedelta(days=1)).isoformat()
+    if keyword in ("this_month_start", "this month"):
+        return today.replace(day=1).isoformat()
+    if keyword in ("this_year_start", "this year"):
+        return today.replace(month=1, day=1).isoformat()
+
+    raise ValueError(
+        f"Unrecognized date value '{value}' — use YYYY-MM-DD, 'today', "
+        "'yesterday', 'this_month_start', or 'this_year_start'."
+    )
 
 
 def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_user=None, db_password=None):
@@ -56,14 +89,22 @@ def get_day_collection(
 ) -> dict:
     """
     Confirmed-correct day collection query for one location and one
-    date range. date_from/date_to must be 'YYYY-MM-DD' strings.
+    date range. date_from/date_to accept a real 'YYYY-MM-DD' string OR
+    'today'/'yesterday'/'this_month_start'/'this_year_start' — relative
+    keywords are resolved server-side against the real clock, not left
+    to the caller to compute (see resolve_relative_date's docstring for
+    why: an LLM computing this itself produced a date years in the past
+    in real testing).
 
     Returns a dict ready to hand to the dashboard-card renderer, or an
     "error"/"ambiguous" key explaining what went wrong instead of
     silently returning zeros.
     """
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
-        return {"error": "date_from and date_to must be YYYY-MM-DD"}
+    try:
+        date_from = resolve_relative_date(date_from)
+        date_to = resolve_relative_date(date_to)
+    except ValueError as e:
+        return {"error": str(e)}
 
     location_id, matched = resolve_location_id(location_keyword, db_name, db_server, db_user, db_password)
 
