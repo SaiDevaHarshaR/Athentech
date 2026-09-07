@@ -105,7 +105,15 @@ def get_hospital_connection(
             "Encrypt=no;"
         )
         try:
-            return pyodbc.connect(connection_string, timeout=10)
+            conn = pyodbc.connect(connection_string, timeout=10)
+            # pyodbc's connect(timeout=...) only bounds how long
+            # ESTABLISHING the connection can take — a slow or
+            # accidentally-unindexed query on a huge table could still
+            # hang indefinitely with no cutoff at all. conn.timeout
+            # bounds actual query EXECUTION time too, on every cursor
+            # from this connection.
+            conn.timeout = settings.query_timeout_seconds
+            return conn
         except Exception as e:
             last_error = e
             continue
