@@ -40,6 +40,12 @@ app = FastAPI(title="Sahasra AI Agent")
 
 WINDOW = 60  # seconds — rate limit window; the limit itself is now read from settings (was a hardcoded constant)
 RATE = {}
+# Separate from the per-IP RATE above: many real users can share one IP
+# (NAT, a hospital's shared network), so a pure per-IP limit means one
+# busy hospital can eat the shared budget for everyone else on the same
+# network. This tracks usage per ACTIVATION CODE instead — a hospital's
+# heavy legitimate usage only affects that hospital's own limit.
+CODE_RATE = {}
 
 init_license_db()
 seed_demo_institutions()
@@ -415,7 +421,17 @@ def api_update_role(req: RolePermissionUpdate, admin: str = Depends(require_admi
 
 @app.get("/admin/settings")
 def api_get_settings(admin: str = Depends(require_admin)):
-    return {"status": "success", "settings": get_settings()}
+    # get_settings() itself returns the real decrypted smtp_password —
+    # notifications/email.py needs that to actually send mail. But the
+    # API response to the browser should never include it, same reasoning
+    # as institution db_password: a has_smtp_password flag is enough for
+    # the UI to show "(saved)" without ever putting the real value where
+    # a network tab or a compromised browser extension could read it.
+    settings_data = get_settings()
+    has_smtp_password = bool(settings_data.get("smtp_password"))
+    settings_data["smtp_password"] = ""
+    settings_data["has_smtp_password"] = has_smtp_password
+    return {"status": "success", "settings": settings_data}
 
 
 @app.put("/admin/settings")
@@ -581,6 +597,21 @@ async def ask_question(req: QueryRequest):
         if req.activation_code:
             validation = validate_license(req.activation_code)
             if validation.get("valid"):
+                # Per-code limit, separate from the per-IP one above —
+                # protects each hospital's fair share independently of
+                # how many other users happen to share their network/IP.
+                code_key = req.activation_code.upper()
+                now_ts = time.time()
+                code_hits = [t for t in CODE_RATE.get(code_key, []) if now_ts - t < WINDOW]
+                per_code_limit = get_settings()["rate_limit_per_minute"]
+                if len(code_hits) >= per_code_limit:
+                    return {
+                        "status": "error",
+                        "answer": "This activation code has made too many requests in the last minute. Please wait a moment and try again.",
+                    }
+                code_hits.append(now_ts)
+                CODE_RATE[code_key] = code_hits
+
                 is_premium = True
                 role = validation.get("role", "viewer")
                 db_name = validation.get("db_name", "hospital_demo")
