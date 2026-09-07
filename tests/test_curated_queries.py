@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from reports.curated_queries import resolve_location_id, get_day_collection
+from reports.curated_queries import resolve_location_id, get_day_collection, resolve_relative_date
 from agent.tools import get_verified_day_collection
 
 
@@ -63,6 +63,31 @@ def test_genuine_no_data_is_distinguishable_from_errors():
 def test_invalid_date_format_rejected_before_any_query():
     result = get_day_collection("Kompally", "not-a-date", "2026-09-07", "TestDB")
     assert "error" in result
+
+
+def test_relative_date_keywords_resolve_to_real_current_date():
+    # Regression test for a real production bug: when the LLM was asked
+    # to compute "yesterday" as a literal date itself, it produced
+    # 2023-10-06 — years in the past, using its own stale internal
+    # sense of "today" rather than the real date. This confirms the
+    # fix: "yesterday" now resolves using the real server clock, not
+    # anything the caller (LLM or otherwise) computed.
+    from datetime import date, timedelta
+    today = date.today()
+    assert resolve_relative_date("today") == today.isoformat()
+    assert resolve_relative_date("yesterday") == (today - timedelta(days=1)).isoformat()
+    assert resolve_relative_date("yesterday") != "2023-10-06"
+
+
+def test_get_day_collection_accepts_relative_keywords_directly():
+    conn = _FakeConn(location_rows=[(3087, "Kompally")], collection_rows=[("Cash", 5000.0)])
+    with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
+        # Caller passes "today"/"yesterday" literally, exactly as the
+        # LLM is now instructed to — no date math required or trusted
+        # from the caller.
+        result = get_day_collection("Kompally", "yesterday", "today", "TestDB")
+    assert "error" not in result
+    assert result["total"] == 5000.0
 
 
 def test_tool_enforces_role_restriction():
