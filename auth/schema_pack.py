@@ -90,6 +90,13 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
+        "- NEVER filter a location/branch name with exact equality (e.g. LOCATION = 'Konnect "
+        "Diagnostics Kompally') — the user's wording will often not exactly match the stored value "
+        "(e.g. the real stored name might just be 'Kompally'). Use LIKE '%keyword%' with the most "
+        "distinctive word from what the user said instead (e.g. LIKE '%Kompally%'), so a close-but-"
+        "not-exact name still matches. If a location filter returns 0 rows, that is more likely a "
+        "name-matching problem than genuinely no data — try a broader LIKE before concluding there's "
+        "no data, and if you already used exact equality, retry with LIKE before answering.",
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
