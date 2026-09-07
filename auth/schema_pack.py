@@ -90,21 +90,27 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
-        "- CRITICAL — LOCATIONID vs location NAME are different things, do not confuse them: "
-        "LOCATIONID (or similar *ID columns) holds a numeric/short CODE (like '4' or 'LOC04'), NOT "
-        "a name — 'LOCATIONID LIKE %Kompally%' will NEVER match anything, regardless of whether the "
-        "data exists, because the column doesn't contain names at all. If the table you're querying "
-        "only has a LOCATIONID column (no text name column), you must resolve the name to an ID "
-        "FIRST, then filter by that ID:\n"
+        "- CONFIRMED (do not re-derive, do not guess a different column): in mstlocationusers, the "
+        "location NAME lives in the UserId column (not Id — Id is a numeric key, comparing it to a "
+        "name string will error). Example, confirmed working: to filter trnmodeofcollectionsdet by "
+        "'Kompally':\n"
         "    SELECT ... FROM trnmodeofcollectionsdet\n"
-        "    WHERE LOCATIONID IN (SELECT Id FROM mstlocationusers WHERE LocationName LIKE '%Kompally%')\n"
+        "    WHERE LOCATIONID IN (SELECT Id FROM mstlocationusers WHERE UserId LIKE '%Kompally%')\n"
         "    AND DATEOFBILL = ...\n"
-        "  (describe_table on mstlocationusers first to get its real column names — 'LocationName' "
-        "above is illustrative, not guaranteed correct.) If the table DOES have a text location name "
-        "column directly (e.g. trntempdaycollall.LOCATION), just LIKE-match that column directly, no "
-        "resolution step needed. If a location filter returns 0 rows after doing this correctly, "
-        "THEN it may be genuinely no data (or the earlier data-lag issue) — but check whether you "
-        "matched a code against a name before concluding that.",
+        "  Use UserId LIKE for the name lookup every time — do not try Id, LOCATIONID, or any other "
+        "column on mstlocationusers for name matching, that has already been tried and confirmed wrong.",
+        "- CRITICAL — LOCATIONID vs location NAME are different things in OTHER tables too, do not "
+        "confuse them: LOCATIONID (or similar *ID columns) holds a numeric/short CODE, NOT a name — "
+        "LIKE-matching a name against an ID column will NEVER match anything. If the table you're "
+        "querying only has a LOCATIONID column (no text name column), resolve via mstlocationusers "
+        "as shown above. If the table DOES have a text location name column directly (e.g. "
+        "trntempdaycollall.LOCATION), just LIKE-match that column directly, no resolution step needed. "
+        "If a location filter returns 0 rows after doing this correctly, THEN it may be genuinely no "
+        "data (or the earlier data-lag issue) — but check whether you matched a code against a name "
+        "before concluding that. If a resolved location ID query returns 0 rows for TODAY, also "
+        "sanity-check by trying WITHOUT the date filter first — if that also returns 0 rows, the ID "
+        "itself is likely wrong (e.g. a duplicate/similarly-named location matched instead), not a "
+        "genuine no-data-today situation.",
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
