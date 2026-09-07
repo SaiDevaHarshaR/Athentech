@@ -94,6 +94,12 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
         "reflect a data lag rather than genuinely zero activity.",
+        "- when a result is grouped/reported BY LOCATION, never show a raw code like 'LOC04' as the "
+        "final answer — that's a code, not a name a person can use. If your query grouped by a "
+        "LOCATIONID column, describe_table on mstlocationusers (or join to it) to resolve the real "
+        "location name before presenting the answer. If you truly cannot resolve it, say the location "
+        "code plainly as a code (e.g. \"location code LOC04\") rather than presenting it as if it were "
+        "already a name.",
     ]
 
     if billing:
