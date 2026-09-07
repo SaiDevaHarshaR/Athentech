@@ -171,6 +171,135 @@
     font-size: 18px;
     cursor: pointer;
   }
+
+  /* ===== Dashboard Card ===== */
+  .dash-card {
+    max-width: 92%;
+    align-self: flex-start;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .dash-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  .dash-card-icon { font-size: 16px; }
+  .dash-card-title { font-weight: 700; color: #0f766e; }
+  .dash-card-subtitle { color: #64748b; font-size: 13px; }
+
+  .dash-stat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .dash-stat-box {
+    background: #eff6ff;
+    border-left: 3px solid #2563eb;
+    border-radius: 6px;
+    padding: 7px 12px;
+    min-width: 90px;
+    flex: 1 1 auto;
+  }
+  .dash-stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .dash-stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-top: 1px;
+  }
+
+  .dash-divider {
+    border: none;
+    border-top: 1px dotted #cbd5e1;
+    margin: 12px 0;
+  }
+
+  .dash-callout {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .dash-callout-label { font-weight: 700; color: #0f766e; }
+  .dash-delta-down { color: #dc2626; font-weight: 700; }
+  .dash-delta-up { color: #16a34a; font-weight: 700; }
+
+  .dash-bar-section-title {
+    font-weight: 700;
+    color: #0f766e;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .dash-bar-section-title .dash-subtitle-italic {
+    font-weight: 400;
+    font-style: italic;
+    color: #64748b;
+  }
+
+  .dash-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .dash-bar-label {
+    width: 96px;
+    flex-shrink: 0;
+    color: #334155;
+    line-height: 1.25;
+  }
+  .dash-bar-track {
+    flex: 1;
+    height: 14px;
+    background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 3px, #e2e8f0 3px, #e2e8f0 6px);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .dash-bar-fill {
+    height: 100%;
+    background: #1e293b;
+    border-radius: 3px 0 0 3px;
+  }
+  .dash-bar-values {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    min-width: 70px;
+    justify-content: flex-end;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-footer {
+    margin-top: 10px;
+    font-weight: 700;
+    color: #0f766e;
+    font-size: 13px;
+  }
+
+  .dash-card-time {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 8px;
+    display: block;
+    text-align: right;
+  }
 </style>
 </head>
 <body>
@@ -225,6 +354,12 @@ function escapeHtml(str) {
 }
 
 function addMessage(text, type) {
+  const card = type === 'bot' ? extractDashboardCard(text) : null;
+  if (card) {
+    renderDashboardCard(card);
+    return;
+  }
+
   const div = document.createElement('div');
   div.className = `message ${type}`;
 
@@ -242,6 +377,152 @@ function addMessage(text, type) {
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
+function extractDashboardCard(text) {
+  // The LLM emits a ```dashboard-card fenced JSON block when a question
+  // calls for a stat/breakdown summary. Anything else (a plain answer,
+  // an explanation, a refusal) just falls through to normal text
+  // rendering — this only activates for genuinely structured answers.
+  const match = text.match(/```dashboard-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.stats)) return null;
+    return data;
+  } catch (e) {
+    return null; // malformed JSON — fall back to plain text rather than crash
+  }
+}
+
+function renderDashboardCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  if (data.subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'dash-card-subtitle';
+    sub.textContent = ' · ' + data.subtitle;
+    header.appendChild(sub);
+  }
+  card.appendChild(header);
+
+  if (data.stats && data.stats.length) {
+    const grid = document.createElement('div');
+    grid.className = 'dash-stat-grid';
+    for (const stat of data.stats) {
+      const box = document.createElement('div');
+      box.className = 'dash-stat-box';
+      const label = document.createElement('div');
+      label.className = 'dash-stat-label';
+      label.textContent = stat.label || '';
+      const value = document.createElement('div');
+      value.className = 'dash-stat-value';
+      value.textContent = stat.value != null ? stat.value : '-no_data';
+      box.appendChild(label);
+      box.appendChild(value);
+      grid.appendChild(box);
+    }
+    card.appendChild(grid);
+  }
+
+  if (data.callout) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
+    const callout = document.createElement('div');
+    callout.className = 'dash-callout';
+    if (data.callout.label) {
+      const lbl = document.createElement('span');
+      lbl.className = 'dash-callout-label';
+      lbl.textContent = data.callout.label + ': ';
+      callout.appendChild(lbl);
+    }
+    callout.appendChild(document.createTextNode(data.callout.text || ''));
+    if (data.callout.delta) {
+      const isDown = String(data.callout.delta).trim().startsWith('-');
+      const delta = document.createElement('span');
+      delta.className = isDown ? 'dash-delta-down' : 'dash-delta-up';
+      delta.textContent = ' ' + (isDown ? '▼' : '▲') + String(data.callout.delta).replace('-', '') + (data.callout.delta_label || '');
+      callout.appendChild(delta);
+    }
+    card.appendChild(callout);
+  }
+
+  if (data.bar_section && Array.isArray(data.bar_section.rows) && data.bar_section.rows.length) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
+
+    const secTitle = document.createElement('div');
+    secTitle.className = 'dash-bar-section-title';
+    secTitle.textContent = data.bar_section.title || '';
+    if (data.bar_section.subtitle) {
+      const subEl = document.createElement('span');
+      subEl.className = 'dash-subtitle-italic';
+      subEl.textContent = ' ' + data.bar_section.subtitle;
+      secTitle.appendChild(subEl);
+    }
+    card.appendChild(secTitle);
+
+    const maxVal = Math.max(...data.bar_section.rows.map(r => Number(r.value) || 0), 1);
+
+    for (const row of data.bar_section.rows) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'dash-bar-row';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'dash-bar-label';
+      labelEl.textContent = row.label || '';
+      rowEl.appendChild(labelEl);
+
+      const track = document.createElement('div');
+      track.className = 'dash-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'dash-bar-fill';
+      const pct = Math.max(4, Math.round(((Number(row.value) || 0) / maxVal) * 100));
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      rowEl.appendChild(track);
+
+      const valuesEl = document.createElement('div');
+      valuesEl.className = 'dash-bar-values';
+      const valSpan = document.createElement('span');
+      valSpan.textContent = row.value != null ? String(row.value) : '';
+      valuesEl.appendChild(valSpan);
+      if (row.extra) {
+        const extraSpan = document.createElement('span');
+        extraSpan.textContent = row.extra;
+        valuesEl.appendChild(extraSpan);
+      }
+      rowEl.appendChild(valuesEl);
+
+      card.appendChild(rowEl);
+    }
+  }
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-footer';
+    footer.textContent = (data.footer.label ? data.footer.label + ': ' : '') + (data.footer.value || '');
+    card.appendChild(footer);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
 function showSuggestions(list) {
   suggestionsEl.innerHTML = '';
   list.forEach(item => {
@@ -253,45 +534,6 @@ function showSuggestions(list) {
     };
     suggestionsEl.appendChild(btn);
   });
-}
-
-function restoreSession() {
-  if (!loadSession()) return false;
-  if (!state.history || state.history.length === 0) return false;
-
-  chatEl.innerHTML = '';
-
-  // loadSession() only restored the underlying data (mode/role/history)
-  // used for API context — it never actually re-drew the chat bubbles,
-  // which is why the chat visually looked empty after every refresh
-  // even though the AI still remembered the conversation underneath.
-  for (const msg of state.history) {
-    addMessage(msg.content, msg.role === 'user' ? 'user' : 'bot');
-  }
-
-  addMessage(
-    `↺ *Chat restored from your last session. Type* **/clear** *to start fresh.*`,
-    'bot'
-  );
-
-  showSuggestions(
-    state.mode === 'premium'
-      ? [{ label: 'Show all patients', send: 'Show me all patients' }, { label: 'Current admissions', send: 'Show current admissions' }]
-      : [{ label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' }, { label: 'Enter Activation Code', send: 'Enter activation code' }]
-  );
-
-  return true;
-}
-
-function clearChat() {
-  chatEl.innerHTML = '';
-  state.history = [];
-  state.lastAnswer = null;
-  saveSession();
-  addMessage(
-    `Chat cleared. You're still ${state.mode === 'premium' ? `in **Premium mode** (${state.role}).` : 'in **General mode**.'}`,
-    'bot'
-  );
 }
 
 function start() {
@@ -320,13 +562,6 @@ function start() {
 function handleSend() {
   const text = input.value.trim();
   if (!text) return;
-
-  if (text.toLowerCase() === '/clear') {
-    input.value = '';
-    clearChat();
-    return;
-  }
-
   addMessage(text, 'user');
   input.value = '';
   processMessage(text);
@@ -343,32 +578,16 @@ async function processMessage(text) {
   const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
 
   if (mentionsPdf && hasActionWord) {
-    // If the request names a specific patient, fetch a REAL fresh
-    // report for that one patient instead of just re-wrapping whatever
-    // the last chat answer said. This is what makes it a "Smart Report"
-    // rather than a generic PDF-ification of old text — a targeted
-    // database lookup, not a re-hash of a previous unrelated answer
-    // (e.g. a 10-patient list).
-    //
-    // Two ways a patient gets identified:
-    // 1. A UHID pattern (e.g. KDX26929648) — most reliable.
-    // 2. A quoted name, e.g. "DURGA PRASAD · Age: 24 · Gender: M ..." —
-    //    only the name portion (before the first · or comma) is used;
-    //    the rest is descriptive text copied from a previous answer,
-    //    not something the patient table can search on.
+    // If the request names a specific patient (UHID pattern, e.g.
+    // KDX26929648), fetch a REAL fresh report for that one patient
+    // instead of just re-wrapping whatever the last chat answer said.
+    // This is what makes it a "Smart Report" rather than a generic
+    // PDF-ification of old text — a targeted database lookup, not a
+    // re-hash of a previous unrelated answer (e.g. a 5-patient list).
     const uhidMatch = text.match(/\b([A-Z]{2,6}\d{3,})\b/i);
     if (uhidMatch) {
       await downloadPatientReport(uhidMatch[1]);
       return;
-    }
-
-    const quotedMatch = text.match(/["“]([^"”]+)["”]/);
-    if (quotedMatch) {
-      const namePart = quotedMatch[1].split(/[·,]/)[0].trim();
-      if (namePart) {
-        await downloadPatientReport(namePart);
-        return;
-      }
     }
 
     if (!state.lastAnswer) {
@@ -393,7 +612,6 @@ async function processMessage(text) {
     modeBadge.classList.remove('premium');
 
     addMessage(`You have exited Premium mode.\nNow in **Normal Mode**.`, 'bot');
-    clearSession();
 
     showSuggestions([
       { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
@@ -442,7 +660,6 @@ async function processMessage(text) {
           `✅ **Premium activated**\n\nRole: **${data.role.toUpperCase()}**\nYou now have access to hospital live data.`,
           'bot'
         );
-        saveSession();
 
         showSuggestions([
           { label: 'Show all patients', send: 'Show me all patients' },
@@ -646,9 +863,7 @@ function clearSession() {
   localStorage.removeItem('sahasra_session');
 }
 
-if (!restoreSession()) {
-  start();
-}
+start();
 </script>
 </body>
 </html>
