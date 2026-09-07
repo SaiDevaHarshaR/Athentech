@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from agent.tools import run_sql_query, describe_table
+from agent.tools import run_sql_query, describe_table, get_verified_day_collection
 from agent.search_tool import web_search
 from agent.guardrails import check_input, check_output
 from config import settings
@@ -221,6 +221,18 @@ to their role or isn't in the system yet.
 ### Schema guidance
 {schema_hints}
 
+### IMPORTANT — prefer the verified tool when it fits:
+If the question is asking for collection/revenue for a SPECIFIC
+LOCATION over a date range (e.g. "Kompally's collection today",
+"day collection for Kukatpally yesterday"), call
+"get_verified_day_collection" INSTEAD of describe_table/run_sql_query.
+It uses a fixed, hand-verified query — not one you write — so it
+can't make the wrong-column/wrong-value guesses that a freshly written
+query has repeatedly made for this exact question type. Convert
+"today"/"yesterday"/"this month" to real YYYY-MM-DD dates yourself
+before calling it. Only fall back to describe_table/run_sql_query for
+data this tool doesn't cover (other metrics, other question shapes).
+
 ### How to answer a data question:
 1. Pick the relevant table(s) from the allowed list above.
 2. Call "describe_table" on EVERY table you're about to reference —
@@ -411,7 +423,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
   details"), ask for a filter OR return TOP 10 recent rows only.
 """
 
-        tools = [describe_table, run_sql_query]
+        tools = [describe_table, run_sql_query, get_verified_day_collection]
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
 
@@ -460,6 +472,10 @@ Example of the exact target style, for "today's collection at Kukatpally":
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
                 "describe_table": {
+                    "role": role, "db_name": db_name,
+                    "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                },
+                "get_verified_day_collection": {
                     "role": role, "db_name": db_name,
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
