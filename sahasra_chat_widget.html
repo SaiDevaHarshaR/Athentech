@@ -309,6 +309,59 @@
     display: block;
     text-align: right;
   }
+
+  /* ===== List Card (record lists: recent patients, top doctors, etc.) ===== */
+  .dash-list-intro {
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .dash-list-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .dash-list-item:last-of-type { border-bottom: none; }
+
+  .dash-list-badge {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
+  .dash-list-body { flex: 1; min-width: 0; }
+  .dash-list-primary {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 13px;
+  }
+  .dash-list-fields {
+    color: #64748b;
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  .dash-list-fields span:not(:last-child)::after {
+    content: " · ";
+    color: #cbd5e1;
+  }
+
+  .dash-list-footer {
+    margin-top: 10px;
+    font-size: 12px;
+    font-style: italic;
+    color: #64748b;
+  }
 </style>
 </head>
 <body>
@@ -366,6 +419,12 @@ function addMessage(text, type) {
   const card = type === 'bot' ? extractDashboardCard(text) : null;
   if (card) {
     renderDashboardCard(card);
+    return;
+  }
+
+  const listCard = type === 'bot' ? extractListCard(text) : null;
+  if (listCard) {
+    renderListCard(listCard);
     return;
   }
 
@@ -534,6 +593,91 @@ function renderDashboardCard(data) {
     const footer = document.createElement('div');
     footer.className = 'dash-footer';
     footer.textContent = (data.footer.label ? data.footer.label + ': ' : '') + (data.footer.value || '');
+    card.appendChild(footer);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function extractListCard(text) {
+  const match = text.match(/```list-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderListCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  card.appendChild(header);
+
+  if (data.intro) {
+    const intro = document.createElement('div');
+    intro.className = 'dash-list-intro';
+    intro.textContent = data.intro;
+    card.appendChild(intro);
+  }
+
+  data.items.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'dash-list-item';
+
+    const badge = document.createElement('div');
+    badge.className = 'dash-list-badge';
+    badge.textContent = String(i + 1);
+    row.appendChild(badge);
+
+    const body = document.createElement('div');
+    body.className = 'dash-list-body';
+
+    const primary = document.createElement('div');
+    primary.className = 'dash-list-primary';
+    primary.textContent = item.primary || '';
+    body.appendChild(primary);
+
+    if (Array.isArray(item.fields) && item.fields.length) {
+      const fields = document.createElement('div');
+      fields.className = 'dash-list-fields';
+      for (const f of item.fields) {
+        const span = document.createElement('span');
+        span.textContent = f;
+        fields.appendChild(span);
+      }
+      body.appendChild(fields);
+    }
+
+    row.appendChild(body);
+    card.appendChild(row);
+  });
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-list-footer';
+    footer.textContent = data.footer;
     card.appendChild(footer);
   }
 
