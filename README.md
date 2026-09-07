@@ -66,6 +66,59 @@ The agent is strictly instructed to answer **only** from the connected hospital 
 
 ---
 
+
+
+# Sahasra AI Agent (Athentech)
+
+Hospital / LIS AI assistant for Athentech Sahasra clients.
+
+- **Normal mode** — general healthcare Q&A (web search)
+- **Premium mode** — activation code unlocks live hospital MSSQL data (role-restricted, read-only SQL tools)
+- **Admin panel** — institutions, licenses, roles, settings, audit, alerts
+
+---
+
+## Architecture
+
+Chat widget / Admin UI (static)
+│
+▼
+FastAPI API  (Python)
+│
+├── /ask                  → agent (premium = MSSQL tools, normal = web search)
+├── /generate-pdf         → report PDF
+├── /generate-patient-report → patient Smart Report (premium)
+├── /admin/*              → licenses, institutions, roles, audit, settings
+└── /health               → readiness probe
+│
+├── licenses.db (SQLite)  → institutions, licenses, admins, settings
+└── Hospital MSSQL        → per-institution server / db / user / password
+
+
+### Premium flow:
+
+1. User enters activation code  
+2. `validate_license` loads institution connection (password decrypted)  
+3. Agent uses `describe_table` + `run_sql_query` only on allowed tables for that role  
+4. Answers are grounded in query results — no invented clinical/billing numbers  
+
+---
+
+### Requirements
+
+- Python 3.10+
+- ODBC Driver 17 or 18 for SQL Server
+- Groq (default) or OpenAI / Anthropic API key
+- Optional: Tavily for normal-mode web search
+
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+
 ## Project Structure
 Athentech/
 ├── agent/

@@ -573,7 +573,53 @@ async def generate_patient_report(req: PatientReportRequest):
         headers={"Content-Disposition": "attachment; filename=patient_report.pdf"},
     )
 
+@app.get("/health")
+def health():
+    """
+    Lightweight readiness check for IIS / monitoring.
+    Does not require auth. Does not open hospital DBs by default
+    (that would make health flaky if one hospital server is down).
+    """
+    status = {
+        "status": "ok",
+        "service": "sahasra-ai-agent",
+        "checks": {},
+    }
+    overall = "ok"
 
+    # licenses.db readable
+    try:
+        from database.license_db import get_conn
+        conn = get_conn()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        status["checks"]["licenses_db"] = "ok"
+    except Exception as e:
+        status["checks"]["licenses_db"] = f"error: {e}"
+        overall = "degraded"
+
+    # encryption key configured (needed for institution passwords)
+    try:
+        if settings.encryption_key:
+            status["checks"]["encryption_key"] = "ok"
+        else:
+            status["checks"]["encryption_key"] = "missing"
+            overall = "degraded"
+    except Exception as e:
+        status["checks"]["encryption_key"] = f"error: {e}"
+        overall = "degraded"
+
+    # settings readable
+    try:
+        get_settings()
+        status["checks"]["settings"] = "ok"
+    except Exception as e:
+        status["checks"]["settings"] = f"error: {e}"
+        overall = "degraded"
+
+    status["status"] = overall
+    code = 200 if overall == "ok" else 503
+    return JSONResponse(content=status, status_code=code)
 # ---------- Public: ask ----------
 
 @app.post("/ask")
