@@ -18,12 +18,21 @@ class Settings(BaseSettings):
     mssql_database: str = "H022-KonnectLIS_Test"
     mssql_user: str = "sa"
     mssql_password: str = ""
+    # Bounds how long any single SQL query is allowed to run before it's
+    # killed — without this, a slow query on a huge unindexed table can
+    # hang indefinitely, tying up a connection with no cutoff at all.
+    query_timeout_seconds: int = 25
 
     # --- Admin auth ---
     # Set these in .env. Generate admin_password_hash with auth/generate_admin_hash.py
     admin_username: str = "admin"
     admin_password_hash: str = ""  # sha256 hex digest of the admin password
     admin_secret_key: str = ""     # random long string, used to sign session tokens
+
+    # --- Secrets encryption ---
+    # Generate with auth/generate_encryption_key.py. Encrypts institution
+    # db_password and SMTP password before they're written to licenses.db.
+    encryption_key: str = ""
 
     # --- CORS ---
     # Comma-separated list of origins allowed to call this API.
