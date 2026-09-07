@@ -1322,11 +1322,7 @@ function institutionFields(
             </div>
 
 
-            <div class="form-group">
 
-                <label>
-                    Type
-                </label>
 
 
             <div class="form-group">

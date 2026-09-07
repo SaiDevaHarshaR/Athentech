@@ -255,6 +255,45 @@ function showSuggestions(list) {
   });
 }
 
+function restoreSession() {
+  if (!loadSession()) return false;
+  if (!state.history || state.history.length === 0) return false;
+
+  chatEl.innerHTML = '';
+
+  // loadSession() only restored the underlying data (mode/role/history)
+  // used for API context — it never actually re-drew the chat bubbles,
+  // which is why the chat visually looked empty after every refresh
+  // even though the AI still remembered the conversation underneath.
+  for (const msg of state.history) {
+    addMessage(msg.content, msg.role === 'user' ? 'user' : 'bot');
+  }
+
+  addMessage(
+    `↺ *Chat restored from your last session. Type* **/clear** *to start fresh.*`,
+    'bot'
+  );
+
+  showSuggestions(
+    state.mode === 'premium'
+      ? [{ label: 'Show all patients', send: 'Show me all patients' }, { label: 'Current admissions', send: 'Show current admissions' }]
+      : [{ label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' }, { label: 'Enter Activation Code', send: 'Enter activation code' }]
+  );
+
+  return true;
+}
+
+function clearChat() {
+  chatEl.innerHTML = '';
+  state.history = [];
+  state.lastAnswer = null;
+  saveSession();
+  addMessage(
+    `Chat cleared. You're still ${state.mode === 'premium' ? `in **Premium mode** (${state.role}).` : 'in **General mode**.'}`,
+    'bot'
+  );
+}
+
 function start() {
   chatEl.innerHTML = '';
   state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
@@ -281,6 +320,13 @@ function start() {
 function handleSend() {
   const text = input.value.trim();
   if (!text) return;
+
+  if (text.toLowerCase() === '/clear') {
+    input.value = '';
+    clearChat();
+    return;
+  }
+
   addMessage(text, 'user');
   input.value = '';
   processMessage(text);
@@ -297,16 +343,32 @@ async function processMessage(text) {
   const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
 
   if (mentionsPdf && hasActionWord) {
-    // If the request names a specific patient (UHID pattern, e.g.
-    // KDX26929648), fetch a REAL fresh report for that one patient
-    // instead of just re-wrapping whatever the last chat answer said.
-    // This is what makes it a "Smart Report" rather than a generic
-    // PDF-ification of old text — a targeted database lookup, not a
-    // re-hash of a previous unrelated answer (e.g. a 5-patient list).
+    // If the request names a specific patient, fetch a REAL fresh
+    // report for that one patient instead of just re-wrapping whatever
+    // the last chat answer said. This is what makes it a "Smart Report"
+    // rather than a generic PDF-ification of old text — a targeted
+    // database lookup, not a re-hash of a previous unrelated answer
+    // (e.g. a 10-patient list).
+    //
+    // Two ways a patient gets identified:
+    // 1. A UHID pattern (e.g. KDX26929648) — most reliable.
+    // 2. A quoted name, e.g. "DURGA PRASAD · Age: 24 · Gender: M ..." —
+    //    only the name portion (before the first · or comma) is used;
+    //    the rest is descriptive text copied from a previous answer,
+    //    not something the patient table can search on.
     const uhidMatch = text.match(/\b([A-Z]{2,6}\d{3,})\b/i);
     if (uhidMatch) {
       await downloadPatientReport(uhidMatch[1]);
       return;
+    }
+
+    const quotedMatch = text.match(/["“]([^"”]+)["”]/);
+    if (quotedMatch) {
+      const namePart = quotedMatch[1].split(/[·,]/)[0].trim();
+      if (namePart) {
+        await downloadPatientReport(namePart);
+        return;
+      }
     }
 
     if (!state.lastAnswer) {
@@ -331,6 +393,7 @@ async function processMessage(text) {
     modeBadge.classList.remove('premium');
 
     addMessage(`You have exited Premium mode.\nNow in **Normal Mode**.`, 'bot');
+    clearSession();
 
     showSuggestions([
       { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
@@ -379,6 +442,7 @@ async function processMessage(text) {
           `✅ **Premium activated**\n\nRole: **${data.role.toUpperCase()}**\nYou now have access to hospital live data.`,
           'bot'
         );
+        saveSession();
 
         showSuggestions([
           { label: 'Show all patients', send: 'Show me all patients' },
@@ -582,7 +646,9 @@ function clearSession() {
   localStorage.removeItem('sahasra_session');
 }
 
-start();
+if (!restoreSession()) {
+  start();
+}
 </script>
 </body>
 </html>
