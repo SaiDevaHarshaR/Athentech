@@ -20,6 +20,14 @@ def isolated_db(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     os.makedirs("audit", exist_ok=True)
 
+    # encrypt_secret()/decrypt_secret() require a real key — without this,
+    # any test that saves a db_password or smtp_password (institution
+    # creation, settings updates) would fail with "ENCRYPTION_KEY is not
+    # set", even though that's not what the test is actually about.
+    from cryptography.fernet import Fernet
+    from config import settings as app_settings
+    monkeypatch.setattr(app_settings, "encryption_key", Fernet.generate_key().decode())
+
     from database.license_db import init_license_db, seed_demo_institutions
     init_license_db()
     seed_demo_institutions()
