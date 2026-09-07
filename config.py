@@ -49,4 +49,4 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
-settings = Settings()
+settings = Settings()   
