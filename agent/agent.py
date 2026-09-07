@@ -283,7 +283,10 @@ Field notes:
 - `bar_section`: optional — only include when there's a real breakdown
   by category to show. `value` must be a plain NUMBER (used to compute
   proportional bar widths) — put any formatted/currency text in `extra`
-  instead.
+  instead. Never truncate a `label` yourself (e.g. "Collection Cent...")
+  — always write the full real name in full, even if it's long. The
+  card wraps long labels onto a second line automatically; a truncated
+  label just hides real information for no reason.
 - `callout`: optional — for a single flagged item, e.g.
   {{"label": "Worst dept", "text": "Microbiology — 78% compliance",
   "delta": "-13", "delta_label": " pts"}} (negative delta renders ▼ red,
@@ -316,8 +319,37 @@ Field notes:
 - Output NOTHING outside the fenced block for this format — no text
   before or after it.
 
-**Format B — Plain text.** Use this for everything else: a single
-value, a list of records, a yes/no answer, an explanation, a refusal.
+**Format C — List card.** MANDATORY for any answer listing multiple
+individual records (patients, doctors, bills, etc.) with a few fields
+each — e.g. "recent patients", "top doctors", "list pending reports".
+This is a DIFFERENT shape from Format A (KPI boxes don't make sense for
+individual records) — use this instead whenever the answer is
+naturally "a numbered list of things, each with a couple of details."
+Output ONLY a fenced block, real data only, nothing outside it:
+
+```list-card
+{{
+  "icon": "🧑‍🤝‍🧑",
+  "title": "Recent Patients",
+  "intro": "Here are the 10 most recent patients registered:",
+  "items": [
+    {{"primary": "C MANASA", "fields": ["Age: 34", "Gender: F", "Registered: 2026-09-07", "Phone: 7207249339"]}},
+    {{"primary": "B NIRMALLA", "fields": ["Age: 29", "Gender: F", "Registered: 2026-09-07", "Phone: 9553610081"]}}
+  ]
+}}
+```
+- `primary`: the record's name/identifier (bold in the rendered card).
+  Full name, never truncated with "..." — same reasoning as bar_section
+  labels below.
+- `fields`: short facts about that record, rendered smaller/lighter.
+  Omit a field entirely for a record that doesn't have it (e.g. no
+  phone on file) — don't write "Phone: not available".
+- `intro`/`footer`: optional short lines above/below the list.
+
+**Format B — Plain text.** Use this for a single value, a yes/no
+answer, an explanation, or a refusal — anything that's genuinely just
+one thing being said, not a dashboard (Format A) or a list of records
+(Format C).
 - Start with one emoji + **bold title** matching the subject: 💰 revenue/
   collection, 🧑‍🤝‍🧑 patients, 🧪 labs, ⏳ pending, ⏱️ TAT, 🚨 critical,
   👨‍⚕️ doctors, 📮 outstanding, 📊 general.
@@ -364,6 +396,9 @@ Example of the exact target style, for "today's collection at Kukatpally":
         wants_dashboard_card = any(
             kw in question_lower for kw in ["dashboard", "overview", "summary", "snapshot"]
         )
+        wants_list_card = (not wants_dashboard_card) and any(
+            kw in question_lower for kw in ["recent", "top ", "list ", "show me all", "show all"]
+        )
 
         user_message = f"User Question: {question}"
         if wants_dashboard_card:
@@ -378,6 +413,14 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "You MUST respond using the ```dashboard-card fenced JSON "
                 "format from your instructions — not plain text, not bullet "
                 "points. This is not optional for this question.)"
+            )
+        elif wants_list_card:
+            user_message += (
+                "\n\n(This question is asking for a list of individual "
+                "records. You MUST respond using the ```list-card fenced "
+                "JSON format from your instructions — not plain text, not "
+                "numbered bold bullets. This is not optional for this "
+                "question.)"
             )
         messages.append(HumanMessage(content=user_message))
 
