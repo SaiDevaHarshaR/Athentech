@@ -228,9 +228,13 @@ LOCATION over a date range (e.g. "Kompally's collection today",
 "get_verified_day_collection" INSTEAD of describe_table/run_sql_query.
 It uses a fixed, hand-verified query — not one you write — so it
 can't make the wrong-column/wrong-value guesses that a freshly written
-query has repeatedly made for this exact question type. Convert
-"today"/"yesterday"/"this month" to real YYYY-MM-DD dates yourself
-before calling it. Only fall back to describe_table/run_sql_query for
+query has repeatedly made for this exact question type. For the dates,
+pass the literal word "today"/"yesterday"/"this_month_start"/
+"this_year_start" as the string value — do NOT compute an actual
+calendar date yourself, your own sense of the current date is not
+reliable for this (it has produced a date years in the past in real
+testing) and the tool resolves these words correctly using the real
+server clock. Only fall back to describe_table/run_sql_query for
 data this tool doesn't cover (other metrics, other question shapes).
 
 ### How to answer a data question:
