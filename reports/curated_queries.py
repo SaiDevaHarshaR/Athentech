@@ -54,10 +54,20 @@ def resolve_relative_date(value: str) -> str:
 
 def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_user=None, db_password=None):
     """
-    Confirmed pattern: mstlocationusers.UserId holds the location NAME
-    (not Id, which is a numeric key — confirmed via a real SQL type
-    error when that was tried instead). Returns (id, matched_name) for
-    the best match, or (None, None) if nothing matched.
+    Resolves a location keyword to its real LOCATIONID code (format
+    'LOC04' etc.) using trntempdaycollall, which has both the location
+    NAME and its real ID code together — no join needed.
+
+    IMPORTANT HISTORY: an earlier version of this function used
+    mstlocationusers.UserId, based on a real console log where
+    "Kompally" appeared to resolve correctly. That was wrong —
+    mstlocationusers turned out to be a STAFF/USER ACCOUNTS table
+    (real column contents: "DR.G.VIJAY RAMREDDY", "KM", etc. — people's
+    names), not a locations table. The earlier match was very likely a
+    staff member's name coincidentally containing the search keyword,
+    not an actual location — meaning every query using that resolved ID
+    was filtering by an essentially arbitrary wrong number. Confirmed
+    via a full unfiltered dump of the table's real contents.
     """
     conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
@@ -65,15 +75,13 @@ def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 5 Id, UserId FROM mstlocationusers WHERE UserId LIKE ?",
+            "SELECT DISTINCT LOCATIONID, LOCATION FROM trntempdaycollall WHERE LOCATION LIKE ?",
             (f"%{location_keyword}%",)
         )
         rows = cursor.fetchall()
         if not rows:
             return None, None
         if len(rows) > 1:
-            # Ambiguous — more than one location matched this keyword.
-            # Don't silently pick one; the caller needs to know this.
             return "AMBIGUOUS", [r[1] for r in rows]
         return rows[0][0], rows[0][1]
     finally:
@@ -88,17 +96,23 @@ def get_day_collection(
     db_server=None, db_user=None, db_password=None,
 ) -> dict:
     """
-    Confirmed-correct day collection query for one location and one
-    date range. date_from/date_to accept a real 'YYYY-MM-DD' string OR
-    'today'/'yesterday'/'this_month_start'/'this_year_start' — relative
-    keywords are resolved server-side against the real clock, not left
-    to the caller to compute (see resolve_relative_date's docstring for
-    why: an LLM computing this itself produced a date years in the past
-    in real testing).
+    Day collection query for one location and one date range.
 
-    Returns a dict ready to hand to the dashboard-card renderer, or an
-    "error"/"ambiguous" key explaining what went wrong instead of
-    silently returning zeros.
+    HONEST CAVEAT, not yet fully verified: this resolves the location
+    via trntempdaycollall (which pairs a real LOCATION name with its
+    LOCATIONID code, e.g. 'LOC04') and then uses that same LOCATIONID
+    value to filter trnmodeofcollectionsdet. This assumes both tables
+    use the SAME LOCATIONID scheme — that has NOT been independently
+    confirmed. If results still look wrong after this fix, the next
+    thing to check is whether trnmodeofcollectionsdet.LOCATIONID is
+    actually a different kind of ID (e.g. one referencing
+    mstlocationusers.Id — a staff/user ID — rather than a location
+    code) by looking at its real raw values directly for a date range
+    already confirmed to have data.
+
+    date_from/date_to accept 'YYYY-MM-DD' or 'today'/'yesterday'/
+    'this_month_start'/'this_year_start' (resolved server-side, never
+    trust the caller's own date math — see resolve_relative_date).
     """
     try:
         date_from = resolve_relative_date(date_from)
