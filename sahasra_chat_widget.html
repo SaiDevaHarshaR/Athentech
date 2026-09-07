@@ -196,6 +196,15 @@
   .dash-card-title { font-weight: 700; color: #0f766e; }
   .dash-card-subtitle { color: #64748b; font-size: 13px; }
 
+  .dash-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
   .dash-stat-grid {
     display: flex;
     flex-wrap: wrap;
@@ -416,6 +425,20 @@ function renderDashboardCard(data) {
     header.appendChild(sub);
   }
   card.appendChild(header);
+
+  if (Array.isArray(data.meta)) {
+    for (const m of data.meta) {
+      const line = document.createElement('div');
+      line.className = 'dash-meta-line';
+      if (m.icon) {
+        const icon = document.createElement('span');
+        icon.textContent = m.icon;
+        line.appendChild(icon);
+      }
+      line.appendChild(document.createTextNode(m.text || ''));
+      card.appendChild(line);
+    }
+  }
 
   if (data.stats && data.stats.length) {
     const grid = document.createElement('div');
