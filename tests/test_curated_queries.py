@@ -52,6 +52,25 @@ def test_no_location_match_returns_clean_error():
     assert "error" in result
 
 
+def test_null_paidamount_distinguished_from_real_zero():
+    # Real finding: a matching row can exist with SUM(PAIDAMOUNT) = NULL
+    # (bills/transactions exist, but the amount wasn't recorded as a
+    # number) — silently treating that the same as a real 0 hides what's
+    # actually happening. NULL comes back as None from the DB driver.
+    conn = _FakeConn(location_rows=[(3087, "Srikara-Kompally")], collection_rows=[("Cash", None)])
+    with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
+        result = get_day_collection("Srikara-Kompally", "2026-09-01", "2026-09-07", "TestDB")
+    assert result["had_null_amounts"] is True
+    assert result["total"] == 0.0  # still displays as 0 for the total, but the flag distinguishes why
+
+
+def test_real_zero_amount_not_flagged_as_null():
+    conn = _FakeConn(location_rows=[(3087, "Srikara-Kompally")], collection_rows=[("Cash", 0.0)])
+    with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
+        result = get_day_collection("Srikara-Kompally", "2026-09-01", "2026-09-07", "TestDB")
+    assert result["had_null_amounts"] is False
+
+
 def test_genuine_no_data_is_distinguishable_from_errors():
     conn = _FakeConn(location_rows=[(3087, "Kompally")], collection_rows=[])
     with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
