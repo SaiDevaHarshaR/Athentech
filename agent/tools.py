@@ -205,4 +205,13 @@ def get_verified_day_collection(
     lines.append(f"Total: {result['total']}")
     for b in result["breakdown"]:
         lines.append(f"  {b['mode']}: {b['amount']}")
+    if result.get("had_null_amounts"):
+        lines.append(
+            "NOTE: some matching transaction(s) had a NULL PAIDAMOUNT, not a real 0 — "
+            "this means transactions/bills exist for this location and date range, but "
+            "the payment amount itself wasn't recorded as a number. Mention this "
+            "distinction to the user rather than just saying the total was zero — "
+            "e.g. 'records exist but payment amounts weren't recorded' is more accurate "
+            "than 'no activity'."
+        )
     return "\n".join(lines)
