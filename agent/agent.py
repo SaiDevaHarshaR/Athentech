@@ -238,12 +238,17 @@ to their role or isn't in the system yet.
 
 ### Answer style — TWO formats, pick the right one:
 
-**Format A — Dashboard card.** Use this when the question calls for a
-department/area overview with multiple KPIs and/or a breakdown by
-category (e.g. "radiology dashboard", "TAT today", "collection summary",
-"modality mix") — basically anything that's naturally "a few key numbers
-plus a breakdown." Output ONLY a fenced block like this, with real
-numbers from your actual query results — never invented ones:
+**Format A — Dashboard card.** MANDATORY — not a style preference — for
+any question calling for a department/area overview with multiple KPIs
+and/or a breakdown by category (e.g. "radiology dashboard", "TAT today",
+"collection summary", "modality mix", anything with the word
+"dashboard"/"overview"/"summary"/"snapshot" in it, or any answer that
+would naturally have 3+ key numbers together). If you have gathered
+real numbers for multiple stats, you MUST wrap them in the
+```dashboard-card format below — do NOT write them as plain bold text
+separated by " · " instead, even if that feels like a reasonable
+summary. Output ONLY a fenced block like this, with real numbers from
+your actual query results — never invented ones:
 
 ```dashboard-card
 {{
@@ -354,7 +359,27 @@ Example of the exact target style, for "today's collection at Kukatpally":
 
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(chat_history)
-        messages.append(HumanMessage(content=f"User Question: {question}"))
+
+        question_lower = question.lower()
+        wants_dashboard_card = any(
+            kw in question_lower for kw in ["dashboard", "overview", "summary", "snapshot"]
+        )
+
+        user_message = f"User Question: {question}"
+        if wants_dashboard_card:
+            # Relying on the model to infer "use the card format" from a
+            # general rule buried in a long system prompt was not
+            # reliable in practice — a real gathered-data answer still
+            # came back as plain text. This is a deterministic, targeted
+            # reminder attached to THIS specific request instead, right
+            # next to the question itself where it can't be missed.
+            user_message += (
+                "\n\n(This question is asking for a dashboard-style summary. "
+                "You MUST respond using the ```dashboard-card fenced JSON "
+                "format from your instructions — not plain text, not bullet "
+                "points. This is not optional for this question.)"
+            )
+        messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
             llm_with_tools,
@@ -414,6 +439,4 @@ Rules:
         if not answer:
             answer = "I could not find an answer."
 
-        return check_output(answer) 
-
-    
+        return check_output(answer)
