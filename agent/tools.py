@@ -153,12 +153,19 @@ def get_verified_day_collection(
     db_password: str = None,
 ) -> str:
     """
-    Day collection by location and date range, using a FIXED, hand-
-    verified query — not one you write yourself. Use this INSTEAD of
-    run_sql_query whenever the question is about collection/revenue for
-    a specific location and date range — it's guaranteed correct where
-    a freshly-written query has repeatedly guessed wrong column/value
-    names for this exact pattern.
+    Day collection for ONE SPECIFIC location and date range, using a
+    FIXED, hand-verified query — not one you write yourself. Use this
+    INSTEAD of run_sql_query when the question names one specific
+    location — it's guaranteed correct where a freshly-written query
+    has repeatedly guessed wrong column/value names for this pattern.
+
+    DO NOT use this tool for "all branches"/"all locations"/a combined
+    total across every location — it always requires ONE specific
+    location_keyword. A real bug: passing "all" as the keyword matched
+    multiple real locations that coincidentally contain "all" as a
+    substring (Kompally, Kukatpally, etc.) — a confusing false
+    positive. For an ALL-LOCATIONS-COMBINED question, use
+    describe_table/run_sql_query instead with no location filter.
 
     date_from and date_to: pass a real 'YYYY-MM-DD' string, OR pass the
     literal word "today", "yesterday", "this_month_start", or
@@ -167,9 +174,9 @@ def get_verified_day_collection(
     date" is not reliable for this and has caused real wrong answers
     (a date years in the past) in production. Just pass the word "today"
     or "yesterday" literally as the string value.
-    location_keyword: the distinctive part of the location name from
-    the question (e.g. "Kompally") — partial match, don't need the
-    exact full stored name.
+    location_keyword: the distinctive part of ONE specific location's
+    name from the question (e.g. "Kompally") — partial match, don't
+    need the exact full stored name.
     """
     from reports.curated_queries import get_day_collection
 
