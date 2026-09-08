@@ -82,6 +82,16 @@ def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_
         if not rows:
             return None, None
         if len(rows) > 1:
+            # Before treating this as genuinely ambiguous, check for an
+            # exact (case-insensitive) match — e.g. "Kukatpally" matches
+            # both "Kukatpally" and "Spinova-Kukatpally" via LIKE, but
+            # if the user said exactly "Kukatpally", that's not actually
+            # ambiguous, it's a precise match plus a coincidental extra
+            # substring hit. Only ask the user when there's no single
+            # best answer.
+            exact_matches = [r for r in rows if r[1].strip().lower() == location_keyword.strip().lower()]
+            if len(exact_matches) == 1:
+                return exact_matches[0][0], exact_matches[0][1]
             return "AMBIGUOUS", [r[1] for r in rows]
         return rows[0][0], rows[0][1]
     finally:
