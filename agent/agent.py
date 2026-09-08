@@ -7,6 +7,8 @@ from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
 from auth.schema_pack import schema_hint_for_prompt
 import time
+import re
+from datetime import date, timedelta
 from agent.tools import (
     run_sql_query,
     describe_table,
