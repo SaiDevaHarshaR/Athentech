@@ -156,6 +156,22 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "conversation, run SELECT DISTINCT <column> first before filtering on it — this one habit "
         "prevents the majority of wrong-answer bugs found in this system, across any table, not just "
         "the specific ones documented above.",
+        "- CONFIRMED real bug: AVG(DATEDIFF(...)) for turnaround time (TAT) calculations can be "
+        "destroyed by a small number of corrupted/outlier records (e.g. a BILLDATE stored as some "
+        "old default date, creating a gap of years instead of minutes/hours). Confirmed in production: "
+        "an 'average TAT' came back as 23,002,736 minutes (~44 years) — not a real answer. When "
+        "computing AVG TAT, exclude implausible outliers from the calculation, e.g.: "
+        "AVG(CASE WHEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) BETWEEN 0 AND 10080 THEN "
+        "DATEDIFF(MINUTE, BILLDATE, CREATEDATE) END) — the 10080 bound is 7 days in minutes, a "
+        "generous upper limit for a real TAT; adjust if a narrower bound makes sense for the specific "
+        "question, but never report a raw unbounded AVG that could be silently wrecked by bad data.",
+        "- CONFIRMED real bug: a curated location tool (get_verified_day_collection) requires ONE "
+        "specific location — if the user asks for 'all branches'/'all locations'/a combined total "
+        "across every location, do NOT call that tool with location_keyword='all' (this was tried in "
+        "production and matched multiple real locations that coincidentally contain 'all' as a "
+        "substring — Kompally, Kukatpally, etc. — a real, confusing false-positive). For an "
+        "ALL-LOCATIONS-COMBINED question, use describe_table/run_sql_query instead, with NO location "
+        "filter in the WHERE clause at all.",
         "- if a query for a CURRENT/recent date returns 0 rows or all-zero aggregates, do not report "
         "that as a confident zero — say plainly that no data was found for that filter and it may "
         "reflect a data lag rather than genuinely zero activity.",
