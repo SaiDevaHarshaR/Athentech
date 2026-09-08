@@ -215,3 +215,41 @@ def get_verified_day_collection(
             "than 'no activity'."
         )
     return "\n".join(lines)
+
+
+@tool
+def search_schema(query: str, role: str = "viewer") -> str:
+    """
+    Search the hospital database schema for tables relevant to the
+    user's question, using real table categories, real column names,
+    and real sample values — not guessing from cryptic table names
+    alone (e.g. trninvlabdet, mstdepartment). Call this FIRST whenever
+    you're not already certain which table(s) are relevant, before
+    describe_table. This is plain search, not another AI step — it
+    won't invent anything, just rank real known tables by relevance.
+    """
+    from agent.schema_search import search_schema as _search
+    from auth.roles import Role
+    from auth.table_access import list_allowed_tables_for_role
+
+    try:
+        role_enum = Role(role)
+    except ValueError:
+        return f"Error: unknown role '{role}'."
+
+    allowed = set(list_allowed_tables_for_role(role_enum))
+    results = _search(query, allowed_tables=allowed)
+
+    if not results:
+        return (
+            f"No tables matched '{query}' by name, category, or known column/value content. "
+            "This doesn't mean no data exists — it may just mean this table hasn't been "
+            "profiled yet (see profile_schema.py), or genuinely isn't in the allowed set for "
+            "this role. Try describe_table on a table you already suspect, or say plainly that "
+            "you couldn't find a clearly relevant table."
+        )
+
+    lines = [f"Tables relevant to '{query}', ranked by relevance:"]
+    for r in results:
+        lines.append(f"• {r['table']} (score {r['score']}) — {r['why']}")
+    return "\n".join(lines)
