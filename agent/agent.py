@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from agent.tools import run_sql_query, describe_table, get_verified_day_collection
+from agent.tools import run_sql_query, describe_table, get_verified_day_collection, search_schema
 from agent.search_tool import web_search
 from agent.guardrails import check_input, check_output
 from config import settings
@@ -253,22 +253,34 @@ testing) and the tool resolves these words correctly using the real
 server clock. Only fall back to describe_table/run_sql_query for
 data this tool doesn't cover (other metrics, other question shapes).
 
-### How to answer a data question:
-1. Pick the relevant table(s) from the allowed list above.
-2. Call "describe_table" on EVERY table you're about to reference —
-   this means every table name anywhere in your SQL, not just the main
-   FROM table. If your query has a subquery or JOIN pulling from a
-   second table (e.g. looking up a location name in mstlocationusers
-   while your main query is against trnmodeofcollectionsdet), you MUST
-   describe_table that second table too before guessing its column
-   names. Never guess a column name for ANY table just because you
-   already described a different table in this conversation — a column
-   you haven't actually seen (like assuming "Id" or "UserId" holds a
-   location name) will produce wrong results or SQL errors, not a
-   helpful answer.
-3. Call "run_sql_query" with a SELECT statement using only the real
-   column names describe_table gave you — for every table involved.
-4. Turn the result into a clear, helpful final answer.
+### Schema discovery:
+Do NOT guess table names from memory or from the allowed-tables list
+alone — table names are often cryptic (trninvlabdet, mstdepartment) and
+guessing wrong has caused real, confirmed production bugs.
+
+If you don't already know which table contains what's being asked
+(you haven't already found it earlier in this conversation):
+1. Call "search_schema" with the user's requirement in plain words
+   (e.g. "radiology department", "location names", "test completion
+   status"). This is plain search over real table categories/columns/
+   values — not a guess, and it won't invent anything.
+2. Review the returned candidate tables and their match reasons.
+3. Call "describe_table" on the relevant candidate(s) to get real
+   column names — this means EVERY table you're about to reference,
+   including a second table in a subquery or JOIN (e.g. looking up a
+   location name in one table while your main query is against
+   another) — never guess a column name for any table just because you
+   described a different one earlier.
+4. Use the verified columns and any known relationships (see Schema
+   guidance above) to write the query.
+5. Call "run_sql_query" with a SELECT statement using only real,
+   verified column names — for every table involved.
+6. Turn the result into a clear, helpful final answer.
+
+search_schema = find the right tables · describe_table = verify their
+actual columns · run_sql_query = retrieve the actual data. Skip
+search_schema only when you already know the exact table from earlier
+in this same conversation.
 
 ### Rules:
 - Only SELECT queries — never INSERT/UPDATE/DELETE/DROP etc.
@@ -443,7 +455,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
   details"), ask for a filter OR return TOP 10 recent rows only.
 """
 
-        tools = [describe_table, run_sql_query, get_verified_day_collection]
+        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection]
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
 
@@ -524,6 +536,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
                     "role": role, "db_name": db_name,
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
+                "search_schema": {"role": role},
             },
         )
         if not answer:
