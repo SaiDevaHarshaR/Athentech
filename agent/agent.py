@@ -143,15 +143,13 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
 
+# BEFORE: nothing here
+
+# AFTER:
 def _preflight_schema_search(question: str, role: str) -> str:
     try:
-        result = search_schema.invoke({
-            "query": question,
-            "role": role,
-        })
-
+        result = search_schema.invoke({"query": question, "role": role})
         return str(result) if result else "No matching schema candidates found."
-    
     except Exception as e:
         return f"Schema discovery failed: {e}"
 def ask_agent(
@@ -274,24 +272,27 @@ Do NOT guess table names from memory or from the allowed-tables list
 alone — table names are often cryptic (trninvlabdet, mstdepartment) and
 guessing wrong has caused real, confirmed production bugs.
 
-If you don't already know which table contains what's being asked
-(you haven't already found it earlier in this conversation):
-1. Call "search_schema" with the user's requirement in plain words
+A search_schema result for THIS question has ALREADY been run and is
+included below as "PRE-VERIFIED SCHEMA SEARCH RESULT" — do NOT call
+search_schema again to redo work that's already been done...
+Using either the pre-verified results or your own search if needed:
+1. Review the candidate tables and their match reasons.
+2. Call "search_schema" with the user's requirement in plain words
    (e.g. "radiology department", "location names", "test completion
    status"). This is plain search over real table categories/columns/
    values — not a guess, and it won't invent anything.
-2. Review the returned candidate tables and their match reasons.
-3. Call "describe_table" on the relevant candidate(s) to get real
+3. Review the returned candidate tables and their match reasons.
+4. Call "describe_table" on the relevant candidate(s) to get real
    column names — this means EVERY table you're about to reference,
    including a second table in a subquery or JOIN (e.g. looking up a
    location name in one table while your main query is against
    another) — never guess a column name for any table just because you
    described a different one earlier.
-4. Use the verified columns and any known relationships (see Schema
+5. Use the verified columns and any known relationships (see Schema
    guidance above) to write the query.
-5. Call "run_sql_query" with a SELECT statement using only real,
+6. Call "run_sql_query" with a SELECT statement using only real,
    verified column names — for every table involved.
-6. Turn the result into a clear, helpful final answer.
+7. Turn the result into a clear, helpful final answer.
 
 search_schema = find the right tables · describe_table = verify their
 actual columns · run_sql_query = retrieve the actual data. Skip
