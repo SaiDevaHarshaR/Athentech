@@ -77,74 +77,119 @@ def _tokenize(text: str) -> set:
 
 def search_schema(query: str, allowed_tables: set = None, top_n: int = 8) -> list:
     """
-    Returns up to top_n dicts: {"table": ..., "score": ..., "why": ...},
-    ranked by relevance to the query.
+    Deterministic schema search.
 
-    allowed_tables: restrict results to this set of real table names
-    (role-based access) — pass None to search everything mapped.
+    Uses:
+      1. semantic synonyms
+      2. table-name matches
+      3. category matches
+      4. real column-name matches
+      5. real profiled sample-value matches
+
+    No LLM is involved.
     """
+
     query_tokens = _tokenize(query)
+
     if not query_tokens:
         return []
 
     profile = _load_profile()
 
     tables = set(REAL_TABLE_TO_CATEGORY.keys())
+
     if allowed_tables is not None:
-        tables = tables & {t.lower() for t in allowed_tables}
+        allowed_lower = {t.lower() for t in allowed_tables}
+        tables &= allowed_lower
 
     candidates = []
+
     for table in tables:
         score = 0
         reasons = []
+
         category = REAL_TABLE_TO_CATEGORY.get(table, "")
         table_lower = table.lower()
 
-        # Signal 1: table name — substring match, not token match. Real
-        # table names are one continuous string with no word separators
-        # (e.g. "mstpatientregistration"), so tokenizing them and
-        # requiring an exact token match would never find "patient"
-        # inside that string at all — found and fixed via a real test
-        # before this ever shipped.
-        name_matches = [t for t in query_tokens if len(t) >= 3 and t in table_lower]
+        # ---------------------------------------------------------
+        # 1. Physical table name
+        # ---------------------------------------------------------
+        name_matches = [
+            token
+            for token in query_tokens
+            if len(token) >= 3 and token in table_lower
+        ]
+
         if name_matches:
             score += 3 * len(name_matches)
-            reasons.append(f"table name matches: {', '.join(sorted(name_matches))}")
+            reasons.append(
+                f"table name matches: {', '.join(sorted(name_matches))}"
+            )
 
-        # Signal 2: classified category
-        if category and category.lower() in query_tokens:
-            score += 2
+        # ---------------------------------------------------------
+        # 2. Logical category
+        # ---------------------------------------------------------
+        category_lower = category.lower()
+
+        category_matches = [
+            token
+            for token in query_tokens
+            if len(token) >= 3 and (
+                token == category_lower
+                or token in category_lower
+                or category_lower in token
+            )
+        ]
+
+        if category_matches:
+            score += 6
             reasons.append(f"category: {category}")
 
-        # Signal 3 & 4 (only if this table has been profiled): real
-        # column names and, most valuably, real sample VALUES.
+        # ---------------------------------------------------------
+        # 3 + 4. Real schema profile
+        # ---------------------------------------------------------
         table_profile = profile.get(table)
+
         if table_profile:
             for col in table_profile.get("columns", []):
                 col_name = col.get("column", "")
-                col_matches = [t for t in query_tokens if len(t) >= 3 and t in col_name.lower()]
+                col_lower = col_name.lower()
+
+                # Real column-name match
+                col_matches = [
+                    token
+                    for token in query_tokens
+                    if len(token) >= 3 and token in col_lower
+                ]
+
                 if col_matches:
-                    score += 2
+                    score += 2 * len(col_matches)
                     reasons.append(f"column name: {col_name}")
 
-                # Real value matches are the strongest signal — but cap
-                # this at ONE bonus per column, not one per matching
-                # value. Found a real case where this mattered: an
-                # OrderId column full of payment-gateway IDs like
-                # "order_KSTm1m9bVe5gSf" scored +5 for EVERY one of 15
-                # sample rows (all coincidentally prefixed "order_"),
-                # totaling +75 and burying a genuinely relevant table
-                # that only scored 8. One real match in a column is
-                # already a strong signal; more matches in the same
-                # column don't make it more relevant, they're usually
-                # just that column having lots of rows.
-                matching_values = [v for v in (col.get("sample_values") or []) if query_tokens & _tokenize(v)]
+                # Real sample-value match
+                matching_values = [
+                    value
+                    for value in (col.get("sample_values") or [])
+                    if query_tokens & _tokenize(value)
+                ]
+
                 if matching_values:
                     score += 5
-                    reasons.append(f"real value '{matching_values[0]}' seen in {col_name}")
+                    reasons.append(
+                        f"real value '{matching_values[0]}' seen in {col_name}"
+                    )
 
         if score > 0:
-            candidates.append({"table": table, "score": score, "why": "; ".join(reasons[:3])})
+            candidates.append(
+                {
+                    "table": table,
+                    "score": score,
+                    "why": "; ".join(reasons[:4]),
+                }
+            )
 
-    candidates.sort(key=lambda c: c["score"], reverse=True)
+    candidates.sort(
+        key=lambda item: (-item["score"], item["table"])
+    )
+
     return candidates[:top_n]
