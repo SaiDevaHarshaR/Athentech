@@ -173,9 +173,12 @@ def ask_agent(
             return check_output(f"Unknown role '{role}'.")
 
         allowed_tables = list_allowed_tables_for_role(role_enum)
-        allowed_tables_str = (
-            ", ".join(allowed_tables) if allowed_tables else "(none mapped yet)"
-        )
+        # allowed_tables_str (a full comma-joined list of every allowed
+        # table name) used to be dumped into the prompt directly — removed
+        # since search_schema now handles table discovery, and the real
+        # access enforcement was always in check_table_access/
+        # check_query_access, never the prompt text itself. allowed_tables
+        # (the underlying set) is still needed below for schema_hints.
 
         # Built HERE only (after allowed_tables exists)
         schema_hints = schema_hint_for_prompt(
@@ -227,12 +230,15 @@ in scope rather than refusing.
 
 Current user role: {role}
 
-### Tables you are allowed to query (real table names):
-{allowed_tables_str}
-
-Any table not in that list will be rejected — do not attempt to query it,
-and tell the user plainly if what they're asking about isn't available
-to their role or isn't in the system yet.
+### Table access
+Your access is restricted by role automatically — search_schema only
+ever returns tables your role can see, and describe_table/run_sql_query
+independently double-check this too. You do NOT need a full list of
+every allowed table name to work correctly; use search_schema to find
+what's relevant instead of trying to recall table names from memory.
+If a table you try turns out not to be accessible, the tool will tell
+you plainly — treat that as "not available to this role," not an error
+to route around.
 
 ### Schema guidance
 {schema_hints}
