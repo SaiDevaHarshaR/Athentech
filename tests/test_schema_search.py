@@ -43,6 +43,28 @@ def test_real_sample_value_match_is_the_strongest_signal():
     assert "Radiology" in results[0]["why"]
 
 
+def test_many_coincidental_value_matches_in_one_column_dont_dominate_the_score():
+    # Real bug found against real production data: an OrderId column
+    # full of payment-gateway IDs like "order_KSTm1m9bVe5gSf" scored +5
+    # for EVERY one of 15 sample rows (all coincidentally prefixed
+    # "order_"), totaling +75 and burying a genuinely relevant table
+    # (trnpurchaseorder) that only scored 8 from name+category matches.
+    fake_profile = {
+        "mstpaymentdetails": {
+            "table": "mstpaymentdetails", "category": "billing",
+            "columns": [{"column": "OrderId", "sample_values": [
+                f"order_{i}" for i in range(15)  # 15 coincidental matches, same as the real case
+            ]}],
+        },
+    }
+    with patch("agent.schema_search._load_profile", return_value=fake_profile):
+        results = search_schema("purchase order")
+    # The value-match bonus should be capped at +5 total for this column,
+    # not +5 x 15 — so its score should be modest, not inflated to 75+.
+    mst_score = [r for r in results if r["table"] == "mstpaymentdetails"][0]["score"]
+    assert mst_score <= 10, f"expected a capped score, got {mst_score} (the runaway-inflation bug is back)"
+
+
 def test_role_restriction_limits_results():
     with patch("agent.schema_search._load_profile", return_value={}):
         results = search_schema("patient registration", allowed_tables={"mstpatientregistration"})
