@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from agent.tools import run_sql_query, describe_table, get_verified_day_collection, search_schema
+#from agent.tools import run_sql_query, describe_table, get_verified_day_collection, search_schema
 from agent.search_tool import web_search
 from agent.guardrails import check_input, check_output
 from config import settings
@@ -7,7 +7,13 @@ from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
 from auth.schema_pack import schema_hint_for_prompt
 import time
-
+from agent.tools import (
+    run_sql_query,
+    describe_table,
+    get_verified_day_collection,
+    search_schema,
+    get_department_dashboard,
+)
 
 def _build_llm():
     """
@@ -251,6 +257,9 @@ to route around.
 
 ### Schema guidance
 {schema_hints}
+If the question is a lab/radiology/laboratory dashboard for today, yesterday, or this month or this year or any year
+call get_department_dashboard with department=radiology|laboratory|all and period=today|yesterday|this_month|this_year|any_year.
+Do NOT write your own SQL for these dashboard questions.
 
 ### IMPORTANT — prefer the verified tool when it fits:
 If the question is asking for collection/revenue for a SPECIFIC
@@ -474,7 +483,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
   details"), ask for a filter OR return TOP 10 recent rows only.
 """
 
-        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection]
+        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard]
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
 
