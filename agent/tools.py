@@ -1,5 +1,5 @@
 from langchain_core.tools import tool
-
+import re
 from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
@@ -69,6 +69,95 @@ def describe_table(
         except Exception:
             pass
 
+def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
+    """
+    Validate column references in a SELECT query against the real MSSQL schema.
+
+    Returns:
+        (True, "") if validation passes.
+        (False, error_message) if a referenced column is invalid.
+    """
+    # Get tables referenced by FROM/JOIN.
+    table_pattern = re.compile(
+        r"\b(?:FROM|JOIN)\s+"
+        r"(?:\[?[\w]+\]?\.)?"
+        r"\[?([\w]+)\]?"
+        r"(?:\s+(?:AS\s+)?(\w+))?",
+        re.IGNORECASE,
+    )
+
+    table_matches = table_pattern.findall(query)
+
+    if not table_matches:
+        return True, ""
+
+    table_info = {}
+
+    for table_name, alias in table_matches:
+        clean_table = table_name.strip("[]").lower()
+
+        cursor.execute(
+            """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE LOWER(TABLE_NAME) = ?
+            """,
+            (clean_table,),
+        )
+
+        columns = {row[0].lower() for row in cursor.fetchall()}
+
+        if columns:
+            table_info[clean_table] = {
+                "columns": columns,
+                "alias": alias.lower() if alias else None,
+            }
+
+    # Build alias -> table mapping.
+    aliases = {}
+
+    for table, info in table_info.items():
+        aliases[table] = table
+        if info["alias"]:
+            aliases[info["alias"]] = table
+
+    # Find qualified references such as:
+    # t.CREATEDATE
+    # trninvlabdet.BILLDATE
+    qualified_refs = re.findall(
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b",
+        query,
+    )
+
+    invalid = []
+
+    for qualifier, column in qualified_refs:
+        qualifier_lower = qualifier.lower()
+        column_lower = column.lower()
+
+        table = aliases.get(qualifier_lower)
+
+        if not table:
+            continue
+
+        valid_columns = table_info[table]["columns"]
+
+        if column_lower not in valid_columns:
+            invalid.append(
+                f"{qualifier}.{column} "
+                f"(valid columns include: {', '.join(sorted(valid_columns))})"
+            )
+
+    if invalid:
+        return (
+            False,
+            "INVALID COLUMN REFERENCE(S): "
+            + "; ".join(invalid)
+            + ". Do NOT execute the query again unchanged. "
+              "Use the actual columns returned by the schema."
+        )
+
+    return True, ""
 
 @tool
 def run_sql_query(
@@ -110,6 +199,15 @@ def run_sql_query(
 
     try:
         cursor = conn.cursor()
+
+        # Validate referenced columns against the REAL MSSQL schema
+        # before executing the generated SQL.
+        valid, validation_error = _validate_sql_columns(cursor, query)
+
+        if not valid:
+            print(f"[run_sql_query] SCHEMA VALIDATION FAILED: {validation_error}")
+            return f"Query rejected before execution: {validation_error}"
+
         cursor.execute(query)
 
         if not cursor.description:
