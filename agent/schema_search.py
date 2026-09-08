@@ -42,8 +42,38 @@ def _load_profile() -> dict:
 
 
 def _tokenize(text: str) -> set:
-    return set(re.findall(r"[a-z]+", str(text).lower()))
+    text = str(text).lower()
 
+    # Normalize common healthcare/business terminology
+    synonyms = {
+        "laboratory": "labs",
+        "laboratories": "labs",
+        "lab": "labs",
+        "tests": "test",
+        "investigations": "investigation",
+        "diagnostics": "diagnostic",
+        "radiology": "radiology",
+        "patients": "patient",
+        "bills": "bill",
+        "collections": "collection",
+        "reports": "report",
+        "departments": "department",
+        "doctors": "doctor",
+        "physicians": "doctor",
+        "branches": "branch",
+        "locations": "location",
+        "revenue": "collection",
+        "payments": "payment",
+    }
+
+    tokens = set(re.findall(r"[a-z]+", text))
+
+    normalized = set(tokens)
+
+    for token in tokens:
+        normalized.add(synonyms.get(token, token))
+
+    return normalized
 
 def search_schema(query: str, allowed_tables: set = None, top_n: int = 8) -> list:
     """
