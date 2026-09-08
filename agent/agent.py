@@ -234,13 +234,7 @@ def ask_agent(
         else:
             dept = "all"
 
-        if "today" in q:
-            period = "today"
-        elif "this month" in q or "this_month" in q:
-            period = "this_month"
-        else:
-            period = "yesterday"  # default for "yesterday" or bare "radiology dashboard"
-
+        period, _label = parse_dashboard_period(q)
         print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period}")
         raw = get_department_dashboard.invoke({
             "department": dept,
