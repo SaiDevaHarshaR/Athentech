@@ -1,9 +1,52 @@
 from langchain_core.tools import tool
 import re
+import threading
 from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
 from auth.table_relationships import get_relationships_for_table
+
+# Per-request schema cache: {table_name: {real column names}}, populated
+# by describe_table and reused by run_sql_query's validator so it
+# doesn't redundantly re-query INFORMATION_SCHEMA for a table this same
+# conversation just looked up seconds ago.
+#
+# Tried two other approaches first, both proven broken by direct testing
+# before this shipped:
+#   1. A plain dict tool argument — LangChain's tool .invoke() (the real
+#      path the LLM tool-calling loop uses) re-serializes arguments
+#      through a Pydantic schema, which does not preserve a mutable
+#      dict reference back to the caller. Mutations inside the tool
+#      never became visible outside it.
+#   2. A contextvars.ContextVar — reads worked, but a .set() call made
+#      INSIDE one .invoke() call didn't propagate back out to a
+#      subsequent .invoke() call either (consistent with LangChain
+#      running each invocation via a copied context internally).
+# threading.local() was tested directly and confirmed to work: writes
+# made inside one tool's .invoke() ARE visible to a later tool's
+# .invoke() call, as long as both run on the same thread — true here,
+# confirmed directly, since .invoke() doesn't switch threads.
+_local = threading.local()
+
+
+def get_request_schema_cache() -> dict:
+    """Returns the current thread's schema cache, creating a fresh one
+    if none exists yet. Call reset_request_schema_cache() at the start
+    of each new request/conversation to avoid a later request on the
+    same worker thread seeing a stale cache from an earlier one."""
+    if not hasattr(_local, "schema_cache"):
+        _local.schema_cache = {}
+    return _local.schema_cache
+
+
+def reset_request_schema_cache() -> None:
+    """Call this once at the start of handling each new user request —
+    ask_agent does this — so this thread's cache doesn't leak stale
+    entries into an unrelated later request that happens to reuse the
+    same worker thread (a real risk: web frameworks commonly run
+    requests on a thread pool, reusing threads across different,
+    unrelated requests)."""
+    _local.schema_cache = {}
 
 
 @tool
@@ -49,6 +92,13 @@ def describe_table(
         if not rows:
             return f"No columns found for table '{clean_table_name}' — check the table name."
 
+        # Share the real columns with run_sql_query's validator, so it
+        # doesn't need to re-query INFORMATION_SCHEMA for a table this
+        # same conversation already looked up seconds ago — that
+        # redundant round-trip was a real, measurable latency cost on
+        # every single run_sql_query call.
+        get_request_schema_cache()[clean_table_name] = {col.lower() for col, _ in rows}
+
         lines = [f"Columns for {clean_table_name}:"]
         for col_name, data_type in rows:
             lines.append(f"• {col_name} ({data_type})")
@@ -76,7 +126,17 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
     This intentionally validates the references that can be resolved
     unambiguously. If a table/alias cannot be resolved safely, the query
     is rejected instead of guessing.
+
+    Uses the per-request schema cache (see get_request_schema_cache) —
+    populated by describe_table earlier in this same request — checked
+    FIRST for each table, only falling back to a real database
+    round-trip if a table isn't already cached. This matters: this
+    validator used to always hit the database once per referenced
+    table, on every single call, even when describe_table had just
+    fetched the exact same columns seconds earlier in the same
+    conversation — a real, measurable, avoidable latency cost.
     """
+    schema_cache = get_request_schema_cache()
 
     table_pattern = re.compile(
         r"\b(?:FROM|JOIN)\s+"
@@ -98,19 +158,26 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
         table_name = bracketed_name or plain_name
         clean_table = table_name.strip("[]").lower()
 
-        cursor.execute(
-            """
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE LOWER(TABLE_NAME) = ?
-            """,
-            (clean_table,),
-        )
+        if clean_table in schema_cache:
+            columns = schema_cache[clean_table]
+        else:
+            cursor.execute(
+                """
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE LOWER(TABLE_NAME) = ?
+                """,
+                (clean_table,),
+            )
 
-        columns = {
-            row[0].lower()
-            for row in cursor.fetchall()
-        }
+            columns = {
+                row[0].lower()
+                for row in cursor.fetchall()
+            }
+            # Populate the cache so a second reference to the same
+            # table later in this SAME query (or a retry) doesn't
+            # trigger yet another round-trip either.
+            schema_cache[clean_table] = columns
 
         if not columns:
             return (
@@ -212,7 +279,9 @@ def run_sql_query(
         cursor = conn.cursor()
 
         # Validate referenced columns against the REAL MSSQL schema
-        # before executing the generated SQL.
+        # before executing the generated SQL. Reuses the per-request
+        # schema cache (populated by describe_table earlier this
+        # request) instead of always re-querying INFORMATION_SCHEMA.
         valid, validation_error = _validate_sql_columns(cursor, query)
 
         if not valid:
