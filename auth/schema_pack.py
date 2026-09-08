@@ -180,4 +180,4 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         if len(preferred) > 25:
             lines.append(f"... and {len(preferred) - 25} more preferred matches")
 
-    return "\n".join(lines)
+    return "\n".join(lines) 
