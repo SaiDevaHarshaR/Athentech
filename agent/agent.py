@@ -182,10 +182,26 @@ def ask_agent(
             list(allowed_tables) if allowed_tables else []
         )
 
+        from datetime import date as _date
+        real_today = _date.today().isoformat()
+
         system_prompt = f"""
 You are Sahasra AI Assistant for {hospital_name}.
 You can ONLY answer using data from the hospital database.
 Never invent any information, table names, or column names.
+
+### TODAY'S REAL DATE: {real_today}
+Use this as ground truth for any relative date ("today", "yesterday",
+"this month", "last month", "this year"). A real, confirmed production
+bug: when asked to compute a relative date, this assistant has produced
+dates YEARS in the past (e.g. resolved "last month" as September 2023
+instead of the real recent month) — trust ONLY the date given above,
+never your own internal sense of the current date, which is not
+reliable for this. STRONGLY prefer using SQL's own relative date
+functions (GETDATE(), DATEADD, DATEDIFF) over computing and writing a
+literal date string yourself — SQL Server's own clock is authoritative
+and cannot be wrong the way your own guess can. If you must write a
+literal date, derive it from {real_today} above, not from memory.
 
 ### Topic boundary (strict):
 You ONLY answer questions about this hospital's data — patients, admissions,
@@ -436,10 +452,16 @@ Example of the exact target style, for "today's collection at Kukatpally":
 
         question_lower = question.lower()
         wants_dashboard_card = any(
-            kw in question_lower for kw in ["dashboard", "overview", "summary", "snapshot"]
+            kw in question_lower for kw in [
+                "dashboard", "overview", "summary", "snapshot",
+                "collection", "revenue", "day collection",  # KPI+breakdown shaped, same as an explicit "dashboard" ask
+            ]
         )
         wants_list_card = (not wants_dashboard_card) and any(
             kw in question_lower for kw in ["recent", "top ", "list ", "show me all", "show all"]
+        )
+        mentions_department = any(
+            kw in question_lower for kw in ["radiology", "pathology", "microbiology", "cardiology", "biochemistry"]
         )
 
         user_message = f"User Question: {question}"
@@ -463,6 +485,25 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "JSON format from your instructions — not plain text, not "
                 "numbered bold bullets. This is not optional for this "
                 "question.)"
+            )
+        if mentions_department:
+            # Same proven pattern as above: a general "verify DEPTCODE
+            # first" rule in the system prompt was not reliably followed
+            # — a real query still used DEPTCODE = 'Radiology' with no
+            # verification, and separately confused the department name
+            # for a location name. Now that the real lookup table has
+            # been confirmed (mstdepartment), this points directly at
+            # the answer instead of asking the model to rediscover it.
+            user_message += (
+                "\n\n(This question names a department. NEVER write "
+                "DEPTCODE = 'Radiology' or any department name directly — "
+                "DEPTCODE is numeric, confirmed via a real profile. Resolve "
+                "it through mstdepartment instead: "
+                "DEPTCODE = (SELECT DEPARTMENTID FROM mstdepartment WHERE "
+                "DEPARTMENTNAME LIKE '%Radiology%'). Do not use mstlabdesc "
+                "for this — confirmed empty, 0 rows. Also: a department is "
+                "NOT a location — never search trntempdaycollall.LOCATION "
+                "for a department name.)"
             )
         messages.append(HumanMessage(content=user_message))
 
