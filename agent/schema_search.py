@@ -96,10 +96,22 @@ def search_schema(query: str, allowed_tables: set = None, top_n: int = 8) -> lis
                 if col_matches:
                     score += 2
                     reasons.append(f"column name: {col_name}")
-                for val in (col.get("sample_values") or []):
-                    if query_tokens & _tokenize(val):
-                        score += 5  # a real matching value is the strongest signal available
-                        reasons.append(f"real value '{val}' seen in {col_name}")
+
+                # Real value matches are the strongest signal — but cap
+                # this at ONE bonus per column, not one per matching
+                # value. Found a real case where this mattered: an
+                # OrderId column full of payment-gateway IDs like
+                # "order_KSTm1m9bVe5gSf" scored +5 for EVERY one of 15
+                # sample rows (all coincidentally prefixed "order_"),
+                # totaling +75 and burying a genuinely relevant table
+                # that only scored 8. One real match in a column is
+                # already a strong signal; more matches in the same
+                # column don't make it more relevant, they're usually
+                # just that column having lots of rows.
+                matching_values = [v for v in (col.get("sample_values") or []) if query_tokens & _tokenize(v)]
+                if matching_values:
+                    score += 5
+                    reasons.append(f"real value '{matching_values[0]}' seen in {col_name}")
 
         if score > 0:
             candidates.append({"table": table, "score": score, "why": "; ".join(reasons[:3])})

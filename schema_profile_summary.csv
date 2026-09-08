@@ -1,4 +1,101 @@
 table,category,row_count,column_count,code_like_columns
-mstdepartment,(not classified),9,12,"DEPARTMENTID, DEPARTMENTNAME, TOPDEPTID, DEPTTYPE, CREATEUSERID, EDITUSERID, TERMINALID, EDITTERMINALID, LOCATIONID"
-mstlabdesc,labs,0,14,
-trninvlabdet,labs,2990701,33,"ID, UHID, PATID, TCODE, REFDOCID, DOCCODE, STATUS, TESTSTATUS, DEPTCODE, BEDID, LOCATIONID, OUTSOURCEID, SAMPLETYPE, MACHINEID, BARCODE, VialID"
+patients,ERROR,-,-,no columns found — check the table name
+admissions,ERROR,-,-,no columns found — check the table name
+mstpatientregistration,patients,929644,27,"ID, UHID, NAME, AGETYPE, AREACODE, CITYCODE, STATECODE, COUNTRYCODE, DISTRICTCODE, DEPARTMENTID, DOCID, REFDOCID, LOCATIONID, USERID, TERMINALID, OLDREFID"
+tblclientdocinfo,patients,241,17,"ID, ORGCODE, CDOCID, CDOCNAME, CREATEUSERID, EDITUSERID, TERMINALID, EDITTERMINALID, LCODE, UserName"
+trnmergeddocbilldtls_referral,billing,42840,9,"ID, ACTUALDOCID, DOCID, CREATEUSERID, LOCATIONID, TERMINALID"
+trnpurchaseorder,inventory,2433,36,"POID, SupCode, InvTypeID, POStatus, POTYPE, CreditPeriodType, UserID, EditUserID, TerminalID, EditTerminalID, LocationID, deliveryContactName"
+mstlocationusers,staff,4317,3,"Id, UserId, LOCATIONID"
+trninvoicepayments,billing,20965,28,"PAYMENTID, ORGCODE, MODE, CCTYPE, TRANSID, CREATEUSERID, TERMINALID, EDITUSERID, EDITTERMINALID, LOCATIONID"
+mstmethod,labs,42,10,"ID, CREATEUSERID, TERMINALID, EDITUSERID, EDITTERMINALID, LOCATIONID"
+mstantibiotics,labs,3,10,"ANTIPARAMID, ANTIPARAMNAME, LOCATIONID, TERMINALID, EDITTERMINALID"
+mstworkstations,labs,44,11,"ID, WorkStationID, WorkStationName, LocationID, CREATEUSERID, EDITUSERID, TERMINALID, EDITTERMINALID, UserLocationID"
+mstappbookingno,admissions,3,13,"ID, BookingType, BookingName, LOCATIONID, TERMINALID, EDITTERMINALID"
+mstappbookingslots,admissions,2,19,"ID, DEPARTMENTID, LOCATIONID, TERMINALID, EDITTERMINALID"
+cc_invoice,billing,0,16,
+cc_invoicenew,billing,0,16,
+daycollection_mobileapp,billing,0,28,
+mstappadditionalcharges,billing,3,13,"ID, ChargeType, LOCATIONID, TERMINALID, EDITTERMINALID"
+mstccinvestigationrates,billing,0,12,
+mstdocdeptinvdiscount,billing,0,15,
+mstheaderpaytype,billing,9,3,"HeaderId, Type, HeaderName"
+mstinvoicesliptext,billing,6,4,"ID, LOCATIONID, TYPE"
+mstmemplanswiseadditionalcharges,billing,2,13,"ID, PlanCode, ChargeID, LOCATIONID, TERMINALID, EDITTERMINALID"
+mstorgdeptdiscount,billing,0,11,
+mstpaymentdetails,billing,2361,10,"PaymentId, OrgCode, PaymentType, OrderId, Status"
+msttallyledgermaster,billing,121,20,"ID, LocationID, TTYpe, VType, LType"
+msttallyledgertypeinfo,billing,0,4,
+msttallyregledger,billing,992281,17,"VType, LEDID, BillType, AutoId, BillsType, LocationId"
+msttariffupdations,billing,0,7,
+msttariffupdations_storecproc,billing,0,7,
+msttempapppaymentdtls,billing,240,33,"CouponCode, BankName, BankTxnId, GateWayName, MID, OrderId, PaymentMode, Status, TxnId, PaymentGatewayType, Tempid, PaymentStatus, Name, Mode, Agetype, AgentId, PaymentType"
+msttemptallyregledger,billing,155,15,"VType, LEDID, BillType, AutoId, BillsType, LocationId"
+paymentgatewayresponse,billing,0,34,
+tarifftable,billing,0,3,
+tblappagentassignbill,billing,6,20,"id, agentId, areaId, tokenStatus"
+tblapprepocharges,billing,2,6,"id, chargeType"
+tblcreditperiodgen,billing,0,18,
+tblinvoicesms,billing,0,13,
+tbltempledger,billing,0,13,
+tbltempledgerorg,billing,35,12,"ORGANISATIONCODE, ORGANISATIONNAME, UserName"
+trnacntvoupaymntmodeofcolctndetails,billing,0,14,
+trnbillingcycleinvoicegeneration,billing,0,15,
+trnbillingcyclerates,billing,0,11,
+trncc_cshcrypayments,billing,0,15,
+trncc_cshcrypaymodedetails,billing,0,14,
+trnccinvoicegeneration,billing,0,14,
+trnccpayments,billing,70,25,"CCPayID, CCODE, Mode, UserID, EditUserID, TerminalID, EditTerminalID, LocationID, PayType"
+trnccpayments1,billing,0,23,
+trnccpaymodedetails,billing,0,15,
+trncomppayments,billing,27096,24,"CompPayID, ORGCODE, Mode, UserID, EditUserID, TerminalID, EditTerminalID, LocationID, PayType, TxnId"
+trncomppaymentsrenova,billing,10,24,"CompPayID, ORGCODE, Mode, UserID, EditUserID, TerminalID, EditTerminalID, LocationID, PayType, TxnId"
+trncomppaymodedetails,billing,16266,16,"ID, CompPayId, BankName, InsType, LOCATIONID, UserID, EditUserID, TerminalID, EditTerminalID, TRANSID"
+trncrbillno,billing,0,2,
+trncreditsales,billing,0,5,
+trndelcreditbill,billing,9074,10,"ID, INVCODE, ORGCODE, LOCATIONID"
+trnexecutivecashpayment,billing,0,8,
+trnexecutivedenomination,billing,0,8,
+trnhvadditionalcharges,billing,0,12,
+trninvoicegeneration,billing,23511,14,"ORGCODE, LCODE, UserID"
+trninvoicetestlog,billing,39,7,"ID, INVCODE, CREATEUSERID, LOCATIONID, TERMINALID"
+trninvpaydetails,billing,664191,19,"id, UHID, MODE, CCTYPE, CREATEUSERID, TERMINALID, EDITUSERID, EDITTERMINALID, LOCATIONID"
+trnmergeddocbilldtls,billing,40548,9,"ID, ACTUALDOCID, DOCID, CREATEUSERID, LOCATIONID, TERMINALID"
+trnmodeofcollectionsdet,billing,2068747,35,"ID, TYPE, UHID, MODE, REFNAME, AUTH_CODE, PATTYPE, STATUS, USERID, ORGANISATIONCODE, LOGINID, TRANSACTIONID, REGSTATUS, LOCATIONID, TERMINALID, CASHIERSTATUS, PATIENTID"
+trnpaymntgtacknowledgement,billing,0,9,
+trnpaymodechangelog,billing,11770,8,"ID, MODE, TYPE, LOCATIONID, TERMINALID"
+trnreferalmgmtbilldtls,billing,667701,10,"ID, LocationId, DOCID"
+trnreferalmgmtbilldtls_del,billing,2350,10,"ID, LocationId, DOCID"
+trnreferalpartialpayments,billing,1322,13,"ID, DOCID, INVCODE, LOCATIONID, TERMINALID"
+trnreferalpartialpayments_del,billing,0,13,
+trnreferalpayments,billing,122171,18,"ID, PAYMENTID, DOCID, MODE, USERID, LOCATIONID, TERMINALID"
+trnreferalpayments_del,billing,77,18,"ID, PAYMENTID, DOCID, MODE, USERID, LOCATIONID, TERMINALID"
+trnrejbillscancellationlog,billing,70,6,"ID, LOCATIONID, TERMINALID"
+trntariffupdate,billing,0,7,
+trntempbranchwisecoll,billing,18,20,"ID, LocationName"
+trntempdaycollall,billing,183,37,"USERID, LOCATIONID"
+trntempmoncoll,billing,0,31,
+trntemprejbills,billing,0,5,
+trntempshiftcollecrpt,billing,0,13,
+trntrackcreditamts,billing,0,33,
+trntrackcreditamts_new,billing,3090,13,"ID, ORGCODE, LOCATIONID, UserID, EditUserID, TerminalID, EditTerminalID"
+mstccrefdoctor,doctors,0,20,
+mstdoctor,doctors,0,33,
+mstdoctornew,doctors,0,32,
+mstdoctorslab,doctors,0,6,
+mstmapauthdoc,doctors,0,10,
+mstmapsubauthdoc,doctors,0,10,
+mstrefdocclinicinfo,doctors,0,9,
+mstrefdoctor,doctors,43963,34,"DOCID, DOCNAME, SPELIZID, AREACODE, CITYCODE, DISTRICTCODE, STATECODE, COUNTRYCODE, CREATEUSERID, EDITUSERID, TERMINALID, EDITTERMINALID, LOCATIONID, OLDDOCID, GROUPID, BankName, IFSCCODE, BenficiaryName, MailID"
+mstrefdoctornew,doctors,0,21,
+mstreferalcontacts,doctors,0,7,
+mstreferralgroup,doctors,107,13,"ID, GROUPID, GROUPNAME, TERMINALID, LOCATIONID, EDITTERMINALID"
+mstschedule,doctors,0,13,
+mstspecialization,doctors,50,10,"SPECIALIZATIONID, SPECIALIZATIONNAME, CREATEUSERID, EDITUSERID, TERMINALID, EDITTERMINALID, LOCATIONID"
+msttimings,doctors,0,5,
+tbltimings,doctors,0,4,
+trndoctorweeklyoffs,doctors,0,3,
+trnmergeddoctors,doctors,1272,8,"ID, DOCID, MERGEDOCID, MERGEDDOCNAME, LOCATIONID, CREATEUSERID, TERMINALID"
+ecomratevsaipl,inventory,0,6,
+kompprice,inventory,1443,3,"INVCODE, INVNAME"
+konnectstock,inventory,262,8,"Itemid, Itemname, LOCATIONID"
+leela,inventory,0,4,
