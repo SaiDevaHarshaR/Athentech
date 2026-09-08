@@ -261,6 +261,17 @@ def run_sql_query(
     qpad = f" {query.lower()} "
     if any(b in qpad for b in banned):
         return "Error: Only read-only SELECT is allowed."
+    bad_date_eq = re.search(
+    r"\b(BILLDATE|DATEOFBILL|REGDATE|CREATEDATE)\s*=\s*(CONVERT\s*\(\s*date|CAST\s*\(\s*GETDATE|DATEADD\s*\(|')",
+    query,
+    re.IGNORECASE,
+    )
+    if bad_date_eq:
+        return (
+            "Query rejected: do not filter datetime columns with '='. "
+            "Use range: col >= DATEADD(DAY, -1, CAST(GETDATE() AS DATE)) "
+            "AND col < CAST(GETDATE() AS DATE) for yesterday."
+        )
 
     try:
         role_enum = Role(role)
@@ -318,7 +329,127 @@ def run_sql_query(
         except Exception:
             pass
 
+@tool
+def get_department_dashboard(
+    department: str,
+    period: str,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
+    """
+    Fixed lab/radiology dashboard. Use this INSTEAD of writing SQL for
+    questions like "yesterday's radiology dashboard" or "lab dashboard today".
 
+    department: "radiology" | "laboratory" | "all"
+    period: "yesterday" | "today" | "this_month"
+    """
+    department = (department or "all").strip().lower()
+    period = (period or "yesterday").strip().lower()
+
+    if department not in ("radiology", "laboratory", "all"):
+        return "Error: department must be radiology, laboratory, or all."
+    if period not in ("yesterday", "today", "this_month"):
+        return "Error: period must be yesterday, today, or this_month."
+
+    # Date range (half-open) — never BILLDATE = date
+    if period == "today":
+        date_sql = (
+            "BILLDATE >= CAST(GETDATE() AS DATE) "
+            "AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+        )
+        period_label = "Today"
+    elif period == "this_month":
+        date_sql = (
+            "BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
+            "AND BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
+        )
+        period_label = "This Month"
+    else:  # yesterday
+        date_sql = (
+            "BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
+            "AND BILLDATE < CAST(GETDATE() AS DATE)"
+        )
+        period_label = "Yesterday"
+
+    # Dept filter
+    # laboratory / all → no DEPTCODE filter (trninvlabdet is lab work; "Laboratory" name often missing)
+    # radiology → resolve via mstdepartment
+    if department == "radiology":
+        dept_sql = (
+            "AND DEPTCODE = ("
+            "SELECT TOP 1 DEPARTMENTID FROM mstdepartment "
+            "WHERE DEPARTMENTNAME LIKE '%Radiology%'"
+            ")"
+        )
+        title = "Radiology Dashboard"
+        icon = "🩻"
+    elif department == "laboratory":
+        dept_sql = ""
+        title = "Laboratory Dashboard"
+        icon = "🧪"
+    else:
+        dept_sql = ""
+        title = "Lab Operations Dashboard"
+        icon = "📊"
+
+    sql = f"""
+SELECT
+    COUNT(*) AS PROCEDURES,
+    SUM(CASE WHEN TESTSTATUS IN ('Result Entry', 'Acknowledged') THEN 1 ELSE 0 END) AS COMPLETED,
+    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
+FROM trninvlabdet
+WHERE {date_sql}
+{dept_sql}
+""".strip()
+
+    try:
+        role_enum = Role(role)
+    except ValueError:
+        return f"Error: unknown role '{role}'."
+
+    allowed, reason = check_query_access(role_enum, sql)
+    if not allowed:
+        return reason
+
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: Could not connect to the hospital database."
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        if not row:
+            return f"No data found for {title} · {period_label}."
+
+        procedures = int(row[0] or 0)
+        completed = int(row[1] or 0)
+        pending = int(row[2] or 0)
+
+        if procedures == 0:
+            return (
+                f"{icon} **{title}** · {period_label}\n"
+                f"No procedures found for this period "
+                f"(filter returned 0 rows)."
+            )
+
+        return (
+            f"{icon} **{title}** · {period_label}\n"
+            f"**Procedures:** {procedures:,} · "
+            f"**Completed:** {completed:,} · "
+            f"**Pending:** {pending:,}"
+        )
+    except Exception as e:
+        print(f"[get_department_dashboard] FAILED: {e}")
+        return f"Dashboard query failed: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 @tool
 def get_verified_day_collection(
     location_keyword: str,

@@ -86,6 +86,7 @@ def _invoke_with_retry(runnable, messages, retries=1):
     return None
 
 
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
 
@@ -302,6 +303,7 @@ in this same conversation.
 ### Rules:
 - Only SELECT queries — never INSERT/UPDATE/DELETE/DROP etc.
 - Never use markdown tables
+- Date filters: never BILLDATE = a single date. Always use >= start_of_day AND < start_of_next_day with CAST/DATEADD on GETDATE().
 - If describe_table or run_sql_query returns an access-denied or error
   message, explain that plainly to the user instead of making something up
 - Never write a vague, hedging paragraph that SOUNDS informative but
