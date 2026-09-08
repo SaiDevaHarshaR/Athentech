@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 """
 Curated, hand-verified queries for the small number of questions that
 kept failing when left to the LLM to write fresh SQL for every time.
@@ -147,6 +148,11 @@ def get_day_collection(
 
     try:
         cursor = conn.cursor()
+start = datetime.strptime(date_from[:10], "%Y-%m-%d")
+        end_exclusive = datetime.strptime(date_to[:10], "%Y-%m-%d") + timedelta(days=1)
+        date_from_param = start.strftime("%Y-%m-%d")
+        date_to_param = end_exclusive.strftime("%Y-%m-%d")
+
         query = """
             SELECT MODE, SUM(PAIDAMOUNT) AS TotalAmount
             FROM trnmodeofcollectionsdet
@@ -155,8 +161,11 @@ def get_day_collection(
             AND DATEOFBILL < ?
             GROUP BY MODE
             """
-        print(f"[get_day_collection] SQL: {query.strip()} | params: ({location_id!r}, {date_from!r}, {date_to!r})")
-        cursor.execute(query, (location_id, date_from, date_to))
+        print(
+            f"[get_day_collection] SQL: {query.strip()} | "
+            f"params: ({location_id!r}, {date_from_param!r}, {date_to_param!r})"
+        )
+        cursor.execute(query, (location_id, date_from_param, date_to_param))
         rows = cursor.fetchall()
         print(f"[get_day_collection] returned {len(rows)} row(s)")
     finally:
