@@ -86,6 +86,13 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- payment mode / who paid → trnmodeofcollectionsdet (MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID)",
         "- daycollection_mobileapp may be empty; try trnmodeofcollectionsdet instead",
         "- patients/registration → mstpatientregistration",
+        "- DATE FILTERS (mandatory): columns like BILLDATE, REGDATE, DATEOFBILL, CREATEDATE are datetime. "
+        "-NEVER write BILLDATE = '2026-09-07' or BILLDATE = CONVERT(date, GETDATE()-1). "
+        "-That only matches midnight and returns 0 rows. Always use a half-open range:\n"
+        "    BILLDATE >= DATEADD(DAY, -1, CAST(GETDATE() AS DATE))\n"
+        "    AND BILLDATE <  CAST(GETDATE() AS DATE)\n"
+        "-For 'today': BILLDATE >= CAST(GETDATE() AS DATE) AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE)). "
+        "-Same pattern for any other datetime date column.",
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
         "- invoice/payments → trninvoicepayments, mstpaymentdetails, trninvpaydetails (if allowed)",
         "- labs → trninvlabdet, trninvlabpri, trnparamresult, mstinvestigations (if allowed)",
