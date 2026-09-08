@@ -427,6 +427,14 @@ def get_department_dashboard(
         )
         period_label = d
 
+    elif period.startswith("year:"):
+        year = period.split(":", 1)[1]
+        date_sql = (
+            f"BILLDATE >= '{year}-01-01' "
+            f"AND BILLDATE < '{int(year)+1}-01-01'"
+        )
+        period_label = year
+
     else:
         return f"Error: unsupported period '{period}'."
 
