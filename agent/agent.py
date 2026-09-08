@@ -143,7 +143,21 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
 
+def _preflight_schema_search(question: str, role_enum: Role) -> str:
+    """Deterministically find candidate tables before the LLM starts tool use."""
+    try:
+        result = search_schema.invoke({
+            "query": question,
+            "role": role_enum.value,
+        })
 
+        if not result:
+            return "No matching schema candidates were found."
+
+        return str(result)
+
+    except Exception as e:
+        return f"Schema discovery failed: {e}"
 def ask_agent(
     question: str,
     db_name: str = "hospital_demo",
