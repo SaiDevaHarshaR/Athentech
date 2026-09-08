@@ -476,21 +476,20 @@ Example of the exact target style, for "today's collection at Kukatpally":
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
 
+        #messages = [SystemMessage(content=system_prompt)]
+        #messages.extend(chat_history)
+
+        # Deterministic schema discovery BEFORE the LLM starts tool calling
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(chat_history)
 
-        # Deterministic schema discovery BEFORE the LLM starts tool calling
         schema_result = _preflight_schema_search(question, role)
-
-        messages.append(
-            SystemMessage(
-                content=(
-                    "PRE-VERIFIED SCHEMA SEARCH RESULT:\n"
-                    f"{schema_result}\n\n"
-                    "Use these real schema candidates. Do not invent tables or columns."
-                )
-            )
-        )
+        messages.append(SystemMessage(content=(
+            "PRE-VERIFIED SCHEMA SEARCH RESULT (already run for this "
+            "question — do not call search_schema again unless this "
+            f"is empty or clearly doesn't cover what you need):\n{schema_result}\n\n"
+            "Use these real schema candidates. Do not invent tables or columns."
+        )))
 
         question_lower = question.lower()
         wants_dashboard_card = any(
