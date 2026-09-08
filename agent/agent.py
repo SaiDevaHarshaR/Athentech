@@ -94,7 +94,47 @@ def _invoke_with_retry(runnable, messages, retries=1):
     return None
 
 
+def parse_dashboard_period(q: str) -> tuple[str, str]:
+    """
+    Returns (period_key, label).
+    period_key is used by get_department_dashboard.
+    """
+    q = (q or "").lower()
 
+    if "today" in q:
+        return "today", "Today"
+    if "yesterday" in q:
+        return "yesterday", "Yesterday"
+
+    if "last week" in q:
+        return "last_week", "Last Week"
+    if "this week" in q:
+        return "this_week", "This Week"
+
+    if "last month" in q:
+        return "last_month", "Last Month"
+    if "this month" in q:
+        return "this_month", "This Month"
+
+    if "last year" in q:
+        return "last_year", "Last Year"
+    if "this year" in q:
+        return "this_year", "This Year"
+
+    # last N days — e.g. "last 7 days"
+    m = re.search(r"last\s+(\d+)\s+days?", q)
+    if m:
+        n = int(m.group(1))
+        return f"last_{n}_days", f"Last {n} Days"
+
+    # explicit date YYYY-MM-DD
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", q)
+    if m:
+        d = m.group(1)
+        return f"day:{d}", d
+
+    # default
+    return "yesterday", "Yesterday"
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
 
