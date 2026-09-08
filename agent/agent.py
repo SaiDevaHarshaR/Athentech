@@ -179,6 +179,38 @@ def ask_agent(
     ok, msg = check_input(question)
     if not ok:
         return msg
+
+    # ---- Deterministic dashboards (do not rely on LLM tool choice) ----
+    q = (question or "").strip().lower()
+
+    is_dashboard = "dashboard" in q or q in ("radiology", "laboratory", "lab")
+    if is_premium and is_dashboard:
+        if "radiology" in q:
+            dept = "radiology"
+        elif "lab" in q:  # laboratory / lab
+            dept = "laboratory"
+        else:
+            dept = "all"
+
+        if "today" in q:
+            period = "today"
+        elif "this month" in q or "this_month" in q:
+            period = "this_month"
+        else:
+            period = "yesterday"  # default for "yesterday" or bare "radiology dashboard"
+
+        print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period}")
+        raw = get_department_dashboard.invoke({
+            "department": dept,
+            "period": period,
+            "role": role,
+            "db_name": db_name,
+            "db_server": db_server,
+            "db_user": db_user,
+            "db_password": db_password,
+        })
+        return check_output(raw if isinstance(raw, str) else str(raw))
+# ---- end forced dashboard ----
     # =======================================
 
     if is_premium:
