@@ -1,0 +1,4780 @@
+[
+  {
+    "table": "patients",
+    "error": "no columns found \u2014 check the table name"
+  },
+  {
+    "table": "admissions",
+    "error": "no columns found \u2014 check the table name"
+  },
+  {
+    "table": "mstpatientregistration",
+    "category": "patients",
+    "row_count": 929644,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "10",
+          "100",
+          "1003",
+          "10055",
+          "10056",
+          "10057",
+          "10058",
+          "10059",
+          "10060",
+          "10061",
+          "10062",
+          "10063",
+          "10064",
+          "1004"
+        ]
+      },
+      {
+        "column": "SALUTATION",
+        "type": "int"
+      },
+      {
+        "column": "UHID",
+        "type": "varchar",
+        "sample_values": [
+          "KDX2110282",
+          "KDX2110673",
+          "KDX211098",
+          "KDX213382",
+          "KDX215570",
+          "KDX2214338",
+          "KDX2229293",
+          "KDX2229294",
+          "KDX2229299",
+          "KDX2229300",
+          "KDX2243663",
+          "KDX2243664",
+          "KDX2243665",
+          "KDX2243666",
+          "KDX2245634"
+        ]
+      },
+      {
+        "column": "CAPTUREDIMAGENO",
+        "type": "varchar"
+      },
+      {
+        "column": "REGDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "NAME",
+        "type": "varchar",
+        "sample_values": [
+          "  K NAGAMMA",
+          "  shilpa ramachandran ",
+          "  V RAVI TEJA ",
+          " A ANITHA ",
+          " A DASHARATHA",
+          " A kiran kumar",
+          " A LAKSHMI",
+          " A NARESH KUMAR",
+          " A S RAMA KRISHNA RAO",
+          " A SAMPATH KUMAR",
+          " A SARASWATHI",
+          " A SATYA",
+          " A SOWJANYA",
+          " a srinivasa rao",
+          " AARIZ DOBANI"
+        ]
+      },
+      {
+        "column": "AGE",
+        "type": "numeric"
+      },
+      {
+        "column": "AGETYPE",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "--Sele",
+          "Days",
+          "F",
+          "Months",
+          "Years"
+        ]
+      },
+      {
+        "column": "DOB",
+        "type": "datetime"
+      },
+      {
+        "column": "GENDER",
+        "type": "varchar"
+      },
+      {
+        "column": "GUARDIAN",
+        "type": "varchar"
+      },
+      {
+        "column": "ADDRESS",
+        "type": "varchar"
+      },
+      {
+        "column": "AREACODE",
+        "type": "numeric",
+        "sample_values": [
+          "55",
+          "56",
+          "57",
+          "66",
+          "92",
+          "181",
+          "212",
+          "213",
+          "257",
+          "310",
+          "378",
+          "399",
+          "432",
+          "488"
+        ]
+      },
+      {
+        "column": "CITYCODE",
+        "type": "numeric",
+        "sample_values": [
+          "1"
+        ]
+      },
+      {
+        "column": "STATECODE",
+        "type": "numeric",
+        "sample_values": [
+          "33"
+        ]
+      },
+      {
+        "column": "COUNTRYCODE",
+        "type": "numeric",
+        "sample_values": [
+          "1"
+        ]
+      },
+      {
+        "column": "PHONENO",
+        "type": "varchar"
+      },
+      {
+        "column": "EMAIL",
+        "type": "varchar"
+      },
+      {
+        "column": "REMARKS",
+        "type": "varchar"
+      },
+      {
+        "column": "DISTRICTCODE",
+        "type": "numeric",
+        "sample_values": [
+          "1"
+        ]
+      },
+      {
+        "column": "DEPARTMENTID",
+        "type": "int",
+        "sample_values": []
+      },
+      {
+        "column": "DOCID",
+        "type": "int",
+        "sample_values": [
+          "0"
+        ]
+      },
+      {
+        "column": "REFDOCID",
+        "type": "bigint",
+        "sample_values": [
+          "1898",
+          "5625",
+          "3828",
+          "1",
+          "3353",
+          "3622",
+          "3709",
+          "2230",
+          "204",
+          "3699",
+          "749",
+          "1435",
+          "402",
+          "2767",
+          "5929"
+        ]
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC02",
+          "LOC03",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC12",
+          "LOC13",
+          "LOC14",
+          "LOC15",
+          "LOC17"
+        ]
+      },
+      {
+        "column": "USERID",
+        "type": "varchar",
+        "sample_values": [
+          "SOFIA",
+          "E MOUNIKA",
+          "VARAPRASAD",
+          "CHARAN",
+          "RANI",
+          "KSU0001",
+          "SANTOSH",
+          "KARUNAKAR",
+          "SAIRAM",
+          "ANITHA",
+          "ASHWINI",
+          "BHARATH",
+          "A.NARESH",
+          "SURESH",
+          "prasanna"
+        ]
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "183.82.125.88",
+          "103.224.154.5",
+          "183.82.122.46",
+          "117.203.103.250",
+          "183.82.98.227",
+          "45.249.76.4",
+          "183.82.105.182",
+          "183.82.145.222",
+          "103.24.124.74",
+          "122.169.252.105",
+          "49.37.156.13",
+          "49.37.159.210",
+          "45.249.76.31",
+          "45.249.76.21",
+          "45.249.76.26"
+        ]
+      },
+      {
+        "column": "OLDREFID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "tblclientdocinfo",
+    "category": "patients",
+    "row_count": 241,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "7",
+          "11",
+          "14",
+          "15",
+          "18",
+          "19",
+          "20",
+          "21",
+          "23",
+          "24",
+          "26"
+        ]
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "COMP0240",
+          "COMP0262",
+          "COMP0271",
+          "COMP0284",
+          "COMP0293",
+          "COMP0299",
+          "COMP0341",
+          "COMP0386",
+          "COMP0399",
+          "COMP0425",
+          "COMP0436",
+          "COMP0491",
+          "COMP0555",
+          "COMP0615"
+        ]
+      },
+      {
+        "column": "CDOCID",
+        "type": "varchar",
+        "sample_values": [
+          "CD1",
+          "CD10",
+          "CD100",
+          "CD101",
+          "CD102",
+          "CD103",
+          "CD104",
+          "CD105",
+          "CD106",
+          "CD107",
+          "CD108",
+          "CD109",
+          "CD11",
+          "CD110",
+          "CD111"
+        ]
+      },
+      {
+        "column": "CDOCNAME",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "A LAXMAIAH",
+          "A.RAJAGOPAL MBBS",
+          "Aayuv Technologies Private Limited-BN Reddy",
+          "ABHISHEK .B",
+          "ABHISHEK.B",
+          "AMBOTI SRILEKHA (VISIORAL DENTAL CARE)",
+          "ANDAL REDDY,MBBS,DGO,DNB(REG NO:42703)",
+          "ANJUM AFSHA",
+          "ANKURA HOSPITAL (MADHINA GUDA)",
+          "ANKURA HOSPITAL KPHB",
+          "ANKURA HOSPITAL.",
+          "Arene Life Sciences",
+          "AROGYA",
+          "ARUNA HOSPITAL-CHAMPAPET"
+        ]
+      },
+      {
+        "column": "ADDRESS",
+        "type": "varchar"
+      },
+      {
+        "column": "PHNO",
+        "type": "varchar"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "Clinic",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "Uma",
+          "PHANI",
+          "0093",
+          "varun.g",
+          "0206",
+          "KSU0008",
+          "0252",
+          "p.raju",
+          "K VIKRAM",
+          "KARUNAKAR",
+          "CHARAN",
+          "0200",
+          "SOFIA",
+          "shaik osman"
+        ]
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "LCODE",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "LOC01",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC12",
+          "LOC13",
+          "LOC14",
+          "LOC15",
+          "LOC17",
+          "LOC18"
+        ]
+      },
+      {
+        "column": "UserName",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "Password",
+        "type": "nvarchar"
+      }
+    ]
+  },
+  {
+    "table": "trnmergeddocbilldtls_referral",
+    "category": "billing",
+    "row_count": 42840,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ]
+      },
+      {
+        "column": "GENNO",
+        "type": "varchar"
+      },
+      {
+        "column": "GENDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "ACTUALDOCID",
+        "type": "int",
+        "sample_values": [
+          "7477",
+          "2918",
+          "5117",
+          "18686",
+          "6952",
+          "10947",
+          "7259",
+          "7869",
+          "6267",
+          "10611",
+          "15416",
+          "15253",
+          "15884",
+          "5950",
+          "6795"
+        ]
+      },
+      {
+        "column": "DOCID",
+        "type": "int",
+        "sample_values": [
+          "7479",
+          "10827",
+          "16649",
+          "5877",
+          "6592",
+          "10330",
+          "6969",
+          "6166",
+          "15328",
+          "6875",
+          "9441",
+          "8683",
+          "5949",
+          "19409",
+          "7062"
+        ]
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar",
+        "sample_values": [
+          ""
+        ]
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC22",
+          "LOC04",
+          "LOC30",
+          "LOC01",
+          "LOC14",
+          "LOC24",
+          "LOC08",
+          "LOC09"
+        ]
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "103.145.36.187",
+          "49.43.200.230",
+          "183.82.98.227",
+          "103.95.172.226",
+          "103.205.12.7",
+          "183.82.98.214",
+          "152.59.199.21",
+          "49.43.231.242",
+          "183.82.125.88",
+          "49.43.231.229",
+          "49.37.145.216",
+          "183.82.110.142",
+          "14.192.1.174",
+          "223.189.76.159",
+          "49.205.216.158"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "trnpurchaseorder",
+    "category": "inventory",
+    "row_count": 2433,
+    "columns": [
+      {
+        "column": "POID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "7",
+          "9",
+          "11",
+          "13",
+          "14",
+          "17",
+          "19",
+          "20",
+          "21",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27"
+        ]
+      },
+      {
+        "column": "PONO",
+        "type": "bigint"
+      },
+      {
+        "column": "PODATE",
+        "type": "datetime"
+      },
+      {
+        "column": "SupCode",
+        "type": "varchar",
+        "sample_values": [
+          "SUP00001",
+          "SUP00002",
+          "SUP00003",
+          "SUP00004",
+          "SUP00005",
+          "SUP00006",
+          "SUP00007",
+          "SUP00008",
+          "SUP00009",
+          "SUP00010",
+          "SUP00012",
+          "SUP00013",
+          "SUP00015",
+          "SUP00016",
+          "SUP00017"
+        ]
+      },
+      {
+        "column": "InvTypeID",
+        "type": "int",
+        "sample_values": [
+          "1"
+        ]
+      },
+      {
+        "column": "QtNo",
+        "type": "bigint"
+      },
+      {
+        "column": "QtDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "TaxAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "DiscAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "NetAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "OtherAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "POStatus",
+        "type": "bit",
+        "sample_values": [
+          "False",
+          "True"
+        ]
+      },
+      {
+        "column": "POTYPE",
+        "type": "bit",
+        "sample_values": [
+          "False",
+          "True"
+        ]
+      },
+      {
+        "column": "CreditPeriod",
+        "type": "varchar"
+      },
+      {
+        "column": "CreditPeriodType",
+        "type": "varchar",
+        "sample_values": [
+          "Day(s)",
+          "Year(s)"
+        ]
+      },
+      {
+        "column": "DeliveryAddress",
+        "type": "varchar"
+      },
+      {
+        "column": "ContactPerson",
+        "type": "varchar"
+      },
+      {
+        "column": "ContactPhone",
+        "type": "varchar"
+      },
+      {
+        "column": "ModeOfPayment",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar",
+        "sample_values": [
+          "ATHENTECH",
+          "sanjeeth",
+          "saibabu",
+          "rajeshnakka",
+          "0326",
+          "0537"
+        ]
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar",
+        "sample_values": [
+          "92.204.129.149",
+          "103.95.172.226",
+          "49.43.202.220",
+          "49.43.203.103",
+          "49.43.201.173",
+          "49.43.201.252",
+          "49.37.155.20",
+          "49.43.201.46",
+          "49.205.216.158",
+          "49.43.203.186",
+          "49.43.201.177",
+          "103.172.179.154",
+          "103.172.179.210",
+          "49.43.202.214",
+          "49.206.44.151"
+        ]
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC11"
+        ]
+      },
+      {
+        "column": "PovalidFrom",
+        "type": "datetime"
+      },
+      {
+        "column": "PovalidTo",
+        "type": "datetime"
+      },
+      {
+        "column": "delivaryAddress",
+        "type": "varchar"
+      },
+      {
+        "column": "deliveryContactName",
+        "type": "varchar",
+        "sample_values": [
+          "Konnect Pathlabs Pvt Ltd",
+          "sanjeeth",
+          "rajesh",
+          "Mr. Vishan Das"
+        ]
+      },
+      {
+        "column": "delivaryContactMobile",
+        "type": "varchar"
+      },
+      {
+        "column": "delivaryfromTime",
+        "type": "datetime"
+      },
+      {
+        "column": "delivarytoTime",
+        "type": "datetime"
+      },
+      {
+        "column": "CANO",
+        "type": "bigint"
+      }
+    ]
+  },
+  {
+    "table": "mstlocationusers",
+    "category": "staff",
+    "row_count": 4317,
+    "columns": [
+      {
+        "column": "Id",
+        "type": "bigint",
+        "sample_values": [
+          "17",
+          "34",
+          "72",
+          "73",
+          "74",
+          "75",
+          "76",
+          "77",
+          "78",
+          "79",
+          "80",
+          "81",
+          "475",
+          "730",
+          "731"
+        ]
+      },
+      {
+        "column": "UserId",
+        "type": "varchar",
+        "sample_values": [
+          "DR.G.VIJAY RAMREDDY",
+          "Dr.Sri Navya Vittal",
+          "KM",
+          "123",
+          "Thulasidhara Reddy",
+          "Konnect",
+          "drmahesh",
+          "caraju",
+          "drvikas",
+          "Ragini",
+          "ramarao",
+          "DR.PRADEEP",
+          "DR.MAHIPAL REDDY",
+          "s.gangaiah",
+          "diapstch"
+        ]
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC04",
+          "LOC06",
+          "LOC01",
+          "LOC02",
+          "LOC99",
+          "LOC03",
+          "LOC05",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC14",
+          "LOC12",
+          "LOC13",
+          "LOC11"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "trninvoicepayments",
+    "category": "billing",
+    "row_count": 20965,
+    "columns": [
+      {
+        "column": "PAYMENTID",
+        "type": "bigint",
+        "sample_values": [
+          "11857",
+          "13754",
+          "16531",
+          "16791",
+          "16792",
+          "19230",
+          "75",
+          "76",
+          "77",
+          "271",
+          "272",
+          "435",
+          "545",
+          "646",
+          "857"
+        ]
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar",
+        "sample_values": [
+          "COMP0003",
+          "COMP0005",
+          "COMP0006",
+          "COMP0009",
+          "COMP0010",
+          "COMP0012",
+          "COMP0015",
+          "COMP0016",
+          "COMP0017",
+          "COMP0018",
+          "COMP0019",
+          "COMP0021",
+          "COMP0022",
+          "COMP0023"
+        ]
+      },
+      {
+        "column": "INVOICENO",
+        "type": "bigint"
+      },
+      {
+        "column": "PAIDDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "BILLAMOUNT",
+        "type": "numeric"
+      },
+      {
+        "column": "PAIDAMOUNT",
+        "type": "numeric"
+      },
+      {
+        "column": "TDS",
+        "type": "numeric"
+      },
+      {
+        "column": "DUEAMOUNT",
+        "type": "numeric"
+      },
+      {
+        "column": "CONCESSIONAMOUNT",
+        "type": "numeric"
+      },
+      {
+        "column": "CONCESSION",
+        "type": "numeric"
+      },
+      {
+        "column": "CONCGIVENBY",
+        "type": "varbinary"
+      },
+      {
+        "column": "CONCDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "MODE",
+        "type": "varchar",
+        "sample_values": [
+          "CASH",
+          "Cheque",
+          "Credit Card",
+          "CREDITCARD",
+          "DD",
+          "RTGS",
+          "RTGS/NEFT",
+          "UPI"
+        ]
+      },
+      {
+        "column": "NO",
+        "type": "varchar"
+      },
+      {
+        "column": "CCTYPE",
+        "type": "varchar",
+        "sample_values": [
+          "Others",
+          "Visa",
+          "Nil",
+          "",
+          "Masters"
+        ]
+      },
+      {
+        "column": "BANK",
+        "type": "varchar"
+      },
+      {
+        "column": "DATE",
+        "type": "datetime"
+      },
+      {
+        "column": "BRANCH",
+        "type": "varchar"
+      },
+      {
+        "column": "TOACCNO",
+        "type": "varchar"
+      },
+      {
+        "column": "TRANSID",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "644498534",
+          "657350820",
+          "AXIS BANK",
+          "133338272693",
+          "133433145703",
+          "T2112011410512456847910",
+          "T2112011417300811821400",
+          "32156644112",
+          "054348",
+          "200308564955",
+          "20041300902",
+          "655525",
+          "203618638765",
+          "13152366"
+        ]
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "ADMIN",
+          "GOPAVARAM",
+          "MAHESH",
+          "vishan das",
+          "PHANI",
+          "ACCOUNTS",
+          "K BABURAO",
+          "sanjeeth",
+          "0239",
+          "0208",
+          "KSU0001",
+          "1029",
+          "0302",
+          "rajesh"
+        ]
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "183.82.98.227",
+          "183.82.122.46",
+          "49.37.165.87",
+          "49.37.167.72",
+          "49.37.165.62",
+          "122.175.95.126",
+          "49.37.167.168",
+          "157.47.123.21",
+          "103.224.154.5",
+          "157.48.204.175",
+          "49.37.165.92",
+          "49.37.161.124",
+          "49.37.154.99",
+          "49.37.129.94",
+          "49.37.163.214"
+        ]
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC08",
+          "LOC01",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC09",
+          "LOC14",
+          "LOC16",
+          "LOC21",
+          "LOC22",
+          "LOC24",
+          "LOC30",
+          "LOC02",
+          "LOC07"
+        ]
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstmethod",
+    "category": "labs",
+    "row_count": 42,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ]
+      },
+      {
+        "column": "METHOD",
+        "type": "varchar"
+      },
+      {
+        "column": "ACTIVE",
+        "type": "bit"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "admin",
+          "ATHENTECH",
+          "DHARMA",
+          "MAHESH",
+          "MICROBIOLOGY",
+          "qa",
+          "SAMPATH",
+          "sanjeeth",
+          "SEROLOGY",
+          "SUDHEERG",
+          "SURESH"
+        ]
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "103.205.12.7",
+          "103.95.172.226",
+          "122.169.252.105",
+          "122.177.246.203",
+          "183.82.110.142",
+          "183.82.145.222",
+          "192.168.0.253",
+          "192.168.0.60",
+          "192.168.1.11",
+          "192.168.1.110",
+          "192.168.1.166",
+          "192.168.1.175",
+          "192.168.1.201",
+          "192.168.1.205",
+          "192.168.1.206"
+        ]
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "admin",
+          "ATHENTECH",
+          "DHARMA",
+          "MAHESH",
+          "SUDHEERG",
+          "SURESH"
+        ]
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "122.169.252.105",
+          "192.168.1.110",
+          "192.168.1.217",
+          "192.168.1.221",
+          "49.204.243.60",
+          "49.205.116.241",
+          "49.43.201.46"
+        ]
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC10",
+          "LOC22",
+          "LOC28",
+          "LOC30"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "mstantibiotics",
+    "category": "labs",
+    "row_count": 3,
+    "columns": [
+      {
+        "column": "ANTIPARAMID",
+        "type": "varchar",
+        "sample_values": [
+          "ANT00001",
+          "ANT00002",
+          "ANT00003"
+        ]
+      },
+      {
+        "column": "ANTIPARAMNAME",
+        "type": "varchar",
+        "sample_values": [
+          "Amikacin",
+          "Ampicillin",
+          "Cefepime"
+        ]
+      },
+      {
+        "column": "ACTIVE",
+        "type": "bit"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01"
+        ]
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "::1"
+        ]
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "mstworkstations",
+    "category": "labs",
+    "row_count": 44,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ]
+      },
+      {
+        "column": "WorkStationID",
+        "type": "varchar",
+        "sample_values": [
+          "1",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "2",
+          "20",
+          "21",
+          "22"
+        ]
+      },
+      {
+        "column": "WorkStationName",
+        "type": "varchar",
+        "sample_values": [
+          "Accounts",
+          "Attapur-BranchST",
+          "Attapur-Lab",
+          "Attapur-Rad",
+          "BNReddy-BranchST",
+          "BNReddy-Lab",
+          "BNReddy-Rad",
+          "BranchST",
+          "CR Foundation_Branch Store ",
+          "Evoke-BranchST",
+          "Fetal-BranchST",
+          "Fetal-Lab",
+          "Fetal-Rad",
+          "Jagtial-BranchST",
+          "Jagtial-Lab"
+        ]
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC11",
+          "LOC12",
+          "LOC13",
+          "LOC14",
+          "LOC15",
+          "LOC17",
+          "LOC21"
+        ]
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "0496",
+          "ATHENTECH",
+          "GOVIND",
+          "MAHESH",
+          "saibabu",
+          "sanjeeth"
+        ]
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "varchar",
+        "sample_values": [
+          "saibabu",
+          "sanjeeth"
+        ]
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "::1",
+          "103.172.179.210",
+          "103.95.172.226",
+          "122.177.241.111",
+          "183.82.110.142",
+          "183.82.98.214",
+          "183.82.98.227",
+          "49.207.225.175",
+          "49.37.131.74",
+          "92.204.129.149"
+        ]
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "UserLocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC11",
+          "LOC12",
+          "LOC21",
+          "LOC22",
+          "LOC24",
+          "LOC25"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "mstappbookingno",
+    "category": "admissions",
+    "row_count": 3,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      {
+        "column": "BookingType",
+        "type": "varchar",
+        "sample_values": [
+          "Call",
+          "Mail",
+          "WhatsApp"
+        ]
+      },
+      {
+        "column": "BookingName",
+        "type": "varchar",
+        "sample_values": [
+          "Book a Lab Test via Email",
+          "Book a Lab Test via WhatsApp",
+          "Call Us to Book"
+        ]
+      },
+      {
+        "column": "BookingNo",
+        "type": "varchar"
+      },
+      {
+        "column": "Description",
+        "type": "varchar"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC99"
+        ]
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "SERVER"
+        ]
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "mstappbookingslots",
+    "category": "admissions",
+    "row_count": 2,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "column": "DEPARTMENTID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "column": "Department",
+        "type": "varchar"
+      },
+      {
+        "column": "SlotFromTime",
+        "type": "time"
+      },
+      {
+        "column": "SlotToTime",
+        "type": "time"
+      },
+      {
+        "column": "Duration",
+        "type": "varchar"
+      },
+      {
+        "column": "GracePeriod",
+        "type": "varchar"
+      },
+      {
+        "column": "SlotAvailability",
+        "type": "varchar"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "Header",
+        "type": "varchar"
+      },
+      {
+        "column": "Note",
+        "type": "nvarchar"
+      },
+      {
+        "column": "Note1",
+        "type": "nvarchar"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC99"
+        ]
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "SERVER"
+        ]
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "cc_invoice",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVNO",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqNo",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqDate",
+        "type": "datetime"
+      },
+      {
+        "column": "INVFROMDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVTODATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CCode",
+        "type": "varchar"
+      },
+      {
+        "column": "Name",
+        "type": "varchar"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "TotAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "cc_invoicenew",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVNO",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqNo",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqDate",
+        "type": "datetime"
+      },
+      {
+        "column": "INVFROMDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVTODATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CCode",
+        "type": "varchar"
+      },
+      {
+        "column": "Name",
+        "type": "varchar"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "TotAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "daycollection_mobileapp",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "GRANDTOTAL",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALCASH",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALCREDITS",
+        "type": "numeric"
+      },
+      {
+        "column": "DUES",
+        "type": "numeric"
+      },
+      {
+        "column": "CONCESSIONS",
+        "type": "numeric"
+      },
+      {
+        "column": "CARDTOTAL",
+        "type": "numeric"
+      },
+      {
+        "column": "CHEQUETOTAL",
+        "type": "numeric"
+      },
+      {
+        "column": "REFUNDS",
+        "type": "numeric"
+      },
+      {
+        "column": "PREVREFUNDS",
+        "type": "numeric"
+      },
+      {
+        "column": "EXPTOTAL",
+        "type": "numeric"
+      },
+      {
+        "column": "COREBUSINESSCASH",
+        "type": "numeric"
+      },
+      {
+        "column": "PREVDUECASH",
+        "type": "numeric"
+      },
+      {
+        "column": "PREVDUECARD",
+        "type": "numeric"
+      },
+      {
+        "column": "PREVDUECHEQUE",
+        "type": "numeric"
+      },
+      {
+        "column": "PREVDUEDD",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALCASHREC",
+        "type": "numeric"
+      },
+      {
+        "column": "COREBUSINESS",
+        "type": "numeric"
+      },
+      {
+        "column": "PAIDBUSINESS",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALLABCLIENTS",
+        "type": "numeric"
+      },
+      {
+        "column": "CCCASH",
+        "type": "numeric"
+      },
+      {
+        "column": "CCCARD",
+        "type": "numeric"
+      },
+      {
+        "column": "CCCONCESSION",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALBUSINESS_CC",
+        "type": "numeric"
+      },
+      {
+        "column": "PAIDBUSINESS_CC",
+        "type": "numeric"
+      },
+      {
+        "column": "REPORTDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "DATE",
+        "type": "datetime"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstappadditionalcharges",
+    "category": "billing",
+    "row_count": 3,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2",
+          "5"
+        ]
+      },
+      {
+        "column": "ChargeType",
+        "type": "varchar",
+        "sample_values": [
+          "OMV",
+          "POS",
+          "SCC"
+        ]
+      },
+      {
+        "column": "ChargeDescription",
+        "type": "varchar"
+      },
+      {
+        "column": "Charges",
+        "type": "numeric"
+      },
+      {
+        "column": "MinBillAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC99"
+        ]
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "WINDOWS-5PIJSGQ"
+        ]
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "mstccinvestigationrates",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "CCode",
+        "type": "varchar"
+      },
+      {
+        "column": "ACTIVE",
+        "type": "bit"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "varchar"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstdocdeptinvdiscount",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "DOCID",
+        "type": "int"
+      },
+      {
+        "column": "DEPARTMENTID",
+        "type": "int"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "DISCOUNTPERC",
+        "type": "numeric"
+      },
+      {
+        "column": "RATEAFTERDISC",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstheaderpaytype",
+    "category": "billing",
+    "row_count": 9,
+    "columns": [
+      {
+        "column": "HeaderId",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ]
+      },
+      {
+        "column": "Type",
+        "type": "varchar",
+        "sample_values": [
+          "Credit",
+          "Debit"
+        ]
+      },
+      {
+        "column": "HeaderName",
+        "type": "varchar",
+        "sample_values": [
+          "Concession on Invoice",
+          "Credit Note",
+          "Double Entry",
+          "Old Balance",
+          "Old Due Transfer",
+          "Payment",
+          "PayU Money",
+          "TDS",
+          "Wrong Entry"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "mstinvoicesliptext",
+    "category": "billing",
+    "row_count": 6,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01"
+        ]
+      },
+      {
+        "column": "TYPE",
+        "type": "varchar",
+        "sample_values": [
+          "Invoice"
+        ]
+      },
+      {
+        "column": "INVOICETEXT",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstmemplanswiseadditionalcharges",
+    "category": "billing",
+    "row_count": 2,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "column": "PlanCode",
+        "type": "varchar",
+        "sample_values": [
+          "PLN00001"
+        ]
+      },
+      {
+        "column": "ChargeID",
+        "type": "varchar",
+        "sample_values": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "column": "Charges",
+        "type": "numeric"
+      },
+      {
+        "column": "MinBillAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC99"
+        ]
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar",
+        "sample_values": [
+          "SERVER"
+        ]
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  },
+  {
+    "table": "mstorgdeptdiscount",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "ORGANISATIONCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "DEPARTMENTID",
+        "type": "int"
+      },
+      {
+        "column": "DISCOUNTPERC",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "mstpaymentdetails",
+    "category": "billing",
+    "row_count": 2361,
+    "columns": [
+      {
+        "column": "PaymentId",
+        "type": "int",
+        "sample_values": [
+          "28",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "45",
+          "47",
+          "49"
+        ]
+      },
+      {
+        "column": "OrgCode",
+        "type": "varchar",
+        "sample_values": [
+          "COMP0284",
+          "COMP0240",
+          "COMP0394",
+          "COMP0454",
+          "COMP0878",
+          "COMP0693",
+          "COMP0954",
+          "COMP1001",
+          "COMP0964",
+          "COMP0967",
+          "COMP0262",
+          "COMP0971",
+          "COMP0934",
+          "COMP0293"
+        ]
+      },
+      {
+        "column": "Amount",
+        "type": "numeric"
+      },
+      {
+        "column": "ServiceCharge",
+        "type": "numeric"
+      },
+      {
+        "column": "PaymentDate",
+        "type": "datetime"
+      },
+      {
+        "column": "PaymentType",
+        "type": "varchar",
+        "sample_values": [
+          "payu",
+          "RazorPay",
+          "RazorPay1"
+        ]
+      },
+      {
+        "column": "OrderId",
+        "type": "varchar",
+        "sample_values": [
+          "order_KSTm1m9bVe5gSf",
+          "order_KSUJSh5AWVikMD",
+          "order_KSULNtQsluqdoz",
+          "order_KSlF4d1dmZ8VWX",
+          "order_KSlFVh8hR12Qbf",
+          "order_KSlFnydMxMlV8R",
+          "order_KSlG9gAVvP7avp",
+          "order_KTC1hzRXRk6vM9",
+          "order_KTC1tlZSj54mjt",
+          "order_KTC2OWTFY5sS4z",
+          "order_KTC4LEWRnlrKWi",
+          "order_KTC5u5BgWyzFac",
+          "order_KTCB1UnUjOapnh",
+          "order_KTCBcTL92LidNy",
+          "order_KTCCI8N8gBn8R8"
+        ]
+      },
+      {
+        "column": "Status",
+        "type": "varchar",
+        "sample_values": [
+          "Matched"
+        ]
+      },
+      {
+        "column": "BILLNO",
+        "type": "varchar"
+      },
+      {
+        "column": "Hash",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "msttallyledgermaster",
+    "category": "billing",
+    "row_count": 121,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "5",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "15",
+          "16",
+          "17",
+          "18"
+        ]
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC",
+          "LOC01",
+          "LOC02",
+          "LOC03",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC11",
+          "LOC12",
+          "LOC13",
+          "LOC14"
+        ]
+      },
+      {
+        "column": "TTYpe",
+        "type": "varchar",
+        "sample_values": [
+          "Lab Day Collection",
+          "Logistics Revenue"
+        ]
+      },
+      {
+        "column": "VType",
+        "type": "varchar",
+        "sample_values": [
+          "Cash",
+          "CHEQUE",
+          "CREDITCARD",
+          "UPI"
+        ]
+      },
+      {
+        "column": "Ledger",
+        "type": "varchar"
+      },
+      {
+        "column": "Cash",
+        "type": "varchar"
+      },
+      {
+        "column": "Card",
+        "type": "varchar"
+      },
+      {
+        "column": "Cheque",
+        "type": "varchar"
+      },
+      {
+        "column": "UPI",
+        "type": "varchar"
+      },
+      {
+        "column": "Dues",
+        "type": "varchar"
+      },
+      {
+        "column": "CreditDues",
+        "type": "varchar"
+      },
+      {
+        "column": "Concession",
+        "type": "varchar"
+      },
+      {
+        "column": "Currency",
+        "type": "nvarchar"
+      },
+      {
+        "column": "LType",
+        "type": "int",
+        "sample_values": [
+          "1"
+        ]
+      },
+      {
+        "column": "Refund",
+        "type": "varchar"
+      },
+      {
+        "column": "PurchaseGST",
+        "type": "varchar"
+      },
+      {
+        "column": "SalesGST",
+        "type": "varchar"
+      },
+      {
+        "column": "SGST",
+        "type": "varchar"
+      },
+      {
+        "column": "CGST",
+        "type": "varchar"
+      },
+      {
+        "column": "IGST",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "msttallyledgertypeinfo",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "LedgerName",
+        "type": "varchar"
+      },
+      {
+        "column": "LedgerType",
+        "type": "varchar"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "msttallyregledger",
+    "category": "billing",
+    "row_count": 992281,
+    "columns": [
+      {
+        "column": "VType",
+        "type": "varchar",
+        "sample_values": [
+          "Due Collection",
+          "Journal",
+          "Receipt"
+        ]
+      },
+      {
+        "column": "VoucherDt",
+        "type": "datetime"
+      },
+      {
+        "column": "VoucherNo",
+        "type": "varchar"
+      },
+      {
+        "column": "Narration",
+        "type": "varchar"
+      },
+      {
+        "column": "Ledger",
+        "type": "varchar"
+      },
+      {
+        "column": "Dr.Amt",
+        "type": "numeric"
+      },
+      {
+        "column": "Cr.Amt",
+        "type": "numeric"
+      },
+      {
+        "column": "LEDID",
+        "type": "int",
+        "sample_values": [
+          "479",
+          "480",
+          "481",
+          "482",
+          "483",
+          "484",
+          "485",
+          "4519",
+          "4520",
+          "4521",
+          "4522",
+          "4523",
+          "4524",
+          "4525",
+          "4526"
+        ]
+      },
+      {
+        "column": "BillType",
+        "type": "varchar",
+        "sample_values": [
+          "Journal Day Collection",
+          "Lab Day Collection",
+          "Logistics Revenue",
+          "Masters",
+          "Refund"
+        ]
+      },
+      {
+        "column": "BillNO",
+        "type": "varchar"
+      },
+      {
+        "column": "BillAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "AutoId",
+        "type": "int",
+        "sample_values": [
+          "4",
+          "5",
+          "6",
+          "174",
+          "175",
+          "176",
+          "177",
+          "178",
+          "470",
+          "230",
+          "239",
+          "134",
+          "193",
+          "81",
+          "45"
+        ]
+      },
+      {
+        "column": "BillsType",
+        "type": "varchar",
+        "sample_values": [
+          "Day Collection",
+          "DayCollectionClientCredit",
+          "DayCollectionClientPay",
+          "DayCollectionDue",
+          "DayCollectionRevenue",
+          "Discount Allowed",
+          "Masters",
+          "Refund"
+        ]
+      },
+      {
+        "column": "invno",
+        "type": "varchar"
+      },
+      {
+        "column": "TaxPer",
+        "type": "numeric"
+      },
+      {
+        "column": "ROrder",
+        "type": "int"
+      },
+      {
+        "column": "LocationId",
+        "type": "varchar",
+        "sample_values": [
+          "LOC08",
+          "LOC01",
+          "LOC09",
+          "LOC14",
+          "LOC15",
+          "LOC13",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC18",
+          "LOC20",
+          "LOC22",
+          "LOC23",
+          "LOC24",
+          "LOC25"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "msttariffupdations",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "INVNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "NEWPRICE",
+        "type": "numeric"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEHOST",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "msttariffupdations_storecproc",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "INVNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "NEWPRICE",
+        "type": "numeric"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEHOST",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "msttempapppaymentdtls",
+    "category": "billing",
+    "row_count": 240,
+    "columns": [
+      {
+        "column": "CouponCode",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "0"
+        ]
+      },
+      {
+        "column": "BankName",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "BankTxnId",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "Currency",
+        "type": "varchar"
+      },
+      {
+        "column": "GateWayName",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "MID",
+        "type": "varchar",
+        "sample_values": [
+          "IkkJUO4sXvsIBr",
+          "LXL1EI2Gcjkosg"
+        ]
+      },
+      {
+        "column": "OrderId",
+        "type": "varchar",
+        "sample_values": [
+          "_KDX2237661030325194710",
+          "_KDX2237661040325112029",
+          "_KDX2237661040325150052",
+          "_KDX2237661240325122553",
+          "_KDX2237661260325105431",
+          "_KDX2237661300325161536",
+          "_null280325180314",
+          "6281042872011124073430",
+          "6281042872011124073518",
+          "6300006204210125132617",
+          "6300006204210125132635",
+          "6300006204210125132822",
+          "6302912029010226063753",
+          "7013792931240524010616",
+          "7013792931240524010658"
+        ]
+      },
+      {
+        "column": "PaymentMode",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "Status",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TxnAmount",
+        "type": "decimal"
+      },
+      {
+        "column": "TxnDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TxnId",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "PaymentGatewayType",
+        "type": "varchar",
+        "sample_values": [
+          "Razorpay"
+        ]
+      },
+      {
+        "column": "Tempid",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17"
+        ]
+      },
+      {
+        "column": "PaymentStatus",
+        "type": "bit",
+        "sample_values": []
+      },
+      {
+        "column": "Salutation",
+        "type": "int"
+      },
+      {
+        "column": "Name",
+        "type": "varchar",
+        "sample_values": [
+          "SAIBABU SARISA",
+          "RADHAKRISHNA RAO ",
+          "RADHAKRISHNA  PUTREVU ",
+          "PRAVALIKA 3",
+          "RAJESH JUKANTI ",
+          "ABHISHEK SRIVASTAVA",
+          "RISHU KUMARI ",
+          "SRIJA",
+          "SUMIT RANJAN",
+          "KHUSHI KUMARI",
+          "SUBHANKAR ",
+          "SUMIT RCOP",
+          "SUBHRANT RANJAN",
+          "GADE SANJEETH REDDY",
+          "NARENDAR REDDY"
+        ]
+      },
+      {
+        "column": "Age",
+        "type": "int"
+      },
+      {
+        "column": "Gender",
+        "type": "varchar"
+      },
+      {
+        "column": "TotalAmount",
+        "type": "numeric"
+      },
+      {
+        "column": "PaidAmount",
+        "type": "numeric"
+      },
+      {
+        "column": "Concession",
+        "type": "numeric"
+      },
+      {
+        "column": "CreditAmount",
+        "type": "numeric"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "Phone",
+        "type": "varchar"
+      },
+      {
+        "column": "Address",
+        "type": "varchar"
+      },
+      {
+        "column": "Agetype",
+        "type": "varchar",
+        "sample_values": [
+          "Years"
+        ]
+      },
+      {
+        "column": "BILLNO",
+        "type": "varchar"
+      },
+      {
+        "column": "IsAgentPayment",
+        "type": "bit"
+      },
+      {
+        "column": "AgentId",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "PaymentType",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TempDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "msttemptallyregledger",
+    "category": "billing",
+    "row_count": 155,
+    "columns": [
+      {
+        "column": "VType",
+        "type": "varchar",
+        "sample_values": [
+          "Journal",
+          "Receipt"
+        ]
+      },
+      {
+        "column": "VoucherDt",
+        "type": "datetime"
+      },
+      {
+        "column": "VoucherNo",
+        "type": "varchar"
+      },
+      {
+        "column": "Narration",
+        "type": "varchar"
+      },
+      {
+        "column": "Ledger",
+        "type": "varchar"
+      },
+      {
+        "column": "Dr.Amt",
+        "type": "numeric"
+      },
+      {
+        "column": "Cr.Amt",
+        "type": "numeric"
+      },
+      {
+        "column": "LEDID",
+        "type": "int",
+        "sample_values": [
+          "11076",
+          "11077",
+          "11078",
+          "11079",
+          "11080",
+          "11081",
+          "11082",
+          "11083",
+          "11084",
+          "11085",
+          "11086",
+          "91124",
+          "91125",
+          "177729",
+          "177730"
+        ]
+      },
+      {
+        "column": "BillType",
+        "type": "varchar",
+        "sample_values": [
+          "Journal Day Collection",
+          "Lab Day Collection"
+        ]
+      },
+      {
+        "column": "BillNO",
+        "type": "varchar"
+      },
+      {
+        "column": "BillAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "AutoId",
+        "type": "int",
+        "sample_values": [
+          "1681",
+          "41673",
+          "75244",
+          "75717",
+          "76501",
+          "76729",
+          "76730",
+          "76731"
+        ]
+      },
+      {
+        "column": "BillsType",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "invNo",
+        "type": "varchar"
+      },
+      {
+        "column": "LocationId",
+        "type": "varchar",
+        "sample_values": [
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC14",
+          "LOC25",
+          "LOC34"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "paymentgatewayresponse",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "PaymentGatewayResponseId",
+        "type": "bigint"
+      },
+      {
+        "column": "businessName",
+        "type": "varchar"
+      },
+      {
+        "column": "billNumber",
+        "type": "varchar"
+      },
+      {
+        "column": "Mobile",
+        "type": "varchar"
+      },
+      {
+        "column": "terminalId",
+        "type": "varchar"
+      },
+      {
+        "column": "Amount",
+        "type": "varchar"
+      },
+      {
+        "column": "time",
+        "type": "varchar"
+      },
+      {
+        "column": "merchantId",
+        "type": "varchar"
+      },
+      {
+        "column": "deviceId",
+        "type": "int"
+      },
+      {
+        "column": "responseCode",
+        "type": "varchar"
+      },
+      {
+        "column": "invoiceNumber",
+        "type": "varchar"
+      },
+      {
+        "column": "cardType",
+        "type": "varchar"
+      },
+      {
+        "column": "acquirerName",
+        "type": "varchar"
+      },
+      {
+        "column": "transactionID",
+        "type": "varchar"
+      },
+      {
+        "column": "creditDebitCardType",
+        "type": "varchar"
+      },
+      {
+        "column": "date",
+        "type": "varchar"
+      },
+      {
+        "column": "statusCode",
+        "type": "varchar"
+      },
+      {
+        "column": "batchNumber",
+        "type": "varchar"
+      },
+      {
+        "column": "transactionStatus",
+        "type": "varchar"
+      },
+      {
+        "column": "cardHolderName",
+        "type": "varchar"
+      },
+      {
+        "column": "approvalCode",
+        "type": "varchar"
+      },
+      {
+        "column": "transactionMode",
+        "type": "varchar"
+      },
+      {
+        "column": "message",
+        "type": "varchar"
+      },
+      {
+        "column": "cardNumber",
+        "type": "varchar"
+      },
+      {
+        "column": "result",
+        "type": "varchar"
+      },
+      {
+        "column": "BranchMasterId",
+        "type": "bigint"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "bigint"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATETERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITUSERID",
+        "type": "bigint"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "Status",
+        "type": "varchar"
+      },
+      {
+        "column": "BILLSTATUS",
+        "type": "bit"
+      }
+    ]
+  },
+  {
+    "table": "tarifftable",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "INVNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "RATE",
+        "type": "numeric"
+      },
+      {
+        "column": "OFFERPRICE",
+        "type": "numeric"
+      }
+    ]
+  },
+  {
+    "table": "tblappagentassignbill",
+    "category": "billing",
+    "row_count": 6,
+    "columns": [
+      {
+        "column": "id",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      },
+      {
+        "column": "agentId",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "4",
+          "12"
+        ]
+      },
+      {
+        "column": "areaId",
+        "type": "int",
+        "sample_values": [
+          "66",
+          "160",
+          "697"
+        ]
+      },
+      {
+        "column": "currentLatitude",
+        "type": "varchar"
+      },
+      {
+        "column": "currentLongitude",
+        "type": "varchar"
+      },
+      {
+        "column": "BillNo",
+        "type": "varchar"
+      },
+      {
+        "column": "assignedDateTime",
+        "type": "datetime"
+      },
+      {
+        "column": "dateCreated",
+        "type": "datetime"
+      },
+      {
+        "column": "createdBy",
+        "type": "varchar"
+      },
+      {
+        "column": "isCallAttended",
+        "type": "bit"
+      },
+      {
+        "column": "AgentReason",
+        "type": "varchar"
+      },
+      {
+        "column": "isSampleCollected",
+        "type": "bit"
+      },
+      {
+        "column": "noOfSamplesCollected",
+        "type": "int"
+      },
+      {
+        "column": "collectedSamples",
+        "type": "varchar"
+      },
+      {
+        "column": "reasonOnFailedSamples",
+        "type": "varchar"
+      },
+      {
+        "column": "tokenStatus",
+        "type": "varchar",
+        "sample_values": [
+          "Closed",
+          "Hold",
+          "Open"
+        ]
+      },
+      {
+        "column": "ClosedDate",
+        "type": "datetime"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "HoldDate",
+        "type": "datetime"
+      },
+      {
+        "column": "ReleaseDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "tblapprepocharges",
+    "category": "billing",
+    "row_count": 2,
+    "columns": [
+      {
+        "column": "id",
+        "type": "int",
+        "sample_values": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "column": "chargeType",
+        "type": "varchar",
+        "sample_values": [
+          "MNL",
+          "POS"
+        ]
+      },
+      {
+        "column": "charges",
+        "type": "numeric"
+      },
+      {
+        "column": "chargeDescription",
+        "type": "varchar"
+      },
+      {
+        "column": "active",
+        "type": "bit"
+      },
+      {
+        "column": "MinBillAmt",
+        "type": "decimal"
+      }
+    ]
+  },
+  {
+    "table": "tblcreditperiodgen",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "INVGENID",
+        "type": "bigint"
+      },
+      {
+        "column": "CCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "INVGENDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVCSTARTDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "INVCENDDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "PrevTotSal",
+        "type": "numeric"
+      },
+      {
+        "column": "CurntTotSal",
+        "type": "numeric"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "DueAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "EXTENDDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "REMARKS",
+        "type": "varchar"
+      },
+      {
+        "column": "USERID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITEXTENDDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "CREATEUSERID",
+        "type": "char"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "tblinvoicesms",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "SNo",
+        "type": "int"
+      },
+      {
+        "column": "INVOICENO",
+        "type": "bigint"
+      },
+      {
+        "column": "INVOICENODT",
+        "type": "datetime"
+      },
+      {
+        "column": "ORGANISATIONCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "ORGANISATIONNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "USERNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "MrPHONE",
+        "type": "varchar"
+      },
+      {
+        "column": "CONTACTPERSON",
+        "type": "varchar"
+      },
+      {
+        "column": "CPHONE",
+        "type": "varchar"
+      },
+      {
+        "column": "TOTAMT",
+        "type": "numeric"
+      },
+      {
+        "column": "LocationId",
+        "type": "varchar"
+      },
+      {
+        "column": "IsSmsSent",
+        "type": "bit"
+      },
+      {
+        "column": "Type",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "tbltempledger",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ORGANISATIONCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "ORGANISATIONNAME",
+        "type": "varchar"
+      },
+      {
+        "column": "Month",
+        "type": "varchar"
+      },
+      {
+        "column": "MonthNo",
+        "type": "int"
+      },
+      {
+        "column": "Year",
+        "type": "varchar"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "PrevBal",
+        "type": "decimal"
+      },
+      {
+        "column": "UserName",
+        "type": "varchar"
+      },
+      {
+        "column": "ConcAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "LogInUser",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "tbltempledgerorg",
+    "category": "billing",
+    "row_count": 35,
+    "columns": [
+      {
+        "column": "ORGANISATIONCODE",
+        "type": "varchar",
+        "sample_values": [
+          "COMP0425"
+        ]
+      },
+      {
+        "column": "ORGANISATIONNAME",
+        "type": "varchar",
+        "sample_values": [
+          "NEELADHRII HOSPITALS"
+        ]
+      },
+      {
+        "column": "Month",
+        "type": "varchar"
+      },
+      {
+        "column": "MonthNo",
+        "type": "int"
+      },
+      {
+        "column": "Year",
+        "type": "varchar"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "PrevBal",
+        "type": "decimal"
+      },
+      {
+        "column": "UserName",
+        "type": "varchar",
+        "sample_values": [
+          "Dudyala Amarnath"
+        ]
+      },
+      {
+        "column": "ConcAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "TDS",
+        "type": "decimal"
+      }
+    ]
+  },
+  {
+    "table": "trnacntvoupaymntmodeofcolctndetails",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "VoucherGenID",
+        "type": "bigint"
+      },
+      {
+        "column": "Instru_No",
+        "type": "varchar"
+      },
+      {
+        "column": "Instru_Date",
+        "type": "datetime"
+      },
+      {
+        "column": "Bank",
+        "type": "varchar"
+      },
+      {
+        "column": "Branch",
+        "type": "varchar"
+      },
+      {
+        "column": "CardType",
+        "type": "varchar"
+      },
+      {
+        "column": "CardExpDate",
+        "type": "datetime"
+      },
+      {
+        "column": "RTGSTrnNo",
+        "type": "varchar"
+      },
+      {
+        "column": "RTGSFromAcntNo",
+        "type": "varchar"
+      },
+      {
+        "column": "RTGSToAcntNo",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "trnbillingcycleinvoicegeneration",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVOICENO",
+        "type": "bigint"
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "FROMDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TODATE",
+        "type": "datetime"
+      },
+      {
+        "column": "COUNT",
+        "type": "int"
+      },
+      {
+        "column": "QTY",
+        "type": "int"
+      },
+      {
+        "column": "ACTUALPRICE",
+        "type": "numeric"
+      },
+      {
+        "column": "OFFERPRICE",
+        "type": "numeric"
+      },
+      {
+        "column": "TOTALAMOUNT",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "trnbillingcyclerates",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "INVCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "QTY",
+        "type": "int"
+      },
+      {
+        "column": "PRICE",
+        "type": "numeric"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "CREATEDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "TERMINALID",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITUSER",
+        "type": "varchar"
+      },
+      {
+        "column": "EDITDATE",
+        "type": "datetime"
+      },
+      {
+        "column": "EDITTERMINALID",
+        "type": "varchar"
+      }
+    ]
+  },
+  {
+    "table": "trncc_cshcrypayments",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "PayID",
+        "type": "bigint"
+      },
+      {
+        "column": "CCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqNo",
+        "type": "varchar"
+      },
+      {
+        "column": "ReqDate",
+        "type": "datetime"
+      },
+      {
+        "column": "PayDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      }
+    ]
+  },
+  {
+    "table": "trncc_cshcrypaymodedetails",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "PayId",
+        "type": "bigint"
+      },
+      {
+        "column": "InsNo",
+        "type": "varchar"
+      },
+      {
+        "column": "InsDate",
+        "type": "datetime"
+      },
+      {
+        "column": "BankName",
+        "type": "varchar"
+      },
+      {
+        "column": "Branch",
+        "type": "varchar"
+      },
+      {
+        "column": "InsType",
+        "type": "varchar"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "trnccinvoicegeneration",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "INVOICENO",
+        "type": "bigint"
+      },
+      {
+        "column": "INVOICENODT",
+        "type": "datetime"
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "FromDate",
+        "type": "datetime"
+      },
+      {
+        "column": "ToDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "DueAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "ConcessionAmt",
+        "type": "numeric"
+      },
+      {
+        "column": "LCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "Terminal",
+        "type": "varchar"
+      },
+      {
+        "column": "IsSmsSent",
+        "type": "bit"
+      },
+      {
+        "column": "IsMailSent",
+        "type": "bit"
+      }
+    ]
+  },
+  {
+    "table": "trnccpayments",
+    "category": "billing",
+    "row_count": 70,
+    "columns": [
+      {
+        "column": "CCPayID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ]
+      },
+      {
+        "column": "CCODE",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "0",
+          "ALW1",
+          "BEN023",
+          "BEN025",
+          "BEN028",
+          "FHPL",
+          "KAP020",
+          "KAP026",
+          "KBN031",
+          "KBN034",
+          "KDI10",
+          "KGL013",
+          "KGL11",
+          "KGL12"
+        ]
+      },
+      {
+        "column": "PayDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Concession",
+        "type": "decimal"
+      },
+      {
+        "column": "TDS",
+        "type": "decimal"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar",
+        "sample_values": [
+          "Cash"
+        ]
+      },
+      {
+        "column": "SNO",
+        "type": "int"
+      },
+      {
+        "column": "TotalPymt",
+        "type": "decimal"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar",
+        "sample_values": [
+          "ADMIN",
+          "GOPAVARAM",
+          "GOVIND",
+          "MAHESH",
+          "Rajkumar",
+          "sanjeeth"
+        ]
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar",
+        "sample_values": [
+          "10.20.1.2",
+          "103.205.12.7",
+          "103.205.13.18",
+          "103.95.172.226",
+          "106.222.229.158",
+          "117.99.196.160",
+          "122.177.245.201",
+          "122.177.246.179",
+          "122.177.247.114",
+          "157.47.39.168",
+          "183.82.110.142",
+          "183.82.122.46",
+          "183.82.125.88",
+          "183.82.98.214",
+          "183.82.98.227"
+        ]
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC08",
+          "LOC09",
+          "LOC14",
+          "LOC21",
+          "LOC22",
+          "LOC24",
+          "LOC30"
+        ]
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "PayType",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "PayTypeHeader",
+        "type": "varchar"
+      },
+      {
+        "column": "OnlineServiceCharges",
+        "type": "numeric"
+      },
+      {
+        "column": "TotalConcAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "TotalTDSAmt",
+        "type": "decimal"
+      }
+    ]
+  },
+  {
+    "table": "trnccpayments1",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "CCPayID",
+        "type": "bigint"
+      },
+      {
+        "column": "CCODE",
+        "type": "varchar"
+      },
+      {
+        "column": "PayDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Concession",
+        "type": "decimal"
+      },
+      {
+        "column": "TDS",
+        "type": "decimal"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar"
+      },
+      {
+        "column": "SNO",
+        "type": "int"
+      },
+      {
+        "column": "TotalPymt",
+        "type": "decimal"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar"
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "PayType",
+        "type": "varchar"
+      },
+      {
+        "column": "PayTypeHeader",
+        "type": "varchar"
+      },
+      {
+        "column": "OnlineServiceCharges",
+        "type": "numeric"
+      }
+    ]
+  },
+  {
+    "table": "trnccpaymodedetails",
+    "category": "billing",
+    "row_count": 0,
+    "columns": [
+      {
+        "column": "ID",
+        "type": "bigint"
+      },
+      {
+        "column": "CCPayId",
+        "type": "bigint"
+      },
+      {
+        "column": "InsNo",
+        "type": "varchar"
+      },
+      {
+        "column": "RTGSACCNO",
+        "type": "varchar"
+      },
+      {
+        "column": "InsDate",
+        "type": "datetime"
+      },
+      {
+        "column": "BankName",
+        "type": "varchar"
+      },
+      {
+        "column": "Branch",
+        "type": "varchar"
+      },
+      {
+        "column": "InsType",
+        "type": "varchar"
+      },
+      {
+        "column": "LOCATIONID",
+        "type": "varchar"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar"
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar"
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "table": "trncomppayments",
+    "category": "billing",
+    "row_count": 27096,
+    "columns": [
+      {
+        "column": "CompPayID",
+        "type": "bigint",
+        "sample_values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "8",
+          "10",
+          "11",
+          "12",
+          "14",
+          "15",
+          "16",
+          "19",
+          "20",
+          "23",
+          "27"
+        ]
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "COMP0003",
+          "COMP0005",
+          "COMP0006",
+          "COMP0009",
+          "COMP0010",
+          "COMP0012",
+          "COMP0015",
+          "COMP0016",
+          "COMP0017",
+          "COMP0018",
+          "COMP0019",
+          "COMP0021",
+          "COMP0022"
+        ]
+      },
+      {
+        "column": "PayDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Concession",
+        "type": "decimal"
+      },
+      {
+        "column": "TDS",
+        "type": "decimal"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar",
+        "sample_values": [
+          "CASH",
+          "Cheque",
+          "Credit Card",
+          "CREDITCARD",
+          "DD",
+          "Online",
+          "RTGS",
+          "UPI"
+        ]
+      },
+      {
+        "column": "SNO",
+        "type": "int"
+      },
+      {
+        "column": "TotalPymt",
+        "type": "decimal"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar",
+        "sample_values": [
+          "App User",
+          "ADMIN",
+          "ACCOUNTS",
+          "0112",
+          "1031",
+          "0256",
+          "0758",
+          "raju",
+          "vishan das",
+          "K BABURAO",
+          "PHANI",
+          "K VIKRAM",
+          "SURESH",
+          "MAHESH",
+          "KSU0001"
+        ]
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar",
+        "sample_values": [
+          "103.224.154.5",
+          "183.82.98.227",
+          "183.82.122.46",
+          "45.127.57.28",
+          "49.37.165.87",
+          "49.37.167.95",
+          "157.47.40.142",
+          "49.37.167.72",
+          "157.47.52.156",
+          "49.37.163.199",
+          "157.47.7.221",
+          "49.37.165.7",
+          "49.37.165.223",
+          "49.37.163.49",
+          "157.47.2.106"
+        ]
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "",
+          "LOC01",
+          "LOC02",
+          "LOC04",
+          "LOC05",
+          "LOC06",
+          "LOC07",
+          "LOC08",
+          "LOC09",
+          "LOC10",
+          "LOC12",
+          "LOC14",
+          "LOC16",
+          "LOC17",
+          "LOC21"
+        ]
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "PayType",
+        "type": "varchar",
+        "sample_values": [
+          "Credit",
+          "Debit"
+        ]
+      },
+      {
+        "column": "PayTypeHeader",
+        "type": "varchar"
+      },
+      {
+        "column": "OnlineServiceCharges",
+        "type": "numeric"
+      },
+      {
+        "column": "TxnId",
+        "type": "varchar",
+        "sample_values": [
+          "pay_NzC681YxSxBzcL",
+          "pay_KSTpjCpKMrrO9H",
+          "pay_KSU7aqxVVuywAb",
+          "pay_KSUAj1YJHcFZ76",
+          "pay_KSUJmVBT7qrsVb",
+          "pay_KSUMMUKBRxSoxF",
+          "pay_KTDX5V5hVPK3KD",
+          "pay_Kd3mpCoJFRt27G",
+          "pay_Kd4yAjy7coNB1k",
+          "pay_Kd3hETI1sd1ORD",
+          "pay_Kd8QXWgjPUHFZZ",
+          "pay_Kd7ABjIHM7Z7ob",
+          "pay_Kd8ekw4Pb0UVaM",
+          "pay_Kuw2uDLZJbTG5z"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "trncomppaymentsrenova",
+    "category": "billing",
+    "row_count": 10,
+    "columns": [
+      {
+        "column": "CompPayID",
+        "type": "bigint",
+        "sample_values": [
+          "1501",
+          "1711",
+          "4611",
+          "4672",
+          "4673",
+          "4674",
+          "4675",
+          "4676",
+          "4677",
+          "4678"
+        ]
+      },
+      {
+        "column": "ORGCODE",
+        "type": "varchar",
+        "sample_values": [
+          "COMP0031"
+        ]
+      },
+      {
+        "column": "PayDate",
+        "type": "datetime"
+      },
+      {
+        "column": "TotalSales",
+        "type": "decimal"
+      },
+      {
+        "column": "PaidAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "BalAmt",
+        "type": "decimal"
+      },
+      {
+        "column": "Concession",
+        "type": "decimal"
+      },
+      {
+        "column": "TDS",
+        "type": "decimal"
+      },
+      {
+        "column": "Remarks",
+        "type": "varchar"
+      },
+      {
+        "column": "Mode",
+        "type": "varchar",
+        "sample_values": [
+          "Cheque"
+        ]
+      },
+      {
+        "column": "SNO",
+        "type": "int"
+      },
+      {
+        "column": "TotalPymt",
+        "type": "decimal"
+      },
+      {
+        "column": "UserID",
+        "type": "varchar",
+        "sample_values": [
+          "ACCOUNTS"
+        ]
+      },
+      {
+        "column": "EditUserID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "TerminalID",
+        "type": "varchar",
+        "sample_values": [
+          "183.82.98.227"
+        ]
+      },
+      {
+        "column": "EditTerminalID",
+        "type": "varchar",
+        "sample_values": []
+      },
+      {
+        "column": "CreateDate",
+        "type": "datetime"
+      },
+      {
+        "column": "EditDate",
+        "type": "datetime"
+      },
+      {
+        "column": "LocationID",
+        "type": "varchar",
+        "sample_values": [
+          "LOC01"
+        ]
+      },
+      {
+        "column": "Active",
+        "type": "bit"
+      },
+      {
+        "column": "PayType",
+        "type": "varchar",
+        "sample_values": [
+          "Credit"
+        ]
+      },
+      {
+        "column": "PayTypeHeader",
+        "type": "varchar"
+      },
+      {
+        "column": "OnlineServiceCharges",
+        "type": "numeric"
+      },
+      {
+        "column": "TxnId",
+        "type": "varchar",
+        "sample_values": []
+      }
+    ]
+  }
+]
