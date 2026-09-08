@@ -45,6 +45,26 @@ def test_ambiguous_location_is_flagged_not_silently_picked():
     assert len(result["candidates"]) == 2
 
 
+def test_exact_match_preferred_over_ambiguity():
+    # Real gap found in production: "Kukatpally" matched both
+    # "Kukatpally" and "Spinova-Kukatpally" via LIKE, forcing an
+    # unnecessary clarifying question even though one candidate was an
+    # exact match to what was actually said.
+    conn = _FakeConn(location_rows=[("LOC01", "Kukatpally"), ("LOC02", "Spinova-Kukatpally")])
+    with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
+        result = get_day_collection("Kukatpally", "2026-09-01", "2026-09-07", "TestDB")
+    assert result.get("ambiguous") is not True
+    assert result["location"] == "Kukatpally"
+    assert result["location_id"] == "LOC01"
+
+
+def test_genuine_ambiguity_still_asks_when_no_exact_match():
+    conn = _FakeConn(location_rows=[("LOC04", "Kompally Fetal Medicine"), ("LOC07", "Srikara-Kompally")])
+    with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
+        result = get_day_collection("Kompally", "2026-09-01", "2026-09-07", "TestDB")
+    assert result["ambiguous"] is True
+
+
 def test_no_location_match_returns_clean_error():
     conn = _FakeConn(location_rows=[])
     with patch("reports.curated_queries.get_hospital_connection", return_value=conn):
