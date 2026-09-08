@@ -93,48 +93,101 @@ def _invoke_with_retry(runnable, messages, retries=1):
             time.sleep(20)
     return None
 
+import re
+from datetime import datetime
 
 def parse_dashboard_period(q: str) -> tuple[str, str]:
-    """
-    Returns (period_key, label).
-    period_key is used by get_department_dashboard.
-    """
     q = (q or "").lower()
 
     if "today" in q:
         return "today", "Today"
     if "yesterday" in q:
         return "yesterday", "Yesterday"
-
     if "last week" in q:
         return "last_week", "Last Week"
     if "this week" in q:
         return "this_week", "This Week"
-
     if "last month" in q:
         return "last_month", "Last Month"
     if "this month" in q:
         return "this_month", "This Month"
-
     if "last year" in q:
         return "last_year", "Last Year"
     if "this year" in q:
         return "this_year", "This Year"
 
-    # last N days — e.g. "last 7 days"
     m = re.search(r"last\s+(\d+)\s+days?", q)
     if m:
         n = int(m.group(1))
         return f"last_{n}_days", f"Last {n} Days"
 
-    # explicit date YYYY-MM-DD
+    # YYYY-MM-DD
     m = re.search(r"(\d{4}-\d{2}-\d{2})", q)
     if m:
         d = m.group(1)
         return f"day:{d}", d
 
-    # default
+    # year only: "2025" / "2025's"
+    m = re.search(r"\b(20\d{2})\b", q)
+    if m and "dashboard" in q:
+        # if it's only a year (not part of a full date already handled)
+        year = m.group(1)
+        # avoid treating as year if a full date was present — already returned above
+        return f"year:{year}", year
+
+    # "4th september", "5 september", "september 4", "4 sep 2026"
+    months = {
+        "jan": 1, "january": 1,
+        "feb": 2, "february": 2,
+        "mar": 3, "march": 3,
+        "apr": 4, "april": 4,
+        "may": 5,
+        "jun": 6, "june": 6,
+        "jul": 7, "july": 7,
+        "aug": 8, "august": 8,
+        "sep": 9, "sept": 9, "september": 9,
+        "oct": 10, "october": 10,
+        "nov": 11, "november": 11,
+        "dec": 12, "december": 12,
+    }
+
+    # e.g. 4th september 2026 / 4 september / 5th sep
+    m = re.search(
+        r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})?\b",
+        q,
+    )
+    if m:
+        day = int(m.group(1))
+        mon = months[m.group(2)[:3] if m.group(2)[:3] in months else m.group(2)]
+        # normalize month key
+        mon_key = m.group(2).lower()
+        for k, v in months.items():
+            if mon_key.startswith(k[:3]):
+                mon = v
+                break
+        year = int(m.group(3)) if m.group(3) else datetime.now().year
+        d = f"{year:04d}-{mon:02d}-{day:02d}"
+        return f"day:{d}", d
+
+    # e.g. september 4 / sep 5 2026
+    m = re.search(
+        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*(\d{4})?\b",
+        q,
+    )
+    if m:
+        mon_key = m.group(1).lower()
+        mon = 1
+        for k, v in months.items():
+            if mon_key.startswith(k[:3]):
+                mon = v
+                break
+        day = int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else datetime.now().year
+        d = f"{year:04d}-{mon:02d}-{day:02d}"
+        return f"day:{d}", d
+
     return "yesterday", "Yesterday"
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
 
