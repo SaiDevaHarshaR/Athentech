@@ -570,4 +570,3 @@ Rules:
             answer = "I could not find an answer."
 
         return check_output(answer)
-
