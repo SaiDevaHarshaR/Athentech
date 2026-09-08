@@ -482,6 +482,19 @@ Example of the exact target style, for "today's collection at Kukatpally":
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(chat_history)
 
+        # Deterministic schema discovery BEFORE the LLM starts tool calling
+        schema_result = _preflight_schema_search(question, role_enum)
+
+        messages.append(
+            SystemMessage(
+                content=(
+                    "PRE-VERIFIED SCHEMA SEARCH RESULT:\n"
+                    f"{schema_result}\n\n"
+                    "Use these real schema candidates. Do not invent tables or columns."
+                )
+            )
+        )
+
         question_lower = question.lower()
         wants_dashboard_card = any(
             kw in question_lower for kw in [
