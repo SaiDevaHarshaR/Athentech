@@ -143,19 +143,15 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         return "AI rate limit reached. Wait 1 minute and try again."
     return final.content if final.content else None
 
-def _preflight_schema_search(question: str, role_enum: Role) -> str:
-    """Deterministically find candidate tables before the LLM starts tool use."""
+def _preflight_schema_search(question: str, role: str) -> str:
     try:
         result = search_schema.invoke({
             "query": question,
-            "role": role_enum.value,
+            "role": role,
         })
 
-        if not result:
-            return "No matching schema candidates were found."
-
-        return str(result)
-
+        return str(result) if result else "No matching schema candidates found."
+    
     except Exception as e:
         return f"Schema discovery failed: {e}"
 def ask_agent(
@@ -483,7 +479,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
         messages.extend(chat_history)
 
         # Deterministic schema discovery BEFORE the LLM starts tool calling
-        schema_result = _preflight_schema_search(question, role_enum)
+        schema_result = _preflight_schema_search(question, role)
 
         messages.append(
             SystemMessage(
