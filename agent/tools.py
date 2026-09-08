@@ -71,18 +71,18 @@ def describe_table(
 
 def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
     """
-    Validate column references in a SELECT query against the real MSSQL schema.
+    Validate table-qualified column references against the real MSSQL schema.
 
-    Returns:
-        (True, "") if validation passes.
-        (False, error_message) if a referenced column is invalid.
+    This intentionally validates the references that can be resolved
+    unambiguously. If a table/alias cannot be resolved safely, the query
+    is rejected instead of guessing.
     """
-    # Get tables referenced by FROM/JOIN.
+
     table_pattern = re.compile(
         r"\b(?:FROM|JOIN)\s+"
-        r"(?:\[?[\w]+\]?\.)?"
-        r"\[?([\w]+)\]?"
-        r"(?:\s+(?:AS\s+)?(\w+))?",
+        r"(?:(?:\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\.)*"
+        r"(?:\[([^\]]+)\]|([A-Za-z_][A-Za-z0-9_]*))"
+        r"(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?",
         re.IGNORECASE,
     )
 
@@ -92,8 +92,10 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
         return True, ""
 
     table_info = {}
+    aliases = {}
 
-    for table_name, alias in table_matches:
+    for bracketed_name, plain_name, alias in table_matches:
+        table_name = bracketed_name or plain_name
         clean_table = table_name.strip("[]").lower()
 
         cursor.execute(
@@ -105,25 +107,31 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
             (clean_table,),
         )
 
-        columns = {row[0].lower() for row in cursor.fetchall()}
+        columns = {
+            row[0].lower()
+            for row in cursor.fetchall()
+        }
 
-        if columns:
-            table_info[clean_table] = {
-                "columns": columns,
-                "alias": alias.lower() if alias else None,
-            }
+        if not columns:
+            return (
+                False,
+                f"Could not verify schema for table '{clean_table}'. "
+                "Query rejected rather than guessing."
+            )
 
-    # Build alias -> table mapping.
-    aliases = {}
+        table_info[clean_table] = columns
 
-    for table, info in table_info.items():
-        aliases[table] = table
-        if info["alias"]:
-            aliases[info["alias"]] = table
+        aliases[clean_table] = clean_table
 
-    # Find qualified references such as:
+        if alias:
+            aliases[alias.lower()] = clean_table
+
+    # ---------------------------------------------------------
+    # Validate qualified references:
+    #
     # t.CREATEDATE
     # trninvlabdet.BILLDATE
+    # ---------------------------------------------------------
     qualified_refs = re.findall(
         r"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b",
         query,
@@ -137,15 +145,19 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
 
         table = aliases.get(qualifier_lower)
 
+        # Could be dbo.Table, database.Table, etc.
+        # Those are not column references.
         if not table:
             continue
 
-        valid_columns = table_info[table]["columns"]
+        if column_lower not in table_info[table]:
+            valid_columns = ", ".join(
+                sorted(table_info[table])
+            )
 
-        if column_lower not in valid_columns:
             invalid.append(
                 f"{qualifier}.{column} "
-                f"(valid columns include: {', '.join(sorted(valid_columns))})"
+                f"(valid columns: {valid_columns})"
             )
 
     if invalid:
@@ -153,12 +165,11 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
             False,
             "INVALID COLUMN REFERENCE(S): "
             + "; ".join(invalid)
-            + ". Do NOT execute the query again unchanged. "
-              "Use the actual columns returned by the schema."
+            + ". Do NOT retry the same SQL. "
+              "Use the verified schema and regenerate the query."
         )
 
     return True, ""
-
 @tool
 def run_sql_query(
     query: str,
