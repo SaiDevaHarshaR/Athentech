@@ -351,8 +351,7 @@ def get_department_dashboard(
 
     if department not in ("radiology", "laboratory", "all"):
         return "Error: department must be radiology, laboratory, or all."
-    if period not in ("yesterday", "today", "this_month"):
-        return "Error: period must be yesterday, today, or this_month."
+
 
     # Date range (half-open) — never BILLDATE = date
 
