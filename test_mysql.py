@@ -56,7 +56,7 @@ for r in cur.fetchall():
     print("-", r[0])
 
 # 2) Columns for one table
-dsad
+
 TABLE = "mstRefDoctor"   # change this
 cur.execute("""
 SELECT COLUMN_NAME, DATA_TYPE
