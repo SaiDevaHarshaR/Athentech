@@ -355,24 +355,81 @@ def get_department_dashboard(
         return "Error: period must be yesterday, today, or this_month."
 
     # Date range (half-open) — never BILLDATE = date
+
     if period == "today":
         date_sql = (
             "BILLDATE >= CAST(GETDATE() AS DATE) "
             "AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         )
         period_label = "Today"
+
+    elif period == "yesterday":
+        date_sql = (
+            "BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
+            "AND BILLDATE < CAST(GETDATE() AS DATE)"
+        )
+        period_label = "Yesterday"
+
+    elif period == "this_week":
+        # week starting Monday
+        date_sql = (
+            "BILLDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
+            "AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+        )
+        period_label = "This Week"
+
+    elif period == "last_week":
+        date_sql = (
+            "BILLDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE())-7, CAST(GETDATE() AS DATE)) "
+            "AND BILLDATE < DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE))"
+        )
+        period_label = "Last Week"
+
     elif period == "this_month":
         date_sql = (
             "BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
             "AND BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
         )
         period_label = "This Month"
-    else:  # yesterday
+
+    elif period == "last_month":
         date_sql = (
-            "BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
-            "AND BILLDATE < CAST(GETDATE() AS DATE)"
+            "BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) - 1, 0) "
+            "AND BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)"
         )
-        period_label = "Yesterday"
+        period_label = "Last Month"
+
+    elif period == "this_year":
+        date_sql = (
+            "BILLDATE >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0) "
+            "AND BILLDATE < DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()) + 1, 0)"
+        )
+        period_label = "This Year"
+
+    elif period == "last_year":
+        date_sql = (
+            "BILLDATE >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()) - 1, 0) "
+            "AND BILLDATE < DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0)"
+        )
+        period_label = "Last Year"
+
+    elif period.startswith("last_") and period.endswith("_days"):
+        n = int(period.split("_")[1])
+        date_sql = (
+            f"BILLDATE >= CAST(DATEADD(DAY, -{n}, GETDATE()) AS DATE) "
+            f"AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+        )
+        period_label = f"Last {n} Days"
+
+    elif period.startswith("day:"):
+        d = period.split(":", 1)[1]
+        date_sql = (
+            f"BILLDATE >= '{d}' AND BILLDATE < DATEADD(DAY, 1, CAST('{d}' AS DATE))"
+        )
+        period_label = d
+
+    else:
+        return f"Error: unsupported period '{period}'."
 
     # Dept filter
     # laboratory / all → no DEPTCODE filter (trninvlabdet is lab work; "Laboratory" name often missing)
