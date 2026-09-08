@@ -164,7 +164,14 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "AVG(CASE WHEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) BETWEEN 0 AND 10080 THEN "
         "DATEDIFF(MINUTE, BILLDATE, CREATEDATE) END) — the 10080 bound is 7 days in minutes, a "
         "generous upper limit for a real TAT; adjust if a narrower bound makes sense for the specific "
-        "question, but never report a raw unbounded AVG that could be silently wrecked by bad data.",
+        "question, but never report a raw unbounded AVG that could be silently wrecked by bad data. "
+        "CRITICAL SCOPE — this CASE WHEN filter belongs ONLY inside the AVG() function itself, exactly "
+        "as shown. Do NOT add a WHERE clause filtering out these outlier records from the whole query "
+        "— that would also wrongly shrink PROCEDURES/COMPLETED/PENDING counts (undercounting real "
+        "work, not just fixing a skewed average). A record with a bad date should still count as a "
+        "real procedure/completed/pending — it should just not corrupt the TAT average specifically. "
+        "This was a real mistake found in production: fixing the average also silently shrank the "
+        "procedure counts by hundreds when it shouldn't have touched them at all.",
         "- CONFIRMED real bug: a curated location tool (get_verified_day_collection) requires ONE "
         "specific location — if the user asks for 'all branches'/'all locations'/a combined total "
         "across every location, do NOT call that tool with location_keyword='all' (this was tried in "
