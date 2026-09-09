@@ -446,3 +446,5 @@
 {"ts": "2026-09-09T07:40:44.429449Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "how many samples are authenticated by doctors last month", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-09T07:40:55.789992Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "haematology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-09T07:41:08.121962Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "this month's collection breakdown by mode", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T07:45:59.110287Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T07:46:14.354041Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "yesterday's radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
