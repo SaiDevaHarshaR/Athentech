@@ -307,7 +307,22 @@ def ask_agent(
         
         period, _label = parse_dashboard_period(q)
         import re as _re
-
+        location_guess = q
+        strip_words = DEPT_KEYWORDS + [
+            "dashboard", "lab", "laboratory", "today", "yesterday",
+            "this month", "last month", "this year", "last year",
+            "this week", "last week", "month", "year",
+            "january", "february", "march", "april", "may", "june", "july",
+            "august", "september", "october", "november", "december",
+            "jan", "feb", "mar", "apr", "jun", "jul", "aug",
+            "sep", "sept", "oct", "nov", "dec",
+        ]
+        # sort longest-first so "january" matches before the shorter "jan"
+        # ever gets a chance to eat part of it
+        for w in sorted(strip_words, key=len, reverse=True):
+            location_guess = _re.sub(rf"\b{_re.escape(w)}\b", " ", location_guess, flags=_re.IGNORECASE)
+        location_guess = _re.sub(r"\d+(st|nd|rd|th)?", " ", location_guess)
+        location_guess = location_guess.strip() or None
         print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period} location={location_guess}")
         raw = get_department_dashboard.invoke({
             "department": dept,
