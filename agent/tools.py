@@ -496,16 +496,7 @@ def get_department_dashboard(
             "THEN 1 ELSE 0 END) AS COMPLETED,"
         )
 
-    sql = f"""
-SELECT
-    COUNT(*) AS PROCEDURES,
-    {completed_select}
-    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
-FROM trninvlabdet
-{completed_join}
-WHERE {date_sql}
-{dept_sql}
-""".strip()
+
 
     try:
         role_enum = Role(role)
