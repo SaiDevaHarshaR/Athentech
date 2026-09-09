@@ -481,25 +481,7 @@ def get_department_dashboard(
         title = "Lab Operations Dashboard"
         icon = "📊"
 
-    if department == "radiology":
-        completed_expr = (
-            "CASE WHEN EXISTS ("
-            "SELECT 1 FROM trninvstatus s "
-            "WHERE s.BILLNO = trninvlabdet.BILLNO AND s.STATUS = 'Authenticated'"
-            ") THEN 1 ELSE 0 END"
-        )
-    else:
-        completed_expr = "CASE WHEN TESTSTATUS IN ('Result Entry', 'Acknowledged') THEN 1 ELSE 0 END"
 
-    sql = f"""
-SELECT
-    COUNT(*) AS PROCEDURES,
-    SUM({completed_expr}) AS COMPLETED,
-    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
-FROM trninvlabdet
-WHERE {date_sql}
-{dept_sql}
-""".strip()
 
     try:
         role_enum = Role(role)
