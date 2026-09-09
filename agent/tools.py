@@ -496,7 +496,28 @@ def get_department_dashboard(
             "THEN 1 ELSE 0 END) AS COMPLETED,"
         )
 
+    location_sql = ""
+    if location:
+        from reports.curated_queries import resolve_location_id
+        loc_id, loc_matched = resolve_location_id(location, db_name, db_server, db_user, db_password)
+        if loc_id is None:
+            return f"No location found matching '{location}'."
+        if loc_id == "AMBIGUOUS":
+            return f"Multiple locations match '{location}': {', '.join(loc_matched)}. Ask which one they mean."
+        location_sql = f"AND LOCATIONID = '{loc_id}'"
+        title = f"{title} · {loc_matched}"
 
+    sql = f"""
+SELECT
+    COUNT(*) AS PROCEDURES,
+    {completed_select}
+    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
+FROM trninvlabdet
+{completed_join}
+WHERE {date_sql}
+{dept_sql}
+{location_sql}
+""".strip()
 
     try:
         role_enum = Role(role)
