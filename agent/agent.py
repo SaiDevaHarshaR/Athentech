@@ -674,6 +674,12 @@ Example of the exact target style, for "today's collection at Kukatpally":
         mentions_department = any(
             kw in question_lower for kw in ["radiology", "pathology", "microbiology", "cardiology", "biochemistry"]
         )
+        mentions_no_followup = any(
+            kw in question_lower for kw in ["no follow-up", "never came back", "didn't return", "haven't returned"]
+        )
+        mentions_doctor_unpaid = ("doctor" in question_lower) and any(
+            kw in question_lower for kw in ["unpaid", "pending bill", "due bill", "outstanding bill"]
+        )
 
         user_message = f"User Question: {question}"
         if wants_dashboard_card:
