@@ -305,7 +305,24 @@ def ask_agent(
         else:
             dept = "all"
         
-
+        period, _label = parse_dashboard_period(q)
+        location_guess = q
+        for w in DEPT_KEYWORDS + ["dashboard", "lab", "laboratory", "today", "yesterday",
+                                    "this month", "last month", "this year", "last year",
+                                    "this week", "last week"]:
+            location_guess = location_guess.replace(w, " ")
+        location_guess = location_guess.strip() or None
+        print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period} location={location_guess}")
+        raw = get_department_dashboard.invoke({
+            "department": dept,
+            "period": period,
+            "location": location_guess,
+            "role": role,
+            "db_name": db_name,
+            "db_server": db_server,
+            "db_user": db_user,
+            "db_password": db_password,
+        })
         return check_output(raw if isinstance(raw, str) else str(raw))
 # ---- end forced dashboard ----
     # =======================================
