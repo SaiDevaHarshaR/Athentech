@@ -117,7 +117,27 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- trntempbranchwisecoll is UNPROFILED — do not assume column names like GrossAmount, "
         "NetReceivedAmount, nrCash, nrCC, nrChqUPI, ReceivedAmount exist on it (guessed in production, "
         "never confirmed). describe_table it first before using it for anything.",
-        "- daycollection_mobileapp may be empty; try trnmodeofcollectionsdet instead",
+        "- CONFIRMED (do not re-derive): daycollection_mobileapp is NOT empty for recent months — "
+        "confirmed real, non-empty columns: ID, GRANDTOTAL, TOTALCASH, TOTALCREDITS, DUES, "
+        "CONCESSIONS, CARDTOTAL, CHEQUETOTAL, REFUNDS, PREVREFUNDS, EXPTOTAL, COREBUSINESSCASH, "
+        "PREVDUECASH, PREVDUECARD, PREVDUECHEQUE, PREVDUEDD, TOTALCASHREC, COREBUSINESS, "
+        "PAIDBUSINESS, TOTALLABCLIENTS, CCCASH, CCCARD, CCCONCESSION, TOTALBUSINESS_CC, "
+        "PAIDBUSINESS_CC, REPORTDATE, DATE, LOCATIONID. This is very likely the real source table "
+        "for detailed cash-reconciliation reports (a user-provided screenshot with 'Total Cash Bill "
+        "Amount', 'Total Previous Due Received Amount', 'Total Cash In Hand', 'Total Paid Business' "
+        "etc. maps closely onto these column names — PAIDBUSINESS matches 'Total Paid Business' "
+        "exactly, TOTALCASHREC is the likely candidate for 'Total Cash In Hand', PREVDUECASH/CARD/"
+        "CHEQUE/DD sum to 'Total Previous Due Received'). Prefer this table over "
+        "trnmodeofcollectionsdet for any question asking for a DETAILED reconciliation-style "
+        "breakdown (due/refund/expenditure/business, not just a simple mode-of-payment split). "
+        "CONFIRMED: daycollection_mobileapp.LOCATIONID is NULL for EVERY row (SELECT DISTINCT "
+        "LOCATIONID with no filter returned 0 rows) — this table can ONLY be used for ALL-BRANCHES-"
+        "COMBINED questions, never for one specific location. Do not attempt to filter it by "
+        "location at all — any such filter will always return 0 rows, and that's genuinely "
+        "unfixable at the query level; the data just isn't there. For a specific location's "
+        "detailed reconciliation figures, say plainly that this table doesn't support it and offer "
+        "the mode-of-payment breakdown from trnmodeofcollectionsdet instead. Historical coverage is "
+        "also unconfirmed — it may only have current/recent months.",
         "- patients/registration → mstpatientregistration",
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
         "- invoice/payments → trninvoicepayments, mstpaymentdetails, trninvpaydetails (if allowed)",
