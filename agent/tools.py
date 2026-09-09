@@ -329,7 +329,17 @@ def run_sql_query(
         except Exception:
             pass
 
-
+@tool
+def get_department_dashboard(
+    department: str,
+    period: str,
+    location: str = None,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
     """
     Fixed lab/radiology dashboard. Use this INSTEAD of writing SQL for
     questions like "yesterday's radiology dashboard" or "lab dashboard today".
