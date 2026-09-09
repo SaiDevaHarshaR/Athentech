@@ -97,14 +97,7 @@ def get_day_collection(
         date_from_param = start.strftime("%Y-%m-%d")
         date_to_param = end_exclusive.strftime("%Y-%m-%d")
 
-        query = """
-            SELECT MODE, SUM(PAIDAMOUNT) AS TotalAmount
-            FROM trnmodeofcollectionsdet
-            WHERE LOCATIONID = ?
-            AND DATEOFBILL >= ?
-            AND DATEOFBILL < ?
-            GROUP BY MODE
-            """
+
         print(
             f"[get_day_collection] SQL: {query.strip()} | "
             f"params: ({location_id!r}, {date_from_param!r}, {date_to_param!r})"
