@@ -153,11 +153,18 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "'Resistant', 'Sensitive' (antibiotic culture-sensitivity results specifically), NOT a "
         "general positive/abnormal flag for other test types — do not use it for a general "
         "'abnormal finding' question outside microbiology culture results.",
-        "- CONFIRMED (real, better table found): trntempabnormalreport exists — INVNAME, PARAMNAME, "
-        "PVALUE, MINVALUE, MAXVALUE, DESCRIPTION, BILLNO, BILLDATE, CREATEDATE, LOCATIONID, ORGNAME, "
-        "DOCNAME. Prefer this over manually range-checking trnparamresult for 'abnormal result' "
-        "questions — same TRY_CAST(PVALUE AS FLOAT) numeric-safety approach still applies since "
-        "PVALUE is still text here too.",
+        "- CONFIRMED (real table, columns useful, BUT SEVERELY STALE): trntempabnormalreport exists — "
+        "INVNAME, PARAMNAME, PVALUE, MINVALUE, MAXVALUE, DESCRIPTION, BILLNO, BILLDATE, CREATEDATE, "
+        "LOCATIONID, ORGNAME, DOCNAME. CONFIRMED via direct MIN/MAX(BILLDATE): its real data range is "
+        "17 May 2023 to 28 August 2025 — it STOPPED being updated over a year before the real current "
+        "date, same 'trntemp' staleness pattern already confirmed on trntempdaycollall (different "
+        "table, same naming convention, same kind of problem). NEVER use this table for 'today'/"
+        "'yesterday'/'this month'/'last month'/'this year' or any question about recent activity — "
+        "it will always return 0 rows for any of those, which is a real, confirmed data gap, not a "
+        "genuine zero. Only usable for a question explicitly about a historical date before ~August "
+        "2025. For a RECENT abnormal-result question, say plainly that this table's data stops in "
+        "2025 and no recent equivalent has been confirmed yet — do not silently report a confident "
+        "zero for what is actually a coverage gap.",
         "- CONFIRMED (real bug found): common lay/short test names do NOT match real INVNAME values "
         "— 'Urinalysis' returned 0 rows because the real stored name is 'Complete Urine Analysis "
         "(CUE)'. Before concluding zero results for a named test, run SELECT DISTINCT INVNAME WHERE "
