@@ -108,6 +108,15 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "itself doesn't go stale the way daily amounts do (see the location-resolution rule below). "
         "Don't confuse these two different uses of the same table.",
         "- payment mode / who paid → trnmodeofcollectionsdet (MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID)",
+        "- CONFIRMED: trnmodeofcollectionsdet's real columns are MODE, PAIDAMOUNT, DATEOFBILL, UHID, "
+        "LOCATIONID, TYPE, BILLNO, PATIENTID — that's the full confirmed set. TOTALAMOUNT, "
+        "CONCESSIONAMOUNT, DUEAMOUNT do NOT exist on this table (guessed in production, never "
+        "confirmed) — if a broader billed/concession/due figure is needed, describe_table on "
+        "trninvlabpri instead (confirmed real columns: TOTALCHARGES, PAIDAMOUNT, CONCESSIONAMT, "
+        "CREDITAMOUNT, RefundAmt).",
+        "- trntempbranchwisecoll is UNPROFILED — do not assume column names like GrossAmount, "
+        "NetReceivedAmount, nrCash, nrCC, nrChqUPI, ReceivedAmount exist on it (guessed in production, "
+        "never confirmed). describe_table it first before using it for anything.",
         "- daycollection_mobileapp may be empty; try trnmodeofcollectionsdet instead",
         "- patients/registration → mstpatientregistration",
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
@@ -193,6 +202,17 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "TYPE='DUE PAYMENT', 'Total Refund' is very likely TYPE='LabRefund'. This is a lead, not yet "
         "a confirmed formula for the full reconciliation — don't present a computed 'Cash In Hand' "
         "figure as confirmed-correct until the exact formula (which TYPEs add vs subtract) is verified.",
+        "- CRITICAL, SEVERE real bug confirmed in production: DATEPART(YEAR, GETDATE()) = 2026 AND "
+        "DATEPART(MONTH, GETDATE()) = 4 was used to try to filter for 'April 2026' data — this is "
+        "WRONG. GETDATE() returns the REAL CURRENT date (today), not the transaction date — that "
+        "filter checks 'is today currently in April 2026', not 'did this row happen in April 2026'. "
+        "Since GETDATE() reflects the actual current date, a query like this returns nothing for any "
+        "month except whichever one happens to be the real current month right now — completely "
+        "ignoring the month the user actually asked about. NEVER compare DATEPART(..., GETDATE()) to "
+        "a hardcoded target year/month. To filter by a period, filter the table's own date COLUMN "
+        "directly: WHERE DATEOFBILL >= '2026-04-01' AND DATEOFBILL < '2026-05-01' (or the equivalent "
+        "real date column for that table) — GETDATE() only belongs in a query when you actually mean "
+        "'today', never as a stand-in for a date the user specified.",
         "- GENERAL RULE, more important than any single column above — this is the actual repeating "
         "pattern found in production, not a one-off: for ANY column that looks like a status/type/"
         "mode/category (ends in STATUS, TYPE, MODE, or similar — e.g. STATUS, TESTSTATUS, PATTYPE, "
