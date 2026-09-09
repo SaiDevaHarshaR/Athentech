@@ -140,6 +140,19 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
         "- invoice/payments → trninvoicepayments, mstpaymentdetails, trninvpaydetails (if allowed)",
         "- labs → trninvlabdet, trninvlabpri, trnparamresult, mstinvestigations (if allowed)",
+        "- CONFIRMED (real sample rows): trnparamresult.PVALUE is VARCHAR and holds TWO different "
+        "kinds of results — (1) a number stored as text (e.g. '15.4', '7800') with real MINVALUE/"
+        "MAXVALUE range columns to compare against for 'abnormal', or (2) pure narrative text (e.g. "
+        "'NORMOCYTIC NORMOCHROMIC' — a microscopy/pathology-style descriptive result) with "
+        "MINVALUE/MAXVALUE both NULL — there is NO numeric range for these, 'abnormal' cannot be "
+        "computed for them at all, they'd need a human to read DESCRIPTION/Note/Advise/TEXT instead. "
+        "For 'abnormal result' questions: only attempt the MINVALUE/MAXVALUE comparison, and ONLY "
+        "after confirming PVALUE is numeric for that row (e.g. TRY_CAST(PVALUE AS FLOAT) IS NOT NULL "
+        "— PVALUE will error on a blind CAST for rows like row 10 above). trnparamresult.Interpretation "
+        "is a SEPARATE, narrower thing — confirmed real values are only 'None', 'Intermediate', "
+        "'Resistant', 'Sensitive' (antibiotic culture-sensitivity results specifically), NOT a "
+        "general positive/abnormal flag for other test types — do not use it for a general "
+        "'abnormal finding' question outside microbiology culture results.",
         "- CONFIRMED (real sample data): mstorganisation holds BOTH individual referring DOCTORS and "
         "referring HOSPITALS/ORGANIZATIONS mixed in the same table under ORGANISATIONNAME. Real "
         "sample rows: 'A SRINIVAS MBBS (TOOPRAN)' (COMPTYPE='L', doctor-shaped) vs 'AASHRITA "
@@ -147,11 +160,23 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "field that distinguishes them — this directly explains a real confirmed bug where 'top "
         "referring doctors' mixed in hospital names, because nothing filtered by COMPTYPE. Only 2 "
         "sample COMPTYPE values are confirmed so far ('L', 'RL') — the FULL set is NOT confirmed. "
-        "Before filtering by COMPTYPE for a 'doctors only' question, run SELECT DISTINCT COMPTYPE "
-        "FROM mstorganisation first to see every real value and confirm which one(s) mean individual "
-        "doctor — do not assume 'L' alone covers all doctors without checking. Other real columns: "
-        "ORGANISATIONCODE, CREDITLIMIT, CREDITPERIOD, ISCREDIT, ISINSURANCE, ACTIVE, LOCATIONID, "
-        "ORGTypeID.",
+        "MANDATORY, not optional: run SELECT DISTINCT COMPTYPE FROM mstorganisation FIRST, every "
+        "time, before filtering by it for a 'doctors only' question — a real answer was already "
+        "produced by guessing COMPTYPE='L' worked without checking, which happened to be right by "
+        "luck, not verification; don't repeat that shortcut. Other real columns: ORGANISATIONCODE, "
+        "CREDITLIMIT, CREDITPERIOD, ISCREDIT, ISINSURANCE, ACTIVE, LOCATIONID, ORGTypeID, CREATEDATE.",
+        "- CRITICAL, confirmed real bug: 'top referring doctors' (or 'top' anything) means RANKED BY "
+        "VOLUME/COUNT — how many referrals/procedures/bills that doctor is linked to — NOT sorted by "
+        "CREATEDATE. A real query used 'ORDER BY CREATEDATE DESC' for 'top referring doctors', which "
+        "answers 'most recently added doctor records', a completely different question from 'which "
+        "doctors refer the most patients'. 'Top'/'most'/'highest' always means aggregate ranking "
+        "(COUNT/SUM + GROUP BY + ORDER BY that count DESC), never recency, unless the question "
+        "explicitly asks for recency ('most recently added'). To rank doctors by actual referral "
+        "volume, find the real column linking bills to a referring doctor (trninvlabdet/trninvlabpri "
+        "have REFDOCID and DOCCODE columns — confirmed to exist, but their real values were empty in "
+        "the small sample checked so far, so the exact join to mstorganisation.ORGANISATIONCODE is "
+        "NOT yet confirmed). describe_table and check real values on REFDOCID/DOCCODE before joining "
+        "— do not assume DOCCODE = ORGANISATIONCODE without seeing it work.",
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
