@@ -349,9 +349,13 @@ def get_department_dashboard(
     department = (department or "all").strip().lower()
     period = (period or "yesterday").strip().lower()
 
-    if department not in ("radiology", "laboratory", "all"):
-        return "Error: department must be radiology, laboratory, or all."
-
+    SUB_DEPARTMENTS = [
+        "haematology", "hematology", "biochemistry", "microbiology",
+        "histopathology", "cytology", "cytogenetics", "endoscopy",
+        "serology", "hormones", "pathology", "cardiology",
+    ]
+    if department not in ("radiology", "laboratory", "all") and department not in SUB_DEPARTMENTS:
+        return "Error: unknown department."
 
     # Date range (half-open) — never BILLDATE = date
 
@@ -454,6 +458,17 @@ def get_department_dashboard(
         dept_sql = ""
         title = "Laboratory Dashboard"
         icon = "🧪"
+    elif department in SUB_DEPARTMENTS:
+        # DEPTCODE's range (up to ~83) matches mstsubdepartment, not
+        # mstdepartment (only 9 rows) — confirmed via a real profile.
+        dept_sql = (
+            f"AND DEPTCODE = ("
+            f"SELECT TOP 1 SubDepartmentID FROM mstsubdepartment "
+            f"WHERE SubDeptName LIKE '%{department}%'"
+            f")"
+        )
+        title = f"{department.title()} Dashboard"
+        icon = "🧫"
     else:
         dept_sql = ""
         title = "Lab Operations Dashboard"
