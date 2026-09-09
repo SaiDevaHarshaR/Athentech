@@ -320,6 +320,12 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "directly answerable via COUNT(CASE WHEN TESTSTATUS='Sample Rejected' THEN 1 END) / COUNT(*) "
         "GROUP BY test name. Do not claim no rejection tracking exists — that was a real confirmed "
         "mistake; the data is right there.",
+        "- CRITICAL, confirmed real bug: a 'same test twice within 7 days' query did "
+        "'MAX(BILLDATE) - MIN(BILLDATE) <= 7' — subtracting two DATETIME values directly does NOT "
+        "reliably give you days in SQL Server, and produced an implausible result (883,002 patients "
+        "— clearly wrong for a real repeat-test count). ALWAYS use DATEDIFF(DAY, start, end) <= 7 "
+        "for a day-count comparison, never raw subtraction between two datetime columns — this "
+        "applies to every date-difference calculation, not just this one query.",
         "- CONFIRMED (real date range checked): trntemppatientrepeatevisits only covers "
         "LASTVISITDATE from 1 May 2026 to 2 July 2026 — a narrow ~2-month window, not a long "
         "history and not current either. This is a THIRD 'trntemp'-prefixed table confirmed to have "
