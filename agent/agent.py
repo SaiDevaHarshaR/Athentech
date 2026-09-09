@@ -290,7 +290,13 @@ def ask_agent(
     # ---- Deterministic dashboards (do not rely on LLM tool choice) ----
     q = (question or "").strip().lower()
 
-
+    DEPT_KEYWORDS = [
+        "radiology", "haematology", "hematology", "heamatology", "biochemistry",
+        "microbiology", "histopathology", "cytology", "cytogenetics",
+        "endoscopy", "serology", "hormones", "pathology",
+        "2d echo", "ecg", "tmt", "colonoscopy", "mammography", "ultrasound",
+        "ct scan", "mri", "doppler", "opg", "pft",
+    ]
     is_dashboard = "dashboard" in q or q in ("radiology", "laboratory", "lab")
     if is_premium and is_dashboard:
         matched = [d for d in DEPT_KEYWORDS if d in q]
