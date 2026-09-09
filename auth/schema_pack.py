@@ -153,6 +153,16 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "'Resistant', 'Sensitive' (antibiotic culture-sensitivity results specifically), NOT a "
         "general positive/abnormal flag for other test types — do not use it for a general "
         "'abnormal finding' question outside microbiology culture results.",
+        "- CONFIRMED (real, better table found): trntempabnormalreport exists — INVNAME, PARAMNAME, "
+        "PVALUE, MINVALUE, MAXVALUE, DESCRIPTION, BILLNO, BILLDATE, CREATEDATE, LOCATIONID, ORGNAME, "
+        "DOCNAME. Prefer this over manually range-checking trnparamresult for 'abnormal result' "
+        "questions — same TRY_CAST(PVALUE AS FLOAT) numeric-safety approach still applies since "
+        "PVALUE is still text here too.",
+        "- CONFIRMED (real bug found): common lay/short test names do NOT match real INVNAME values "
+        "— 'Urinalysis' returned 0 rows because the real stored name is 'Complete Urine Analysis "
+        "(CUE)'. Before concluding zero results for a named test, run SELECT DISTINCT INVNAME WHERE "
+        "INVNAME LIKE '%<broader keyword>%' first (e.g. '%urine%' not '%urinalysis%') to find the "
+        "real name — a lay term returning zero is more likely a naming mismatch than genuine absence.",
         "- CONFIRMED (real sample data): mstorganisation holds BOTH individual referring DOCTORS and "
         "referring HOSPITALS/ORGANIZATIONS mixed in the same table under ORGANISATIONNAME. Real "
         "sample rows: 'A SRINIVAS MBBS (TOOPRAN)' (COMPTYPE='L', doctor-shaped) vs 'AASHRITA "
