@@ -326,6 +326,23 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "— clearly wrong for a real repeat-test count). ALWAYS use DATEDIFF(DAY, start, end) <= 7 "
         "for a day-count comparison, never raw subtraction between two datetime columns — this "
         "applies to every date-difference calculation, not just this one query.",
+        "- CRITICAL, confirmed real bug, SEPARATE from the one above (the DATEDIFF fix alone did NOT "
+        "fix this): the same 'repeat test' query used 'WHERE TCODE IN (SELECT TCODE FROM ... GROUP "
+        "BY UHID, TCODE HAVING ...)' — this only checks that the TEST CODE matches something in the "
+        "repeat-list, NOT that it's the SAME PATIENT who repeated it. If even one patient repeats a "
+        "common test, EVERY patient who ever had that same test even once gets wrongly counted too "
+        "(confirmed: still produced 884,179, an implausible number, even after the DATEDIFF fix). "
+        "For 'same patient did X within a time window' questions, the subquery/join MUST correlate "
+        "on BOTH the patient identifier AND whatever else defines 'the same thing repeated' — never "
+        "filter the outer query on only one of the two matched columns from a multi-column GROUP BY. "
+        "Correct pattern: JOIN or EXISTS matching on UHID AND TCODE together, not TCODE alone.",
+        "- CONFIRMED (real describe_table result): msttallyregledger has columns named 'Dr.Amt' and "
+        "'Cr.Amt' — literal periods IN the column name. Writing SELECT Dr.Amt gets parsed as "
+        "'table alias Dr, column Amt', not the real column — always bracket-quote these: "
+        "SELECT [Dr.Amt], [Cr.Amt]. trnbillingcyclerates is confirmed to exist with real columns "
+        "(INVCODE, QTY, PRICE, LOCATIONID) — an earlier 'no billing discrepancies found' answer "
+        "against it may be genuinely correct or may need rechecking now that its real columns are "
+        "confirmed; not yet independently verified either way.",
         "- CONFIRMED (real date range checked): trntemppatientrepeatevisits only covers "
         "LASTVISITDATE from 1 May 2026 to 2 July 2026 — a narrow ~2-month window, not a long "
         "history and not current either. This is a THIRD 'trntemp'-prefixed table confirmed to have "
