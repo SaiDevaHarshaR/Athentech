@@ -343,8 +343,8 @@ def get_department_dashboard(
     Fixed lab/radiology dashboard. Use this INSTEAD of writing SQL for
     questions like "yesterday's radiology dashboard" or "lab dashboard today".
 
-    department: "radiology" | "laboratory" | "all"
-    period: "yesterday" | "today" | "this_month"
+    department: "radiology" | "laboratory" | "all" | a specific sub-department(haematology, biochemistry, microbiology, etc.)
+    period: "yesterday" | "today" | "this_month | "this_year" | "any_year" | "any_date"
     """
     department = (department or "all").strip().lower()
     period = (period or "yesterday").strip().lower()
