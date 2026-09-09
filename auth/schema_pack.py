@@ -339,10 +339,15 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- CONFIRMED (real describe_table result): msttallyregledger has columns named 'Dr.Amt' and "
         "'Cr.Amt' — literal periods IN the column name. Writing SELECT Dr.Amt gets parsed as "
         "'table alias Dr, column Amt', not the real column — always bracket-quote these: "
-        "SELECT [Dr.Amt], [Cr.Amt]. trnbillingcyclerates is confirmed to exist with real columns "
-        "(INVCODE, QTY, PRICE, LOCATIONID) — an earlier 'no billing discrepancies found' answer "
-        "against it may be genuinely correct or may need rechecking now that its real columns are "
-        "confirmed; not yet independently verified either way.",
+        "SELECT [Dr.Amt], [Cr.Amt].",
+        "- CONFIRMED (real row count checked): trnbillingcyclerates has ZERO rows — it is completely "
+        "empty. A real 'no billing discrepancies found' answer was produced by comparing against "
+        "this table, which was TRIVIALLY true (nothing to compare, not genuine confirmation that "
+        "pricing is consistent) — a misleading answer even though the query itself was correct. "
+        "NEVER present a comparison/discrepancy-check result as meaningful without confirming the "
+        "reference table actually has rows first — if it's empty, say plainly 'no billing rate "
+        "reference data is available to check against' instead of 'no discrepancies found', which "
+        "implies a real check happened when it didn't.",
         "- CONFIRMED (real date range checked): trntemppatientrepeatevisits only covers "
         "LASTVISITDATE from 1 May 2026 to 2 July 2026 — a narrow ~2-month window, not a long "
         "history and not current either. This is a THIRD 'trntemp'-prefixed table confirmed to have "
@@ -353,6 +358,14 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "months outside that range have zero data here regardless of what really happened — do not "
         "trust a low retention/repeat number from this table without checking whether the "
         "question's date range fits entirely within May-July 2026 first.",
+        "- GENERAL RULE, confirmed to have happened TWICE now (daycollection_mobileapp, "
+        "trnbillingcyclerates): before presenting a 'no X found'/'no discrepancies'/'zero results' "
+        "answer for a comparison or existence check against a specific table, verify that table "
+        "actually has rows (or rows matching the broader filter, ignoring the specific condition "
+        "being checked) — an empty or near-empty table produces a trivially-true zero that looks "
+        "identical to a genuine, meaningful zero but means something completely different. State "
+        "plainly when a table has no reference data to check against, rather than reporting a clean "
+        "'no issues found' that implies a real check happened.",
         "- GENERAL RULE, more important than any single column above — this is the actual repeating "
         "pattern found in production, not a one-off: for ANY column that looks like a status/type/"
         "mode/category (ends in STATUS, TYPE, MODE, or similar — e.g. STATUS, TESTSTATUS, PATTYPE, "
