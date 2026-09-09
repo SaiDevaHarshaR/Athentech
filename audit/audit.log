@@ -392,3 +392,11 @@
 {"ts": "2026-09-08T12:51:15.990510Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "CT-scan tests?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-08T12:51:57.800918Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "blood sugar tests?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-08T12:53:27.059192Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Department Performance", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:11:10.539857Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
+{"ts": "2026-09-09T06:12:12.824826Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:12:24.332704Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "this month's radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:12:35.018072Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "last month's radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:12:41.962061Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "this year's radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:13:08.586270Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "this month's Kompally collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:13:39.785864Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "recent patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T06:14:05.228938Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology tests for CBP", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

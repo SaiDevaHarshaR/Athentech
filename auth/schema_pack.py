@@ -16,7 +16,9 @@ CONFIRMED_TABLES_FROM_ATHENTECH = [
                            # TESTSTATUS on trninvlabdet is the only status source
     "mstlocation",        # dedicated location master table — check this before trntempdaycollall workaround
     "mstsubdepartment",   # SubDepartmentID — more granular than mstdepartment; likely explains why
-                           # DEPTCODE values go higher than mstdepartment's 9 rows cover
+                           # DEPTCODE values go higher than mstdepartment's 9 rows cover. Confirmed:
+                           # SubDepartmentID unique per SubDeptName (e.g. 15=ENDOSCOPY, 17=HAEMATOLOGY).
+                           # Joins: DEPARTMENTID=DEPARTMENTID, LOCATIONID=LocationID to mstdepartment.
     "mstinvestigationsdtls", "mstorginvestigationrates",  # investigation rates, paying-location / org-location wise
     "mstinvpackages",     # PACKAGECODE + LOCATIONID
     "trnparameter",       # test parameter definitions
@@ -90,6 +92,11 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
 
     lines = [
         "Preferred tables for common questions:",
+        "- CONFIRMED (AthenTech-given): looking up a specific test/investigation by name "
+        "(e.g. 'CBP', 'radiology tests for X') → SELECT * FROM mstInvestigations WHERE INVNAME LIKE "
+        "'%X%'. Use this directly — do NOT invent a join through mstoltestparamsmapping/"
+        "mstinvestigationconcform or any other table for this, that has already been tried and "
+        "returned wrong/empty results.",
         "- day collection for TODAY/THIS MONTH/recent dates → prefer trnmodeofcollectionsdet "
         "(MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID) — confirmed to have current live data.",
         "- trntempdaycollall's own COLLECTION AMOUNT COLUMNS (TOTALCASH, TOTALUPI, GTOTALCREDITS etc.) "
