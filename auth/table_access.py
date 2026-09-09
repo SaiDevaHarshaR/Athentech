@@ -260,6 +260,11 @@ REAL_TABLE_TO_CATEGORY = {
     "mstinvestigationmapping": "labs",  # investigation mapping
     "mstinvestigations": "labs",  # main investigations list
     "mstdepartment": "labs",  # department code -> name lookup (DEPARTMENTID, DEPARTMENTNAME) — confirmed needed to resolve DEPTCODE in trninvlabdet, was previously unclassified and blocked by default-deny
+    "trninvstatus": "labs",
+    "mstlocation": "labs",
+    "mstsubdepartment": "labs",
+    "trnparameter": "labs",
+    "mstorganisation": "billing",
     "mstinvestigationsclubbed": "labs",  # clubbed investigations
     "mstinvestigationsdtls": "labs",  # investigation details
     "mstinvestigationsdtls2019": "labs",  # investigation details 2019
