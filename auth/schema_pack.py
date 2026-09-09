@@ -320,6 +320,16 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "directly answerable via COUNT(CASE WHEN TESTSTATUS='Sample Rejected' THEN 1 END) / COUNT(*) "
         "GROUP BY test name. Do not claim no rejection tracking exists — that was a real confirmed "
         "mistake; the data is right there.",
+        "- CONFIRMED (real date range checked): trntemppatientrepeatevisits only covers "
+        "LASTVISITDATE from 1 May 2026 to 2 July 2026 — a narrow ~2-month window, not a long "
+        "history and not current either. This is a THIRD 'trntemp'-prefixed table confirmed to have "
+        "a real data coverage gap (same naming pattern as trntempdaycollall and "
+        "trntempabnormalreport, both already confirmed stale/limited too — treat any 'trntemp*' "
+        "table as suspect until its real date range is checked). A 'retention'/'repeat visit' "
+        "question spanning a WIDER window than May-July 2026 will silently undercount, since "
+        "months outside that range have zero data here regardless of what really happened — do not "
+        "trust a low retention/repeat number from this table without checking whether the "
+        "question's date range fits entirely within May-July 2026 first.",
         "- GENERAL RULE, more important than any single column above — this is the actual repeating "
         "pattern found in production, not a one-off: for ANY column that looks like a status/type/"
         "mode/category (ends in STATUS, TYPE, MODE, or similar — e.g. STATUS, TESTSTATUS, PATTYPE, "

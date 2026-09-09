@@ -723,7 +723,23 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "for a department name.)"
             )
 
-            
+        if mentions_no_followup:
+            user_message += (
+                "\n\n(This question needs 'no follow-up' defined concretely before writing SQL — "
+                "a real bug: checking 'no later bill exists' matches EVERY patient's most recent "
+                "bill trivially, since by definition nothing is later than the latest one. State "
+                "which definition you're using — e.g. 'exactly one bill ever' (COUNT(*)=1 per UHID), "
+                "or 'no second bill within N days of the first' — and say so in your answer, don't "
+                "silently pick one.)"
+            )
+        if mentions_doctor_unpaid:
+            user_message += (
+                "\n\n(NO CONFIRMED JOIN exists from mstdoctor to any billing table — a real bug: "
+                "mstdoctor.DOCID = trnmodeofcollectionsdet.PATIENTID was used before, which joins a "
+                "doctor ID to a PATIENT ID column, nonsense. describe_table BOTH tables and find a "
+                "real shared column before writing this join. If none exists, say so plainly instead "
+                "of running an invented join and reporting its result as if it meant something.)"
+            )    
         messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
