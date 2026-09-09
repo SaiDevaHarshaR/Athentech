@@ -128,34 +128,46 @@ def parse_dashboard_period(q: str) -> tuple[str, str]:
         return f"day:{d}", d
 
     # year only: "2025" / "2025's"
-    m = re.search(r"\b(20\d{2})\b", q)
-    if m and "dashboard" in q:
-        # if it's only a year (not part of a full date already handled)
-        year = m.group(1)
-        # avoid treating as year if a full date was present — already returned above
-        return f"year:{year}", year
-
-    # "4th september", "5 september", "september 4", "4 sep 2026"
     months = {
-        "jan": 1, "january": 1,
-        "feb": 2, "february": 2,
-        "mar": 3, "march": 3,
-        "apr": 4, "april": 4,
-        "may": 5,
-        "jun": 6, "june": 6,
-        "jul": 7, "july": 7,
-        "aug": 8, "august": 8,
-        "sep": 9, "sept": 9, "september": 9,
-        "oct": 10, "october": 10,
-        "nov": 11, "november": 11,
-        "dec": 12, "december": 12,
+        "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+        "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+        "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+        "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
     }
 
-    # e.g. 4th september 2026 / 4 september / 5th sep
-    m = re.search(
-        r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})?\b",
-        q,
-    )
+    # "4th september", "5 september", "september 4", "4 sep 2026"
+    m = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})?\b", q)
+    if m:
+        day = int(m.group(1))
+        mon_key = m.group(2).lower()
+        mon = next(v for k, v in months.items() if mon_key.startswith(k[:3]))
+        year = int(m.group(3)) if m.group(3) else datetime.now().year
+        d = f"{year:04d}-{mon:02d}-{day:02d}"
+        return f"day:{d}", d
+
+    # "september 4", "sep 5 2026"
+    m = re.search(r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*(\d{4})?\b", q)
+    if m:
+        mon_key = m.group(1).lower()
+        mon = next(v for k, v in months.items() if mon_key.startswith(k[:3]))
+        day = int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else datetime.now().year
+        d = f"{year:04d}-{mon:02d}-{day:02d}"
+        return f"day:{d}", d
+
+    # NEW: bare month name, no day — "July", "July month", "in August"
+    m = re.search(r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b(?:\s+(\d{4}))?", q)
+    if m:
+        mon_key = m.group(1).lower()
+        mon = next(v for k, v in months.items() if mon_key.startswith(k[:3]))
+        year = int(m.group(2)) if m.group(2) else datetime.now().year
+        return f"month:{year:04d}-{mon:02d}", f"{m.group(1).title()} {year}"
+
+    # year only: "2025" / "2025's" — LAST resort, after all specific-date checks
+    m = re.search(r"\b(20\d{2})\b", q)
+    if m and "dashboard" in q:
+        year = m.group(1)
+        return f"year:{year}", year
     if m:
         day = int(m.group(1))
         mon = months[m.group(2)[:3] if m.group(2)[:3] in months else m.group(2)]

@@ -402,6 +402,7 @@ def get_department_dashboard(
         )
         period_label = "Last Month"
 
+
     elif period == "this_year":
         date_sql = (
             "BILLDATE >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0) "
@@ -438,6 +439,14 @@ def get_department_dashboard(
             f"AND BILLDATE < '{int(year)+1}-01-01'"
         )
         period_label = year
+    elif period.startswith("month:"):
+        ym = period.split(":", 1)[1]  # "2026-07"
+        y, m = ym.split("-")
+        date_sql = (
+            f"BILLDATE >= '{ym}-01' "
+            f"AND BILLDATE < DATEADD(MONTH, 1, '{ym}-01')"
+        )
+        period_label = ym
 
     else:
         return f"Error: unsupported period '{period}'."
@@ -447,9 +456,9 @@ def get_department_dashboard(
     # radiology → resolve via mstdepartment
     if department == "radiology":
         dept_sql = (
-            "AND DEPTCODE = ("
-            "SELECT TOP 1 DEPARTMENTID FROM mstdepartment "
-            "WHERE DEPARTMENTNAME LIKE '%Radiology%'"
+            "AND DEPTCODE IN ("
+            "SELECT SubDepartmentID FROM mstsubdepartment "
+            "WHERE SubDeptName LIKE '%Radiology%'"
             ")"
         )
         title = "Radiology Dashboard"
@@ -459,11 +468,9 @@ def get_department_dashboard(
         title = "Laboratory Dashboard"
         icon = "🧪"
     elif department in SUB_DEPARTMENTS:
-        # DEPTCODE's range (up to ~83) matches mstsubdepartment, not
-        # mstdepartment (only 9 rows) — confirmed via a real profile.
         dept_sql = (
-            f"AND DEPTCODE = ("
-            f"SELECT TOP 1 SubDepartmentID FROM mstsubdepartment "
+            f"AND DEPTCODE IN ("
+            f"SELECT SubDepartmentID FROM mstsubdepartment "
             f"WHERE SubDeptName LIKE '%{department}%'"
             f")"
         )
