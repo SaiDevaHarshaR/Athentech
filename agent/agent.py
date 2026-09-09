@@ -306,12 +306,7 @@ def ask_agent(
             dept = "all"
         
         period, _label = parse_dashboard_period(q)
-        location_guess = q
-        for w in DEPT_KEYWORDS + ["dashboard", "lab", "laboratory", "today", "yesterday",
-                                    "this month", "last month", "this year", "last year",
-                                    "this week", "last week"]:
-            location_guess = location_guess.replace(w, " ")
-        location_guess = location_guess.strip() or None
+
         print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period} location={location_guess}")
         raw = get_department_dashboard.invoke({
             "department": dept,
