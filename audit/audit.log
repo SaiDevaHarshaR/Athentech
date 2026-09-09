@@ -448,3 +448,4 @@
 {"ts": "2026-09-09T07:41:08.121962Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "this month's collection breakdown by mode", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-09T07:45:59.110287Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-09T07:46:14.354041Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "yesterday's radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-09T07:50:07.450269Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

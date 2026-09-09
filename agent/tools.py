@@ -481,7 +481,30 @@ def get_department_dashboard(
         title = "Lab Operations Dashboard"
         icon = "📊"
 
+    if department == "radiology":
+        completed_join = (
+            "LEFT JOIN (SELECT DISTINCT BILLNO FROM trninvstatus "
+            "WHERE STATUS = 'Authenticated') auth "
+            "ON auth.BILLNO = trninvlabdet.BILLNO"
+        )
+        completed_select = "COUNT(DISTINCT auth.BILLNO) AS COMPLETED,"
+    else:
+        completed_join = ""
+        completed_select = (
+            "SUM(CASE WHEN TESTSTATUS IN ('Result Entry', 'Acknowledged') "
+            "THEN 1 ELSE 0 END) AS COMPLETED,"
+        )
 
+    sql = f"""
+SELECT
+    COUNT(*) AS PROCEDURES,
+    {completed_select}
+    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
+FROM trninvlabdet
+{completed_join}
+WHERE {date_sql}
+{dept_sql}
+""".strip()
 
     try:
         role_enum = Role(role)
