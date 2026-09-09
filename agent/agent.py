@@ -722,6 +722,8 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "NOT a location — never search trntempdaycollall.LOCATION "
                 "for a department name.)"
             )
+
+            
         messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
