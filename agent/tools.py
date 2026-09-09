@@ -494,18 +494,20 @@ WHERE {date_sql}
         pending = int(row[2] or 0)
 
         if procedures == 0:
-            return (
-                f"{icon} **{title}** · {period_label}\n"
-                f"No procedures found for this period "
-                f"(filter returned 0 rows)."
-            )
+            return f"No procedures found for {title} · {period_label} (filter returned 0 rows)."
 
-        return (
-            f"{icon} **{title}** · {period_label}\n"
-            f"**Procedures:** {procedures:,} · "
-            f"**Completed:** {completed:,} · "
-            f"**Pending:** {pending:,}"
-        )
+        import json
+        card = {
+            "icon": icon,
+            "title": title,
+            "subtitle": period_label,
+            "stats": [
+                {"label": "PROCEDURES", "value": f"{procedures:,}"},
+                {"label": "COMPLETED", "value": f"{completed:,}"},
+                {"label": "PENDING", "value": f"{pending:,}"},
+            ],
+        }
+        return "```dashboard-card\n" + json.dumps(card) + "\n```"
     except Exception as e:
         print(f"[get_department_dashboard] FAILED: {e}")
         return f"Dashboard query failed: {e}"
