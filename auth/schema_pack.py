@@ -148,18 +148,17 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- if table/metric not allowed or columns unclear: say not available — do not invent numbers",
         "- CONFIRMED (do not re-derive): trninvlabdet.DEPTCODE is a NUMERIC code, not a name — "
         "'Radiology' etc. is never the literal stored value, confirmed via a real profile of the "
-        "table (values look like '1','2','9','26','28'...). The real department NAME lives in "
-        "mstdepartment (DEPARTMENTID, DEPARTMENTNAME — confirmed 9 real rows including literally "
-        "'Radiology'). mstlabdesc is EMPTY (0 rows) — do not use it for this, it was tried and "
-        "confirmed useless. Resolve every department filter through mstdepartment:\n"
+        "table (values look like '1','2','9','26','28'...). This code can reference EITHER "
+        "mstdepartment (broad, only 9 rows, IDs 1-9) OR mstsubdepartment (granular, IDs up to 80+, "
+        "e.g. SubDepartmentID=17 is HAEMATOLOGY, 33 is RADIOLOGY PROCEDURE CHARGES) — DEPTCODE's full "
+        "range (up to ~83) matches mstsubdepartment's range, not mstdepartment's. For a SPECIFIC named "
+        "department/section (Haematology, Biochemistry, Microbiology, Endoscopy, etc.) that isn't one "
+        "of mstdepartment's 9 broad names, resolve through mstsubdepartment FIRST:\n"
         "    SELECT ... FROM trninvlabdet\n"
-        "    WHERE DEPTCODE = (SELECT DEPARTMENTID FROM mstdepartment WHERE DEPARTMENTNAME LIKE '%Radiology%')\n"
-        "  Never write DEPTCODE = 'Radiology' or any other department name directly — always resolve "
-        "through mstdepartment first, same principle as the location fix above. Note: mstdepartment "
-        "only has 9 broad department rows while DEPTCODE's full range goes higher (up to ~40) — those "
-        "higher values are likely more granular sub-codes not covered by this table; that's fine for "
-        "broad departments like Radiology (which resolves through mstdepartment correctly), just don't "
-        "assume mstdepartment covers every possible DEPTCODE value for narrower sub-categories.",
+        "    WHERE DEPTCODE = (SELECT SubDepartmentID FROM mstsubdepartment WHERE SubDeptName LIKE '%Haematology%')\n"
+        "  Only fall back to mstdepartment for genuinely broad terms (Radiology, Lab, Pathology) where "
+        "mstdepartment already has a direct row. mstlabdesc is EMPTY (0 rows) — never use it, confirmed "
+        "useless. Never write DEPTCODE = 'SomeName' directly in either case.",
         "- DEPTCODE is a DEPARTMENT, not a LOCATION — never search trntempdaycollall.LOCATION for a "
         "department name (e.g. LOCATION LIKE '%Radiology%' is always wrong, Radiology is not a "
         "branch/location, that was a real confirmed mistake in production).",
