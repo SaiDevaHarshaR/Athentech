@@ -481,15 +481,7 @@ def get_department_dashboard(
         title = "Lab Operations Dashboard"
         icon = "📊"
 
-    sql = f"""
-SELECT
-    COUNT(*) AS PROCEDURES,
-    SUM(CASE WHEN TESTSTATUS IN ('Result Entry', 'Acknowledged') THEN 1 ELSE 0 END) AS COMPLETED,
-    SUM(CASE WHEN TESTSTATUS = 'Pending' THEN 1 ELSE 0 END) AS PENDING
-FROM trninvlabdet
-WHERE {date_sql}
-{dept_sql}
-""".strip()
+
 
     try:
         role_enum = Role(role)
