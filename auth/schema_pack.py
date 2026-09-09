@@ -140,6 +140,18 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "- payment mode split (cash/card/upi) → trnmodeofcollectionsdet / pay mode detail tables (if allowed)",
         "- invoice/payments → trninvoicepayments, mstpaymentdetails, trninvpaydetails (if allowed)",
         "- labs → trninvlabdet, trninvlabpri, trnparamresult, mstinvestigations (if allowed)",
+        "- CONFIRMED (real sample data): mstorganisation holds BOTH individual referring DOCTORS and "
+        "referring HOSPITALS/ORGANIZATIONS mixed in the same table under ORGANISATIONNAME. Real "
+        "sample rows: 'A SRINIVAS MBBS (TOOPRAN)' (COMPTYPE='L', doctor-shaped) vs 'AASHRITA "
+        "HOSPITAL' / '.HIMIGIRI S.' (COMPTYPE='RL', hospital-shaped). COMPTYPE is very likely the "
+        "field that distinguishes them — this directly explains a real confirmed bug where 'top "
+        "referring doctors' mixed in hospital names, because nothing filtered by COMPTYPE. Only 2 "
+        "sample COMPTYPE values are confirmed so far ('L', 'RL') — the FULL set is NOT confirmed. "
+        "Before filtering by COMPTYPE for a 'doctors only' question, run SELECT DISTINCT COMPTYPE "
+        "FROM mstorganisation first to see every real value and confirm which one(s) mean individual "
+        "doctor — do not assume 'L' alone covers all doctors without checking. Other real columns: "
+        "ORGANISATIONCODE, CREDITLIMIT, CREDITPERIOD, ISCREDIT, ISINSURANCE, ACTIVE, LOCATIONID, "
+        "ORGTypeID.",
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
