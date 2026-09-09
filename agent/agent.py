@@ -278,15 +278,21 @@ def ask_agent(
     # ---- Deterministic dashboards (do not rely on LLM tool choice) ----
     q = (question or "").strip().lower()
 
+    DEPT_KEYWORDS = [
+        "radiology", "haematology", "hematology", "biochemistry",
+        "microbiology", "histopathology", "cytology", "cytogenetics",
+        "endoscopy", "serology", "hormones", "pathology", "cardiology",
+    ]
     is_dashboard = "dashboard" in q or q in ("radiology", "laboratory", "lab")
     if is_premium and is_dashboard:
-        if "radiology" in q:
-            dept = "radiology"
-        elif "lab" in q:  # laboratory / lab
+        matched = [d for d in DEPT_KEYWORDS if d in q]
+        if matched:
+            dept = matched[0]
+        elif "lab" in q:
             dept = "laboratory"
         else:
             dept = "all"
-
+        
         period, _label = parse_dashboard_period(q)
         print(f"[ask_agent] FORCED dashboard tool dept={dept} period={period}")
         raw = get_department_dashboard.invoke({
