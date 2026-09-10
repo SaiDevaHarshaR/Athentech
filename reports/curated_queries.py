@@ -54,29 +54,24 @@ def resolve_relative_date(value: str) -> str:
 
 def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_user=None, db_password=None):
     """
-    ⚠️ KNOWN GAP, NOT YET FIXED: AthenTech's dev team has instructed
-    banning ALL use of trntemp*-prefixed tables, including this
-    function's use of trntempdaycollall for location resolution — this
-    function still queries it and needs updating once mstlocation (the
-    dedicated location master table, never yet profiled) has its real
-    columns confirmed. Do not extend/copy this pattern elsewhere until
-    that's done — this is a temporary exception being tracked, not a
-    green light to keep using trntempdaycollall.
-
     Resolves a location keyword to its real LOCATIONID code (format
-    'LOC04' etc.) using trntempdaycollall, which has both the location
-    NAME and its real ID code together — no join needed.
+    'LOC04' etc.) using mstlocation, the confirmed dedicated location
+    master table (LOCATIONID, LOCATIONNAME — real sample rows verified:
+    LOC01=Kompally, LOC02=Kukatpally, LOC03=Kokapet, LOC04=Jagtial,
+    LOC10=Srikara-Boduppal).
 
-    IMPORTANT HISTORY: an earlier version of this function used
-    mstlocationusers.UserId, based on a real console log where
-    "Kompally" appeared to resolve correctly. That was wrong —
-    mstlocationusers turned out to be a STAFF/USER ACCOUNTS table
-    (real column contents: "DR.G.VIJAY RAMREDDY", "KM", etc. — people's
-    names), not a locations table. The earlier match was very likely a
-    staff member's name coincidentally containing the search keyword,
-    not an actual location — meaning every query using that resolved ID
-    was filtering by an essentially arbitrary wrong number. Confirmed
-    via a full unfiltered dump of the table's real contents.
+    IMPORTANT HISTORY: this function used to query trntempdaycollall,
+    which correctly resolved locations at the time — but AthenTech's
+    dev team later instructed banning all trntemp*-prefixed tables
+    outright (unrelated to whether the location resolution itself was
+    working), so this was switched to mstlocation, the proper dedicated
+    table for this, once its real columns were confirmed.
+
+    Before that, an even earlier version used mstlocationusers.UserId,
+    which was flatly wrong — that table's real content is staff names
+    ("DR.G.VIJAY RAMREDDY", "KM"), not locations at all; any earlier
+    match was a staff member's name coincidentally containing the
+    search keyword.
     """
     conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
@@ -84,7 +79,7 @@ def resolve_location_id(location_keyword: str, db_name: str, db_server=None, db_
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT DISTINCT LOCATIONID, LOCATION FROM trntempdaycollall WHERE LOCATION LIKE ?",
+            "SELECT DISTINCT LOCATIONID, LOCATIONNAME FROM mstlocation WHERE LOCATIONNAME LIKE ?",
             (f"%{location_keyword}%",)
         )
         rows = cursor.fetchall()
