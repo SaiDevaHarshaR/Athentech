@@ -749,7 +749,19 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "real shared column before writing this join. If none exists, say so plainly instead "
                 "of running an invented join and reporting its result as if it meant something.)"
             )
-
+        if mentions_tat:
+            user_message += (
+                "\n\n(This question is about TAT/turnaround time. Use EXACTLY this table and "
+                "these two columns, nothing else, even if another column exists and the query "
+                "would run without erroring: trnparamresult.BILLDATE and trnparamresult.CREATEDATE. "
+                "NEVER use trninvlabdet for this (it has no CREATEDATE). NEVER use REFUNDDATE, "
+                "EDITDATE, or any other date column as a substitute for CREATEDATE — REFUNDDATE "
+                "specifically is about refund processing, not result completion, and has been used "
+                "wrongly before. The exact formula, copy it exactly: "
+                "AVG(CAST(CASE WHEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) BETWEEN 0 AND 10080 "
+                "THEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) END AS BIGINT)) FROM trnparamresult. "
+                "This is not optional for this question.)"
+            )
         messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
