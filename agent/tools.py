@@ -772,7 +772,11 @@ def get_tat_compliance_dashboard(
 
     department: a department/sub-department name (e.g. "Radiology",
     "Microbiology") to filter to, or omit for all departments combined.
-    period: "today" | "yesterday" | "this_week" | "this_month".
+    period: "today" | "yesterday" | "this_week" | "this_month" | "day"
+    (use period="day" with specific_date set for one exact date).
+    location_keyword: a location NAME (e.g. "Jagtial") to filter to,
+    resolved automatically via mstlocation — omit for all locations.
+    specific_date: "YYYY-MM-DD" — only used when period="day".
     """
     from reports.tat_dashboard import get_tat_compliance_dashboard as _call
     from reports.curated_queries import resolve_location_id
