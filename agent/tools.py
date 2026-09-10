@@ -748,3 +748,70 @@ def get_lab_day_collection(
         if row:
             lines.append(f"  {label}: {row}")
     return "\n".join(lines)
+@tool
+def get_tat_compliance_dashboard(
+    department: str = None,
+    period: str = "today",
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
+    """
+    Real TAT compliance dashboard — completed tests, how many were
+    within/outside their SLA (from mstInvestigations.TATTIME/TATTYPE,
+    the real per-test expected turnaround time), compliance %, average
+    TAT, worst-performing department, and top 5 most-delayed tests by
+    % outside TAT. Use this INSTEAD of writing SQL for any "TAT
+    dashboard"/"TAT summary"/"turnaround time compliance" question —
+    this is a multi-part rollup that free-form SQL has not reliably
+    produced.
+
+    department: a department/sub-department name (e.g. "Radiology",
+    "Microbiology") to filter to, or omit for all departments combined.
+    period: "today" | "yesterday" | "this_week" | "this_month".
+    """
+    from reports.tat_dashboard import get_tat_compliance_dashboard as _call
+
+    if role not in ("admin", "doctor", "reception"):
+        return "Error: your role does not have access to this data."
+
+    result = _call(department, period, db_name, db_server, db_user, db_password)
+
+    if "error" in result:
+        return f"Error: {result['error']}"
+    if result.get("completed") == 0:
+        return result.get("message", "No data found for this period.")
+
+    import json
+    dept_label = f" · {department}" if department else ""
+    card = {
+        "icon": "⏱️",
+        "title": f"TAT Dashboard{dept_label}",
+        "subtitle": result["period_label"],
+        "stats": [
+            {"label": "COMPLETED", "value": f"{result['completed']:,}"},
+            {"label": "WITHIN TAT", "value": f"{result['within_tat']:,}"},
+            {"label": "OUTSIDE TAT", "value": f"{result['outside_tat']:,}"},
+            {"label": "COMPLIANCE", "value": f"{result['compliance_pct']}%"},
+        ],
+    }
+    if result.get("avg_tat_minutes") is not None:
+        card["footer"] = {"label": "Avg TAT", "value": f"{result['avg_tat_minutes']:.0f} min"}
+    if result.get("worst_dept"):
+        wd = result["worst_dept"]
+        card["callout"] = {
+            "label": "Worst dept",
+            "text": f"{wd['name']} — {wd['compliance_pct']}% compliance",
+        }
+    if result.get("top_delayed_tests"):
+        card["bar_section"] = {
+            "title": "Top Delayed Tests",
+            "subtitle": "(% outside TAT)",
+            "rows": [
+                {"label": t["name"], "value": t["outside_pct"], "extra": f"{t['outside_pct']}%"}
+                for t in result["top_delayed_tests"]
+            ],
+        }
+    return "```dashboard-card\n" + json.dumps(card) + "\n```"

@@ -645,7 +645,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
   details"), ask for a filter OR return TOP 10 recent rows only.
 """
 
-        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection]
+        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard]
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
 
@@ -785,6 +785,10 @@ Example of the exact target style, for "today's collection at Kukatpally":
                     "role": role, "db_name": db_name,
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
+                "get_tat_compliance_dashboard": {
+                "role": role, "db_name": db_name,
+                "db_server": db_server, "db_user": db_user, "db_password": db_password,
+            },
                 "search_schema": {"role": role},
             },
         )
