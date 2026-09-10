@@ -426,6 +426,16 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "identical to a genuine, meaningful zero but means something completely different. State "
         "plainly when a table has no reference data to check against, rather than reporting a clean "
         "'no issues found' that implies a real check happened.",
+        "- CONFIRMED real bug — a reasoning error, not a query error: asked for a standalone CBP test "
+        "(not a package), a real query correctly returned 5 rows including 'Complete Blood Picture "
+        "(CBP)' — a plain, standalone name with no package bundling — but the answer wrongly claimed "
+        "'no standalone CBP tests exist, all are part of packages.' The query and data were both "
+        "right; the conclusion drawn from them was wrong. When distinguishing standalone vs package/"
+        "combo tests, actually read each returned INVNAME carefully — a package/combo name contains "
+        "multiple test abbreviations joined by '/' or ',' or multiple test names concatenated "
+        "together (e.g. 'CBP HBA1C MER RUA BPB COTININE'); a standalone test has just the one test "
+        "name, nothing else. Don't summarize a result set without checking each row against this "
+        "distinction individually.",
         "- GENERAL RULE, more important than any single column above — this is the actual repeating "
         "pattern found in production, not a one-off: for ANY column that looks like a status/type/"
         "mode/category (ends in STATUS, TYPE, MODE, or similar — e.g. STATUS, TESTSTATUS, PATTYPE, "
