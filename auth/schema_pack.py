@@ -459,6 +459,15 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "zero SUM) from the ranking entirely, or list them separately as 'no data' rather than "
         "ranking them as 'worst'. Only compare locations that actually have real recorded activity "
         "for the period asked.",
+        "- CRITICAL, confirmed real bug: 'which branch performed best/worst' (or any branch "
+        "revenue/collection/performance ranking) used trnbranchissuedet (SUM(IssuedQty * Rate)) — "
+        "this is a STOCK/INVENTORY ISSUANCE table, not revenue at all. 'Performance'/'collection'/"
+        "'revenue' branch-ranking questions MUST use trnmodeofcollectionsdet (SUM(PAIDAMOUNT), "
+        "resolved via mstlocation for the branch name) — the same confirmed table used everywhere "
+        "else in this system for collections. Never substitute an inventory/stock table for a "
+        "revenue question just because it also has a LOCATIONID-like column and a price field — "
+        "check what the table actually represents (inventory movement vs money collected) before "
+        "using it for a financial ranking.",
     ]
 
     if billing:
