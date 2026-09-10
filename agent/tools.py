@@ -812,8 +812,11 @@ def get_tat_compliance_dashboard(
             {"label": "COMPLIANCE", "value": f"{result['compliance_pct']}%"},
         ],
     }
+    if result.get("dept_filter_disabled_note"):
+        card["meta"] = [{"icon": "⚠️", "text": result["dept_filter_disabled_note"]}]
     if result.get("avg_tat_minutes") is not None:
         card["footer"] = {"label": "Avg TAT", "value": f"{result['avg_tat_minutes']:.0f} min"}
+
     if result.get("worst_dept"):
         wd = result["worst_dept"]
         card["callout"] = {
