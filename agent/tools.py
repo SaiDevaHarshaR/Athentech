@@ -685,3 +685,50 @@ def search_schema(query: str, role: str = "viewer") -> str:
     for r in results:
         lines.append(f"• {r['table']} (score {r['score']}) — {r['why']}")
     return "\n".join(lines)
+
+@tool
+def get_lab_day_collection(
+    location_keyword: str,
+    bill_date: str,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
+    """
+    Real, authoritative cash/concession/due/refund reconciliation for
+    ONE location and ONE date — calls dbo.LabDayCollection directly
+    (the actual stored procedure AthenTech's own report screens use),
+    not a reconstruction from raw tables. Use this INSTEAD of writing
+    SQL for any "Cash In Hand"/detailed reconciliation/day collection
+    breakdown question — reconstructing this from raw tables has
+    repeatedly produced wrong numbers; this calls the real source.
+
+    location_keyword: a location NAME (e.g. "Jagtial", "Kompally") —
+    resolved to its real LOC0X code automatically via mstlocation, the
+    confirmed dedicated location master table. Partial match is fine.
+    bill_date: 'YYYY-MM-DD' — a real date, not "today"/"yesterday".
+    """
+    from reports.curated_queries import resolve_location_id
+    from reports.lab_day_collection import call_lab_day_collection
+
+    if role not in ("admin", "doctor", "reception"):
+        return "Error: your role does not have access to billing/collection data."
+
+    location_id, matched = resolve_location_id(location_keyword, db_name, db_server, db_user, db_password)
+    if location_id is None:
+        return f"Error: no location found matching '{location_keyword}'."
+    if location_id == "AMBIGUOUS":
+        return f"Multiple locations match '{location_keyword}': {', '.join(matched)}. Ask which one they mean."
+
+    result = call_lab_day_collection(location_id, bill_date, db_name, db_server, db_user, db_password)
+
+    if "error" in result:
+        return f"Error: {result['error']}"
+
+    lines = [f"Real reconciliation figures for {matched} ({location_id}) on {bill_date} (from dbo.LabDayCollection):"]
+    for label, row in result["labeled_results"].items():
+        if row:
+            lines.append(f"  {label}: {row}")
+    return "\n".join(lines)
