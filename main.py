@@ -729,6 +729,9 @@ async def ask_question(req: QueryRequest):
             "role": role if is_premium else None,
             "hospital_name": hospital_name if is_premium else None,
         }
+    #
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        import traceback
+        traceback.print_exc()
+        raise

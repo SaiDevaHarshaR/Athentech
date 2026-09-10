@@ -61,6 +61,8 @@ def check_input(text: str) -> tuple[bool, str]:
 
 
 def check_output(text: str) -> str:
+    if not isinstance(text, str):
+        text = str(text) if text else "I could not generate a response."
     try:
         from auth.license_service import get_settings
         redaction_enabled = get_settings().get("output_redaction_enabled", True)

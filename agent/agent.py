@@ -220,6 +220,25 @@ def parse_dashboard_period(q: str) -> tuple[str, str]:
         return f"day:{d}", d
 
     return "yesterday", "Yesterday"
+def _extract_text(content):
+    """
+    Most providers return .content as a plain string. Gemini can
+    return a list of content blocks instead (each a dict with a
+    'text' field, plus internal fields like 'signature' that must
+    never be shown to the user). Extract just the real text.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+            elif isinstance(block, str):
+                parts.append(block)
+        return "".join(parts)
+    return str(content) if content else ""
+
 
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
