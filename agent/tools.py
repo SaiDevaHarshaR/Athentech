@@ -699,17 +699,22 @@ def get_lab_day_collection(
 ) -> str:
     """
     Real, authoritative cash/concession/due/refund reconciliation for
-    ONE location and ONE date — calls dbo.LabDayCollection directly
-    (the actual stored procedure AthenTech's own report screens use),
-    not a reconstruction from raw tables. Use this INSTEAD of writing
-    SQL for any "Cash In Hand"/detailed reconciliation/day collection
-    breakdown question — reconstructing this from raw tables has
-    repeatedly produced wrong numbers; this calls the real source.
+    ONE location — calls dbo.LabDayCollection directly (the actual
+    stored procedure AthenTech's own report screens use), not a
+    reconstruction from raw tables. Use this INSTEAD of writing SQL
+    for any "Cash In Hand"/detailed reconciliation/day collection
+    breakdown question.
 
     location_keyword: a location NAME (e.g. "Jagtial", "Kompally") —
-    resolved to its real LOC0X code automatically via mstlocation, the
-    confirmed dedicated location master table. Partial match is fine.
-    bill_date: 'YYYY-MM-DD' — a real date, not "today"/"yesterday".
+    resolved to its real LOC0X code automatically via mstlocation.
+    bill_date: 'YYYY-MM-DD' — the start date (or the ONLY date, if
+    date_to is not given).
+    date_to: 'YYYY-MM-DD', OPTIONAL — set this for any question
+    covering MORE than one day ("this month", "last month", "August
+    2026", "this year", a week, etc.). Convert the period into real
+    start/end dates yourself and pass both bill_date and date_to — the
+    tool then sums real per-day figures across the whole range. If the
+    question is for exactly one specific day, leave date_to unset.
     """
     from reports.curated_queries import resolve_location_id
     from reports.lab_day_collection import call_lab_day_collection
