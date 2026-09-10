@@ -664,7 +664,12 @@ Example of the exact target style, for "today's collection at Kukatpally":
         )))
 
         question_lower = question.lower()
-
+        wants_dashboard_card = any(
+            kw in question_lower for kw in [
+                "dashboard", "overview", "summary", "snapshot",
+                "collection", "revenue", "day collection",
+            ]
+        ) and not any(kw in question_lower for kw in ["tat", "turnaround", "turn around"])
         wants_list_card = (not wants_dashboard_card) and any(
             kw in question_lower for kw in ["recent", "top ", "list ", "show me all", "show all"]
         )
