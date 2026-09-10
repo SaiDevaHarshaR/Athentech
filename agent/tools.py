@@ -833,3 +833,53 @@ def get_tat_compliance_dashboard(
             ],
         }
     return "```dashboard-card\n" + json.dumps(card) + "\n```"
+@tool
+def check_zero_collection_alert(
+    date_str: str,
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
+    """
+    Which active branches had ZERO collection on a given date — a real
+    operational alert, not a guess. date_str: 'YYYY-MM-DD'.
+    """
+    from reports.alerts import check_zero_collection_locations
+    if role not in ("admin", "doctor", "reception"):
+        return "Error: your role does not have access to this data."
+    result = check_zero_collection_locations(date_str, db_name, db_server, db_user, db_password)
+    if "error" in result:
+        return f"Error: {result['error']}"
+    locs = result["zero_collection_locations"]
+    if not locs:
+        return f"No active branch had zero collection on {date_str}."
+    names = ", ".join(l["name"] for l in locs)
+    return f"⚠️ Zero collection on {date_str}: {names}"
+
+
+@tool
+def check_tat_alert(
+    threshold_pct: float,
+    period: str = "yesterday",
+    role: str = "viewer",
+    db_name: str = None,
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+) -> str:
+    """
+    Flags if TAT compliance fell below threshold_pct for the period.
+    """
+    from reports.alerts import check_tat_compliance_alert
+    if role not in ("admin", "doctor", "reception"):
+        return "Error: your role does not have access to this data."
+    result = check_tat_compliance_alert(threshold_pct, period, db_name, db_server, db_user, db_password)
+    if "error" in result:
+        return f"Error: {result['error']}"
+    if not result.get("alert"):
+        if "compliance_pct" in result:
+            return f"TAT compliance is {result['compliance_pct']}% ({result['period_label']}) — above the {threshold_pct}% threshold, no alert."
+        return result.get("reason", "No alert.")
+    return f"🚨 TAT compliance dropped to {result['compliance_pct']}% ({result['period_label']}), below the {threshold_pct}% threshold."
