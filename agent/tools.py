@@ -757,6 +757,8 @@ def get_tat_compliance_dashboard(
     db_server: str = None,
     db_user: str = None,
     db_password: str = None,
+    location_keyword: str = None,
+    specific_date: str = None,
 ) -> str:
     """
     Real TAT compliance dashboard — completed tests, how many were
@@ -773,11 +775,20 @@ def get_tat_compliance_dashboard(
     period: "today" | "yesterday" | "this_week" | "this_month".
     """
     from reports.tat_dashboard import get_tat_compliance_dashboard as _call
+    from reports.curated_queries import resolve_location_id
 
     if role not in ("admin", "doctor", "reception"):
         return "Error: your role does not have access to this data."
 
-    result = _call(department, period, db_name, db_server, db_user, db_password)
+    resolved_loc_id = None
+    if location_keyword:
+        resolved_loc_id, matched_name = resolve_location_id(location_keyword, db_name, db_server, db_user, db_password)
+        if resolved_loc_id is None:
+            return f"Error: no location found matching '{location_keyword}'."
+        if resolved_loc_id == "AMBIGUOUS":
+            return f"Multiple locations match '{location_keyword}': {', '.join(matched_name)}. Ask which one they mean."
+
+    result = _call(department, period, db_name, db_server, db_user, db_password, specific_date=specific_date, location_id=resolved_loc_id)
 
     if "error" in result:
         return f"Error: {result['error']}"
