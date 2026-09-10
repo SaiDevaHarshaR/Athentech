@@ -314,7 +314,8 @@ def ask_agent(
         strip_words = DEPT_KEYWORDS + [
             "dashboard", "lab", "laboratory", "today", "yesterday",
             "this month", "last month", "this year", "last year",
-            "this week", "last week", "month", "year",
+            "this week", "last week", "month", "year","tat", "turnaround", "turn around", 
+            "turn around time",
             "january", "february", "march", "april", "may", "june", "july",
             "august", "september", "october", "november", "december",
             "jan", "feb", "mar", "apr", "jun", "jul", "aug",
