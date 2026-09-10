@@ -9,12 +9,12 @@ from outside. Confirmed entirely SELECT-only internally (no INSERT/
 UPDATE/DELETE anywhere in the procedure body) — safe to call as a
 real read-only operation, not a write.
 
-KNOWN GAP: takes a raw LOCATIONID code (e.g. 'LOC04') directly, not a
-location name — the usual name-resolution path (trntempdaycollall) is
-banned per AthenTech instruction, and mstlocation (the likely
-replacement) hasn't been profiled/confirmed yet. Add name resolution
-once that's done.
+Takes a raw LOCATIONID code (e.g. 'LOC04') — name resolution now
+happens one layer up, in agent/tools.py's get_lab_day_collection, via
+mstlocation (the confirmed real location master table).
 """
+
+import re
 
 from database.connection import get_hospital_connection
 
@@ -51,7 +51,27 @@ def call_lab_day_collection(
     location and one specific date (YYYY-MM-DD). Returns the labeled
     result sets as a dict — real, authoritative figures, not a
     reconstruction.
+
+    CONFIRMED (real procedure body): the 'Lab' activity is SINGLE-DAY
+    ONLY — every branch compares BILLDATE = @billdate, never a range.
+    There is no way to get a "this year"/"this month" total from this
+    activity — a real bug already happened where a broader period got
+    silently answered with just one day's figures under a wrong label.
+    This function refuses anything that isn't a real single date
+    rather than repeat that.
     """
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", bill_date):
+        return {
+            "error": (
+                f"'{bill_date}' is not a single real date (YYYY-MM-DD). "
+                "This reconciliation is confirmed SINGLE-DAY ONLY in the real stored "
+                "procedure — there is no way to get a 'this year'/'this month' total "
+                "from it. If a period total is genuinely needed, that would require "
+                "calling this once per day in the range and summing results — not "
+                "supported yet. Ask for one specific date instead."
+            )
+        }
+
     conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         return {"error": "Could not connect to the hospital database."}
