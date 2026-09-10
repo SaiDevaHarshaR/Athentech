@@ -759,6 +759,9 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "get_verified_day_collection": {
                     "role": role, "db_name": db_name,
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                },"get_lab_day_collection": {
+                    "role": role, "db_name": db_name,
+                    "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
                 "search_schema": {"role": role},
             },
