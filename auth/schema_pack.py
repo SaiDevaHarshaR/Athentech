@@ -442,6 +442,12 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "mstlocationusers (banned) or trntempdaycollall (banned). If you truly cannot resolve it, "
         "say the location code plainly as a code (e.g. \"location code LOC04\") rather than "
         "presenting it as if it were already a name.",
+        "- CONFIRMED (AthenTech-given, real join for patient test results): to get a patient's test "
+        "results by bill number: trnINVLABDET (a, BILLNO/BILLDATE/TCODE) INNER JOIN trnINVLABPRI "
+        "(b, on a.BILLNO=b.BILLNO, gives Name/Phone) INNER JOIN mstInvestigations (c, on "
+        "a.TCODE=c.INVCODE, gives INVNAME) INNER JOIN trnParamResult (p, on a.BILLNO=p.BILLNO, gives "
+        "the actual result values). Use this exact join chain for 'show results for bill X' or "
+        "'patient test results' questions.",
         "- GENERAL RULE: your first query returning 0 rows is NOT automatically the final answer. You "
         "have room for several tool calls — use it. Before telling the user 'no data available', ask "
         "yourself what could be wrong with the query itself: wrong table (try another from the "
