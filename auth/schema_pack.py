@@ -188,12 +188,13 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "answers 'most recently added doctor records', a completely different question from 'which "
         "doctors refer the most patients'. 'Top'/'most'/'highest' always means aggregate ranking "
         "(COUNT/SUM + GROUP BY + ORDER BY that count DESC), never recency, unless the question "
-        "explicitly asks for recency ('most recently added'). To rank doctors by actual referral "
-        "volume, find the real column linking bills to a referring doctor (trninvlabdet/trninvlabpri "
-        "have REFDOCID and DOCCODE columns — confirmed to exist, but their real values were empty in "
-        "the small sample checked so far, so the exact join to mstorganisation.ORGANISATIONCODE is "
-        "NOT yet confirmed). describe_table and check real values on REFDOCID/DOCCODE before joining "
-        "— do not assume DOCCODE = ORGANISATIONCODE without seeing it work.",
+        "explicitly asks for recency ('most recently added').",
+        "- CONFIRMED (AthenTech-given, real doctor-billing join): trninvlabpri.REFDOCTCODE = "
+        "mstrefdoctor.DOCID — this is the real column linking a bill to its referring doctor. Use "
+        "this for 'top referring doctors', 'doctor referral volume', 'doctor revenue' questions — "
+        "join trninvlabpri to mstrefdoctor via REFDOCTCODE=DOCID, then GROUP BY the doctor and rank "
+        "by COUNT/SUM as appropriate. Do NOT use mstorganisation/mstdoctor for this — mstrefdoctor "
+        "via REFDOCTCODE is the confirmed real path.",
         "- always call describe_table before SELECT (never guess columns)",
         "- lists: SELECT TOP 10; totals: use SUM/COUNT/AVG over full filtered set (no TOP on aggregates)",
         "- filter by date + branch/location when asked (after you see real column names)",
@@ -312,9 +313,9 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "fabricated join with no basis, plus a fabricated STATUS='Unpaid' value that was never "
         "confirmed to exist. It returned 0 rows, but for the wrong reason (nonsense query, not "
         "genuine absence) — do not treat a 0-row result as meaningful when the join/filter itself "
-        "was invented. NO confirmed join from mstdoctor to billing exists yet — describe_table both "
-        "sides and verify real column names before attempting this kind of question again; if no "
-        "real join can be found, say so plainly instead of running an invented one.",
+        "was invented. Use the CONFIRMED real join instead: trninvlabpri.REFDOCTCODE = "
+        "mstrefdoctor.DOCID (see above) — do not go back to guessing mstdoctor.DOCID or any other "
+        "unconfirmed doctor-billing link now that the real one is known.",
         "- CONFIRMED (do not re-derive): trninvlabdet.TESTSTATUS DOES include 'Sample Rejected' as a "
         "real value (see the full confirmed list above) — a 'test rejection rate' question is "
         "directly answerable via COUNT(CASE WHEN TESTSTATUS='Sample Rejected' THEN 1 END) / COUNT(*) "
