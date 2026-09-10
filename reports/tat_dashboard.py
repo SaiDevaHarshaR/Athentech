@@ -22,13 +22,25 @@ def get_tat_compliance_dashboard(
     period: str,
     db_name: str,
     db_server=None, db_user=None, db_password=None,
+    specific_date: str = None,
+    location_id: str = None,
 ) -> dict:
     """
-    period: 'today' | 'yesterday' | 'this_week' | 'this_month'
+    period: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'day'
+      (use period='day' with specific_date='YYYY-MM-DD' for one exact date)
     department: a department/sub-department name to filter by, or
     None/'' for all departments combined.
+    location_id: a real LOC0X code (resolved one layer up via
+    mstlocation, same pattern as get_lab_day_collection), or None for
+    all locations combined.
     """
-    if period == "today":
+    if period == "day":
+        import re
+        if not specific_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", specific_date):
+            return {"error": f"period='day' requires a real specific_date (YYYY-MM-DD), got '{specific_date}'."}
+        date_sql = f"BILLDATE >= '{specific_date}' AND BILLDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
+        period_label = specific_date
+    elif period == "today":
         date_sql = "BILLDATE >= CAST(GETDATE() AS DATE) AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         period_label = "Today"
     elif period == "yesterday":
@@ -61,6 +73,10 @@ def get_tat_compliance_dashboard(
             ") "
         )
 
+    loc_sql = ""
+    if location_id:
+        loc_sql = f"AND p.LOCATIONID = '{location_id}' "
+
     # Expected TAT in minutes: Hours*60, Days*1440. NULL TATTIME/TATTYPE
     # (packages, or tests with no defined SLA) are excluded from
     # compliance — cannot classify within/outside without a real
@@ -79,7 +95,7 @@ def get_tat_compliance_dashboard(
     base_from = (
         "FROM trnparamresult p "
         "JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE "
-        f"WHERE p.{date_sql} {dept_sql}"
+        f"WHERE p.{date_sql} {dept_sql}{loc_sql}"
         f"AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL "
         f"AND {actual_tat_expr} IS NOT NULL"
     )
@@ -126,7 +142,7 @@ SELECT sd.SubDeptName,
 FROM trnparamresult p
 JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE
 JOIN mstsubdepartment sd ON inv.DEPARTMENTID = sd.SubDepartmentID
-WHERE p.{date_sql} {dept_sql}
+WHERE p.{date_sql} {dept_sql}{loc_sql}
 AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL
 AND {actual_tat_expr} IS NOT NULL
 GROUP BY sd.SubDeptName
@@ -148,7 +164,7 @@ SELECT inv.INVNAME,
     SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1 ELSE 0 END) AS OutsideCount
 FROM trnparamresult p
 JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE
-WHERE p.{date_sql} {dept_sql}
+WHERE p.{date_sql} {dept_sql}{loc_sql}
 AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL
 AND {actual_tat_expr} IS NOT NULL
 GROUP BY inv.INVNAME

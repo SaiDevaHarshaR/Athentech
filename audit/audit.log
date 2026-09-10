@@ -713,3 +713,4 @@
 {"ts": "2026-09-10T11:57:04.889734Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT summary", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T12:02:32.820688Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "describe mstInvestigations", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T12:03:34.250200Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show 10 sample rows of INVNAME, TATTIME, TATTYPE from mstInvestigations", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T12:14:25.241818Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
