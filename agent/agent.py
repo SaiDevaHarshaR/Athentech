@@ -15,6 +15,7 @@ from agent.tools import (
     get_verified_day_collection,
     search_schema,
     get_department_dashboard,
+    get_lab_day_collection
 )
 
 def _build_llm():
