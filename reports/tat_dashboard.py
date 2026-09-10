@@ -38,33 +38,41 @@ def get_tat_compliance_dashboard(
     """
     period: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'day'
       (use period='day' with specific_date='YYYY-MM-DD' for one exact date)
+    IMPORTANT (confirmed real bug, now fixed): the period is scoped by
+    RESULTENTRYDATE (when the test was actually completed), NOT
+    BILLDATE (when it was ordered/billed). Filtering by BILLDATE while
+    requiring a completed result caused a real bug — "yesterday" almost
+    always returned zero, since a test billed yesterday typically isn't
+    completed (both SAMPLECOLLECTEDDATE and RESULTENTRYDATE filled)
+    until today or later. Completion date is the correct anchor for
+    "how did we perform on tests completed in period X".
     location_id: a real LOC0X code (resolved one layer up, same pattern
     as get_lab_day_collection), or None for all locations combined.
     """
     if period == "day":
         if not specific_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", specific_date):
             return {"error": f"period='day' requires a real specific_date (YYYY-MM-DD), got '{specific_date}'."}
-        date_sql = f"s.BILLDATE >= '{specific_date}' AND s.BILLDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
+        date_sql = f"s.RESULTENTRYDATE >= '{specific_date}' AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
         period_label = specific_date
     elif period == "today":
-        date_sql = "s.BILLDATE >= CAST(GETDATE() AS DATE) AND s.BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+        date_sql = "s.RESULTENTRYDATE >= CAST(GETDATE() AS DATE) AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         period_label = "Today"
     elif period == "yesterday":
         date_sql = (
-            "s.BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
-            "AND s.BILLDATE < CAST(GETDATE() AS DATE)"
+            "s.RESULTENTRYDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
+            "AND s.RESULTENTRYDATE < CAST(GETDATE() AS DATE)"
         )
         period_label = "Yesterday"
     elif period == "this_week":
         date_sql = (
-            "s.BILLDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
-            "AND s.BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+            "s.RESULTENTRYDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
+            "AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         )
         period_label = "This Week"
     elif period == "this_month":
         date_sql = (
-            "s.BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
-            "AND s.BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
+            "s.RESULTENTRYDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
+            "AND s.RESULTENTRYDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
         )
         period_label = "This Month"
     else:
