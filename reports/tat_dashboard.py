@@ -7,11 +7,14 @@ trnparamresult.BILLDATE-to-CREATEDATE (confirmed correct table/columns
 for TAT elsewhere in this codebase — never trninvlabdet, it has no
 CREATEDATE).
 
-UNVERIFIED ASSUMPTION, flagged honestly: mstInvestigations.DEPARTMENTID
-is joined here against mstsubdepartment.SubDepartmentID — this matches
-the confirmed pattern for trninvlabdet.DEPTCODE elsewhere in this
-system, but has NOT been independently confirmed for this specific
-column. If department rollups look wrong, check this join first.
+CONFIRMED BROKEN (not just unverified): mstInvestigations.DEPARTMENTID
+does NOT match mstsubdepartment.SubDepartmentID's scheme — checked real
+CT/X-Ray (radiology) rows, their DEPARTMENTID values (9, 82, 25, 40, 2,
+22, 34, 79) never include 33 or 80, Radiology's actual confirmed
+SubDepartmentIDs. Department filtering and the worst-department rollup
+are both DISABLED here as a result — they were silently returning false
+zeros/wrong data before this was caught. The real lookup table for
+mstInvestigations.DEPARTMENTID has not been identified yet.
 """
 
 from database.connection import get_hospital_connection
@@ -65,12 +68,20 @@ def get_tat_compliance_dashboard(
         return {"error": f"Unsupported period '{period}'."}
 
     dept_sql = ""
+    dept_filter_disabled_note = None
     if department:
-        dept_sql = (
-            "AND inv.DEPARTMENTID IN ("
-            "SELECT SubDepartmentID FROM mstsubdepartment "
-            f"WHERE SubDeptName LIKE '%{department}%'"
-            ") "
+        # DISABLED — CONFIRMED BROKEN: mstInvestigations.DEPARTMENTID does
+        # NOT match mstsubdepartment.SubDepartmentID's scheme. Checked real
+        # CT/X-Ray (radiology) rows — their DEPARTMENTID values (9, 82, 25,
+        # 40, 2, 22, 34, 79) never include 33 or 80, Radiology's actual
+        # confirmed SubDepartmentIDs. This filter previously silently
+        # excluded ALL rows for any department, always returning a false
+        # zero rather than a real answer. Disabled until the real lookup
+        # table for mstInvestigations.DEPARTMENTID is identified — do not
+        # re-enable with the mstsubdepartment join, it's confirmed wrong.
+        dept_filter_disabled_note = (
+            f"Department filter ('{department}') could not be applied — the real lookup for "
+            "mstInvestigations.DEPARTMENTID is not yet confirmed. Showing all departments combined."
         )
 
     loc_sql = ""
@@ -124,38 +135,27 @@ SELECT
         avg_tat = float(row[3]) if row[3] is not None else None
 
         if completed == 0:
+            msg = "No completed tests with a defined TAT/SLA found for this period/department."
+            if dept_filter_disabled_note:
+                msg += " " + dept_filter_disabled_note
             return {
                 "period_label": period_label,
                 "department": department,
                 "completed": 0,
-                "message": "No completed tests with a defined TAT/SLA found for this period/department.",
+                "message": msg,
             }
 
         compliance_pct = round((within / completed) * 100, 2) if completed else None
 
-        # Worst department by compliance — build directly (can't reuse
-        # base_from's shape, this needs an extra JOIN to mstsubdepartment)
-        dept_sql_rollup = f"""
-SELECT sd.SubDeptName,
-    COUNT(*) AS Completed,
-    SUM(CASE WHEN {actual_tat_expr} <= {expected_tat_expr} THEN 1 ELSE 0 END) AS WithinTAT
-FROM trnparamresult p
-JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE
-JOIN mstsubdepartment sd ON inv.DEPARTMENTID = sd.SubDepartmentID
-WHERE p.{date_sql} {dept_sql}{loc_sql}
-AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL
-AND {actual_tat_expr} IS NOT NULL
-GROUP BY sd.SubDeptName
-HAVING COUNT(*) >= 5
-ORDER BY (SUM(CASE WHEN {actual_tat_expr} <= {expected_tat_expr} THEN 1.0 ELSE 0 END) / COUNT(*)) ASC
-"""
-        cursor.execute(dept_sql_rollup)
-        dept_rows = cursor.fetchall()
+        # DISABLED — CONFIRMED BROKEN, same root cause as the department
+        # filter above: mstInvestigations.DEPARTMENTID does not match
+        # mstsubdepartment.SubDepartmentID, so this join would silently
+        # return zero/wrong department names rather than a real rollup.
         worst_dept = None
-        if dept_rows:
-            name, dept_completed, dept_within = dept_rows[0]
-            dept_compliance = round((dept_within / dept_completed) * 100, 1) if dept_completed else 0
-            worst_dept = {"name": name, "compliance_pct": dept_compliance, "completed": dept_completed}
+        worst_dept_disabled_note = (
+            "Worst-department breakdown is not available yet — the real lookup for "
+            "mstInvestigations.DEPARTMENTID has not been confirmed."
+        )
 
         # Top delayed tests by % outside TAT
         test_sql = f"""
@@ -190,7 +190,9 @@ ORDER BY (SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1.0 ELSE 0 
             "compliance_pct": compliance_pct,
             "avg_tat_minutes": round(avg_tat, 1) if avg_tat is not None else None,
             "worst_dept": worst_dept,
+            "worst_dept_disabled_note": worst_dept_disabled_note,
             "top_delayed_tests": top_delayed,
+            "dept_filter_disabled_note": dept_filter_disabled_note,
         }
     except Exception as e:
         return {"error": f"TAT dashboard query failed: {e}"}
