@@ -692,3 +692,5 @@
 {"ts": "2026-09-10T11:15:29.625416Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:15:40.901820Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:15:45.825717Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:19:22.903289Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Average TAT", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:22:01.670876Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
