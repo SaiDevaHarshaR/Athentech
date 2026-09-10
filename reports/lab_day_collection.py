@@ -15,6 +15,7 @@ mstlocation (the confirmed real location master table).
 """
 
 import re
+from datetime import datetime, timedelta
 
 from database.connection import get_hospital_connection
 
@@ -111,3 +112,64 @@ def call_lab_day_collection(
         return {"error": f"Procedure call failed: {e}"}
     finally:
         conn.close()
+
+
+def call_lab_day_collection_range(
+    location_id: str,
+    date_from: str,
+    date_to: str,
+    db_name: str,
+    db_server=None, db_user=None, db_password=None,
+) -> dict:
+    """
+    Genuine period reconciliation (a real week/month/year, not one
+    mislabeled day) — calls call_lab_day_collection ONCE PER DAY in
+    [date_from, date_to] and sums each labeled figure across all days.
+    Slower than a single day (one procedure call per day in the range,
+    each with its own DB round-trip) but produces real, correct totals
+    instead of one day silently standing in for a whole period.
+
+    Skips (doesn't fail on) individual days that error or return no
+    data — a location plausibly has zero activity on some individual
+    days within a real month.
+    """
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
+        return {"error": f"date_from/date_to must be real YYYY-MM-DD dates, got '{date_from}'/'{date_to}'."}
+
+    start = datetime.strptime(date_from, "%Y-%m-%d").date()
+    end = datetime.strptime(date_to, "%Y-%m-%d").date()
+    if end < start:
+        return {"error": f"date_to ({date_to}) is before date_from ({date_from})."}
+    if (end - start).days > 366:
+        return {"error": "Range too large (>1 year) — this calls the procedure once per day, capped for safety."}
+
+    totals = {label: 0.0 for label in _LAB_RESULT_SET_LABELS}
+    days_with_data = 0
+    days_checked = 0
+    current = start
+
+    while current <= end:
+        day_str = current.isoformat()
+        result = call_lab_day_collection(location_id, day_str, db_name, db_server, db_user, db_password)
+        days_checked += 1
+        if "error" not in result:
+            had_any = False
+            for label, row in result.get("labeled_results", {}).items():
+                if row and row[0] is not None:
+                    try:
+                        totals[label] += float(row[0])
+                        had_any = True
+                    except (TypeError, ValueError):
+                        pass
+            if had_any:
+                days_with_data += 1
+        current += timedelta(days=1)
+
+    return {
+        "location_id": location_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "days_checked": days_checked,
+        "days_with_data": days_with_data,
+        "totals": totals,
+    }
