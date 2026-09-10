@@ -202,7 +202,18 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "— 'Urinalysis' returned 0 rows because the real stored name is 'Complete Urine Analysis "
         "(CUE)'. Before concluding zero results for a named test, run SELECT DISTINCT INVNAME WHERE "
         "INVNAME LIKE '%<broader keyword>%' first (e.g. '%urine%' not '%urinalysis%') to find the "
-        "real name — a lay term returning zero is more likely a naming mismatch than genuine absence.",
+        "real name — a lay term returning zero is more likely a naming mismatch than genuine absence. "
+        "SAME BUG CONFIRMED AGAIN for imaging modalities: 'MRI', 'CT Scan', 'Ultrasound', 'X-Ray' as "
+        "exact-match strings all returned 0 rows — real INVNAME values are near-certainly longer/"
+        "specific (e.g. 'MRI Brain Plain', 'USG Abdomen', 'CT Chest') not the bare modality word. "
+        "ALWAYS use LIKE '%MRI%'/'%CT%'/'%Ultrasound%'/'%X-Ray%'/'%X Ray%' (never exact IN(...) match "
+        "on a modality name) and/or check DISTINCT INVNAME first for any imaging-modality question.",
+        "- CRITICAL, confirmed real bug: a 'radiology procedure count this week vs last week' query "
+        "silently added TESTSTATUS IN ('Result Entry','Acknowledged') — a COMPLETION filter that "
+        "wasn't asked for. 'Procedure count' means ALL procedures regardless of status, not just "
+        "completed ones — this undercounted. Only filter by TESTSTATUS/completion status when the "
+        "question explicitly asks about completed/pending/a specific status, never by default on a "
+        "plain count/volume question.",
         "- CONFIRMED (real sample data): mstorganisation holds BOTH individual referring DOCTORS and "
         "referring HOSPITALS/ORGANIZATIONS mixed in the same table under ORGANISATIONNAME. Real "
         "sample rows: 'A SRINIVAS MBBS (TOOPRAN)' (COMPTYPE='L', doctor-shaped) vs 'AASHRITA "
