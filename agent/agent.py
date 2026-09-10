@@ -27,7 +27,19 @@ def _build_llm():
     OpenAI requires settings.llm_model to be set explicitly in .env.
     """
     provider = (settings.llm_provider or "groq").lower()
-
+    if provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        if not settings.llm_model:
+            raise RuntimeError(
+                "LLM_PROVIDER=gemini requires LLM_MODEL to be set in .env "
+                "(e.g. LLM_MODEL=gemini-2.5-flash)."
+            )
+        print(f"[agent] Using Gemini — model: {settings.llm_model}")
+        return ChatGoogleGenerativeAI(
+            model=settings.llm_model,
+            temperature=0,
+            google_api_key=settings.gemini_api_key,
+        )
     if provider == "openai":
         from langchain_openai import ChatOpenAI
         if not settings.llm_model:
@@ -66,7 +78,12 @@ def _build_llm():
     )
 
 
-llm = _build_llm()
+try:
+    llm = _build_llm()
+except Exception as e:
+    import traceback
+    traceback.print_exc()
+    raise 
 MAX_TOOL_ROUNDS = 6
 # Was 2 — enough for one focused metric group (describe_table + run_sql_query
 # on a single table) but not for a broad multi-source dashboard question

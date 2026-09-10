@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     groq_api_key: str
     tavily_api_key: str = ""
+    gemini_api_key: str = ""
 
     # --- LLM provider selection ---
     # Defaults to "groq" so nothing changes unless you explicitly set this.
