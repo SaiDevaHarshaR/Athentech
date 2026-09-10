@@ -24,10 +24,13 @@ import os
 import re
 
 from auth.table_access import REAL_TABLE_TO_CATEGORY
-
 _PROFILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schema_profile.json")
 
-
+_BANNED_TABLES = {
+    "trntempdaycollall", "trntempabnormalreport", "trntemppatientrepeatevisits",
+    "trntempbranchwisecoll", "trntempmoncoll", "trntempshiftcollecrpt",
+    "trnbillingcyclerates", "daycollection_mobileapp",
+}
 def _load_profile() -> dict:
     """{table_name_lower: profile_dict}, or {} if not generated yet —
     search still works without this, just with a weaker signal."""
