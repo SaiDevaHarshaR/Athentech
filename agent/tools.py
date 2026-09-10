@@ -5,7 +5,7 @@ from database.connection import get_hospital_connection
 from auth.roles import Role
 from auth.table_access import check_query_access, check_table_access
 from auth.table_relationships import get_relationships_for_table
-
+import threading
 # Per-request schema cache: {table_name: {real column names}}, populated
 # by describe_table and reused by run_sql_query's validator so it
 # doesn't redundantly re-query INFORMATION_SCHEMA for a table this same
