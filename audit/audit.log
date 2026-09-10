@@ -708,3 +708,4 @@
 {"ts": "2026-09-10T11:49:36.294917Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:49:58.910535Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:52:25.698376Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show me all 5 rows from mstInvestigations where INVNAME contains CBP, show full INVNAME", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:54:15.461983Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT summary", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
