@@ -252,7 +252,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
 
     for _ in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
-            return response.content if response.content else None
+            return _extract_text(response.content) or None
 
         messages.append(response)
 
@@ -282,7 +282,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
 
     # Check final response after last loop iteration
     if not getattr(response, "tool_calls", None):
-        return response.content if response.content else None
+        return _extract_text(response.content) or None
 
     messages.append(
         HumanMessage(
@@ -295,7 +295,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     final = _invoke_with_retry(llm, messages, retries=0)
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again."
-    return final.content if final.content else None
+    return _extract_text(final.content) or None
 
 # BEFORE: nothing here
 
