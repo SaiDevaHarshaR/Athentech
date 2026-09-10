@@ -449,6 +449,16 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "column name you guessed instead of confirming with describe_table. Try at least one genuinely "
         "different approach before concluding there's no data. Only report 'no data' after a real "
         "second attempt, not after one query that happened to return nothing.",
+        "- CRITICAL, confirmed real bug: a 'best/worst performing branch' ranking labeled a location "
+        "with ₹0 collection as 'Worst Performing' — treating a zero from NO RECORDED ACTIVITY as if "
+        "it were a genuine low-performance data point. These are not the same thing: a branch with "
+        "real transactions that happen to total low is a genuine 'worst performer'; a branch with "
+        "ZERO rows at all (no data found, not even a zero-amount row) most likely reflects no "
+        "activity recorded yet, a closed location that day, or a lag — not a fair comparison point. "
+        "For 'best/worst'/ranking questions: exclude locations with GENUINELY ZERO ROWS (not just a "
+        "zero SUM) from the ranking entirely, or list them separately as 'no data' rather than "
+        "ranking them as 'worst'. Only compare locations that actually have real recorded activity "
+        "for the period asked.",
     ]
 
     if billing:
