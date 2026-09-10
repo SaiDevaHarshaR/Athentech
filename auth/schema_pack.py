@@ -32,14 +32,14 @@ KNOWN_OPERATIONAL_TABLES = [
     "mstpatientregistration",
     "tblclientdocinfo",
 
+    # location master (confirmed replacement for the banned trntempdaycollall workaround)
+    "mstlocation",
+
     # day collection / branch collection — trnmodeofcollectionsdet confirmed
-    # live; trntempdaycollall confirmed STALE as of Sept 2026 (see
-    # BILLING_COLLECTION_PRIORITY below for the full explanation)
-    "daycollection_mobileapp",
-    "trntempdaycollall",
-    "trntempbranchwisecoll",
-    "trntempmoncoll",
-    "trntempshiftcollecrpt",
+    # live. trntempdaycollall, trntempbranchwisecoll, trntempmoncoll,
+    # trntempshiftcollecrpt, daycollection_mobileapp, trnbillingcyclerates
+    # are ALL BANNED OUTRIGHT per AthenTech dev team instruction — removed
+    # from this list entirely, not just flagged as stale.
 
     # payments / mode of collection
     "trnmodeofcollectionsdet",
@@ -75,11 +75,9 @@ KNOWN_OPERATIONAL_TABLES = [
 
 BILLING_COLLECTION_PRIORITY = [
     "trnmodeofcollectionsdet",     # confirmed live/current — prefer this for "today"/"this month"/recent dates
-    "trntempdaycollall",           # CONFIRMED STALE as of Sept 2026 — has no data even for "yesterday" in
-                                    # live testing, last real data seen was ~July 2026. Only useful for
-                                    # historical date ranges before it stopped updating, never for current/recent.
-    "trntempbranchwisecoll",
-    "daycollection_mobileapp",     # may be empty
+    # trntempdaycollall, trntempbranchwisecoll, daycollection_mobileapp are
+    # ALL BANNED OUTRIGHT per AthenTech dev team instruction — removed
+    # entirely, not just deprioritized.
     "trninvoicepayments",
     "mstpaymentdetails",
 ]
@@ -98,23 +96,29 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "trntemppatientrepeatevisits, and any other trntemp*-prefixed table), trnbillingcyclerates, "
         "and daycollection_mobileapp. This includes trntempdaycollall's LOCATION/LOCATIONID columns "
         "— even though they were previously confirmed usable for location-name resolution, that "
-        "workaround is banned now too. mstlocation (a dedicated location master table, never yet "
-        "profiled) is the most likely replacement — describe_table it before assuming its column "
-        "names. Until confirmed, say plainly that location-name resolution needs re-verification "
-        "rather than falling back to trntempdaycollall. If a question would normally use one of "
-        "these banned tables for anything else, find a different real table instead — if no "
-        "alternative exists, say plainly that this specific thing isn't available. Also: do NOT "
-        "filter mstorganisation.COMPTYPE by 'L' or 'RL' to separate doctors from hospitals — that "
-        "assumption is no longer trusted; if a 'doctors only' question can't be answered another way "
-        "(e.g. via the confirmed mstrefdoctor join below), say so plainly instead of using COMPTYPE.",
-        "- LEAD, not yet confirmed: AthenTech mentioned a stored procedure (name starts with 'P', "
-        "exact name not yet known) that computes cash/concession/UPI/refund together and is meant to "
-        "be run periodically, caching its output — this is very likely the REAL source of the "
-        "'Cash In Hand'-style reconciliation report, and may also explain why several tables above "
-        "went stale (if this procedure stopped running, everything it was supposed to refresh would "
-        "stop updating too, all at once — one root cause, not several separate bugs). Get the real "
-        "procedure name if possible; until then, do not attempt to reconstruct a 'Cash In Hand' "
-        "figure from raw tables and present it as confirmed-correct.",
+        "workaround is banned now too. CONFIRMED REPLACEMENT: mstlocation (LOCATIONID, LOCATIONNAME, "
+        "ACTIVE — real sample rows verified: LOC01=Kompally, LOC02=Kukatpally, LOC03=Kokapet, "
+        "LOC04=Jagtial, LOC10=Srikara-Boduppal). Use mstlocation for ALL location name-to-code "
+        "resolution and location listing now — the same pattern as before, just this table instead: "
+        "SELECT DISTINCT LOCATIONID, LOCATIONNAME FROM mstlocation WHERE LOCATIONNAME LIKE '%X%'. If "
+        "a question would normally use one of the banned tables for anything ELSE (not location "
+        "resolution), find a different real table instead — if no alternative exists, say plainly "
+        "that this specific thing isn't available. Also: do NOT filter mstorganisation.COMPTYPE by "
+        "'L' or 'RL' to separate doctors from hospitals — that assumption is no longer trusted; if a "
+        "'doctors only' question can't be answered another way (e.g. via the confirmed mstrefdoctor "
+        "join below), say so plainly instead of using COMPTYPE.",
+        "- CONFIRMED (real procedure definition obtained): the 'Cash In Hand'/detailed reconciliation "
+        "logic lives in dbo.LabDayCollection — a real stored procedure with ~30 SELECT statements, "
+        "several calling OTHER stored functions (DUEREC, SEC_CONC, CCDUEAMT, CC_CREDIT, DUERECDtls, "
+        "SEC_CONCDtls, ...) not visible from here, plus tables never otherwise seen "
+        "(trnVoucherGen, trnCC_InvLabPri, mstCCReg, trnCCPayments, trnCompPayments). This is NOT "
+        "reconstructable from raw table queries — do not attempt it, that has repeatedly produced "
+        "wrong numbers. Use the get_lab_day_collection TOOL instead (calls this procedure directly, "
+        "with @ACTIVITY='Lab') for any 'Cash In Hand'/detailed reconciliation/day collection "
+        "breakdown question. CORRECTION to an earlier wrong claim: trnmodeofcollectionsdet.TOTALAMOUNT "
+        "DOES exist (the real procedure uses B.TOTALAMOUNT directly) — an earlier note saying it "
+        "doesn't exist was itself a guess that turned out wrong; TOTALAMOUNT, STATUS, PREVIOUSBILLNO "
+        "are all confirmed real columns on this table.",
         "- CONFIRMED (AthenTech-given): looking up a specific test/investigation by name "
         "(e.g. 'CBP', 'radiology tests for X') → SELECT * FROM mstInvestigations WHERE INVNAME LIKE "
         "'%X%'. Use this directly — do NOT invent a join through mstoltestparamsmapping/"
@@ -122,21 +126,19 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "returned wrong/empty results.",
         "- day collection for TODAY/THIS MONTH/recent dates → prefer trnmodeofcollectionsdet "
         "(MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID) — confirmed to have current live data.",
-        "- trntempdaycollall's own COLLECTION AMOUNT COLUMNS (TOTALCASH, TOTALUPI, GTOTALCREDITS etc.) "
-        "are CONFIRMED STALE as of Sept 2026 (empirically tested: has no rows even for yesterday's "
-        "date, last real amount data was around July 2026). Never use trntempdaycollall's amount "
-        "columns for a current/recent date question — use trnmodeofcollectionsdet's PAIDAMOUNT "
-        "instead for actual money totals. HOWEVER, trntempdaycollall's LOCATION and LOCATIONID "
-        "columns are still fine to use for resolving a location NAME to its code — the location list "
-        "itself doesn't go stale the way daily amounts do (see the location-resolution rule below). "
-        "Don't confuse these two different uses of the same table.",
+        "- trntempdaycollall is BANNED OUTRIGHT (see the ban rule above) — this entirely supersedes "
+        "any earlier note about using its LOCATION/LOCATIONID columns for location resolution. Use "
+        "mstlocation for that now (see the ban rule and the location-resolution rule below).",
         "- payment mode / who paid → trnmodeofcollectionsdet (MODE, PAIDAMOUNT, DATEOFBILL, UHID, LOCATIONID)",
-        "- CONFIRMED: trnmodeofcollectionsdet's real columns are MODE, PAIDAMOUNT, DATEOFBILL, UHID, "
-        "LOCATIONID, TYPE, BILLNO, PATIENTID — that's the full confirmed set. TOTALAMOUNT, "
-        "CONCESSIONAMOUNT, DUEAMOUNT do NOT exist on this table (guessed in production, never "
-        "confirmed) — if a broader billed/concession/due figure is needed, describe_table on "
-        "trninvlabpri instead (confirmed real columns: TOTALCHARGES, PAIDAMOUNT, CONCESSIONAMT, "
-        "CREDITAMOUNT, RefundAmt).",
+        "- CORRECTED (was wrong before, now confirmed via the real dbo.LabDayCollection procedure "
+        "definition): trnmodeofcollectionsdet DOES have TOTALAMOUNT, CONCESSIONAMOUNT, DUEAMOUNT, "
+        "STATUS, PREVIOUSBILLNO as real columns — an earlier note claiming TOTALAMOUNT/"
+        "CONCESSIONAMOUNT/DUEAMOUNT don't exist was itself an unconfirmed guess that turned out "
+        "wrong. Full confirmed set now: MODE, PAIDAMOUNT, TOTALAMOUNT, CONCESSIONAMOUNT, DUEAMOUNT, "
+        "DATEOFBILL, UHID, LOCATIONID, TYPE, BILLNO, PATIENTID, STATUS, PREVIOUSBILLNO. STATUS real "
+        "values seen in the real procedure: 'P' (paid), 'R' (refund) — full set not independently "
+        "confirmed beyond these two. PREVIOUSBILLNO links a DUE PAYMENT/LabRefund row back to the "
+        "original bill it relates to.",
         "- trntempbranchwisecoll is UNPROFILED — do not assume column names like GrossAmount, "
         "NetReceivedAmount, nrCash, nrCC, nrChqUPI, ReceivedAmount exist on it (guessed in production, "
         "never confirmed). describe_table it first before using it for anything.",
@@ -227,22 +229,22 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "in list-style questions ('which locations have billing records' returning staff names like "
         "'Ajay', 'Dr. Afnija' mixed with codes). NEVER query mstlocationusers for anything "
         "location-related — not for a specific lookup, not for a list of locations, not for any "
-        "purpose. Use trntempdaycollall instead every time (see next rule).",
-        "- CONFIRMED (do not re-derive): trntempdaycollall has BOTH the location NAME and its real "
-        "LOCATIONID code (format 'LOC0X') together, in the same table. Use this for ALL location "
-        "name-to-code resolution and for listing locations:\n"
+        "purpose. Use mstlocation instead every time (see next rule).",
+        "- CONFIRMED (do not re-derive): mstlocation has BOTH the location NAME and its real "
+        "LOCATIONID code (format 'LOC0X') together, in the same table (columns: LOCATIONID, "
+        "LOCATIONNAME, ACTIVE). Use this for ALL location name-to-code resolution and for listing "
+        "locations:\n"
         "    -- one specific location:\n"
         "    SELECT ... FROM trnmodeofcollectionsdet\n"
-        "    WHERE LOCATIONID IN (SELECT DISTINCT LOCATIONID FROM trntempdaycollall WHERE LOCATION LIKE '%Kompally%')\n"
+        "    WHERE LOCATIONID IN (SELECT DISTINCT LOCATIONID FROM mstlocation WHERE LOCATIONNAME LIKE '%Kompally%')\n"
         "    -- a list of active locations, WITH real names (not raw codes):\n"
-        "    SELECT DISTINCT LOCATION, LOCATIONID FROM trntempdaycollall\n"
-        "  Confirmed via a direct value-overlap check: trntempdaycollall.LOCATIONID and "
-        "trnmodeofcollectionsdet.LOCATIONID share ~91-97% real overlap — they are the same registry. "
-        "A small number of codes may exist on only one side (data drift) — that's expected, not a bug.",
+        "    SELECT DISTINCT LOCATIONID, LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1\n"
+        "  Real sample rows confirmed: LOC01=Kompally, LOC02=Kukatpally, LOC03=Kokapet, LOC04=Jagtial, "
+        "LOC10=Srikara-Boduppal.",
         "- CRITICAL — LOCATIONID vs location NAME are different things in OTHER tables too, do not "
         "confuse them: LOCATIONID (or similar *ID columns) holds a numeric/short CODE, NOT a name — "
         "LIKE-matching a name against an ID column will NEVER match anything. If a location filter "
-        "returns 0 rows after resolving correctly via trntempdaycollall, THEN it may be genuinely no "
+        "returns 0 rows after resolving correctly via mstlocation, THEN it may be genuinely no "
         "data — but also sanity-check by trying WITHOUT the date filter first. If that ALSO returns 0 "
         "rows, check MAX(DATEOFBILL) for that specific resolved code before concluding it's a bug — a "
         "real, confirmed case exists where one location's feed into trnmodeofcollectionsdet stopped "
@@ -264,8 +266,8 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "  Only fall back to mstdepartment for genuinely broad terms (Radiology, Lab, Pathology) where "
         "mstdepartment already has a direct row. mstlabdesc is EMPTY (0 rows) — never use it, confirmed "
         "useless. Never write DEPTCODE = 'SomeName' directly in either case.",
-        "- DEPTCODE is a DEPARTMENT, not a LOCATION — never search trntempdaycollall.LOCATION for a "
-        "department name (e.g. LOCATION LIKE '%Radiology%' is always wrong, Radiology is not a "
+        "- DEPTCODE is a DEPARTMENT, not a LOCATION — never search mstlocation.LOCATIONNAME for a "
+        "department name (e.g. LOCATIONNAME LIKE '%Radiology%' is always wrong, Radiology is not a "
         "branch/location, that was a real confirmed mistake in production).",
         "- CONFIRMED (do not re-derive): trninvlabdet.TESTSTATUS real values are exactly: "
         "'', 'Acknowledged', 'Cancelled', 'Pending', 'Registered', 'Result Entry', 'Sample Collected', "
@@ -427,10 +429,11 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "that as a confident zero — say plainly that no data was found for that filter and it may "
         "reflect a data lag rather than genuinely zero activity.",
         "- when a result is grouped/reported BY LOCATION, never show a raw code like 'LOC04' as the "
-        "final answer — that's a code, not a name a person can use. Resolve it via trntempdaycollall "
-        "(never mstlocationusers, banned above) before presenting the answer. If you truly cannot "
-        "resolve it, say the location code plainly as a code (e.g. \"location code LOC04\") rather "
-        "than presenting it as if it were already a name.",
+        "final answer — that's a code, not a name a person can use. Resolve it via mstlocation "
+        "(LOCATIONID, LOCATIONNAME — confirmed real, e.g. LOC01=Kompally, LOC04=Jagtial) — never "
+        "mstlocationusers (banned) or trntempdaycollall (banned). If you truly cannot resolve it, "
+        "say the location code plainly as a code (e.g. \"location code LOC04\") rather than "
+        "presenting it as if it were already a name.",
         "- GENERAL RULE: your first query returning 0 rows is NOT automatically the final answer. You "
         "have room for several tool calls — use it. Before telling the user 'no data available', ask "
         "yourself what could be wrong with the query itself: wrong table (try another from the "
