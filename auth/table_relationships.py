@@ -56,7 +56,7 @@ REAL_TABLE_RELATIONSHIPS = {
     "trninventoryconsumption": [("WorkStationID", "mstworkstations", "ID"), ("ConsumptionId", "mstconsumptionmaster", "ID")],
     "trninvlabdet": [("PATID", "mstpatientregistration", "ID"), ("BILLNO", "trninvlabpri", "BILLNO"), ("UHID", "trninvlabpri", "UHID")],
     "trninvlabdetloc16": [("PATID", "mstpatientregistration", "ID")],
-    "trninvlabpri": [("PATIENTID", "mstpatientregistration", "ID")],
+    "trninvlabpri": [("PATIENTID", "mstpatientregistration", "ID"), ("REFDOCTCODE", "mstrefdoctor", "DOCID")],
     "trninvlabprisweeja": [("PATIENTID", "mstpatientregistration", "ID")],
     "trninvoicepayments": [("TRANSID", "trnstocktransfer", "ID")],
     "trninvstatus": [("BILLNO", "trninvlabdet", "BILLNO"), ("BILLNO", "trninvlabpri", "BILLNO"), ("UHID", "trninvlabdet", "UHID"), ("UHID", "trninvlabpri", "UHID")],
