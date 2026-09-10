@@ -697,3 +697,4 @@
 {"ts": "2026-09-10T11:29:49.127433Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:30:25.312340Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT suryapet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:30:58.524948Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT suryapet last month", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:36:38.247746Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT suryapet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

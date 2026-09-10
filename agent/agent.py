@@ -749,14 +749,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "real shared column before writing this join. If none exists, say so plainly instead "
                 "of running an invented join and reporting its result as if it meant something.)"
             )
-        if mentions_tat:
-            user_message += (
-                "\n\n(This question is about TAT/turnaround time. Go DIRECTLY to trninvlabdet "
-                "(BILLDATE, CREATEDATE) — do not search other tables first. Use: "
-                "AVG(CASE WHEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) BETWEEN 0 AND 10080 "
-                "THEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) END) — bounded inside AVG only, "
-                "never as a WHERE filter. This is not optional for this question.)"
-            )
+
         messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
