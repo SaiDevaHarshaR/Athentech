@@ -92,6 +92,29 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
 
     lines = [
         "Preferred tables for common questions:",
+        "- BANNED OUTRIGHT (AthenTech dev team instruction — do not use, do not query, do not "
+        "reference at all, not even with caveats, not even for location-name lookup): any table "
+        "starting with 'trntemp' (trntempdaycollall, trntempabnormalreport, "
+        "trntemppatientrepeatevisits, and any other trntemp*-prefixed table), trnbillingcyclerates, "
+        "and daycollection_mobileapp. This includes trntempdaycollall's LOCATION/LOCATIONID columns "
+        "— even though they were previously confirmed usable for location-name resolution, that "
+        "workaround is banned now too. mstlocation (a dedicated location master table, never yet "
+        "profiled) is the most likely replacement — describe_table it before assuming its column "
+        "names. Until confirmed, say plainly that location-name resolution needs re-verification "
+        "rather than falling back to trntempdaycollall. If a question would normally use one of "
+        "these banned tables for anything else, find a different real table instead — if no "
+        "alternative exists, say plainly that this specific thing isn't available. Also: do NOT "
+        "filter mstorganisation.COMPTYPE by 'L' or 'RL' to separate doctors from hospitals — that "
+        "assumption is no longer trusted; if a 'doctors only' question can't be answered another way "
+        "(e.g. via the confirmed mstrefdoctor join below), say so plainly instead of using COMPTYPE.",
+        "- LEAD, not yet confirmed: AthenTech mentioned a stored procedure (name starts with 'P', "
+        "exact name not yet known) that computes cash/concession/UPI/refund together and is meant to "
+        "be run periodically, caching its output — this is very likely the REAL source of the "
+        "'Cash In Hand'-style reconciliation report, and may also explain why several tables above "
+        "went stale (if this procedure stopped running, everything it was supposed to refresh would "
+        "stop updating too, all at once — one root cause, not several separate bugs). Get the real "
+        "procedure name if possible; until then, do not attempt to reconstruct a 'Cash In Hand' "
+        "figure from raw tables and present it as confirmed-correct.",
         "- CONFIRMED (AthenTech-given): looking up a specific test/investigation by name "
         "(e.g. 'CBP', 'radiology tests for X') → SELECT * FROM mstInvestigations WHERE INVNAME LIKE "
         "'%X%'. Use this directly — do NOT invent a join through mstoltestparamsmapping/"
