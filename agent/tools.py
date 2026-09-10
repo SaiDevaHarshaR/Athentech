@@ -792,7 +792,7 @@ def get_tat_compliance_dashboard(
         if resolved_loc_id == "AMBIGUOUS":
             return f"Multiple locations match '{location_keyword}': {', '.join(matched_name)}. Ask which one they mean."
 
-    result = _call(department, period, db_name, db_server, db_user, db_password, specific_date=specific_date, location_id=resolved_loc_id)
+    result = _call(period, db_name, db_server, db_user, db_password, specific_date=specific_date, location_id=resolved_loc_id)    
 
     if "error" in result:
         return f"Error: {result['error']}"

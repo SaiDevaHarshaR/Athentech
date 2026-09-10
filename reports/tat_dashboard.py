@@ -1,27 +1,34 @@
 """
-TAT Compliance dashboard — real per-test SLA comparison, not a single
-aggregate number. Uses mstInvestigations.TATTIME/TATTYPE (confirmed
-real columns: TATTIME is a number-as-text, TATTYPE is 'Hours'/'Days')
-as the expected TAT, compared against the actual computed TAT from
-trnparamresult.BILLDATE-to-CREATEDATE (confirmed correct table/columns
-for TAT elsewhere in this codebase — never trninvlabdet, it has no
-CREATEDATE).
+TAT Compliance dashboard — REBUILT to use trnInvStatus's real
+per-stage clinical timestamps (SAMPLECOLLECTEDDATE, RESULTENTRYDATE)
+instead of trnparamresult.BILLDATE/CREATEDATE, which was confirmed to
+be the wrong measurement window: BILLDATE reflects billing/order time,
+not actual sample collection — using it as the TAT start point
+systematically inflates every measured TAT (a patient can be billed
+well before their sample is physically drawn). This was the likely
+cause of implausible 100%-delayed results seen using the old version.
 
-CONFIRMED BROKEN (not just unverified): mstInvestigations.DEPARTMENTID
-does NOT match mstsubdepartment.SubDepartmentID's scheme — checked real
-CT/X-Ray (radiology) rows, their DEPARTMENTID values (9, 82, 25, 40, 2,
-22, 34, 79) never include 33 or 80, Radiology's actual confirmed
-SubDepartmentIDs. Department filtering and the worst-department rollup
-are both DISABLED here as a result — they were silently returning false
-zeros/wrong data before this was caught. The real lookup table for
-mstInvestigations.DEPARTMENTID has not been identified yet.
+Real TAT here = SAMPLECOLLECTEDDATE (when the sample was physically
+collected) to RESULTENTRYDATE (when the lab entered the result) — the
+genuine clinical processing window, both confirmed real columns on
+trnInvStatus.
+
+Department filtering is intentionally NOT implemented — same root
+cause as the previous version: mstInvestigations.DEPARTMENTID does not
+match any confirmed department/sub-department table, and trnInvStatus's
+own DEPTCODE has not been independently verified against
+mstsubdepartment either. Don't add it back without checking that first.
+
+Location filtering works via trninvlabdet.LOCATIONID, joined on
+BILLNO (trnInvStatus itself has no LOCATIONID column).
 """
+
+import re
 
 from database.connection import get_hospital_connection
 
 
 def get_tat_compliance_dashboard(
-    department: str,
     period: str,
     db_name: str,
     db_server=None, db_user=None, db_password=None,
@@ -31,67 +38,42 @@ def get_tat_compliance_dashboard(
     """
     period: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'day'
       (use period='day' with specific_date='YYYY-MM-DD' for one exact date)
-    department: a department/sub-department name to filter by, or
-    None/'' for all departments combined.
-    location_id: a real LOC0X code (resolved one layer up via
-    mstlocation, same pattern as get_lab_day_collection), or None for
-    all locations combined.
+    location_id: a real LOC0X code (resolved one layer up, same pattern
+    as get_lab_day_collection), or None for all locations combined.
     """
     if period == "day":
-        import re
         if not specific_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", specific_date):
             return {"error": f"period='day' requires a real specific_date (YYYY-MM-DD), got '{specific_date}'."}
-        date_sql = f"BILLDATE >= '{specific_date}' AND BILLDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
+        date_sql = f"s.BILLDATE >= '{specific_date}' AND s.BILLDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
         period_label = specific_date
     elif period == "today":
-        date_sql = "BILLDATE >= CAST(GETDATE() AS DATE) AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+        date_sql = "s.BILLDATE >= CAST(GETDATE() AS DATE) AND s.BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         period_label = "Today"
     elif period == "yesterday":
         date_sql = (
-            "BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
-            "AND BILLDATE < CAST(GETDATE() AS DATE)"
+            "s.BILLDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
+            "AND s.BILLDATE < CAST(GETDATE() AS DATE)"
         )
         period_label = "Yesterday"
     elif period == "this_week":
         date_sql = (
-            "BILLDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
-            "AND BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
+            "s.BILLDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
+            "AND s.BILLDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
         )
         period_label = "This Week"
     elif period == "this_month":
         date_sql = (
-            "BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
-            "AND BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
+            "s.BILLDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
+            "AND s.BILLDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
         )
         period_label = "This Month"
     else:
         return {"error": f"Unsupported period '{period}'."}
 
-    dept_sql = ""
-    dept_filter_disabled_note = None
-    if department:
-        # DISABLED — CONFIRMED BROKEN: mstInvestigations.DEPARTMENTID does
-        # NOT match mstsubdepartment.SubDepartmentID's scheme. Checked real
-        # CT/X-Ray (radiology) rows — their DEPARTMENTID values (9, 82, 25,
-        # 40, 2, 22, 34, 79) never include 33 or 80, Radiology's actual
-        # confirmed SubDepartmentIDs. This filter previously silently
-        # excluded ALL rows for any department, always returning a false
-        # zero rather than a real answer. Disabled until the real lookup
-        # table for mstInvestigations.DEPARTMENTID is identified — do not
-        # re-enable with the mstsubdepartment join, it's confirmed wrong.
-        dept_filter_disabled_note = (
-            f"Department filter ('{department}') could not be applied — the real lookup for "
-            "mstInvestigations.DEPARTMENTID is not yet confirmed. Showing all departments combined."
-        )
-
     loc_sql = ""
     if location_id:
-        loc_sql = f"AND p.LOCATIONID = '{location_id}' "
+        loc_sql = f"AND l.LOCATIONID = '{location_id}' "
 
-    # Expected TAT in minutes: Hours*60, Days*1440. NULL TATTIME/TATTYPE
-    # (packages, or tests with no defined SLA) are excluded from
-    # compliance — cannot classify within/outside without a real
-    # threshold, and fabricating one would be a worse bug than omitting.
     expected_tat_expr = (
         "CASE "
         "WHEN inv.TATTYPE = 'Hours' THEN TRY_CAST(inv.TATTIME AS INT) * 60 "
@@ -99,14 +81,13 @@ def get_tat_compliance_dashboard(
         "ELSE NULL END"
     )
     actual_tat_expr = (
-        "CAST(CASE WHEN DATEDIFF(MINUTE, p.BILLDATE, p.CREATEDATE) BETWEEN 0 AND 10080 "
-        "THEN DATEDIFF(MINUTE, p.BILLDATE, p.CREATEDATE) END AS BIGINT)"
+        "CAST(CASE WHEN DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) BETWEEN 0 AND 10080 "
+        "THEN DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) END AS BIGINT)"
     )
 
-    base_from = (
-        "FROM trnparamresult p "
-        "JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE "
-        f"WHERE p.{date_sql} {dept_sql}{loc_sql}"
+    where_common = (
+        f"WHERE {date_sql} {loc_sql}"
+        "AND s.SAMPLECOLLECTEDDATE IS NOT NULL AND s.RESULTENTRYDATE IS NOT NULL "
         f"AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL "
         f"AND {actual_tat_expr} IS NOT NULL"
     )
@@ -118,14 +99,16 @@ def get_tat_compliance_dashboard(
     try:
         cursor = conn.cursor()
 
-        # Overall compliance
         summary_sql = f"""
 SELECT
     COUNT(*) AS Completed,
     SUM(CASE WHEN {actual_tat_expr} <= {expected_tat_expr} THEN 1 ELSE 0 END) AS WithinTAT,
     SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1 ELSE 0 END) AS OutsideTAT,
     AVG({actual_tat_expr}) AS AvgTAT
-{base_from}
+FROM trnInvStatus s
+JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
+JOIN trninvlabdet l ON s.BILLNO = l.BILLNO
+{where_common}
 """
         cursor.execute(summary_sql)
         row = cursor.fetchone()
@@ -135,38 +118,22 @@ SELECT
         avg_tat = float(row[3]) if row[3] is not None else None
 
         if completed == 0:
-            msg = "No completed tests with a defined TAT/SLA found for this period/department."
-            if dept_filter_disabled_note:
-                msg += " " + dept_filter_disabled_note
             return {
                 "period_label": period_label,
-                "department": department,
                 "completed": 0,
-                "message": msg,
+                "message": "No completed tests with both a real sample-collection and result-entry timestamp, and a defined TAT/SLA, were found for this period/location.",
             }
 
         compliance_pct = round((within / completed) * 100, 2) if completed else None
 
-        # DISABLED — CONFIRMED BROKEN, same root cause as the department
-        # filter above: mstInvestigations.DEPARTMENTID does not match
-        # mstsubdepartment.SubDepartmentID, so this join would silently
-        # return zero/wrong department names rather than a real rollup.
-        worst_dept = None
-        worst_dept_disabled_note = (
-            "Worst-department breakdown is not available yet — the real lookup for "
-            "mstInvestigations.DEPARTMENTID has not been confirmed."
-        )
-
-        # Top delayed tests by % outside TAT
         test_sql = f"""
 SELECT inv.INVNAME,
     COUNT(*) AS Completed,
     SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1 ELSE 0 END) AS OutsideCount
-FROM trnparamresult p
-JOIN mstInvestigations inv ON p.INVCODE = inv.INVCODE
-WHERE p.{date_sql} {dept_sql}{loc_sql}
-AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL
-AND {actual_tat_expr} IS NOT NULL
+FROM trnInvStatus s
+JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
+JOIN trninvlabdet l ON s.BILLNO = l.BILLNO
+{where_common}
 GROUP BY inv.INVNAME
 HAVING COUNT(*) >= 5
 ORDER BY (SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1.0 ELSE 0 END) / COUNT(*)) DESC
@@ -174,25 +141,18 @@ ORDER BY (SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1.0 ELSE 0 
         cursor.execute(test_sql)
         test_rows = cursor.fetchall()[:5]
         top_delayed = [
-            {
-                "name": r[0],
-                "outside_pct": round((r[2] / r[1]) * 100, 1) if r[1] else 0,
-            }
+            {"name": r[0], "outside_pct": round((r[2] / r[1]) * 100, 1) if r[1] else 0}
             for r in test_rows
         ]
 
         return {
             "period_label": period_label,
-            "department": department,
             "completed": completed,
             "within_tat": within,
             "outside_tat": outside,
             "compliance_pct": compliance_pct,
             "avg_tat_minutes": round(avg_tat, 1) if avg_tat is not None else None,
-            "worst_dept": worst_dept,
-            "worst_dept_disabled_note": worst_dept_disabled_note,
             "top_delayed_tests": top_delayed,
-            "dept_filter_disabled_note": dept_filter_disabled_note,
         }
     except Exception as e:
         return {"error": f"TAT dashboard query failed: {e}"}
