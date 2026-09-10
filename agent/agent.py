@@ -643,6 +643,8 @@ Example of the exact target style, for "today's collection at Kukatpally":
   an aggregate, and will give a wrong (usually near-zero) answer for a total.
   Use SQL aggregate functions (SUM/COUNT/AVG/etc.) with the appropriate
   WHERE/date filter over the FULL matching range instead.
+- For a comparison question ("X vs Y"), call the same tool twice - once per
+- location/department — and present both results together in your answer.
 - If a question is broad with no clear list-vs-total intent (like "payment
   details"), ask for a filter OR return TOP 10 recent rows only.
 """
@@ -791,8 +793,16 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "role": role, "db_name": db_name,
                 "db_server": db_server, "db_user": db_user, "db_password": db_password,
             },
+                "check_tat_alert": {
+                                "role": role, "db_name": db_name,
+                                "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                            },
+                "check_zero_collection_alert": {
+                                "role": role, "db_name": db_name,
+                                "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                            },
                 "search_schema": {"role": role},
-            },
+            }
         )
         if not answer:
             answer = "I could not find relevant data."
