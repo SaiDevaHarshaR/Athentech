@@ -102,9 +102,8 @@ def search_schema(query: str, allowed_tables: set = None, top_n: int = 8) -> lis
     tables = set(REAL_TABLE_TO_CATEGORY.keys())
 
     if allowed_tables is not None:
-        allowed_lower = {t.lower() for t in allowed_tables}
-        tables &= allowed_lower
-
+        tables = tables & {t.lower() for t in allowed_tables}
+    tables = {t for t in tables if t not in _BANNED_TABLES and not t.startswith("trntemp")}
     candidates = []
 
     for table in tables:
