@@ -298,7 +298,7 @@ def ask_agent(
         "2d echo", "ecg", "tmt", "colonoscopy", "mammography", "ultrasound",
         "ct scan", "mri", "doppler", "opg", "pft",
     ]
-    is_dashboard = "dashboard" in q or q in ("radiology", "laboratory", "lab")
+    is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     if is_premium and is_dashboard:
         matched = [d for d in DEPT_KEYWORDS if d in q]
         if matched:

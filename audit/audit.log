@@ -684,3 +684,5 @@
 {"ts": "2026-09-10T11:03:08.510354Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:03:22.882233Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "turn around time dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T11:03:31.420423Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:07:31.022791Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T11:07:52.582903Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "average TAT", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
