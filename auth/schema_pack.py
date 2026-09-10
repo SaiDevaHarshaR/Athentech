@@ -119,6 +119,14 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "DOES exist (the real procedure uses B.TOTALAMOUNT directly) — an earlier note saying it "
         "doesn't exist was itself a guess that turned out wrong; TOTALAMOUNT, STATUS, PREVIOUSBILLNO "
         "are all confirmed real columns on this table.",
+        "- CRITICAL, confirmed real bug: get_lab_day_collection is SINGLE-DAY ONLY — a real question "
+        "asking for 'this year' reconciliation silently got answered with just TODAY's single-day "
+        "figures, with no warning that a whole year was never actually computed. Passing a real, "
+        "valid single date when the user asked for a broader period (year/month/quarter) is NOT "
+        "correct just because the tool didn't error — you MUST explicitly tell the user this tool "
+        "only covers one date, name which date you actually used, and say plainly that the broader "
+        "period they asked for isn't supported by this tool. Never silently narrow the scope of what "
+        "was asked without saying so in the answer.",
         "- CONFIRMED (AthenTech-given): looking up a specific test/investigation by name "
         "(e.g. 'CBP', 'radiology tests for X') → SELECT * FROM mstInvestigations WHERE INVNAME LIKE "
         "'%X%'. Use this directly — do NOT invent a join through mstoltestparamsmapping/"

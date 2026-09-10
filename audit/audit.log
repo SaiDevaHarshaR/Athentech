@@ -608,3 +608,5 @@
 {"ts": "2026-09-10T06:26:52.991376Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Kompally last month reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T06:28:09.801336Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Attapur 2026 reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-10T06:28:29.782720Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Attapur this year reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T06:37:39.155476Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Attapur this year reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-10T06:39:12.148824Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "2026 Attapur reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
