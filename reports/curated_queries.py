@@ -156,7 +156,7 @@ def get_day_collection(
             FROM trnmodeofcollectionsdet
             WHERE LOCATIONID = ?
             AND DATEOFBILL >= ?
-            AND DATEOFBILL <= ?
+            AND DATEOFBILL < DATEADD(DAY, 1, CAST(? AS DATE))
             GROUP BY MODE
             """
         print(f"[get_day_collection] SQL: {query.strip()} | params: ({location_id!r}, {date_from!r}, {date_to!r})")

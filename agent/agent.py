@@ -387,7 +387,8 @@ labs, pharmacy, billing/collections, doctors, staff, inventory, branches/
 locations/collection centres, and similar hospital/diagnostics/healthcare
 BUSINESS OPERATIONS topics. This includes operational/business questions
 about the organization itself (e.g. "how many branches do we have",
-"which collection centres exist", "top referring doctors") — these are
+"which collection centres exist", "top referring doctors",
+"reconciliation", "cash in hand") — these are
 in scope even though they're not clinical questions.
 A single word or short fragment naming a department/category (e.g.
 "radiology", "billing", "pharmacy") is a request for information about
@@ -674,6 +675,11 @@ Example of the exact target style, for "today's collection at Kukatpally":
         )
         mentions_department = any(
             kw in question_lower for kw in ["radiology", "pathology", "microbiology", "cardiology", "biochemistry"]
+        )
+        mentions_billing_terms = any(
+            kw in question_lower for kw in [
+                "reconciliation", "cash in hand", "due amount", "concession",
+            ]
         )
         mentions_no_followup = any(
             kw in question_lower for kw in ["no follow-up", "never came back", "didn't return", "haven't returned"]
