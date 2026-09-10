@@ -690,6 +690,7 @@ def search_schema(query: str, role: str = "viewer") -> str:
 def get_lab_day_collection(
     location_keyword: str,
     bill_date: str,
+    date_to: str = None,
     role: str = "viewer",
     db_name: str = None,
     db_server: str = None,
@@ -722,11 +723,21 @@ def get_lab_day_collection(
     if location_id == "AMBIGUOUS":
         return f"Multiple locations match '{location_keyword}': {', '.join(matched)}. Ask which one they mean."
 
-    result = call_lab_day_collection(location_id, bill_date, db_name, db_server, db_user, db_password)
+    if date_to and date_to != bill_date:
+        from reports.lab_day_collection import call_lab_day_collection_range
+        result = call_lab_day_collection_range(location_id, bill_date, date_to, db_name, db_server, db_user, db_password)
+        if "error" in result:
+            return f"Error: {result['error']}"
+        lines = [f"Real reconciliation totals for {matched} ({location_id}), {bill_date} to {date_to} "
+                 f"({result['days_with_data']}/{result['days_checked']} days had activity):"]
+        for label, total in result["totals"].items():
+            if total:
+                lines.append(f"  {label}: {total:,.2f}")
+        return "\n".join(lines)
 
+    result = call_lab_day_collection(location_id, bill_date, db_name, db_server, db_user, db_password)
     if "error" in result:
         return f"Error: {result['error']}"
-
     lines = [f"Real reconciliation figures for {matched} ({location_id}) on {bill_date} (from dbo.LabDayCollection):"]
     for label, row in result["labeled_results"].items():
         if row:
