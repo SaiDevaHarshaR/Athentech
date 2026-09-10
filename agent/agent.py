@@ -307,7 +307,6 @@ def ask_agent(
             dept = "laboratory"
         else:
             dept = "all"
-        
         period, _label = parse_dashboard_period(q)
         import re as _re
         location_guess = q
@@ -677,11 +676,13 @@ Example of the exact target style, for "today's collection at Kukatpally":
         mentions_department = any(
             kw in question_lower for kw in ["radiology", "pathology", "microbiology", "cardiology", "biochemistry"]
         )
+        
         mentions_billing_terms = any(
             kw in question_lower for kw in [
                 "reconciliation", "cash in hand", "due amount", "concession",
             ]
         )
+        mentions_tat = any(kw in question_lower for kw in ["tat", "turnaround", "turn around"])
         mentions_no_followup = any(
             kw in question_lower for kw in ["no follow-up", "never came back", "didn't return", "haven't returned"]
         )
@@ -739,7 +740,7 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "which definition you're using — e.g. 'exactly one bill ever' (COUNT(*)=1 per UHID), "
                 "or 'no second bill within N days of the first' — and say so in your answer, don't "
                 "silently pick one.)"
-            )
+            )   
         if mentions_doctor_unpaid:
             user_message += (
                 "\n\n(NO CONFIRMED JOIN exists from mstdoctor to any billing table — a real bug: "
@@ -747,7 +748,15 @@ Example of the exact target style, for "today's collection at Kukatpally":
                 "doctor ID to a PATIENT ID column, nonsense. describe_table BOTH tables and find a "
                 "real shared column before writing this join. If none exists, say so plainly instead "
                 "of running an invented join and reporting its result as if it meant something.)"
-            )    
+            )
+        if mentions_tat:
+            user_message += (
+                "\n\n(This question is about TAT/turnaround time. Go DIRECTLY to trninvlabdet "
+                "(BILLDATE, CREATEDATE) — do not search other tables first. Use: "
+                "AVG(CASE WHEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) BETWEEN 0 AND 10080 "
+                "THEN DATEDIFF(MINUTE, BILLDATE, CREATEDATE) END) — bounded inside AVG only, "
+                "never as a WHERE filter. This is not optional for this question.)"
+            )
         messages.append(HumanMessage(content=user_message))
 
         answer = _run_tool_loop(
