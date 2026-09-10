@@ -20,6 +20,23 @@ from datetime import datetime, timedelta
 from database.connection import get_hospital_connection
 
 
+def _resolve_relative_date(value: str) -> str:
+    """
+    Fallback safety net — the model is instructed to convert relative
+    dates before calling this tool, but that's not always reliable in
+    practice (confirmed: "yesterday" was passed through literally at
+    least once and got rejected). Handles the common cases directly so
+    a missed conversion doesn't produce a hard failure.
+    """
+    v = (value or "").strip().lower()
+    today = datetime.now().date()
+    if v == "today":
+        return today.isoformat()
+    if v == "yesterday":
+        return (today - timedelta(days=1)).isoformat()
+    return value
+
+
 # The @ACTIVITY='Lab' branch of the procedure returns MANY result sets
 # in sequence (confirmed from the real procedure body) — this labels
 # the first several, which cover the core reconciliation figures. Later
@@ -61,6 +78,7 @@ def call_lab_day_collection(
     This function refuses anything that isn't a real single date
     rather than repeat that.
     """
+    bill_date = _resolve_relative_date(bill_date)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", bill_date):
         return {
             "error": (
@@ -133,6 +151,9 @@ def call_lab_day_collection_range(
     data — a location plausibly has zero activity on some individual
     days within a real month.
     """
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
+        date_from = _resolve_relative_date(date_from)
+        date_to = _resolve_relative_date(date_to)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
         return {"error": f"date_from/date_to must be real YYYY-MM-DD dates, got '{date_from}'/'{date_to}'."}
 
