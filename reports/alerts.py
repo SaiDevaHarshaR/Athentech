@@ -21,6 +21,7 @@ def check_zero_collection_locations(date_str: str, db_name: str, db_server=None,
             SELECT loc.LOCATIONID, loc.LOCATIONNAME
             FROM mstlocation loc
             WHERE loc.ACTIVE = 1
+            AND loc.LOCATIONNAME NOT IN ('eCommerce', 'Stores')
             AND NOT EXISTS (
                 SELECT 1 FROM trnmodeofcollectionsdet m
                 WHERE m.LOCATIONID = loc.LOCATIONID
