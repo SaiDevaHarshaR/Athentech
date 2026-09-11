@@ -1250,7 +1250,36 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
     elif "microbiology" in q:
         dept = "microbiology"
 
+    known_periods = ["yesterday", "last week", "this week", "last month",
+                      "this month", "this year", "today"]
+    period_map = {
+        "yesterday": "yesterday", "last week": "last_week", "this week": "this_week",
+        "last month": "last_month", "this month": "this_month", "this year": "this_year",
+        "today": "today",
+    }
+    matched_period = next((p for p in known_periods if p in q), None)
+    if not matched_period:
+        return None  # can't confidently parse this period — let the LLM's real date logic handle it
+    period = period_map[matched_period]
 
+    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
+                         "uppal", "attapur", "alwal", "srikara-boduppal", "srikara-ecil",
+                         "srikara-kompally", "srikara", "boduppal", "medchal",
+                         "warangal", "ecil", "kphb", "bengaluru fetal medicine", "bengaluru"]
+    loc_m = re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, re.IGNORECASE)
+    location_keyword = loc_m.group(1) if loc_m else None
+
+    raw = get_department_dashboard.invoke({
+        "department": dept,
+        "period": period,
+        "location": location_keyword,
+        "role": role,
+        "db_name": db_name,
+        "db_server": db_server,
+        "db_user": db_user,
+        "db_password": db_password,
+    })
+    return raw if isinstance(raw, str) else str(raw)
 
 _INTENTS = [
     # most specific first
