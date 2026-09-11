@@ -17,6 +17,20 @@
     justify-content: center;
     align-items: center;
   }
+  .typing-dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin: 0 2px;
+  background: #999;
+  border-radius: 50%;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
 
   .container {
     width: 100%;
@@ -865,6 +879,9 @@ async function callBackend(question) {
   statusEl.textContent = 'Thinking...';
   state.history.push({ role: 'user', content: question });
 
+  const typingEl = addMessage('<span class="typing-dots"><span></span><span></span><span></span></span>', 'bot');
+  typingEl.classList.add('typing-indicator');
+
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
@@ -879,6 +896,8 @@ async function callBackend(question) {
     const data = await response.json();
     console.log("Backend response:", data);
 
+    typingEl.remove();
+
     if (data.status === 'success') {
       addMessage(data.answer, 'bot');
       state.history.push({ role: 'assistant', content: data.answer });
@@ -889,10 +908,10 @@ async function callBackend(question) {
     }
 
   } catch (error) {
+    typingEl.remove();
     addMessage('Could not connect to the AI server.', 'bot');
     console.error(error);
   }
-
   // Restore status
   if (state.mode === 'premium') {
     statusEl.textContent = `Premium • ${state.role}`;
