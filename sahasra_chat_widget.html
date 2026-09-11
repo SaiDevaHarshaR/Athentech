@@ -879,8 +879,11 @@ async function callBackend(question) {
   statusEl.textContent = 'Thinking...';
   state.history.push({ role: 'user', content: question });
 
-  const typingEl = addMessage('<span class="typing-dots"><span></span><span></span><span></span></span>', 'bot');
-  typingEl.classList.add('typing-indicator');
+  const typingEl = document.createElement('div');
+  typingEl.className = 'message bot typing-indicator';
+  typingEl.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  chatEl.appendChild(typingEl);
+  chatEl.scrollTop = chatEl.scrollHeight;
 
   try {
     const response = await fetch(API_URL, {

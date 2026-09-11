@@ -904,3 +904,6 @@
 {"ts": "2026-09-11T10:39:32.262663Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "total concession", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T10:43:50.693526Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance below 80% today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T10:43:57.201433Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance below 80% today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T11:06:34.155970Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "is it working?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T11:06:39.507424Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "hello?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T11:07:16.684363Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "working?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
