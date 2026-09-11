@@ -115,8 +115,8 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
     if billing:
         lines.append("Billing/collection tables available: " + ", ".join(billing))
     if preferred:
-        lines.append("Preferred allowed tables: " + ", ".join(preferred[:25]))
-        if len(preferred) > 25:
-            lines.append(f"... and {len(preferred) - 25} more")
+        lines.append("Preferred allowed tables: " + ", ".join(preferred[:12]))
+        if len(preferred) > 12:
+            lines.append(f"... and {len(preferred) - 12} more")
 
     return "\n".join(lines)

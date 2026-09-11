@@ -267,8 +267,8 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                 result = tool_fn.invoke(args)
 
             result_text = str(result)
-            if len(result_text) > 2500:
-                result_text = result_text[:2500] + "\n...[truncated]"
+            if len(result_text) > 1200:
+                result_text = result_text[:1200] + "\n...[truncated]"
 
             messages.append(
                 ToolMessage(content=result_text, tool_call_id=tool_call["id"])
