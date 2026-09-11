@@ -457,8 +457,8 @@ function addMessage(text, type) {
   div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
 }
-
 function extractDashboardCard(text) {
   // The LLM emits a ```dashboard-card fenced JSON block when a question
   // calls for a stat/breakdown summary. Anything else (a plain answer,
