@@ -875,3 +875,6 @@
 {"ts": "2026-09-11T09:58:04.373114Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "lab TAT this week", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T09:58:20.147902Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology TAT today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T09:58:25.908006Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology TAT yesterday", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T10:14:23.386093Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance below 80% for Jagtial today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T10:14:35.328577Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance below 80% for suryapet today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T10:14:45.155919Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance below 80% for Jagtial yesterday", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

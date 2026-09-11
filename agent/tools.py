@@ -876,7 +876,15 @@ def check_tat_alert(
     from reports.alerts import check_tat_compliance_alert
     if role not in ("admin", "doctor", "reception"):
         return "Error: your role does not have access to this data."
-    result = check_tat_compliance_alert(threshold_pct, period, db_name, db_server, db_user, db_password)
+    resolved_loc_id = None
+    if location_keyword:
+        from reports.curated_queries import resolve_location_id
+        resolved_loc_id, matched_name = resolve_location_id(location_keyword, db_name, db_server, db_user, db_password)
+        if resolved_loc_id is None:
+            return f"Error: no location found matching '{location_keyword}'."
+        if resolved_loc_id == "AMBIGUOUS":
+            return f"Multiple locations match '{location_keyword}': {', '.join(matched_name)}."
+    result = check_tat_compliance_alert(threshold_pct, period, db_name, db_server, db_user, db_password,location_id=resolved_loc_id)
     if "error" in result:
         return f"Error: {result['error']}"
     if not result.get("alert"):

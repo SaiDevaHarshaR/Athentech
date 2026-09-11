@@ -203,7 +203,221 @@ def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password, match
     finally:
         conn.close()
 
+# ---------- org_lookup ----------
+def _handle_org_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"(?:organisation|organization|client|company)\s+(.+)", q)
+    term = m.group(1).strip() if m else None
+    if not term or len(term) < 2:
+        return None
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 10 ORGANISATIONNAME, ORGANISATIONCODE, CREDITLIMIT, ACTIVE "
+            "FROM mstorganisation WHERE ORGANISATIONNAME LIKE ?",
+            (f"%{term}%",),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        return _list_card(
+            icon="🏢", title=f"Organisations matching '{term}'",
+            items=[
+                {"primary": name, "fields": [f"Code: {code}", f"Credit limit: ₹{float(cl or 0):,.0f}", "Active" if act else "Inactive"]}
+                for name, code, cl, act in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
 
+
+# ---------- ref_doctor_lookup ----------
+def _handle_ref_doctor_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"(?:ref doctor|referring doctor)\s+(.+)", q)
+    term = m.group(1).strip() if m else None
+    if not term or len(term) < 2:
+        return None
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 5 DOCNAME, DOCID FROM mstrefdoctor WHERE DOCNAME LIKE ?",
+            (f"%{term}%",),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        return _list_card(
+            icon="👨‍⚕️", title=f"Doctors matching '{term}'",
+            items=[{"primary": name, "fields": [f"ID: {did}"]} for name, did in rows],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- bills_today_count ----------
+def _handle_bills_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(DISTINCT BILLNO) FROM trninvlabpri WHERE BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(icon="🧾", title="Bills", subtitle=label,
+                                stats=[{"label": "COUNT", "value": f"{n:,}"}])
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- concession_total ----------
+def _handle_concession_total(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT SUM(CONCESSIONAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
+            (date_from, date_to),
+        )
+        total = cursor.fetchone()[0] or 0
+        return _dashboard_card(icon="💰", title="Total Concession", subtitle=label,
+                                stats=[{"label": "AMOUNT", "value": f"₹{float(total):,.0f}"}])
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- sample_collected_count ----------
+def _handle_sample_collected_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM trninvlabdet WHERE TESTSTATUS = 'Sample Collected' "
+            "AND BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(icon="🧪", title="Samples Collected", subtitle=label,
+                                stats=[{"label": "COUNT", "value": f"{n:,}"}])
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- authenticated_count ----------
+def _handle_authenticated_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM trninvstatus WHERE STATUS = 'Authenticated' "
+            "AND BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(icon="👨‍⚕️", title="Authenticated (Doctor-Reviewed)", subtitle=label,
+                                stats=[{"label": "COUNT", "value": f"{n:,}"}])
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- uhid_bills ----------
+def _handle_uhid_bills(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"\b([A-Za-z]{2,4}\d{4,})\b", q.upper())
+    if not m:
+        return None
+    uhid = m.group(1)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 10 BILLNO, DATEOFBILL, PAIDAMOUNT FROM trnmodeofcollectionsdet "
+            "WHERE UHID = ? ORDER BY DATEOFBILL DESC",
+            (uhid,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No bills found for UHID {uhid}."
+        return _list_card(
+            icon="🧾", title=f"Bills for {uhid}",
+            items=[{"primary": bill, "fields": [f"{dt}", f"₹{float(amt or 0):,.0f}"]} for bill, dt, amt in rows],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- mode_only ----------
+def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    mode_map = {"upi": "UPI", "cash": "CASH", "credit card": "CREDITCARD", "cheque": "CHEQUE"}
+    mode = next((v for k, v in mode_map.items() if f"total {k}" in q), None)
+    if not mode:
+        return None
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet "
+            "WHERE UPPER(LTRIM(RTRIM(MODE))) = ? AND DATEOFBILL >= ? AND DATEOFBILL < ?",
+            (mode, date_from, date_to),
+        )
+        total = cursor.fetchone()[0] or 0
+        return _dashboard_card(icon="💰", title=f"Total {mode.title()}", subtitle=label,
+                                stats=[{"label": "AMOUNT", "value": f"₹{float(total):,.0f}"}])
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
 # ---------- locations_list ----------
 def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
@@ -1079,6 +1293,15 @@ _INTENTS = [
     (["package price for", "what's in package", "whats in package",
       "package contents for", "price for package"], 
      _handle_package_detail),
+    (["total upi", "total cash collected", "total cash", "total credit card",
+      "total cheque"], _handle_mode_only),
+    (["organisation", "organization", "client company", "comp0"], _handle_org_lookup),
+    (["ref doctor", "referring doctor named"], _handle_ref_doctor_lookup),
+    (["how many bills", "bill count"], _handle_bills_count),
+    (["total concession", "concessions this month"], _handle_concession_total),
+    (["sample collected count", "samples collected"], _handle_sample_collected_count),
+    (["authenticated count", "authenticated today"], _handle_authenticated_count),
+    (["bills for uhid", "bills of patient"], _handle_uhid_bills),
 
     (["all branches collection", "total collection", "total paidamount",
       "collection by payment mode", "upi total", "today's collection data",
