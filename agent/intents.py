@@ -265,7 +265,6 @@ def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, ma
         loc_filter_sql = ""
         loc_params = [pkg_code]
         loc_name = None
-        loc_m = re.search(r"\b(?:at|in|for)\s+([A-Za-z][A-Za-z\s\-]{2,20})$", q)
         if loc_m:
             loc_name = loc_m.group(1).strip()
             cursor.execute(
