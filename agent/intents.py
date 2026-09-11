@@ -927,15 +927,24 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
     import re as _re
     m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
     period = "yesterday" if "yesterday" in q else ("this_week" if "this week" in q else "today")
+
+    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
+                         "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
+                         "warangal", "ecil", "kphb", "bengaluru", "siricilla"]
+    loc_m = _re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, _re.IGNORECASE)
+    location_keyword = loc_m.group(1) if loc_m else None
+
     if m or "compliance" in q or "alert" in q:
         raw = check_tat_alert.invoke({
             "threshold_pct": float(m.group(1)) if m else 80.0, "period": period,
+            "location_keyword": location_keyword,
             "role": role, "db_name": db_name, "db_server": db_server,
             "db_user": db_user, "db_password": db_password,
         })
     else:
         raw = get_tat_compliance_dashboard.invoke({
-            "period": period, "role": role, "db_name": db_name,
+            "period": period, "location_keyword": location_keyword,
+            "role": role, "db_name": db_name,
             "db_server": db_server, "db_user": db_user, "db_password": db_password,
         })
     text = raw if isinstance(raw, str) else str(raw)
@@ -974,9 +983,34 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
     })
     text = raw if isinstance(raw, str) else str(raw)
     if "```dashboard-card" in text or "```list-card" in text:
+        return text  # tool already returned a card
+    if text.startswith("Error"):
         return text
-    return _dashboard_card(icon="💰", title="Result", stats=[{"label": "DETAILS", "value": text}])
 
+    stats = []
+    for line in text.split("\n")[1:]:  # skip the "Real reconciliation..." header line
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        label, _, value = line.partition(":")
+        value = value.strip()
+        m = re.search(r"Decimal\('([\d.\-]+)'\)", value)
+        if m:
+            amt = float(m.group(1))
+            if amt == 0:
+                continue  # skip zero/empty lines, keeps the card clean
+            value = f"₹{amt:,.0f}"
+        elif "None" in value:
+            continue  # skip genuinely empty fields
+        stats.append({"label": label.strip().upper(), "value": value})
+
+    if not stats:
+        return "No reconciliation data with real values found."
+
+    header = text.split("\n")[0]
+    subtitle = header.split(" for ")[-1] if " for " in header else ""
+    subtitle = re.sub(r"\s*\(from.*?\):?\s*$", "", subtitle).strip()  # strip "(from dbo.LabDayCollection):"
+    return _dashboard_card(icon="💰", title="Cash Reconciliation", subtitle=subtitle, stats=stats)
 
 def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:

@@ -863,6 +863,7 @@ def check_zero_collection_alert(
 def check_tat_alert(
     threshold_pct: float,
     period: str = "yesterday",
+    location_keyword: str = None,
     role: str = "viewer",
     db_name: str = None,
     db_server: str = None,
