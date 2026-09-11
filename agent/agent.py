@@ -344,6 +344,28 @@ def ask_agent(
     if intent_answer is not None:
         return check_output(intent_answer)
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
+    is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
+        kw in q for kw in ["compliance", "below", "above", "threshold", "target"]
+    )
+    if is_premium and is_tat_compliance:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%", q)
+        threshold = float(m.group(1)) if m else 80.0
+        period, _ = parse_dashboard_period(q)
+        raw = check_tat_alert.invoke({
+            "threshold_pct": threshold, "period": period, "role": role,
+            "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
+        })
+        return check_output(raw if isinstance(raw, str) else str(raw))
+
+    is_zero_collection = "zero collection" in q or ("zero" in q and "collection" in q)
+    if is_premium and is_zero_collection:
+        from datetime import date as _date, timedelta as _td
+        target_date = (_date.today() - _td(days=1)).isoformat() if "yesterday" in q else _date.today().isoformat()
+        raw = check_zero_collection_alert.invoke({
+            "date_str": target_date, "role": role,
+            "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
+        })
+        return check_output(raw if isinstance(raw, str) else str(raw))
     if is_premium and is_dashboard:
         matched = [d for d in DEPT_KEYWORDS if d in q]
         if matched:

@@ -16,14 +16,35 @@ _ALLOWED_ROLES = ("admin", "doctor", "reception")
 
 def _period_dates(q: str):
     today = date.today()
+    q = q.lower()
+
     if "yesterday" in q:
         d = today - timedelta(days=1)
         return d.isoformat(), (d + timedelta(days=1)).isoformat(), "Yesterday"
+    if "last week" in q:
+        # Monday-start previous week
+        start = today - timedelta(days=today.weekday() + 7)
+        end = start + timedelta(days=7)
+        return start.isoformat(), end.isoformat(), "Last Week"
+    if "this week" in q:
+        start = today - timedelta(days=today.weekday())
+        return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Week"
+    if "last month" in q:
+        first_this = today.replace(day=1)
+        last_month_end = first_this
+        last_month_start = (first_this - timedelta(days=1)).replace(day=1)
+        return last_month_start.isoformat(), last_month_end.isoformat(), "Last Month"
     if "this month" in q:
         start = today.replace(day=1)
         return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
+    if "this year" in q:
+        start = today.replace(month=1, day=1)
+        return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Year"
+    m = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})\b", q)
+    if m:
+        d = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        return d, (date.fromisoformat(d) + timedelta(days=1)).isoformat(), d
     return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
-
 
 def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
@@ -38,7 +59,7 @@ def _list_card(**kwargs) -> str:
 
 
 # ---------- all_collection ----------
-def _handle_all_collection(q, role, db_name, db_server, db_user, db_password):
+def _handle_all_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     date_from, date_to, label = _period_dates(q)
@@ -77,7 +98,7 @@ def _handle_all_collection(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- patients_count ----------
-def _handle_patients_count(q, role, db_name, db_server, db_user, db_password):
+def _handle_patients_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     date_from, date_to, label = _period_dates(q)
@@ -102,7 +123,7 @@ def _handle_patients_count(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- uhid_lookup ----------
-def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password):
+def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     m = re.search(r"\b([A-Za-z]{2,4}\d{4,})\b", q.upper())
@@ -132,11 +153,21 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- test_lookup ----------
-def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password):
+def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    m = re.search(r"(?:lookup|list|what is)\s+(.+)", q)
+    m = re.search(r"(?:lookup|list|what is|find test)\s+(.+)", q)
     term = m.group(1).strip() if m else None
+    # Strip generic wrapper words from whichever term we got — a literal
+    # phrase like "blood tests" rarely matches a real INVNAME as a
+    # substring; the underlying subject word ("blood") does.
+    _generic = r"\b(list|lookup|tests?|investigations?|volume|today|yesterday|this week|this month)\b"
+    if term:
+        cleaned = re.sub(_generic, "", term).strip()
+        if cleaned:
+            term = cleaned
+    if not term and matched_keyword:
+        term = re.sub(_generic, "", matched_keyword).strip()
     if not term or len(term) < 2:
         return None
     conn = _conn(db_name, db_server, db_user, db_password)
@@ -165,7 +196,7 @@ def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- locations_list ----------
-def _handle_locations_list(q, role, db_name, db_server, db_user, db_password):
+def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     conn = _conn(db_name, db_server, db_user, db_password)
@@ -188,7 +219,7 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- referring_doctors ----------
-def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password):
+def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     date_from, date_to, label = _period_dates(q)
@@ -232,7 +263,7 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password)
 
 
 # ---------- bill_detail ----------
-def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password):
+def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     m = re.search(r"\bbill\s*(?:no\.?|number)?\s*[:\-]?\s*([A-Za-z0-9]{4,})", q, re.IGNORECASE)
@@ -274,7 +305,7 @@ def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password):
 
 
 # ---------- departments_list ----------
-def _handle_departments_list(q, role, db_name, db_server, db_user, db_password):
+def _handle_departments_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     conn = _conn(db_name, db_server, db_user, db_password)
@@ -296,18 +327,250 @@ def _handle_departments_list(q, role, db_name, db_server, db_user, db_password):
         conn.close()
 
 
+# ---------- recent_patients ----------
+def _handle_recent_patients(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 10 NAME, UHID, PHONENO, REGDATE FROM mstpatientregistration ORDER BY REGDATE DESC"
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return "No patient records found."
+        return _list_card(
+            icon="🧑‍🤝‍🧑", title="Recent Patients", intro="10 most recently registered:",
+            items=[
+                {"primary": name, "fields": [f"UHID: {uhid}", f"Phone: {phone}", f"Registered: {reg}"]}
+                for name, uhid, phone, reg in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        if "reject" in q:
+            cursor.execute(
+                "SELECT COUNT(*) FROM trninvlabdet "
+                "WHERE BILLDATE >= ? AND BILLDATE < ? AND TESTSTATUS = 'Sample Rejected'",
+                (date_from, date_to),
+            )
+            n = cursor.fetchone()[0]
+            return _dashboard_card(
+                icon="🚨", title="Sample Rejected", subtitle=label,
+                stats=[{"label": "COUNT", "value": f"{n:,}"}],
+            )
+        if "pending" in q:
+            cursor.execute(
+                "SELECT COUNT(*) FROM trninvlabdet "
+                "WHERE BILLDATE >= ? AND BILLDATE < ? AND TESTSTATUS = 'Pending'",
+                (date_from, date_to),
+            )
+            n = cursor.fetchone()[0]
+            return _dashboard_card(
+                icon="⏳", title="Pending Tests", subtitle=label,
+                stats=[{"label": "COUNT", "value": f"{n:,}"}],
+            )
+        cursor.execute(
+            "SELECT COUNT(*) FROM trninvlabdet WHERE BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(
+            icon="🧪", title="Lab Procedures", subtitle=label,
+            stats=[{"label": "PROCEDURES", "value": f"{n:,}"}],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    """Single-branch collection via curated tool."""
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from reports.curated_queries import get_day_collection, resolve_relative_date
+
+    # strip noise words, leftover = location guess
+    noise = [
+        "collection", "day collection", "today", "yesterday", "this month", "last month",
+        "this week", "last week", "cash", "upi", "card", "at", "for", "show", "me", "the",
+        "total", "branch", "location", "centre", "center",
+    ]
+    loc = q
+    for w in sorted(noise, key=len, reverse=True):
+        loc = re.sub(rf"\b{re.escape(w)}\b", " ", loc)
+    loc = re.sub(r"\d{4}-\d{2}-\d{2}", " ", loc)
+    loc = loc.strip()
+    if not loc or len(loc) < 3:
+        return None  # fall through to LLM
+
+    if "yesterday" in q:
+        d0, d1 = "yesterday", "yesterday"
+        label = "Yesterday"
+    elif "this month" in q:
+        d0, d1 = "this_month_start", date.today().isoformat()
+        label = "This Month"
+    else:
+        d0, d1 = "today", "today"
+        label = "Today"
+
+    result = get_day_collection(loc, d0, d1, db_name, db_server, db_user, db_password)
+    if result.get("error"):
+        return f"Error: {result['error']}"
+    if result.get("ambiguous"):
+        return f"Multiple locations match '{loc}': {', '.join(result['candidates'])}."
+    if result.get("no_data"):
+        return f"No collection for {result.get('location', loc)} · {label}."
+    total = result["total"]
+    return _dashboard_card(
+        icon="💰", title=f"Collection · {result['location']}", subtitle=label,
+        stats=[{"label": "TOTAL", "value": f"₹{total:,.0f}"}],
+        bar_section={
+            "title": "By Mode",
+            "rows": [
+                {"label": str(b["mode"]), "value": float(b["amount"] or 0),
+                 "extra": f"₹{float(b['amount'] or 0):,.0f}"}
+                for b in result.get("breakdown", [])
+            ],
+        },
+    )
+
+
+def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from agent.tools import get_lab_day_collection
+
+    noise = [
+        "cash in hand", "reconciliation", "day collection reconciliation", "reconcil",
+        "today", "yesterday", "this month", "for", "report", "detailed",
+    ]
+    loc = q
+    for w in sorted(noise, key=len, reverse=True):
+        loc = re.sub(rf"\b{re.escape(w)}\b", " ", loc)
+    loc = loc.strip()
+    if not loc or len(loc) < 3:
+        return None
+
+    date_from, _, label = _period_dates(q)
+    raw = get_lab_day_collection.invoke({
+        "location_keyword": loc,
+        "bill_date": date_from,
+        "role": role,
+        "db_name": db_name,
+        "db_server": db_server,
+        "db_user": db_user,
+        "db_password": db_password,
+    })
+    return raw if isinstance(raw, str) else str(raw)
+
+
+def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    from agent.tools import get_department_dashboard
+    from agent.agent import parse_dashboard_period  # or copy period parser locally
+
+    dept = "laboratory"
+    if "radiology" in q:
+        dept = "radiology"
+    elif "haematology" in q or "hematology" in q:
+        dept = "haematology"
+    elif "biochemistry" in q:
+        dept = "biochemistry"
+    elif "microbiology" in q:
+        dept = "microbiology"
+
+    period, _ = parse_dashboard_period(q)
+    raw = get_department_dashboard.invoke({
+        "department": dept,
+        "period": period,
+        "role": role,
+        "db_name": db_name,
+        "db_server": db_server,
+        "db_user": db_user,
+        "db_password": db_password,
+    })
+    return raw if isinstance(raw, str) else str(raw)
+
 _INTENTS = [
+    # most specific first
+    (["cash in hand", "reconciliation", "day collection reconciliation"],
+     _handle_cash_recon),
+
+    (["radiology dashboard", "lab dashboard", "laboratory dashboard",
+      "haematology dashboard", "biochemistry dashboard", "microbiology dashboard",
+      "radiology summary", "lab ops snapshot", "radiology numbers"],
+     _handle_dept_dashboard),
+
+    (["lab procedures", "how many lab procedures", "how many tests done",
+      "sample rejected", "rejection count", "pending tests",
+      "tests awaiting result", "lab workload"],
+     _handle_lab_volume),
+
     (["all branches collection", "total collection", "total paidamount",
-      "collection by payment mode", "upi total"], _handle_all_collection),
-    (["patients registered", "how many patients"], _handle_patients_count),
-    (["uhid"], _handle_uhid_lookup),
-    (["lookup cbp", "what is cue", "complete urine analysis", "list urine tests",
-      "list blood tests"], _handle_test_lookup),
-    (["active locations", "how many branches", "list all locations",
-      "list all branches"], _handle_locations_list),
-    (["referring doctors", "top doctors", "top 10 referring"], _handle_referring_doctors),
-    (["bill no", "bill number", "bill "], _handle_bill_detail),
-    (["list departments", "list all departments", "which departments"], _handle_departments_list),
+      "collection by payment mode", "upi total", "today's collection data",
+      "todays collection data", "overall collection", "grand total collection",
+      "all branches collection", "payment mode wise collection",
+      "cash vs upi", "total cash collected", "total upi"],
+     _handle_all_collection),
+
+    # single branch — AFTER all_collection so "total collection" doesn't hit this
+    (["collection at", "collection for", "day collection", "branch collection",
+      "kompally collection", "uppal collection", "kukatpally collection",
+      "suryapet collection", "jagtial collection", "alwal collection",
+      "attapur collection", "warangal collection"],
+     _handle_day_collection_branch),
+
+    (["patients registered", "how many patients", "how many new patients",
+      "latest registrations", "registrations today", "new patients today"],
+     _handle_patients_count),
+
+    (["recent 10 patients", "recent patients", "latest patients",
+      "last 10 patients", "show recent patients"],
+     _handle_recent_patients),
+
+    (["uhid", "patient with uhid", "find patient", "is uhid"],
+     _handle_uhid_lookup),
+
+    (["lookup cbp", "lookup test", "what is cue", "what is cbp",
+      "complete urine analysis", "list urine tests", "list blood tests",
+      "urine routine", "blood investigations", "find test rbs",
+      "find test fbs", "find test hba1c", "investigation master",
+      "is there a test called", "search investigation", "lipid profile",
+      "rft", "lft", "hba1c"],
+     _handle_test_lookup),
+
+    (["active locations", "active branches", "how many branches",
+      "list all locations", "list all branches", "list locations",
+      "branch list", "collection centres", "location codes"],
+     _handle_locations_list),
+
+    (["referring doctors", "top doctors", "top 10 referring",
+      "top referring", "ref doctors", "who referred most"],
+     _handle_referring_doctors),
+
+    (["bill no", "bill number", "bill ", "details for bill", "show bill",
+      "payment breakup bill", "status of bill"],
+     _handle_bill_detail),
+
+    (["list departments", "list all departments", "which departments",
+      "department list"],
+     _handle_departments_list),
 ]
 
 
@@ -319,8 +582,9 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
     """
     q = (question or "").strip().lower()
     for keywords, handler in _INTENTS:
-        if any(kw in q for kw in keywords):
-            result = handler(q, role, db_name, db_server, db_user, db_password)
+        matched = next((kw for kw in keywords if kw in q), None)
+        if matched:
+            result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
             if result is not None:
                 return result
     return None
