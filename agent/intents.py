@@ -358,7 +358,8 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password,
             cursor.execute(
                 "SELECT TOP 10 d.DOCNAME, COUNT(p.BILLNO) AS Cnt FROM trninvlabpri p "
                 "JOIN mstrefdoctor d ON p.REFDOCTCODE = d.DOCID "
-                "WHERE p.BILLDATE >= ? AND p.BILLDATE < ? GROUP BY d.DOCNAME ORDER BY Cnt DESC",
+                "WHERE p.BILLDATE >= ? AND p.BILLDATE < ? AND d.DOCNAME NOT LIKE '%SELF%' "
+                "AND d.DOCNAME NOT LIKE '%HOSPITAL%' GROUP BY d.DOCNAME ORDER BY Cnt DESC",
                 (date_from, date_to),
             )
         rows = cursor.fetchall()
@@ -611,7 +612,7 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
 def _handle_bill_finance(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    m = re.search(r"\b([A-Z]{2,4}\d{5,})\b", q.upper())
+    m = re.search(r"\b([A-Z]{2,4}\d{3,})\b", q.upper())
     if not m:
         return None
     billno = m.group(1)
@@ -937,7 +938,10 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
             "period": period, "role": role, "db_name": db_name,
             "db_server": db_server, "db_user": db_user, "db_password": db_password,
         })
-    return raw if isinstance(raw, str) else str(raw)
+    text = raw if isinstance(raw, str) else str(raw)
+    if "```dashboard-card" in text or "```list-card" in text:
+        return text
+    return _dashboard_card(icon="⏱️", title="Result", stats=[{"label": "DETAILS", "value": text}])
 
 
 def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
@@ -968,7 +972,10 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
         "db_user": db_user,
         "db_password": db_password,
     })
-    return raw if isinstance(raw, str) else str(raw)
+    text = raw if isinstance(raw, str) else str(raw)
+    if "```dashboard-card" in text or "```list-card" in text:
+        return text
+    return _dashboard_card(icon="💰", title="Result", stats=[{"label": "DETAILS", "value": text}])
 
 
 def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
