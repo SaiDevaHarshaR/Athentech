@@ -544,7 +544,9 @@ _INTENTS = [
       "haematology dashboard", "biochemistry dashboard", "microbiology dashboard",
       "radiology summary", "lab ops snapshot", "radiology numbers"],
      _handle_dept_dashboard),
-
+    (["tat compliance", "tat alert", "overdue tat", "tests exceeding tat",
+      "average tat", "radiology tat", "lab tat", "turnaround time"],
+     _handle_tat),
     (["lab procedures", "how many lab procedures", "how many tests done",
       "sample rejected", "rejection count", "pending tests",
       "tests awaiting result", "lab workload"],
