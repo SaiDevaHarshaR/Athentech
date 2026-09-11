@@ -1164,8 +1164,15 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
     text = raw if isinstance(raw, str) else str(raw)
     if "```dashboard-card" in text or "```list-card" in text:
         return text
-    return _dashboard_card(icon="⏱️", title="Result", stats=[{"label": "DETAILS", "value": text}])
-
+    if text.startswith("Error"):
+        return text
+    m = re.search(r"(\d+(?:\.\d+)?)%", text)
+    icon = "🚨" if "🚨" in text or "below" in text else "⏱️"
+    return _dashboard_card(
+        icon=icon, title="TAT Compliance",
+        stats=[{"label": "COMPLIANCE", "value": f"{m.group(1)}%" if m else text}],
+        footer={"label": "Details", "value": text},
+    )
 
 def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
