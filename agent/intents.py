@@ -349,7 +349,7 @@ def _handle_authenticated_count(q, role, db_name, db_server, db_user, db_passwor
         cursor = conn.cursor()
         cursor.execute(
             "SELECT COUNT(*) FROM trninvstatus WHERE STATUS = 'Authenticated' "
-            "AND BILLDATE >= ? AND BILLDATE < ?",
+            "AND AUTHENTICATEDATE >= ? AND AUTHENTICATEDATE < ?",
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
@@ -1250,34 +1250,7 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
     elif "microbiology" in q:
         dept = "microbiology"
 
-    # inline period — do NOT import agent.agent (circular)
-    if "yesterday" in q:
-        period = "yesterday"
-    elif "last week" in q:
-        period = "last_week"
-    elif "this week" in q:
-        period = "this_week"
-    elif "last month" in q:
-        period = "last_month"
-    elif "this month" in q:
-        period = "this_month"
-    elif "this year" in q:
-        period = "this_year"
-    elif "today" in q:
-        period = "today"
-    else:
-        period = "today"
 
-    raw = get_department_dashboard.invoke({
-        "department": dept,
-        "period": period,
-        "role": role,
-        "db_name": db_name,
-        "db_server": db_server,
-        "db_user": db_user,
-        "db_password": db_password,
-    })
-    return raw if isinstance(raw, str) else str(raw)
 
 _INTENTS = [
     # most specific first
