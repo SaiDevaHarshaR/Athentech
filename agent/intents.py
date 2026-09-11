@@ -278,7 +278,7 @@ def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, ma
         if not rows:
             return f"No component tests found for package '{pkg_name}'."
         pkg_rate = rows[0][0]
-        title_suffix = f" · {loc_name}" if loc_name and loc_filter_sql else ""
+        title_suffix = f" · {loc_name}" if loc_m and loc_row else ""
         return _list_card(
             icon="📦", title=pkg_name + title_suffix,
             intro=f"Package price: ₹{pkg_rate:,.0f}" if pkg_rate else None,
