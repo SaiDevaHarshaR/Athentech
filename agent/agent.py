@@ -107,6 +107,7 @@ def _invoke_with_retry(runnable, messages, retries=1):
         try:
             return runnable.invoke(messages)
         except Exception as e:
+            print(f"[_invoke_with_retry] REAL ERROR: {e}")
             if not _is_rate_limit_error(e):
                 raise
             if i == retries:
