@@ -756,3 +756,4 @@
 {"ts": "2026-09-11T05:57:02.765436Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard Jagtial vs Kompally yesterday", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T05:58:53.374714Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Jagtial collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T06:01:03.821225Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Jagtial collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T06:08:02.356173Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Jagtial collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
