@@ -239,11 +239,15 @@ def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, ma
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 1 INVCODE, INVNAME FROM mstInvestigations "
-            "WHERE ISPACKAGE = 'Y' AND INVNAME LIKE ?",
+            "SELECT INVCODE, INVNAME FROM mstInvestigations "
+            "WHERE ISPACKAGE = 'Y' AND INVNAME LIKE ? ORDER BY LEN(INVNAME) ASC",
             (f"%{term}%",),
         )
-        pkg = cursor.fetchone()
+        candidates = cursor.fetchall()
+        if not candidates:
+            return None
+        exact = [c for c in candidates if c[1].strip().lower() == term.strip().lower()]
+        pkg = exact[0] if exact else candidates[0]
         if not pkg:
             return None
         pkg_code, pkg_name = pkg
