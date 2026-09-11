@@ -483,7 +483,9 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
 def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
+
     from agent.tools import get_lab_day_collection
+    # ... rest unchanged
 
     noise = [
         "cash in hand", "reconciliation", "day collection reconciliation", "reconcil",
@@ -510,8 +512,10 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
 
 
 def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+
     from agent.tools import get_department_dashboard
-    from agent.agent import parse_dashboard_period  # or copy period parser locally
 
     dept = "laboratory"
     if "radiology" in q:
@@ -523,7 +527,24 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
     elif "microbiology" in q:
         dept = "microbiology"
 
-    period, _ = parse_dashboard_period(q)
+    # inline period — do NOT import agent.agent (circular)
+    if "yesterday" in q:
+        period = "yesterday"
+    elif "last week" in q:
+        period = "last_week"
+    elif "this week" in q:
+        period = "this_week"
+    elif "last month" in q:
+        period = "last_month"
+    elif "this month" in q:
+        period = "this_month"
+    elif "this year" in q:
+        period = "this_year"
+    elif "today" in q:
+        period = "today"
+    else:
+        period = "today"
+
     raw = get_department_dashboard.invoke({
         "department": dept,
         "period": period,
