@@ -346,6 +346,10 @@ def get_department_dashboard(
 
     department: "radiology" | "laboratory" | "all" | a specific sub-department(haematology, biochemistry, microbiology, etc.)
     period: "yesterday" | "today" | "this_month | "this_year" | "any_year" | "any_date"
+    location: the location NAME ONLY (e.g. "Jagtial", "Bengaluru") — strip
+    any surrounding words like "for"/"at"/"in" before passing this. Passing
+    "for Bengaluru" instead of "Bengaluru" will fail to resolve — extract
+    just the place name itself, nothing else.
     """
     department = (department or "all").strip().lower()
     period = (period or "yesterday").strip().lower()
@@ -498,6 +502,9 @@ def get_department_dashboard(
 
     location_sql = ""
     if location:
+        # Strip a leading "for"/"at"/"in" the LLM sometimes includes despite
+        # the docstring saying not to — fix at the code level, not just prose.
+        location = re.sub(r"^\s*(for|at|in)\s+", "", location, flags=re.IGNORECASE).strip()
         from reports.curated_queries import resolve_location_id
         loc_id, loc_matched = resolve_location_id(location, db_name, db_server, db_user, db_password)
         if loc_id is None:
