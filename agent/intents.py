@@ -444,8 +444,9 @@ def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, ma
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-                         "uppal", "attapur", "bengaluru", "medak", "medchal", "alwal", "srikara", "boduppal", "medchal",
-                         "warangal", "ecil", "kphb"]
+                         "uppal", "attapur", "alwal", "srikara-boduppal", "srikara-ecil",
+                         "srikara-kompally", "srikara", "boduppal", "medchal", "medak", 
+                         "warangal", "ecil", "kphb", "bengaluru fetal medicine", "bengaluru"]
     loc_m = re.search(
         r"\b(?:at|in|for)\s+(" + "|".join(_known_locations) + r")\b",
         q, re.IGNORECASE,
