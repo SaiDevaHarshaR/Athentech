@@ -327,6 +327,7 @@ def ask_agent(
     ok, msg = check_input(question)
     if not ok:
         return msg
+    
 
     # ---- Deterministic dashboards (do not rely on LLM tool choice) ----
     q = (question or "").strip().lower()
@@ -338,6 +339,10 @@ def ask_agent(
         "2d echo", "ecg", "tmt", "colonoscopy", "mammography", "ultrasound",
         "ct scan", "mri", "doppler", "opg", "pft",
     ]
+    from agent.intents import try_intent
+    intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
+    if intent_answer is not None:
+        return check_output(intent_answer)
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     if is_premium and is_dashboard:
         matched = [d for d in DEPT_KEYWORDS if d in q]
