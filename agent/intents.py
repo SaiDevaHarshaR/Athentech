@@ -226,6 +226,50 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, ma
     finally:
         conn.close()
 
+def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"(?:package price for|what's in package|whats in package|package contents for|price for package)\s+(.+)", q)
+    term = m.group(1).strip() if m else None
+    if not term or len(term) < 2:
+        return None
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 1 INVCODE, INVNAME FROM mstInvestigations "
+            "WHERE ISPACKAGE = 'Y' AND INVNAME LIKE ?",
+            (f"%{term}%",),
+        )
+        pkg = cursor.fetchone()
+        if not pkg:
+            return None
+        pkg_code, pkg_name = pkg
+        cursor.execute(
+            "SELECT DISTINCT p.PACKAGERATE, t.INVNAME, p.ACTUALRATE "
+            "FROM mstinvpackages p JOIN mstInvestigations t ON p.TESTCODE = t.INVCODE "
+            "WHERE p.PACKAGECODE = ? AND p.ACTIVE = 1",
+            (pkg_code,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No component tests found for package '{pkg_name}'."
+        pkg_rate = rows[0][0]
+        return _list_card(
+            icon="📦", title=pkg_name,
+            intro=f"Package price: ₹{pkg_rate:,.0f}" if pkg_rate else None,
+            items=[
+                {"primary": test_name, "fields": [f"Individual rate: ₹{actual_rate:,.0f}"] if actual_rate else []}
+                for _, test_name, actual_rate in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
 def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
@@ -236,7 +280,8 @@ def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, mat
         cursor = conn.cursor()
         cursor.execute(
             "SELECT TOP 15 INVNAME, RATE, TATTIME, TATTYPE FROM mstInvestigations "
-            "WHERE ISPACKAGE = 'Y' AND ACTIVE = 1 ORDER BY INVNAME"
+            "WHERE ISPACKAGE = 'Y' AND ACTIVE = 1 AND INVNAME IS NOT NULL "
+            "AND LTRIM(RTRIM(INVNAME)) != '' ORDER BY INVNAME"
         )
         rows = cursor.fetchall()
         if not rows:
@@ -249,7 +294,11 @@ def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, mat
             if tat_time and tat_type:
                 fields.append(f"TAT: {tat_time} {tat_type}")
             items.append({"primary": name, "fields": fields})
-        return _list_card(icon="📦", title="Health Packages", items=items)
+        return _list_card(
+            icon="📦", title="Health Packages",
+            intro="Note: pricing isn't set on most packages in this table — may live in a separate package-rates table (mstinvpackages).",
+            items=items,
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -606,6 +655,9 @@ _INTENTS = [
     (["list all packages", "list packages", "what packages", "which packages",
       "available packages", "health packages", "package list"],
      _handle_packages_list),
+    (["package price for", "what's in package", "whats in package",
+      "package contents for", "price for package"], 
+     _handle_package_detail),
 
     (["all branches collection", "total collection", "total paidamount",
       "collection by payment mode", "upi total", "today's collection data",
