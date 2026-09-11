@@ -229,8 +229,14 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, ma
 def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    loc_m = re.search(r"\b(?:at|in|for)\s+([A-Za-z][A-Za-z\s\-]{2,20})$", q)
-    q_no_loc = q[:loc_m.start()] if loc_m else q
+    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
+                         "uppal", "attapur", "bengaluru", "medak", "medchal", "alwal", "srikara", "boduppal", "medchal",
+                         "warangal", "ecil", "kphb"]
+    loc_m = re.search(
+        r"\b(?:at|in|for)\s+(" + "|".join(_known_locations) + r")\b",
+        q, re.IGNORECASE,
+    )
+    q_no_loc = (q[:loc_m.start()] + q[loc_m.end():]) if loc_m else q
 
     m = re.search(r"(?:package price for|what's in package|whats in package|package contents for|price for package)\s+(.+)", q_no_loc)
     term = m.group(1).strip() if m else None
