@@ -161,7 +161,9 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password, match
 def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    m = re.search(r"(?:lookup|list|what is|find test)\s+(.+)", q)
+    m = re.search(r"\bfor\s+(.+)$", q) if "master" in q or "investigation" in q else None
+    if not m:
+        m = re.search(r"(?:lookup|list|what is|find test)\s+(.+)", q)
     term = m.group(1).strip() if m else None
     # Strip generic wrapper words from whichever term we got — a literal
     # phrase like "blood tests" rarely matches a real INVNAME as a
@@ -181,19 +183,21 @@ def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password, match
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 10 INVNAME, RATE FROM mstInvestigations WHERE INVNAME LIKE ?",
+            "SELECT TOP 10 INVNAME, RATE, TATTIME, TATTYPE FROM mstInvestigations WHERE INVNAME LIKE ?",
             (f"%{term}%",),
         )
         rows = cursor.fetchall()
         if not rows:
             return None
-        return _list_card(
-            icon="🧪", title=f"Tests matching '{term}'",
-            items=[
-                {"primary": name, "fields": [f"Rate: ₹{rate:,.0f}"] if rate else []}
-                for name, rate in rows
-            ],
-        )
+        items = []
+        for name, rate, tat_time, tat_type in rows:
+            fields = []
+            if rate:
+                fields.append(f"Rate: ₹{rate:,.0f}")
+            if tat_time and tat_type:
+                fields.append(f"TAT: {tat_time} {tat_type}")
+            items.append({"primary": name, "fields": fields})
+        return _list_card(icon="🧪", title=f"Tests matching '{term}'", items=items)
     except Exception as e:
         return f"Error: {e}"
     finally:
