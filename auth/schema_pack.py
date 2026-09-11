@@ -94,18 +94,23 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "COUNT(DISTINCT UHID), never bare AVG(). Date diffs: DATEDIFF(DAY,a,b), "
         "never raw subtraction. Multi-column correlation (e.g. UHID+TCODE) must "
         "match ALL columns together, not just one from a multi-col GROUP BY.",
-        "TAT: ONLY trnparamresult.BILLDATE→CREATEDATE (trninvlabdet has no "
+        "'TAT compliance'/'% within SLA'/'below X%' questions: use the "
+        "check_tat_alert or get_tat_compliance_dashboard TOOL, never compute "
+        "from raw SQL. The 10080-minute bound below is an OUTLIER-EXCLUSION "
+        "safety limit for a plain average, NOT a real SLA — it has nothing to "
+        "do with compliance %. Real compliance = per-test TATTIME/TATTYPE (the "
+        "tool handles this) vs actual TAT, never a fixed 7-day window.",
+        "Plain 'average TAT' (no compliance/SLA/threshold wording): ONLY "
+        "trnparamresult.BILLDATE→CREATEDATE (trninvlabdet has no "
         "CREATEDATE; never REFUNDDATE). Bound outliers INSIDE AVG's CASE WHEN "
         "(never WHERE), CAST BIGINT: AVG(CAST(CASE WHEN DATEDIFF(MINUTE,"
         "BILLDATE,CREATEDATE) BETWEEN 0 AND 10080 THEN DATEDIFF(MINUTE,"
         "BILLDATE,CREATEDATE) END AS BIGINT)).",
-        "'Best/worst' ranking: ZERO ROWS (not zero sum) = likely no data, "
-        "exclude from ranking or list separately. Branch revenue ranking must "
-        "use trnmodeofcollectionsdet, never inventory/stock tables. 0-row "
-        "result is not automatic final answer — try another table/filter "
-        "before saying 'no data'. Empty reference table → 'no X found' is "
-        "misleading, verify it has rows first. TESTSTATUS DOES include "
-        "'Sample Rejected' — rejection-rate is answerable, don't deny tracking.",
+        "'Best/worst': ZERO ROWS ≠ zero sum, likely no data, exclude or list "
+        "separately. Branch revenue ranking uses trnmodeofcollectionsdet, never "
+        "inventory tables. 0-row result ≠ final answer, try another table "
+        "first. Empty reference table → 'no X found' is misleading. "
+        "TESTSTATUS DOES include 'Sample Rejected', rejection-rate is answerable.",
         "always call describe_table before SELECT (never guess columns)",
         "lists: SELECT TOP 10; totals: SUM/COUNT/AVG over full filtered set",
         "filter by date + branch/location when asked, after seeing real columns",
