@@ -226,7 +226,34 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, ma
     finally:
         conn.close()
 
-
+def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 15 INVNAME, RATE, TATTIME, TATTYPE FROM mstInvestigations "
+            "WHERE ISPACKAGE = 'Y' AND ACTIVE = 1 ORDER BY INVNAME"
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return "No packages found."
+        items = []
+        for name, rate, tat_time, tat_type in rows:
+            fields = []
+            if rate:
+                fields.append(f"Rate: ₹{rate:,.0f}")
+            if tat_time and tat_type:
+                fields.append(f"TAT: {tat_time} {tat_type}")
+            items.append({"primary": name, "fields": fields})
+        return _list_card(icon="📦", title="Health Packages", items=items)
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
 # ---------- referring_doctors ----------
 def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
@@ -576,6 +603,9 @@ _INTENTS = [
       "sample rejected", "rejection count", "pending tests",
       "tests awaiting result", "lab workload"],
      _handle_lab_volume),
+    (["list all packages", "list packages", "what packages", "which packages",
+      "available packages", "health packages", "package list"],
+     _handle_packages_list),
 
     (["all branches collection", "total collection", "total paidamount",
       "collection by payment mode", "upi total", "today's collection data",
