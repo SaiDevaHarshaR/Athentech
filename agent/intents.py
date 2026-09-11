@@ -126,10 +126,15 @@ def _handle_patients_count(q, role, db_name, db_server, db_user, db_password, ma
 def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    m = re.search(r"\b([A-Za-z]{2,4}\d{4,})\b", q.upper())
+# Prefer explicit "UHID xxx", else a code like KDX26929648
+    m = re.search(r"\buhid\s*[:\-]?\s*([A-Za-z0-9]{5,})\b", q, re.IGNORECASE)
+    if not m:
+        m = re.search(r"\b([A-Za-z]{2,4}\d{5,})\b", q, re.IGNORECASE)
+
     if not m:
         return None
-    uhid = m.group(1)
+
+    uhid = m.group(1).upper()
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -266,7 +271,11 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password,
 def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    m = re.search(r"\bbill\s*(?:no\.?|number)?\s*[:\-]?\s*([A-Za-z0-9]{4,})", q, re.IGNORECASE)
+    m = re.search(
+    r"\b(?:bill\s*(?:no\.?|number)?\s*[:\-]?\s*)?([A-Z]{2,4}\d{5,})\b",
+    q.upper(),
+)
+# only treat as bill if 'bill' in q or pattern looks like KSU2619400
     if not m:
         return None
     billno = m.group(1).upper()
