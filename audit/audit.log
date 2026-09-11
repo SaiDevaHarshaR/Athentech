@@ -775,3 +775,6 @@
 {"ts": "2026-09-11T06:45:09.754427Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "suryapet reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T06:48:10.101474Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "yesterday suryapet reconciliation", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T06:52:33.208408Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "yesterday suryapet collections", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T07:30:35.353952Z", "event": "invalid_code_attempt", "role": null, "code": "ATH-P-ADMIN-55000", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-11T07:31:02.909573Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "how many branches do we have", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T07:31:16.793874Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "top referring doctors this month", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

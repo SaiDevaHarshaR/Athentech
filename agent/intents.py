@@ -1,14 +1,11 @@
 """
 Intent dispatcher — keyword-matched questions get answered with FIXED,
-verified SQL, no LLM call at all (zero token cost). Falls through to
-the normal LLM path if no intent matches or if the handler can't
-confidently answer.
-
-Each intent: (keywords, handler). Handler takes (question_lower, role,
-db_name, db_server, db_user, db_password) and returns a formatted
-answer string, or None to fall through to the LLM.
+verified SQL and proper dashboard-card/list-card JSON output, no LLM
+call at all (zero token cost). Falls through to the normal LLM path
+(returns None) if no intent matches or a handler can't confidently answer.
 """
 
+import json
 import re
 from datetime import date, timedelta
 
@@ -24,13 +21,20 @@ def _period_dates(q: str):
         return d.isoformat(), (d + timedelta(days=1)).isoformat(), "Yesterday"
     if "this month" in q:
         start = today.replace(day=1)
-        return start.isoformat(), today.isoformat(), "This Month"
-    # default: today
+        return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
     return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 
 
 def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
+
+
+def _dashboard_card(**kwargs) -> str:
+    return "```dashboard-card\n" + json.dumps(kwargs) + "\n```"
+
+
+def _list_card(**kwargs) -> str:
+    return "```list-card\n" + json.dumps(kwargs) + "\n```"
 
 
 # ---------- all_collection ----------
@@ -53,11 +57,19 @@ def _handle_all_collection(q, role, db_name, db_server, db_user, db_password):
         if not rows:
             return f"No collection records found for {label} across all branches."
         total = sum(float(r[1] or 0) for r in rows)
-        lines = [f"💰 **All-Branches Collection** · {label}", f"**Total:** ₹{total:,.0f}", ""]
-        for mode, amt in sorted(rows, key=lambda r: -(r[1] or 0)):
-            pct = (float(amt or 0) / total * 100) if total else 0
-            lines.append(f"• **{mode.title()}:** ₹{float(amt or 0):,.0f} ({pct:.0f}%)")
-        return "\n".join(lines)
+        rows_sorted = sorted(rows, key=lambda r: -(r[1] or 0))
+        return _dashboard_card(
+            icon="💰", title="All-Branches Collection", subtitle=label,
+            stats=[{"label": "TOTAL", "value": f"₹{total:,.0f}"}],
+            bar_section={
+                "title": "By Payment Mode", "subtitle": "(amount · %)",
+                "rows": [
+                    {"label": m.title(), "value": float(amt or 0),
+                     "extra": f"₹{float(amt or 0):,.0f} ({float(amt or 0)/total*100:.0f}%)" if total else "₹0"}
+                    for m, amt in rows_sorted
+                ],
+            },
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -79,7 +91,10 @@ def _handle_patients_count(q, role, db_name, db_server, db_user, db_password):
             (date_from, date_to),
         )
         count = cursor.fetchone()[0]
-        return f"🧑‍🤝‍🧑 **Patients Registered** · {label}\n**Count:** {count:,}"
+        return _dashboard_card(
+            icon="🧑‍🤝‍🧑", title="Patients Registered", subtitle=label,
+            stats=[{"label": "COUNT", "value": f"{count:,}"}],
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -92,7 +107,7 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password):
         return "Error: your role does not have access to this data."
     m = re.search(r"\b([A-Za-z]{2,4}\d{4,})\b", q.upper())
     if not m:
-        return None  # can't confidently extract a UHID, let the LLM handle it
+        return None
     uhid = m.group(1)
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
@@ -106,7 +121,10 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password):
         row = cursor.fetchone()
         if not row:
             return f"No patient found with UHID {uhid}."
-        return f"🧑‍🤝‍🧑 **Patient Found**\n**Name:** {row[0]} · **UHID:** {row[1]} · **Phone:** {row[2]} · **Registered:** {row[3]}"
+        return _list_card(
+            icon="🧑‍🤝‍🧑", title="Patient Found",
+            items=[{"primary": row[0], "fields": [f"UHID: {row[1]}", f"Phone: {row[2]}", f"Registered: {row[3]}"]}],
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -117,7 +135,6 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password):
 def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    # Extract the term after common lookup phrasing; falls through if unclear
     m = re.search(r"(?:lookup|list|what is)\s+(.+)", q)
     term = m.group(1).strip() if m else None
     if not term or len(term) < 2:
@@ -133,11 +150,14 @@ def _handle_test_lookup(q, role, db_name, db_server, db_user, db_password):
         )
         rows = cursor.fetchall()
         if not rows:
-            return None  # let the LLM try broader matching per the confirmed lay-name pattern
-        lines = [f"🧪 **Tests matching '{term}'**"]
-        for name, rate in rows:
-            lines.append(f"• {name} — ₹{rate:,.0f}" if rate else f"• {name}")
-        return "\n".join(lines)
+            return None
+        return _list_card(
+            icon="🧪", title=f"Tests matching '{term}'",
+            items=[
+                {"primary": name, "fields": [f"Rate: ₹{rate:,.0f}"] if rate else []}
+                for name, rate in rows
+            ],
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -157,10 +177,10 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password):
         rows = cursor.fetchall()
         if not rows:
             return "No active locations found."
-        lines = [f"📍 **Active Branches** ({len(rows)})"]
-        for loc_id, name in rows:
-            lines.append(f"• {name} ({loc_id})")
-        return "\n".join(lines)
+        return _list_card(
+            icon="📍", title=f"Active Branches ({len(rows)})",
+            items=[{"primary": name, "fields": [f"Code: {loc_id}"]} for loc_id, name in rows],
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -172,10 +192,9 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password)
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     date_from, date_to, label = _period_dates(q)
-    if "this month" not in q and "today" not in q and "yesterday" not in q:
-        # default to this month for a "top doctors" style question with no period
+    if "today" not in q and "yesterday" not in q:
         today = date.today()
-        date_from, date_to, label = today.replace(day=1).isoformat(), today.isoformat(), "This Month"
+        date_from, date_to, label = today.replace(day=1).isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
     by_revenue = "revenue" in q
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
@@ -199,11 +218,78 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password)
         rows = cursor.fetchall()
         if not rows:
             return f"No referring doctor data found for {label}."
-        lines = [f"👨‍⚕️ **Top Referring Doctors** · {label}"]
-        for i, (name, val) in enumerate(rows, 1):
-            val_str = f"₹{float(val or 0):,.0f}" if by_revenue else f"{val} bills"
-            lines.append(f"{i}. {name} — {val_str}")
-        return "\n".join(lines)
+        return _list_card(
+            icon="👨‍⚕️", title=f"Top Referring Doctors · {label}",
+            items=[
+                {"primary": name, "fields": [f"₹{float(val or 0):,.0f}" if by_revenue else f"{val} bills"]}
+                for name, val in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- bill_detail ----------
+def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"\bbill\s*(?:no\.?|number)?\s*[:\-]?\s*([A-Za-z0-9]{4,})", q, re.IGNORECASE)
+    if not m:
+        return None
+    billno = m.group(1).upper()
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT b.Name, b.Phone, c.INVNAME, p.PARAMHEADNAME, p.PVALUE, p.MINVALUE, p.MAXVALUE "
+            "FROM trnINVLABDET a "
+            "JOIN trnINVLABPRI b ON a.BILLNO = b.BILLNO "
+            "JOIN mstInvestigations c ON a.TCODE = c.INVCODE "
+            "JOIN trnParamResult p ON a.BILLNO = p.BILLNO "
+            "WHERE a.BILLNO = ?",
+            (billno,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No records found for bill {billno}."
+        name, phone = rows[0][0], rows[0][1]
+        items = []
+        for _, _, inv, param, pval, minv, maxv in rows[:15]:
+            fields = [f"Value: {pval}"]
+            if minv is not None and maxv is not None:
+                fields.append(f"Range: {minv}-{maxv}")
+            items.append({"primary": f"{inv} — {param}" if param else inv, "fields": fields})
+        return _list_card(
+            icon="🧾", title=f"Bill {billno}", intro=f"{name} · {phone}",
+            items=items,
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- departments_list ----------
+def _handle_departments_list(q, role, db_name, db_server, db_user, db_password):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT SubDeptName FROM mstsubdepartment WHERE IsBranch = 1 ORDER BY SubDeptName")
+        rows = cursor.fetchall()
+        if not rows:
+            return "No departments found."
+        return _list_card(
+            icon="🏥", title=f"Departments ({len(rows)})",
+            items=[{"primary": r[0]} for r in rows],
+        )
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -220,13 +306,16 @@ _INTENTS = [
     (["active locations", "how many branches", "list all locations",
       "list all branches"], _handle_locations_list),
     (["referring doctors", "top doctors", "top 10 referring"], _handle_referring_doctors),
+    (["bill no", "bill number", "bill "], _handle_bill_detail),
+    (["list departments", "list all departments", "which departments"], _handle_departments_list),
 ]
 
 
 def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
     """
-    Returns an answer string if a fixed-SQL intent matched and confidently
-    answered, or None to fall through to the normal LLM path.
+    Returns an answer string (dashboard-card/list-card JSON, or a plain
+    'no data'/'error' string) if a fixed-SQL intent matched and
+    confidently answered, or None to fall through to the normal LLM path.
     """
     q = (question or "").strip().lower()
     for keywords, handler in _INTENTS:
