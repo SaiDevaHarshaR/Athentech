@@ -251,18 +251,36 @@ def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, ma
         if not pkg:
             return None
         pkg_code, pkg_name = pkg
+
+        # Detect an optional location mention ("... at Jagtial", "... for Kompally")
+        loc_filter_sql = ""
+        loc_params = [pkg_code]
+        loc_name = None
+        loc_m = re.search(r"\b(?:at|in|for)\s+([A-Za-z][A-Za-z\s\-]{2,20})$", q)
+        if loc_m:
+            loc_name = loc_m.group(1).strip()
+            cursor.execute(
+                "SELECT LOCATIONID FROM mstlocation WHERE LOCATIONNAME LIKE ?",
+                (f"%{loc_name}%",),
+            )
+            loc_row = cursor.fetchone()
+            if loc_row:
+                loc_filter_sql = "AND p.LOCATIONID = ?"
+                loc_params.append(loc_row[0])
+
         cursor.execute(
-            "SELECT DISTINCT p.PACKAGERATE, t.INVNAME, p.ACTUALRATE "
-            "FROM mstinvpackages p JOIN mstInvestigations t ON p.TESTCODE = t.INVCODE "
-            "WHERE p.PACKAGECODE = ? AND p.ACTIVE = 1",
-            (pkg_code,),
+            f"SELECT DISTINCT p.PACKAGERATE, t.INVNAME, p.ACTUALRATE "
+            f"FROM mstinvpackages p JOIN mstInvestigations t ON p.TESTCODE = t.INVCODE "
+            f"WHERE p.PACKAGECODE = ? AND p.ACTIVE = 1 {loc_filter_sql}",
+            tuple(loc_params),
         )
         rows = cursor.fetchall()
         if not rows:
             return f"No component tests found for package '{pkg_name}'."
         pkg_rate = rows[0][0]
+        title_suffix = f" · {loc_name}" if loc_name and loc_filter_sql else ""
         return _list_card(
-            icon="📦", title=pkg_name,
+            icon="📦", title=pkg_name + title_suffix,
             intro=f"Package price: ₹{pkg_rate:,.0f}" if pkg_rate else None,
             items=[
                 {"primary": test_name, "fields": [f"Individual rate: ₹{actual_rate:,.0f}"] if actual_rate else []}

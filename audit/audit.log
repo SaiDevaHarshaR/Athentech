@@ -830,3 +830,5 @@
 {"ts": "2026-09-11T08:45:57.801104Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "package price for TORCH profile", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T08:46:10.736810Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "package price for master health checkup", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T08:46:24.999306Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "list all packages", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T08:48:56.654246Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "package price for master health checkup", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-11T08:50:03.540069Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "package price for TORCH profile Suryapet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
