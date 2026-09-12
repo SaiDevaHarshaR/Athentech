@@ -120,109 +120,91 @@ def export_multi_branch_collection(
     branches = {}
     all_modes = set()
     for branch, mode, amt in rows:
-        branches.setdefault(branch or "Unknown", {})[mode or "OTHER"] = float(amt or 0)
-        all_modes.add(mode or "OTHER")
+        b = branch or "Unknown"
+        m = mode or "OTHER"
+        branches.setdefault(b, {})[m] = float(amt or 0)
+        all_modes.add(m)
     all_modes = sorted(all_modes)
 
     overall = {"CASH": 0.0, "CARD": 0.0, "UPI_ONLINE": 0.0, "CHEQUE": 0.0, "CREDIT": 0.0, "OTHER": 0.0}
-
-    def bucket(mode: str) -> str:
-        m = (mode or "").upper()
-        if "CASH" in m:
-            return "CASH"
-        if any(x in m for x in ("UPI", "ONLINE", "PHONEPE", "GPAY", "PAYTM")):
-            return "UPI_ONLINE"
-        if any(x in m for x in ("CARD", "CREDIT CARD", "DEBIT")):
-            return "CARD"
-        if any(x in m for x in ("CHEQUE", "CHECK", "DD")):
-            return "CHEQUE"
-        if "CREDIT" in m:
-            return "CREDIT"
-        return "OTHER"
-
     for modes in branches.values():
         for mode, amt in modes.items():
-            overall[bucket(mode)] += amt
+            overall[_mode_bucket(mode)] += amt
     grand = sum(overall.values())
 
     wb = Workbook()
     ws = wb.active
     ws.title = "All Branches"
+
     headers = ["Branch"] + all_modes + ["Total"]
     hr = _title_row(ws, hospital_name, len(headers))
+
+    # period subtitle
+    ws.cell(row=hr, column=1, value=f"Collection · {label}").font = Font(italic=True, name="Arial", size=10)
+    hr += 1
     _style_header(ws, hr, headers)
 
     row_num = hr + 1
-    first_data = row_num
     for branch in sorted(branches.keys()):
         ws.cell(row=row_num, column=1, value=branch)
+        row_total = 0.0
         for col, mode in enumerate(all_modes, start=2):
-            c = ws.cell(row=row_num, column=col, value=branches[branch].get(mode, 0.0))
-            c.number_format = "#,##0.00"
-        tc = len(all_modes) + 2
-        fl, ll = get_column_letter(2), get_column_letter(tc - 1)
-        c = ws.cell(row=row_num, column=tc, value=f"=SUM({fl}{row_num}:{ll}{row_num})")
+            val = branches[branch].get(mode, 0.0)
+            row_total += val
+            c = ws.cell(row=row_num, column=col, value=val)
+            c.number_format = '#,##0.00'
+        c = ws.cell(row=row_num, column=len(all_modes) + 2, value=row_total)
         c.font = Font(bold=True, name="Arial")
-        c.number_format = "#,##0.00"
+        c.number_format = '#,##0.00'
         row_num += 1
-    last_data = row_num - 1
 
-    # GRAND TOTAL all branches
+    # GRAND TOTAL row (computed, not formula)
     ws.cell(row=row_num, column=1, value="GRAND TOTAL").font = Font(bold=True, name="Arial")
-    for col in range(2, len(all_modes) + 3):
-        cl = get_column_letter(col)
-        c = ws.cell(row=row_num, column=col, value=f"=SUM({cl}{first_data}:{cl}{last_data})")
+    for col, mode in enumerate(all_modes, start=2):
+        col_sum = sum(branches[b].get(mode, 0.0) for b in branches)
+        c = ws.cell(row=row_num, column=col, value=col_sum)
         c.font = Font(bold=True, name="Arial")
-        c.number_format = "#,##0.00"
+        c.number_format = '#,##0.00'
+    c = ws.cell(row=row_num, column=len(all_modes) + 2, value=grand)
+    c.font = Font(bold=True, name="Arial")
+    c.number_format = '#,##0.00'
     row_num += 2
 
-    ws.cell(row=row_num, column=1, value="OVERALL (ALL BRANCHES)").font = Font(bold=True, size=12, name="Arial")
+    ws.cell(row=row_num, column=1, value="OVERALL SUMMARY (ALL BRANCHES)").font = Font(bold=True, size=12, name="Arial")
     row_num += 1
-    overall = {"CASH": 0.0, "CARD": 0.0, "UPI_ONLINE": 0.0, "CHEQUE": 0.0, "CREDIT": 0.0, "OTHER": 0.0}
+    ws.cell(row=row_num, column=1, value="Note: Credits / Cash-in-hand use MODE buckets only; refine later if ledger fields differ.")
+    ws.cell(row=row_num, column=1).font = Font(italic=True, size=9, name="Arial", color="666666")
+    row_num += 1
 
-    def bucket(mode: str) -> str:
-        m = (mode or "").upper()
-        if "CASH" in m:
-            return "CASH"
-        if any(x in m for x in ("UPI", "ONLINE", "PHONEPE", "GPAY", "PAYTM")):
-            return "UPI_ONLINE"
-        if any(x in m for x in ("CARD", "CREDIT CARD", "DEBIT")):
-            return "CARD"
-        if any(x in m for x in ("CHEQUE", "CHECK", "DD")):
-            return "CHEQUE"
-        if "CREDIT" in m:
-            return "CREDIT"
-        return "OTHER"
-
-    for modes in branches.values():
-        for mode, amt in modes.items():
-            overall[bucket(mode)] += amt
-    grand = sum(overall.values())
-
-    for label_s, val in [
+    summary = [
         ("Total Cash", overall["CASH"]),
         ("Total Credit Card", overall["CARD"]),
-        ("Total Cheque/Online/UPI Received", overall["UPI_ONLINE"] + overall["CHEQUE"]),
         ("Total UPI/Online", overall["UPI_ONLINE"]),
         ("Total Cheque", overall["CHEQUE"]),
-        ("Credits", overall["CREDIT"]),
+        ("Total Cheque/Online/UPI Received", overall["UPI_ONLINE"] + overall["CHEQUE"]),
+        ("Credits (from MODE bucket — placeholder if ledger differs)", overall["CREDIT"]),
         ("Other", overall["OTHER"]),
         ("GRAND TOTAL (all modes, all branches)", grand),
-        ("Total Cash in Hand", overall["CASH"]),
-        ("Total Online/UPI in Hand", overall["UPI_ONLINE"]),
-        ("Core business cash collected", overall["CASH"]),
-        ("Total cash received", overall["CASH"]),
-    ]:
+        ("Total Cash in Hand (placeholder = Total Cash)", overall["CASH"]),
+        ("Total Online/UPI in Hand (placeholder = UPI/Online)", overall["UPI_ONLINE"]),
+        ("Core business cash collected (placeholder = Total Cash)", overall["CASH"]),
+        ("Total cash received (placeholder = Total Cash)", overall["CASH"]),
+    ]
+    for label_s, val in summary:
         ws.cell(row=row_num, column=1, value=label_s)
         c = ws.cell(row=row_num, column=2, value=val)
-        c.number_format = "#,##0.00"
+        c.number_format = '#,##0.00'
         if "GRAND" in label_s:
             c.font = Font(bold=True, name="Arial")
+            ws.cell(row=row_num, column=1).font = Font(bold=True, name="Arial")
         row_num += 1
+
+    ws.column_dimensions["A"].width = 42
+    for i in range(2, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 14
 
     safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
     return _save(wb, f"collection_all_branches_{safe}_{date.today().isoformat()}.xlsx", label)
-
 
 def export_single_branch_collection(
     period,

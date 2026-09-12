@@ -749,48 +749,45 @@ function handleSend() {
   processMessage(text);
 }
 
-async function downloadExcel(period, reportType) {
-  if (state.mode !== 'premium' || !state.activationCode) {
-    addMessage('Excel export needs Premium mode. Enter an activation code first.', 'bot');
-    return;
-  }
-  const labels = {
-    collection: 'collection by branch',
-    top_tests: 'top tests',
-    refunds: 'refunds',
-    registrations: 'registrations by branch'
+async function downloadCollectionExcel(period, reportType, location) {
+  addMessage('Generating Excel export...', 'bot');
+
+  const payload = {
+    period: period || "today",
+    report_type: reportType || "collection",
+    activation_code: state.activationCode ? String(state.activationCode) : "",
+    location: location ? String(location) : ""
   };
-  addMessage(`Generating Excel (${labels[reportType] || reportType} · ${period})...`, 'bot');
+  console.log("EXCEL PAYLOAD", payload);
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/generate-excel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        period: period,
-        report_type: reportType,
-        activation_code: state.activationCode || '',
-        location: location || ''
-      })
+    const response = await fetch("http://127.0.0.1:8000/generate-excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
+
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      addMessage(err.detail || err.error || 'Failed to generate Excel.', 'bot');
+      const errText = await response.text();
+      console.log("EXCEL ERROR", response.status, errText);
+      addMessage("Excel failed (" + response.status + "): " + errText, "bot");
       return;
     }
+
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${reportType}_${period}.xlsx`;
+    a.download = "collection_" + (period || "today") + ".xlsx";
     document.body.appendChild(a);
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
-    addMessage('✅ Excel downloaded.', 'bot');
+
+    addMessage("✅ Excel downloaded.", "bot");
   } catch (err) {
-    addMessage('Could not download Excel. Try again.', 'bot');
     console.error(err);
+    addMessage("Could not download Excel. Try again.", "bot");
   }
 }
 
