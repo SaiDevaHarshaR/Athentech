@@ -449,9 +449,12 @@ def api_update_settings(req: SettingsUpdateRequest, admin: str = Depends(require
 # right now, instead of wondering whether they're wired up at all.
 from fastapi.responses import FileResponse
 
-@app.get("/download/{filename}")
-def download_file(filename: str):
-    return FileResponse(f"exports/{filename}", filename=filename)
+#@app.get("/download/{filename}")
+
+#def download_file(filename: str):
+ #   return FileResponse(f"exports/{filename}", filename=filename)
+
+
 @app.post("/admin/notifications/test")
 def api_test_notifications(admin: str = Depends(require_admin)):
     email_ok, email_msg = send_alert_email(
