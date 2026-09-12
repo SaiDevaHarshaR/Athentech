@@ -249,9 +249,81 @@ def _export_multi_branch_mode_pivot(
         return _save(wb, f"day_collection_all_{safe}.xlsx", result["bill_date"])
 
     # Week / other multi periods: old MODE pivot (SP has no date range)
-    return _export_multi_branch_mode_pivot(
-        period, db_name, db_server, db_user, db_password, hospital_name
-    )
+    # Week / other multi-day periods: real MODE pivot across branches
+    # (the stored procedure is single-day only, so this can't reuse it)
+    date_from, date_to, label = _period_dates(period)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return {"error": "Could not connect to the hospital database."}
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT l.LOCATIONNAME, UPPER(LTRIM(RTRIM(m.MODE))) AS MODE, SUM(m.PAIDAMOUNT) AS Amt "
+            "FROM trnmodeofcollectionsdet m "
+            "JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
+            "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
+            "GROUP BY l.LOCATIONNAME, UPPER(LTRIM(RTRIM(m.MODE))) "
+            "ORDER BY l.LOCATIONNAME",
+            (date_from, date_to),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        conn.close()
+        return {"error": f"Query failed: {e}"}
+    conn.close()
+    if not rows:
+        return {"error": f"No collection data for {label}."}
+
+    branches = {}
+    all_modes = set()
+    for branch, mode, amt in rows:
+        branches.setdefault(branch, {})[mode] = float(amt or 0)
+        all_modes.add(mode)
+    all_modes = sorted(all_modes)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Collection"
+    headers = ["Branch"] + all_modes + ["Total"]
+    hr = _title_row(ws, hospital_name, len(headers))
+    ws.cell(row=hr, column=1, value=f"Collection by Mode · {label}").font = Font(italic=True, name="Arial", size=10)
+    hr += 1
+    _style_header(ws, hr, headers)
+
+    row_num = hr + 1
+    mode_sums = {m: 0.0 for m in all_modes}
+    for branch in sorted(branches.keys()):
+        ws.cell(row=row_num, column=1, value=branch)
+        row_total = 0.0
+        for col_i, mode in enumerate(all_modes, start=2):
+            amt = branches[branch].get(mode, 0.0)
+            mode_sums[mode] += amt
+            row_total += amt
+            c = ws.cell(row=row_num, column=col_i, value=amt)
+            c.number_format = "#,##0.00"
+        total_col = len(all_modes) + 2
+        c = ws.cell(row=row_num, column=total_col, value=row_total)
+        c.font = Font(bold=True, name="Arial")
+        c.number_format = "#,##0.00"
+        row_num += 1
+
+    ws.cell(row=row_num, column=1, value="GRAND TOTAL").font = Font(bold=True, name="Arial")
+    grand_total = 0.0
+    for col_i, mode in enumerate(all_modes, start=2):
+        c = ws.cell(row=row_num, column=col_i, value=mode_sums[mode])
+        c.font = Font(bold=True, name="Arial")
+        c.number_format = "#,##0.00"
+        grand_total += mode_sums[mode]
+    c = ws.cell(row=row_num, column=len(all_modes) + 2, value=grand_total)
+    c.font = Font(bold=True, name="Arial")
+    c.number_format = "#,##0.00"
+
+    ws.column_dimensions["A"].width = 28
+    for i in range(2, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 16
+
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    return _save(wb, f"collection_by_mode_{safe}_{date.today().isoformat()}.xlsx", label)
 def export_single_branch_collection(
     period,
     location_keyword,
