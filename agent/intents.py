@@ -1255,7 +1255,47 @@ def _handle_top_tests_at_branch(q, role, db_name, db_server, db_user, db_passwor
     finally:
         conn.close()
 
+def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from reports.day_collection_reconciliation import (
+        get_day_collection_one_branch, get_day_collection_all_branches,
+        format_reconciliation_card_fields,
+    )
 
+    date_from, _, label = _period_dates(q)
+    is_all_branches = any(kw in q for kw in ["all branches", "all locations", "every branch", "overall"])
+
+    if is_all_branches:
+        result = get_day_collection_all_branches(date_from, db_name, db_server, db_user, db_password)
+        if "error" in result:
+            return f"Error: {result['error']}"
+        items = []
+        for b in sorted(result["branches"], key=lambda x: -(x.get("TOTALCASHINHAND") or 0)):
+            fields = format_reconciliation_card_fields(b)
+            cash_in_hand = next((v for k, v in fields if "Cash in Hand" in k), 0)
+            items.append({"primary": b["LOCATION"], "fields": [f"Cash in Hand: ₹{cash_in_hand:,.0f}"]})
+        return _list_card(icon="💰", title=f"Cash Reconciliation · All Branches · {result['bill_date']}", items=items)
+
+    noise = ["cash in hand", "reconciliation", "day collection reconciliation", "reconcil",
+             "today", "yesterday", "this month", "for", "report", "detailed"]
+    loc = q
+    for w in sorted(noise, key=len, reverse=True):
+        loc = re.sub(rf"\b{re.escape(w)}\b", " ", loc)
+    loc = loc.strip()
+    if not loc or len(loc) < 3:
+        return None
+
+    result = get_day_collection_one_branch(loc, date_from, db_name, db_server, db_user, db_password)
+    if "error" in result:
+        return f"Error: {result['error']}"
+
+    branch = result["branch"]
+    fields = format_reconciliation_card_fields(branch)
+    return _dashboard_card(
+        icon="💰", title=f"Cash Reconciliation · {branch['LOCATION']}", subtitle=result["bill_date"],
+        stats=[{"label": label_text, "value": f"₹{val:,.0f}"} for label_text, val in fields],
+    )
 # ---------- refund_bills_list ----------
 def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
