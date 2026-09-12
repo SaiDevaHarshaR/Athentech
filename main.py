@@ -346,7 +346,21 @@ def api_delete_institution(institution_id: int, admin: str = Depends(require_adm
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
+@app.post("/locations")
+def get_locations(req: dict):
+    validation = validate_license(req.get("activation_code", ""))
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+    conn = get_hospital_connection(validation.get("db_name"), validation.get("db_server"), validation.get("db_user"), validation.get("db_password"))
+    if not conn:
+        return {"locations": []}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1 ORDER BY LOCATIONNAME")
+        names = [row[0] for row in cursor.fetchall()]
+        return {"locations": names}
+    finally:
+        conn.close()
 # ---------- Admin: licenses (auth required) ----------
 
 @app.get("/admin/licenses")
