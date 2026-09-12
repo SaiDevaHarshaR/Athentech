@@ -1288,15 +1288,15 @@ def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password,
     finally:
         conn.close()
 
-def _handle_excel_export(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
-    if role not in _ALLOWED_ROLES:
-        return "Error: your role does not have access to this data."
-    period = "yesterday" if "yesterday" in q else ("this_month" if "this month" in q else "today")
-    from reports.excel_export import export_all_branches_collection
-    result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
-    if "error" in result:
-        return f"Error: {result['error']}"
-    return f"📊 Excel export ready: {result['filename']} (download link needed — see backend wiring)"
+#def _handle_excel_export(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+ #   if role not in _ALLOWED_ROLES:
+  #      return "Error: your role does not have access to this data."
+   # period = "yesterday" if "yesterday" in q else ("this_month" if "this month" in q else "today")
+    #from reports.excel_export import export_all_branches_collection
+#    result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
+ #   if "error" in result:
+  #      return f"Error: {result['error']}"
+   # return f"📊 Excel export ready: {result['filename']} (download link needed — see backend wiring)"
 
 # ---------- package_orders ----------
 def _handle_package_orders(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
@@ -1475,6 +1475,7 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
     return raw if isinstance(raw, str) else str(raw)
 
 _INTENTS = [
+      (["compare ", " vs "], _handle_branch_compare),
     # most specific first
     (["cash in hand", "reconciliation", "day collection reconciliation"],
      _handle_cash_recon),
@@ -1518,8 +1519,8 @@ _INTENTS = [
      _handle_top_tests_at_branch),
     (["list refunds", "recent refunds", "refund bills"], _handle_refund_bills_list),
     (["top packages", "package orders", "packages ordered"], _handle_package_orders),
-    (["export collection to excel", "excel export", "download collection excel"],
-     _handle_excel_export),
+#    (["export collection to excel", "excel export", "download collection excel"],
+#    _handle_excel_export),
     # single branch — AFTER all_collection so "total collection" doesn't hit this
     (["collection at", "collection for", "day collection", "branch collection",
       "kompally collection", "uppal collection", "kukatpally collection",
@@ -1589,7 +1590,7 @@ _INTENTS = [
     (["list departments", "list all departments", "which departments",
       "department list"],
      _handle_departments_list),
-        (["compare ", " vs "], _handle_branch_compare),
+      
 ]
 
 
