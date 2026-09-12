@@ -1,5 +1,5 @@
 import time
-
+from reports.excel_export import export_all_branches_collection
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -394,7 +394,7 @@ def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_a
     return {"status": "success", "message": "License revoked"}
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from reports.excel_export import export_all_branches_collection
+
 
 from reports.excel_export import run_excel_export
 
@@ -411,7 +411,7 @@ def api_delete_license(code: str, admin: str = Depends(require_admin)):
         return {"status": "error", "message": "Code not found"}
     _log_admin_action(admin, "Deleted license", code)
     return {"status": "success", "message": "License deleted"}
-
+# */
 
 # ---------- Admin: roles (auth required) ----------
 
@@ -573,18 +573,17 @@ async def generate_pdf(req: PDFRequest):
     )
 
 from fastapi.responses import StreamingResponse
-from reports.excel_export import export_all_branches_collection
 
-@app.post("/generate-excel")
-def generate_excel(period: str = "today", db_name: str = None, db_server: str = None, db_user: str = None, db_password: str = None):
-    result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
-    if "error" in result:
-        return {"error": result["error"]}
-    return StreamingResponse(
-        result["file"],
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
-    )
+# @app.post("/generate-excel")
+# def generate_excel(period: str = "today", db_name: str = None, db_server: str = None, db_user: str = None, db_password: str = None):
+#     result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
+#     if "error" in result:
+#         return {"error": result["error"]}
+#     return StreamingResponse(
+#         result["file"],
+#         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
+#     )
 
 
 @app.post("/generate-patient-report")
