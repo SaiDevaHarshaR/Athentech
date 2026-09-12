@@ -392,7 +392,13 @@ def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_a
         return {"status": "error", "message": "Code not found"}
     _log_admin_action(admin, "Revoked license", req.code)
     return {"status": "success", "message": "License revoked"}
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from reports.excel_export import export_all_branches_collection
 
+class ExcelExportRequest(BaseModel):
+    period: str = "today"
+    activation_code: str = ""
 
 @app.delete("/admin/licenses/{code}")
 def api_delete_license(code: str, admin: str = Depends(require_admin)):
@@ -504,6 +510,39 @@ def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(requi
 
 
 # ---------- Reports ----------
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from reports.excel_export import export_all_branches_collection
+
+class ExcelExportRequest(BaseModel):
+    period: str = "today"
+    activation_code: str = ""
+
+@app.post("/generate-excel")
+async def generate_excel(req: ExcelExportRequest):
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+
+    db_name = validation.get("db_name")
+    db_server = validation.get("db_server")
+    db_user = validation.get("db_user")
+    db_password = validation.get("db_password")
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None, export_all_branches_collection, req.period, db_name, db_server, db_user, db_password,
+    )
+
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return StreamingResponse(
+        result["file"],
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
+    )
 
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
