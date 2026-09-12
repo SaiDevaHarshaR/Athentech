@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
-
+from reports.excel_export import run_excel_export
 from agent.agent import ask_agent
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -396,13 +396,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 
-from reports.excel_export import run_excel_export
+
 
 class ExcelExportRequest(BaseModel):
     period: str = "today"
     report_type: str = "collection"
     activation_code: str = ""
-    location: str = ""   # required for month/year collection
+    location: str = ""
 
 @app.delete("/admin/licenses/{code}")
 def api_delete_license(code: str, admin: str = Depends(require_admin)):
@@ -518,33 +518,7 @@ def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(requi
 
 
 
-@app.post("/generate-excel")
-async def generate_excel(req: ExcelExportRequest):
-    validation = validate_license(req.activation_code)
-    if not validation.get("valid"):
-        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
-    import asyncio
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: run_excel_export(
-            report_type=req.report_type,
-            period=req.period,
-            db_name=validation.get("db_name"),
-            db_server=validation.get("db_server"),
-            db_user=validation.get("db_user"),
-            db_password=validation.get("db_password"),
-            hospital_name=validation.get("hospital_name") or "Hospital",
-            location_keyword=(req.location or "").strip() or None,
-        ),
-    )
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return StreamingResponse(
-        result["file"],
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
-    )
+
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
     data = {
