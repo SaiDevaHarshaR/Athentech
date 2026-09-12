@@ -340,7 +340,123 @@ def export_single_branch_collection(
     safe = re.sub(r"[^A-Za-z0-9_]", "_", f"{matched}_{label}")
     return _save(wb, f"collection_{safe}_{date.today().isoformat()}.xlsx", label)
 
+def export_top_tests(
+    period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
+):
+    date_from, date_to, label = _period_dates(period)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return {"error": "Could not connect to the hospital database."}
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT TOP 50 i.INVNAME, COUNT(*) AS Cnt "
+            "FROM trninvlabdet d "
+            "JOIN mstInvestigations i ON d.TCODE = i.INVCODE "
+            "WHERE d.BILLDATE >= ? AND d.BILLDATE < ? "
+            "GROUP BY i.INVNAME ORDER BY Cnt DESC",
+            (date_from, date_to),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        conn.close()
+        return {"error": f"Query failed: {e}"}
+    conn.close()
+    if not rows:
+        return {"error": f"No test data for {label}."}
 
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Top Tests"
+    headers = ["#", "Investigation", "Orders"]
+    hr = _title_row(ws, hospital_name, 3)
+    _style_header(ws, hr, headers)
+    for i, (name, cnt) in enumerate(rows, start=1):
+        ws.cell(row=hr + i, column=1, value=i)
+        ws.cell(row=hr + i, column=2, value=name)
+        ws.cell(row=hr + i, column=3, value=int(cnt or 0)).number_format = "#,##0"
+    ws.column_dimensions["B"].width = 40
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    return _save(wb, f"top_tests_{safe}_{date.today().isoformat()}.xlsx", label)
+
+
+def export_refunds_list(
+    period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
+):
+    date_from, date_to, label = _period_dates(period)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return {"error": "Could not connect to the hospital database."}
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT TOP 500 BILLNO, MODE, PAIDAMOUNT, DATEOFBILL, LOCATIONID "
+            "FROM trnmodeofcollectionsdet "
+            "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ? "
+            "ORDER BY DATEOFBILL DESC",
+            (date_from, date_to),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        conn.close()
+        return {"error": f"Query failed: {e}"}
+    conn.close()
+    if not rows:
+        return {"error": f"No refunds for {label}."}
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Refunds"
+    headers = ["Bill No", "Mode", "Amount", "Date", "LocationId"]
+    hr = _title_row(ws, hospital_name, 5)
+    _style_header(ws, hr, headers)
+    for i, row in enumerate(rows):
+        r = hr + 1 + i
+        for col, val in enumerate(row, start=1):
+            cell = ws.cell(row=r, column=col, value=val if col != 3 else float(val or 0))
+            if col == 3:
+                cell.number_format = "#,##0.00"
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    return _save(wb, f"refunds_{safe}_{date.today().isoformat()}.xlsx", label)
+
+
+def export_registrations_by_branch(
+    period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
+):
+    date_from, date_to, label = _period_dates(period)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return {"error": "Could not connect to the hospital database."}
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT l.LOCATIONNAME, COUNT(*) AS Cnt "
+            "FROM mstpatientregistration p "
+            "JOIN mstlocation l ON p.LOCATIONID = l.LOCATIONID "
+            "WHERE p.REGDATE >= ? AND p.REGDATE < ? "
+            "GROUP BY l.LOCATIONNAME ORDER BY Cnt DESC",
+            (date_from, date_to),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        conn.close()
+        return {"error": f"Query failed: {e}"}
+    conn.close()
+    if not rows:
+        return {"error": f"No registrations for {label}."}
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Registrations"
+    headers = ["Branch", "Registrations"]
+    hr = _title_row(ws, hospital_name, 2)
+    _style_header(ws, hr, headers)
+    for i, (name, cnt) in enumerate(rows):
+        ws.cell(row=hr + 1 + i, column=1, value=name)
+        ws.cell(row=hr + 1 + i, column=2, value=int(cnt or 0)).number_format = "#,##0"
+    ws.column_dimensions["A"].width = 28
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    return _save(wb, f"registrations_{safe}_{date.today().isoformat()}.xlsx", label)
 def run_excel_export(
     report_type: str,
     period: str,
