@@ -711,8 +711,13 @@ function showSuggestions(list) {
     const btn = document.createElement('button');
     btn.textContent = item.label;
     btn.onclick = () => {
-      input.value = item.send;
-      handleSend();
+      suggestionsEl.innerHTML = '';  // close the menu immediately, before any async work
+      if (item.action) {
+        item.action();
+      } else {
+        input.value = item.send;
+        handleSend();
+      }
     };
     suggestionsEl.appendChild(btn);
   });
@@ -793,16 +798,18 @@ async function downloadCollectionExcel(period, reportType, location) {
 
 function showExcelMenu() {
   showSuggestions([
-    { label: 'Collection · Today', send: 'export excel collection today' },
-    { label: 'Collection · Yesterday', send: 'export excel collection yesterday' },
-    { label: 'Collection · This month', send: 'export excel collection this month' },
-    { label: 'Top tests · Today', send: 'export excel top tests today' },
-    { label: 'Refunds · Today', send: 'export excel refunds today' },
-    { label: 'Registrations · Today', send: 'export excel registrations today' },
+    { label: 'Collection · Today', action: () => downloadCollectionExcel('today', 'collection') },
+    { label: 'Collection · Yesterday', action: () => downloadCollectionExcel('yesterday', 'collection') },
+    { label: 'Collection · This month', action: () => promptForLocationThenDownload('this_month', 'collection') },
+    { label: 'Top tests · Today', action: () => downloadCollectionExcel('today', 'top_tests') },
+    { label: 'Refunds · Today', action: () => downloadCollectionExcel('today', 'refunds') },
+    { label: 'Registrations · Today', action: () => downloadCollectionExcel('today', 'registrations') },
   ]);
-  addMessage('Pick an Excel export (or type e.g. **export excel collection yesterday**).', 'bot');
 }
-
+function promptForLocationThenDownload(period, reportType) {
+  const location = prompt('Which branch? (month/year exports need one branch)');
+  if (location) downloadCollectionExcel(period, reportType, location);
+}
 async function processMessage(text) {
   const q = text.toLowerCase();
   // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
