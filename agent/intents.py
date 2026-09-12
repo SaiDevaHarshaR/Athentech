@@ -1597,12 +1597,17 @@ _INTENTS = [
 
 
 def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
-    """
-    Returns an answer string (dashboard-card/list-card JSON, or a plain
-    'no data'/'error' string) if a fixed-SQL intent matched and
-    confidently answered, or None to fall through to the normal LLM path.
-    """
     q = (question or "").strip().lower()
+
+    # Comparison questions are checked FIRST and are TERMINAL — if this
+    # matches "compare"/"vs" but the handler can't confidently answer
+    # (e.g. an unrecognized period), go straight to the LLM. Do NOT let
+    # the loop below try other handlers — a comparison phrase overlapping
+    # a single-location keyword (e.g. "uppal collection") was being
+    # wrongly caught by a less-specific handler otherwise.
+    if "compare " in q or " vs " in q:
+        return _handle_branch_compare(q, role, db_name, db_server, db_user, db_password)
+
     for keywords, handler in _INTENTS:
         matched = next((kw for kw in keywords if kw in q), None)
         if matched:
