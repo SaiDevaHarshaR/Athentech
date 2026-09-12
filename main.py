@@ -529,6 +529,20 @@ async def generate_pdf(req: PDFRequest):
         headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"},
     )
 
+from fastapi.responses import StreamingResponse
+from reports.excel_export import export_all_branches_collection
+
+@app.post("/generate-excel")
+def generate_excel(period: str = "today", db_name: str = None, db_server: str = None, db_user: str = None, db_password: str = None):
+    result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
+    if "error" in result:
+        return {"error": result["error"]}
+    return StreamingResponse(
+        result["file"],
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
+    )
+
 
 @app.post("/generate-patient-report")
 async def generate_patient_report(req: PatientReportRequest):
