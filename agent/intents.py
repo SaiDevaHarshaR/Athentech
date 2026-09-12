@@ -1589,6 +1589,7 @@ _INTENTS = [
     (["list departments", "list all departments", "which departments",
       "department list"],
      _handle_departments_list),
+      (["compare ", " vs "], _handle_branch_compare),
 ]
 
 

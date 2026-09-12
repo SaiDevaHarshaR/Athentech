@@ -981,3 +981,5 @@
 {"ts": "2026-09-11T12:54:28.464463Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "which branch is performing the second best this month?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T13:02:37.822377Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "which branch collected highest cash", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-11T13:03:42.540851Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "what about kompally?", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-12T05:44:04.764601Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
+{"ts": "2026-09-12T05:44:27.792064Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "compare Kompally vs Uppal collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
