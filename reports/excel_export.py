@@ -377,3 +377,6 @@ def run_excel_export(
     if key == "registrations":
         return export_registrations_by_branch(period, db_name, db_server, db_user, db_password, hospital_name)
     return {"error": "report_type must be: collection, top_tests, refunds, registrations"}
+
+# backward-compatible alias
+export_all_branches_collection = export_multi_branch_collection
