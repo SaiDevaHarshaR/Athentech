@@ -1060,3 +1060,4 @@
 {"ts": "2026-09-12T08:36:09.577475Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "investigation master for lipid profile", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-12T08:36:18.086339Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "recent 10 patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-12T08:38:18.883186Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "top tests suryapet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-12T10:50:00.052879Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "collection this week", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
