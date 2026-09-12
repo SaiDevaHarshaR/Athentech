@@ -1011,3 +1011,6 @@
 {"ts": "2026-09-12T05:57:00.057519Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "export collection to excel", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-12T05:58:52.136867Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "export collection to excel", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-12T06:01:08.558974Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "export collection to excel", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-12T06:03:03.282486Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "compare Kompally vs Uppal collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-12T06:03:25.049458Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "export collection to excel", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-12T06:06:36.366682Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "compare Kompally vs Uppal collection yesterday", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

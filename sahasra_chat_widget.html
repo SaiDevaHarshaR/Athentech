@@ -748,6 +748,42 @@ function handleSend() {
   processMessage(text);
 }
 
+async function downloadCollectionExcel(period) {
+  addMessage('Generating Excel export...', 'bot');
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period: period,
+        activation_code: state.activationCode || ''
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || err.error || 'Failed to generate the excel export.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `collection_${period}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ Excel export downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download the excel export. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
 async function processMessage(text) {
   const q = text.toLowerCase();
   // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
