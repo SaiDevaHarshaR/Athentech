@@ -1175,6 +1175,190 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
         footer={"label": "Details", "value": text},
     )
 
+# ---------- stuck_samples (Sample Collected still open) ----------
+def _handle_stuck_samples(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    today = date.today()
+    date_from = (today - timedelta(days=7)).isoformat()
+    date_to = (today + timedelta(days=1)).isoformat()
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM trninvlabdet "
+            "WHERE TESTSTATUS = 'Sample Collected' "
+            "AND BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(
+            icon="⏳", title="Stuck at Sample Collected",
+            subtitle="Bills in last 7 days still Sample Collected",
+            stats=[{"label": "COUNT", "value": f"{n:,}"}],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- top_tests_at_branch ----------
+def _handle_top_tests_at_branch(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    _known = [
+        "jagtial", "kompally", "kukatpally", "suryapet", "uppal", "attapur",
+        "alwal", "warangal", "kphb", "medchal", "siricilla", "bengaluru",
+    ]
+    loc_m = re.search(r"\b(" + "|".join(_known) + r")\b", q, re.IGNORECASE)
+    if not loc_m:
+        return None
+    loc_kw = loc_m.group(1)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT LOCATIONID, LOCATIONNAME FROM mstlocation WHERE LOCATIONNAME LIKE ?",
+            (f"%{loc_kw}%",),
+        )
+        locs = cursor.fetchall()
+        if not locs:
+            return f"No location matching '{loc_kw}'."
+        if len(locs) > 1:
+            exact = [r for r in locs if r[1].strip().lower() == loc_kw.lower()]
+            locs = exact if len(exact) == 1 else locs
+            if len(locs) > 1:
+                return f"Multiple locations: {', '.join(r[1] for r in locs)}."
+        loc_id, loc_name = locs[0]
+        cursor.execute(
+            "SELECT TOP 10 i.INVNAME, COUNT(*) AS Cnt FROM trninvlabdet d "
+            "JOIN mstInvestigations i ON d.TCODE = i.INVCODE "
+            "WHERE d.LOCATIONID = ? AND d.BILLDATE >= ? AND d.BILLDATE < ? "
+            "GROUP BY i.INVNAME ORDER BY Cnt DESC",
+            (loc_id, date_from, date_to),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No tests at {loc_name} for {label}."
+        return _list_card(
+            icon="🧪", title=f"Top Tests · {loc_name} · {label}",
+            items=[{"primary": n, "fields": [f"{c:,}"]} for n, c in rows],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- refund_bills_list ----------
+def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 15 BILLNO, MODE, PAIDAMOUNT, DATEOFBILL "
+            "FROM trnmodeofcollectionsdet "
+            "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ? "
+            "ORDER BY DATEOFBILL DESC",
+            (date_from, date_to),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No refund rows for {label}."
+        return _list_card(
+            icon="↩️", title=f"Recent Refunds · {label}",
+            items=[
+                {"primary": bill, "fields": [f"{mode}", f"₹{float(amt or 0):,.0f}", f"{dt}"]}
+                for bill, mode, amt, dt in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- package_orders ----------
+def _handle_package_orders(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    date_from, date_to, label = _period_dates(q)
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT TOP 10 i.INVNAME, COUNT(*) AS Cnt FROM trninvlabdet d "
+            "JOIN mstInvestigations i ON d.TCODE = i.INVCODE "
+            "WHERE i.ISPACKAGE = 'Y' AND d.BILLDATE >= ? AND d.BILLDATE < ? "
+            "GROUP BY i.INVNAME ORDER BY Cnt DESC",
+            (date_from, date_to),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No package orders for {label}."
+        return _list_card(
+            icon="📦", title=f"Top Packages Ordered · {label}",
+            items=[{"primary": n, "fields": [f"{c:,} orders"]} for n, c in rows],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- branch_compare_collection ----------
+def _handle_branch_compare(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    """e.g. 'compare kompally vs uppal collection yesterday'"""
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"compare\s+(.+?)\s+vs\s+(.+?)(?:\s+collection|\s+today|\s+yesterday|$)", q)
+    if not m:
+        m = re.search(r"(.+?)\s+vs\s+(.+?)(?:\s+collection)", q)
+    if not m:
+        return None
+    a_kw, b_kw = m.group(1).strip(), m.group(2).strip()
+    from reports.curated_queries import get_day_collection
+    if "yesterday" in q:
+        d0 = d1 = "yesterday"
+        label = "Yesterday"
+    elif "this month" in q:
+        d0, d1 = "this_month_start", date.today().isoformat()
+        label = "This Month"
+    else:
+        d0 = d1 = "today"
+        label = "Today"
+    ra = get_day_collection(a_kw, d0, d1, db_name, db_server, db_user, db_password)
+    rb = get_day_collection(b_kw, d0, d1, db_name, db_server, db_user, db_password)
+    if ra.get("error") or rb.get("error"):
+        return f"Error: {ra.get('error') or rb.get('error')}"
+    if ra.get("ambiguous") or rb.get("ambiguous"):
+        return "One or both location names are ambiguous — be more specific."
+    ta = 0.0 if ra.get("no_data") else float(ra.get("total") or 0)
+    tb = 0.0 if rb.get("no_data") else float(rb.get("total") or 0)
+    na = ra.get("location", a_kw)
+    nb = rb.get("location", b_kw)
+    return _dashboard_card(
+        icon="📊", title=f"{na} vs {nb}", subtitle=label,
+        stats=[
+            {"label": na.upper()[:20], "value": f"₹{ta:,.0f}"},
+            {"label": nb.upper()[:20], "value": f"₹{tb:,.0f}"},
+            {"label": "DIFFERENCE", "value": f"₹{abs(ta - tb):,.0f}"},
+        ],
+    )
+
 def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
