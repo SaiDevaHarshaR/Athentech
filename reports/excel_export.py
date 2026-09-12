@@ -91,26 +91,6 @@ def _save(wb, filename: str, period_label: str) -> dict:
     return {"file": bio, "filename": filename, "period_label": period_label}
 
 
-def _resolve_location(conn, keyword: str):
-    if not keyword:
-        return None, None
-    kw = keyword.strip()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT LOCATIONID, LOCATIONNAME FROM mstlocation WHERE LOCATIONNAME LIKE ? ORDER BY LOCATIONNAME",
-        (f"%{kw}%",),
-    )
-    rows = cur.fetchall()
-    if not rows:
-        return None, None
-    if len(rows) > 1:
-        exact = [r for r in rows if (r[1] or "").lower() == kw.lower()]
-        if len(exact) == 1:
-            return exact[0][0], exact[0][1]
-        return "AMBIGUOUS", [r[1] for r in rows[:8]]
-    return rows[0][0], rows[0][1]
-
-
 def export_multi_branch_collection(
     period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
 ):
@@ -187,7 +167,7 @@ def export_multi_branch_collection(
         row_num += 1
     last_data = row_num - 1
 
-    # GRAND TOTAL across all branches
+    # GRAND TOTAL all branches
     ws.cell(row=row_num, column=1, value="GRAND TOTAL").font = Font(bold=True, name="Arial")
     for col in range(2, len(all_modes) + 3):
         cl = get_column_letter(col)
@@ -196,8 +176,7 @@ def export_multi_branch_collection(
         c.number_format = "#,##0.00"
     row_num += 2
 
-    # Overall totals (all branches)
-    ws.cell(row=row_num, column=1, value="OVERALL (ALL BRANCHES)").font = Font(bold=True, size=12)
+    ws.cell(row=row_num, column=1, value="OVERALL (ALL BRANCHES)").font = Font(bold=True, size=12, name="Arial")
     row_num += 1
     overall = {"CASH": 0.0, "CARD": 0.0, "UPI_ONLINE": 0.0, "CHEQUE": 0.0, "CREDIT": 0.0, "OTHER": 0.0}
 
@@ -246,7 +225,13 @@ def export_multi_branch_collection(
 
 
 def export_single_branch_collection(
-    period, location_keyword, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
+    period,
+    location_keyword,
+    db_name,
+    db_server=None,
+    db_user=None,
+    db_password=None,
+    hospital_name="Hospital",
 ):
     if not location_keyword:
         return {"error": "Month/year export needs a branch. Example: export excel this month Uppal"}
@@ -318,4 +303,77 @@ def export_single_branch_collection(
     _style_header_row(ws, hr, headers)
 
     r = hr + 1
-    ws.cell(row=r, column=1, value=f"Branch: {matched if False else list(branches.keys())}")  # fix below
+    ws.cell(row=r, column=1, value=f"Branch: {matched} ({loc_id})")
+    r += 1
+    ws.cell(row=r, column=1, value=f"Period: {label}")
+    r += 2
+    ws.cell(row=r, column=1, value="By payment mode").font = Font(bold=True)
+    r += 1
+    for mode in sorted(by_mode.keys()):
+        ws.cell(row=r, column=1, value=mode)
+        c = ws.cell(row=r, column=2, value=by_mode[mode])
+        c.number_format = "#,##0.00"
+        r += 1
+    r += 1
+    for label_s, val in [
+        ("Total Cash", overall["CASH"]),
+        ("Total Credit Card", overall["CARD"]),
+        ("Total Cheque/Online/UPI Received", overall["UPI_ONLINE"] + overall["CHEQUE"]),
+        ("Total UPI/Online", overall["UPI_ONLINE"]),
+        ("Total Cheque", overall["CHEQUE"]),
+        ("Credits", overall["CREDIT"]),
+        ("Other", overall["OTHER"]),
+        ("GRAND TOTAL (with all modes)", grand),
+        ("Total Cash in Hand", overall["CASH"]),
+        ("Total Online/UPI in Hand", overall["UPI_ONLINE"]),
+        ("Core business cash collected", overall["CASH"]),
+        ("Total cash received", overall["CASH"]),
+    ]:
+        ws.cell(row=r, column=1, value=label_s)
+        c = ws.cell(row=r, column=2, value=val)
+        c.number_format = "#,##0.00"
+        if "GRAND" in label_s:
+            c.font = Font(bold=True, name="Arial")
+        r += 1
+    ws.column_dimensions["A"].width = 48
+    ws.column_dimensions["B"].width = 16
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", f"{matched}_{label}")
+    return _save(wb, f"collection_{safe}_{date.today().isoformat()}.xlsx", label)
+
+
+def run_excel_export(
+    report_type: str,
+    period: str,
+    db_name: str,
+    db_server=None,
+    db_user=None,
+    db_password=None,
+    hospital_name: str = "Hospital",
+    location_keyword: str = None,
+) -> dict:
+    key = (report_type or "collection").lower().strip()
+
+    if key == "collection":
+        # day/week → all branches + grand total
+        # month/year → single branch only
+        p = (period or "today").lower().replace(" ", "_")
+        multi = p in (
+            "today", "yesterday", "day",
+            "this_week", "thisweek", "week",
+            "last_week", "lastweek",
+        )
+        if multi:
+            return export_all_branches_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name
+            )
+        return export_single_branch_collection(
+            period, location_keyword, db_name, db_server, db_user, db_password, hospital_name
+        )
+
+    if key == "top_tests":
+        return export_top_tests(period, db_name, db_server, db_user, db_password, hospital_name)
+    if key == "refunds":
+        return export_refunds_list(period, db_name, db_server, db_user, db_password, hospital_name)
+    if key == "registrations":
+        return export_registrations_by_branch(period, db_name, db_server, db_user, db_password, hospital_name)
+    return {"error": "report_type must be: collection, top_tests, refunds, registrations"}
