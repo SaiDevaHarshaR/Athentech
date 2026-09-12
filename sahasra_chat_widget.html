@@ -835,6 +835,25 @@ async function processMessage(text) {
     await downloadPdf(state.lastAnswer);
     return;
 }
+  // ===== EXCEL =====
+  if (
+    (q.includes('excel') || q.includes('xlsx')) &&
+    (q.includes('export') || q.includes('download') || q.includes('generate') || q.includes('excel'))
+  ) {
+    let period = 'today';
+    if (q.includes('yesterday')) period = 'yesterday';
+    else if (q.includes('last month')) period = 'last_month';
+    else if (q.includes('this month')) period = 'this_month';
+    else if (q.includes('this week')) period = 'this_week';
+
+    let reportType = 'collection';
+    if (q.includes('top test')) reportType = 'top_tests';
+    else if (q.includes('refund')) reportType = 'refunds';
+    else if (q.includes('registration') || q.includes('register')) reportType = 'registrations';
+
+    await downloadExcel(period, reportType);
+    return;
+  }
 
 
   // ===== EXIT PREMIUM =====
@@ -889,7 +908,7 @@ async function processMessage(text) {
         state.activationCode = text.toUpperCase();   // ← MUST save the code
         state.role = data.role;
         state.waitingForCode = false;
-
+        state.hospitalName = data.hospital_name || data.hospitalName || null;
         statusEl.textContent = `Premium • ${data.role}`;
         modeBadge.textContent = 'Premium';
         modeBadge.classList.add('premium');
