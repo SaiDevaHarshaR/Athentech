@@ -525,17 +525,20 @@ async def generate_excel(req: ExcelExportRequest):
     if not validation.get("valid"):
         raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
 
-    db_name = validation.get("db_name")
-    db_server = validation.get("db_server")
-    db_user = validation.get("db_user")
-    db_password = validation.get("db_password")
-
     import asyncio
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
-        None, export_all_branches_collection, req.period, db_name, db_server, db_user, db_password,
+        None,
+        lambda: run_excel_export(
+            report_type=req.report_type,
+            period=req.period,
+            db_name=validation.get("db_name"),
+            db_server=validation.get("db_server"),
+            db_user=validation.get("db_user"),
+            db_password=validation.get("db_password"),
+            hospital_name=validation.get("hospital_name") or "Hospital",
+        ),
     )
-
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
 
