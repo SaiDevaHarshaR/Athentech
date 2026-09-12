@@ -399,9 +399,10 @@ from reports.excel_export import export_all_branches_collection
 from reports.excel_export import run_excel_export
 
 class ExcelExportRequest(BaseModel):
-    period: str = "today"          # today | yesterday | this_month | last_month | this_week
-    report_type: str = "collection"  # collection | top_tests | refunds | registrations
+    period: str = "today"
+    report_type: str = "collection"
     activation_code: str = ""
+    location: str = ""   # required for month/year collection
 
 @app.delete("/admin/licenses/{code}")
 def api_delete_license(code: str, admin: str = Depends(require_admin)):
@@ -524,7 +525,6 @@ async def generate_excel(req: ExcelExportRequest):
     validation = validate_license(req.activation_code)
     if not validation.get("valid"):
         raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
-
     import asyncio
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
@@ -537,17 +537,16 @@ async def generate_excel(req: ExcelExportRequest):
             db_user=validation.get("db_user"),
             db_password=validation.get("db_password"),
             hospital_name=validation.get("hospital_name") or "Hospital",
+            location_keyword=(req.location or "").strip() or None,
         ),
     )
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-
     return StreamingResponse(
         result["file"],
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
     )
-
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
     data = {

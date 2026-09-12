@@ -907,8 +907,8 @@ async function processMessage(text) {
         state.mode = 'premium';
         state.activationCode = text.toUpperCase();   // ← MUST save the code
         state.role = data.role;
-        state.waitingForCode = false;
         state.hospitalName = data.hospital_name || data.hospitalName || null;
+        state.waitingForCode = false;        
         statusEl.textContent = `Premium • ${data.role}`;
         modeBadge.textContent = 'Premium';
         modeBadge.classList.add('premium');
