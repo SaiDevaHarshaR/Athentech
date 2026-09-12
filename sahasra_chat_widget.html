@@ -769,7 +769,8 @@ async function downloadExcel(period, reportType) {
       body: JSON.stringify({
         period: period,
         report_type: reportType,
-        activation_code: state.activationCode || ''
+        activation_code: state.activationCode || '',
+        location: location || ''
       })
     });
     if (!response.ok) {
