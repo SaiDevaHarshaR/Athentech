@@ -91,7 +91,89 @@ def _save(wb, filename: str, period_label: str) -> dict:
     return {"file": bio, "filename": filename, "period_label": period_label}
 
 
+def export_multi_branch_collection(
+    period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
+):
+    """
+    Day/yesterday → real LabDayCollection_All (full reconciliation columns).
+    Week → falls back to MODE totals (SP is single-day only).
+    """
+    p = (period or "today").lower().replace(" ", "_")
+    use_sp = p in ("today", "yesterday", "day")
 
+    if use_sp:
+        from reports.day_collection_reconciliation import (
+            get_day_collection_all_branches,
+            _REPORT_LABELS,
+        )
+        bill_date = "yesterday" if p == "yesterday" else "today"
+        result = get_day_collection_all_branches(
+            bill_date, db_name, db_server, db_user, db_password
+        )
+        if "error" in result:
+            return {"error": result["error"]}
+        branches = result["branches"]
+        if not branches:
+            return {"error": f"No reconciliation data for {result['bill_date']}."}
+
+        # Columns staff expect on the PDF (order preserved)
+        col_keys = list(_REPORT_LABELS.keys())
+        headers = ["Branch"] + [_REPORT_LABELS[k] for k in col_keys]
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Day Collection"
+        hr = _title_row(ws, hospital_name, len(headers))
+        ws.cell(row=hr, column=1, value=f"Day Collection Reconciliation · {result['bill_date']}").font = Font(
+            italic=True, name="Arial", size=10
+        )
+        hr += 1
+        _style_header(ws, hr, headers)
+
+        row_num = hr + 1
+        sums = {k: 0.0 for k in col_keys}
+        for b in sorted(branches, key=lambda x: (x.get("LOCATION") or "")):
+            ws.cell(row=row_num, column=1, value=b.get("LOCATION") or "")
+            for col_i, key in enumerate(col_keys, start=2):
+                try:
+                    val = float(b.get(key) or 0)
+                except (TypeError, ValueError):
+                    val = 0.0
+                sums[key] += val
+                c = ws.cell(row=row_num, column=col_i, value=val)
+                c.number_format = "#,##0.00"
+            row_num += 1
+
+        # GRAND TOTAL row
+        ws.cell(row=row_num, column=1, value="GRAND TOTAL").font = Font(bold=True, name="Arial")
+        for col_i, key in enumerate(col_keys, start=2):
+            c = ws.cell(row=row_num, column=col_i, value=sums[key])
+            c.font = Font(bold=True, name="Arial")
+            c.number_format = "#,##0.00"
+        row_num += 2
+
+        # Overall summary (same labels as PDF)
+        ws.cell(row=row_num, column=1, value="OVERALL (ALL BRANCHES)").font = Font(bold=True, size=12, name="Arial")
+        row_num += 1
+        for key in col_keys:
+            ws.cell(row=row_num, column=1, value=_REPORT_LABELS[key])
+            c = ws.cell(row=row_num, column=2, value=sums[key])
+            c.number_format = "#,##0.00"
+            if key in ("GTOTALCREDITS", "TOTALCASHINHAND"):
+                c.font = Font(bold=True, name="Arial")
+            row_num += 1
+
+        ws.column_dimensions["A"].width = 28
+        for i in range(2, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(i)].width = 18
+
+        safe = re.sub(r"[^A-Za-z0-9_]", "_", result["bill_date"])
+        return _save(wb, f"day_collection_all_{safe}.xlsx", result["bill_date"])
+
+    # Week / other multi periods: old MODE pivot (SP has no date range)
+    return _export_multi_branch_mode_pivot(
+        period, db_name, db_server, db_user, db_password, hospital_name
+    )
 def export_single_branch_collection(
     period,
     location_keyword,
