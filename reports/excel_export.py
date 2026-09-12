@@ -540,22 +540,24 @@ def run_excel_export(
     key = (report_type or "collection").lower().strip()
 
     if key == "collection":
-        # day/week → all branches + grand total
-        # month/year → single branch only
         p = (period or "today").lower().replace(" ", "_")
         multi = p in (
             "today", "yesterday", "day",
             "this_week", "thisweek", "week",
             "last_week", "lastweek",
         )
+        # location given → always single branch
+        if location_keyword:
+            return export_single_branch_collection(
+                period, location_keyword, db_name, db_server, db_user, db_password, hospital_name
+            )
+        # no location + day/week → all branches
         if multi:
             return export_all_branches_collection(
                 period, db_name, db_server, db_user, db_password, hospital_name
             )
-        return export_single_branch_collection(
-            period, location_keyword, db_name, db_server, db_user, db_password, hospital_name
-        )
-
+        # month/year without location
+        return {"error": "Month/year export needs a branch. Example: export excel this month Uppal"}
     if key == "top_tests":
         return export_top_tests(period, db_name, db_server, db_user, db_password, hospital_name)
     if key == "refunds":
