@@ -749,7 +749,61 @@ function handleSend() {
   processMessage(text);
 }
 
+async function downloadExcel(period, reportType) {
+  if (state.mode !== 'premium' || !state.activationCode) {
+    addMessage('Excel export needs Premium mode. Enter an activation code first.', 'bot');
+    return;
+  }
+  const labels = {
+    collection: 'collection by branch',
+    top_tests: 'top tests',
+    refunds: 'refunds',
+    registrations: 'registrations by branch'
+  };
+  addMessage(`Generating Excel (${labels[reportType] || reportType} · ${period})...`, 'bot');
 
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period: period,
+        report_type: reportType,
+        activation_code: state.activationCode || ''
+      })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || err.error || 'Failed to generate Excel.', 'bot');
+      return;
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${reportType}_${period}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    addMessage('✅ Excel downloaded.', 'bot');
+  } catch (err) {
+    addMessage('Could not download Excel. Try again.', 'bot');
+    console.error(err);
+  }
+}
+
+function showExcelMenu() {
+  showSuggestions([
+    { label: 'Collection · Today', send: 'export excel collection today' },
+    { label: 'Collection · Yesterday', send: 'export excel collection yesterday' },
+    { label: 'Collection · This month', send: 'export excel collection this month' },
+    { label: 'Top tests · Today', send: 'export excel top tests today' },
+    { label: 'Refunds · Today', send: 'export excel refunds today' },
+    { label: 'Registrations · Today', send: 'export excel registrations today' },
+  ]);
+  addMessage('Pick an Excel export (or type e.g. **export excel collection yesterday**).', 'bot');
+}
 
 async function processMessage(text) {
   const q = text.toLowerCase();
