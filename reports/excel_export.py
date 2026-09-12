@@ -150,7 +150,7 @@ def export_multi_branch_collection(
     ws.title = "All Branches"
     headers = ["Branch"] + all_modes + ["Total"]
     hr = _title_row(ws, hospital_name, len(headers))
-    _style_header_row(ws, hr, headers)
+    _style_header(ws, hr, headers)
 
     row_num = hr + 1
     first_data = row_num
@@ -300,7 +300,7 @@ def export_single_branch_collection(
     ws.title = "Branch Collection"
     headers = ["Metric", "Amount"]
     hr = _title_row(ws, hospital_name, 2)
-    _style_header_row(ws, hr, headers)
+    _style_header(ws, hr, headers)
 
     r = hr + 1
     ws.cell(row=r, column=1, value=f"Branch: {matched} ({loc_id})")

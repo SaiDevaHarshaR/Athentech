@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
-from reports.excel_export import run_excel_export
 from agent.agent import ask_agent
 from langchain_core.messages import HumanMessage, AIMessage
 
