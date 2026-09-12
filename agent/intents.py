@@ -1503,6 +1503,12 @@ _INTENTS = [
       "all branches collection", "payment mode wise collection",
       "cash vs upi", "total cash collected", "total upi"],
      _handle_all_collection),
+    (["stuck samples", "sample collected pending", "still sample collected"],
+     _handle_stuck_samples),
+    (["top tests at", "top investigations at", "tests at kompally", "tests at uppal"],
+     _handle_top_tests_at_branch),
+    (["list refunds", "recent refunds", "refund bills"], _handle_refund_bills_list),
+    (["top packages", "package orders", "packages ordered"], _handle_package_orders),
 
     # single branch — AFTER all_collection so "total collection" doesn't hit this
     (["collection at", "collection for", "day collection", "branch collection",
