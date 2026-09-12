@@ -97,18 +97,26 @@ def get_day_collection_all_branches(
 
     try:
         cursor = conn.cursor()
+        # NOCOUNT stops rowcount messages that confuse pyodbc
+        cursor.execute("SET NOCOUNT ON")
         cursor.execute(
             "EXEC dbo.LabDayCollection_All @USERID=?, @BILLDATE=?, @ACTIVITY='GetDetails'",
             (_AGENT_USERID, bill_date),
         )
-        rows = cursor.fetchall()
+        # Skip intermediate result sets until we get a real SELECT
+        rows = []
+        while True:
+            if cursor.description is not None:
+                rows = cursor.fetchall()
+                break
+            if not cursor.nextset():
+                break
         branches = [dict(zip(_COLUMNS, row)) for row in rows]
         return {"bill_date": bill_date, "branches": branches}
     except Exception as e:
         return {"error": f"Procedure call failed: {e}"}
     finally:
         conn.close()
-
 
 def get_day_collection_one_branch(
     location_keyword: str,
