@@ -1346,9 +1346,11 @@ def _handle_branch_compare(q, role, db_name, db_server, db_user, db_password, ma
     elif "this month" in q:
         d0, d1 = "this_month_start", date.today().isoformat()
         label = "This Month"
-    else:
+    elif "today" in q:
         d0 = d1 = "today"
         label = "Today"
+    else:
+        return None  # unrecognized period (e.g. "whole 2026") — let the LLM's real date logic handle it
     ra = get_day_collection(a_kw, d0, d1, db_name, db_server, db_user, db_password)
     rb = get_day_collection(b_kw, d0, d1, db_name, db_server, db_user, db_password)
     if ra.get("error") or rb.get("error"):
