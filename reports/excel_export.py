@@ -1,22 +1,19 @@
 """
-Excel export — all-branches collection breakdown. Generates a real
-.xlsx file server-side, saved to a local exports directory. Wire the
-returned path into your FastAPI static-file serving to give the user
-an actual download link.
+Excel export — all-branches collection breakdown. Generates the .xlsx
+IN-MEMORY (BytesIO), matching the same pattern already used for PDF
+generation (generate_smart_report) — no separate file/download route
+needed, the same API call that generates it also serves it directly.
 """
 
-import os
 import re
 from datetime import date, timedelta
+from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 from database.connection import get_hospital_connection
-
-EXPORT_DIR = "exports"
-os.makedirs(EXPORT_DIR, exist_ok=True)
 
 
 def _period_dates(period_keyword: str):
@@ -42,9 +39,9 @@ def export_all_branches_collection(
     db_server=None, db_user=None, db_password=None,
 ) -> dict:
     """
-    Returns {"path": "<local file path>", "filename": "<name>"} on
-    success, or {"error": "..."} on failure. Caller is responsible for
-    serving the file (e.g. FastAPI FileResponse or a static mount).
+    Returns {"file": BytesIO, "filename": "<name>"} on success, or
+    {"error": "..."} on failure. Caller returns the BytesIO directly as
+    a StreamingResponse — same pattern as generate_smart_report's PDF.
     """
     date_from, date_to, label = _period_dates(period)
 
@@ -72,7 +69,6 @@ def export_all_branches_collection(
     if not rows:
         return {"error": f"No collection data found for {label}."}
 
-    # Pivot: branch -> {mode: amount}
     branches = {}
     all_modes = set()
     for branch, mode, amt in rows:
@@ -95,7 +91,6 @@ def export_all_branches_collection(
         cell.alignment = Alignment(horizontal="center")
 
     row_num = 2
-    grand_total_row_refs = []
     for branch in sorted(branches.keys()):
         ws.cell(row=row_num, column=1, value=branch).font = Font(name="Arial")
         for col, mode in enumerate(all_modes, start=2):
@@ -108,10 +103,8 @@ def export_all_branches_collection(
         ws.cell(row=row_num, column=total_col, value=f"=SUM({first_mode_col}{row_num}:{last_mode_col}{row_num})")
         ws.cell(row=row_num, column=total_col).font = Font(name="Arial", bold=True)
         ws.cell(row=row_num, column=total_col).number_format = "#,##0"
-        grand_total_row_refs.append(row_num)
         row_num += 1
 
-    # Grand total row
     total_row = row_num
     ws.cell(row=total_row, column=1, value="GRAND TOTAL").font = Font(bold=True, name="Arial")
     for col in range(2, len(all_modes) + 3):
@@ -122,14 +115,15 @@ def export_all_branches_collection(
         ws.cell(row=total_row, column=col).font = Font(bold=True, name="Arial")
         ws.cell(row=total_row, column=col).number_format = "#,##0"
 
-    # Column widths
     ws.column_dimensions["A"].width = 28
     for col in range(2, len(all_modes) + 3):
         ws.column_dimensions[get_column_letter(col)].width = 14
 
     safe_label = re.sub(r"[^A-Za-z0-9_]", "_", label)
     filename = f"collection_{safe_label}_{date.today().isoformat()}.xlsx"
-    filepath = os.path.join(EXPORT_DIR, filename)
-    wb.save(filepath)
 
-    return {"path": filepath, "filename": filename, "period_label": label}
+    excel_file = BytesIO()
+    wb.save(excel_file)
+    excel_file.seek(0)
+
+    return {"file": excel_file, "filename": filename, "period_label": label}
