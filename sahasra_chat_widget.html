@@ -131,30 +131,47 @@
   }
 
   /* Suggestions */
-  .suggestions {
-    padding: 10px 14px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    background: #e2e8f0;
-  }
+.suggestions {
+  padding: 0 14px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #e2e8f0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
 
-  .suggestions button {
-    background: white;
-    border: 1px solid #cbd5e1;
-    color: #1e293b;
-    padding: 7px 13px;
-    border-radius: 20px;
-    font-size: 12.5px;
-    cursor: pointer;
-    transition: 0.15s;
-  }
+.suggestions.open {
+  padding: 10px 14px;
+  max-height: 200px;
+  opacity: 1;
+}
 
-  .suggestions button:hover {
-    background: #2563eb;
-    color: white;
-    border-color: #2563eb;
-  }
+.suggestions button {
+  background: white;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 7px 13px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transform: scale(0.9);
+  opacity: 0;
+  animation: popIn 0.2s ease forwards;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.suggestions button:hover {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+@keyframes popIn {
+  to { transform: scale(1); opacity: 1; }
+}
 
   /* Input */
   .input-area {
@@ -707,11 +724,13 @@ function renderListCard(data) {
 
 function showSuggestions(list) {
   suggestionsEl.innerHTML = '';
-  list.forEach(item => {
+  list.forEach((item, i) => {
     const btn = document.createElement('button');
     btn.textContent = item.label;
+    btn.style.animationDelay = (i * 0.04) + 's';
     btn.onclick = () => {
-      suggestionsEl.innerHTML = '';  // close the menu immediately, before any async work
+      suggestionsEl.classList.remove('open');
+      suggestionsEl.innerHTML = '';
       if (item.action) {
         item.action();
       } else {
@@ -721,6 +740,7 @@ function showSuggestions(list) {
     };
     suggestionsEl.appendChild(btn);
   });
+  suggestionsEl.classList.add('open');
 }
 
 function start() {
@@ -806,9 +826,32 @@ function showExcelMenu() {
     { label: 'Registrations · Today', action: () => downloadCollectionExcel('today', 'registrations') },
   ]);
 }
-function promptForLocationThenDownload(period, reportType) {
-  const location = prompt('Which branch? (month/year exports need one branch)');
-  if (location) downloadCollectionExcel(period, reportType, location);
+async function promptForLocationThenDownload(period, reportType) {
+  addMessage('Loading branches...', 'bot');
+  try {
+    const response = await fetch("http://127.0.0.1:8000/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activation_code: state.activationCode ? String(state.activationCode) : "" })
+    });
+    const data = await response.json();
+    const locations = data.locations || [];
+
+    if (!locations.length) {
+      addMessage('Could not load branch list.', 'bot');
+      return;
+    }
+
+    showSuggestions(
+      locations.map(loc => ({
+        label: loc,
+        action: () => downloadCollectionExcel(period, reportType, loc)
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    addMessage('Could not load branch list.', 'bot');
+  }
 }
 async function processMessage(text) {
   const q = text.toLowerCase();
