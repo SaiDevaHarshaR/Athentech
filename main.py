@@ -396,8 +396,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from reports.excel_export import export_all_branches_collection
 
+from reports.excel_export import run_excel_export
+
 class ExcelExportRequest(BaseModel):
-    period: str = "today"
+    period: str = "today"          # today | yesterday | this_month | last_month | this_week
+    report_type: str = "collection"  # collection | top_tests | refunds | registrations
     activation_code: str = ""
 
 @app.delete("/admin/licenses/{code}")
@@ -514,9 +517,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from reports.excel_export import export_all_branches_collection
 
-class ExcelExportRequest(BaseModel):
-    period: str = "today"
-    activation_code: str = ""
+
 
 @app.post("/generate-excel")
 async def generate_excel(req: ExcelExportRequest):
