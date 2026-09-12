@@ -1,5 +1,6 @@
 import time
-from reports.excel_export import export_all_branches_collection
+#from reports.excel_export import export_all_branches_collection
+from reports.excel_export import run_excel_export
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -529,14 +530,14 @@ async def generate_excel(req: ExcelExportRequest):
     result = await loop.run_in_executor(
         None,
         lambda: run_excel_export(
-            report_type=req.report_type,
-            period=req.period,
+            report_type=getattr(req, "report_type", None) or "collection",
+            period=req.period or "today",
             db_name=validation.get("db_name"),
             db_server=validation.get("db_server"),
             db_user=validation.get("db_user"),
             db_password=validation.get("db_password"),
             hospital_name=validation.get("hospital_name") or "Hospital",
-            location_keyword=(req.location or "").strip() or None,
+            location_keyword=(getattr(req, "location", None) or "").strip() or None,
         ),
     )
     if "error" in result:
