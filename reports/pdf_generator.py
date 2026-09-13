@@ -146,6 +146,8 @@ def build_findings_from_content_lines(content_lines: list) -> list:
         line = (line or "").strip()
         if not line:
             continue
+        if line.startswith("```") or line.startswith("{") or '"icon"' in line:
+            continue  # raw dashboard-card/list-card JSON leaked in — never show this as a "finding"
         findings.append({
             "anchor": f"finding-{i}",
             "icon": "📋",
