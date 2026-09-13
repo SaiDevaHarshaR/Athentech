@@ -1066,3 +1066,4 @@
 {"ts": "2026-09-13T15:05:22.822689Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show test results for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-13T15:07:49.274023Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show test results for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-13T15:09:16.515066Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show test results for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-13T15:21:00.081111Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
