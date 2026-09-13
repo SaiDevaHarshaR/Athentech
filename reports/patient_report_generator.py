@@ -85,14 +85,14 @@ class PatientAmbiguous(Exception):
         super().__init__(f"{len(candidates)} matching patients found")
 
 
-def find_patient(identifier: str, db_name: str) -> dict:
+def find_patient(identifier: str, db_name: str, db_server: str = None, db_user: str = None, db_password: str = None) -> dict:
     """
     Looks up a patient by UHID (exact-ish match) or name (partial match)
     in the real patient table. Discovers the real column names live
     rather than assuming exact names/casing, same principle as
     describe_table.
     """
-    conn = get_hospital_connection(db_name)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         raise ConnectionError("Could not connect to the hospital database.")
 
@@ -169,7 +169,7 @@ def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, 
     }
 
 
-def gather_patient_data(patient_id, db_name: str, role: Role) -> dict:
+def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = None, db_user: str = None, db_password: str = None) -> dict:
     """
     Uses REAL_TABLE_RELATIONSHIPS to find every mapped, role-permitted
     table with a known join back to the patient table, and pulls a
@@ -181,7 +181,7 @@ def gather_patient_data(patient_id, db_name: str, role: Role) -> dict:
     relationships that haven't been confirmed.
     """
     allowed_categories = get_allowed_tables(role)
-    conn = get_hospital_connection(db_name)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         raise ConnectionError("Could not connect to the hospital database.")
 
@@ -289,7 +289,7 @@ demographic information was available for this patient.
     return parsed
 
 
-def build_patient_report_data(patient_identifier: str, db_name: str, role: str, hospital_name: str, llm) -> dict:
+def build_patient_report_data(patient_identifier: str, db_name: str, role: str, hospital_name: str, llm, db_server: str = None, db_user: str = None, db_password: str = None) -> dict:
     """
     Full pipeline: find the patient -> gather their real related data ->
     have the LLM structure it -> return data ready for
@@ -297,8 +297,8 @@ def build_patient_report_data(patient_identifier: str, db_name: str, role: str, 
     """
     role_enum = Role(role)
 
-    patient_info = find_patient(patient_identifier, db_name)
-    raw_data = gather_patient_data(patient_info["patient_id"], db_name, role_enum)
+    patient_info = find_patient(patient_identifier, db_name, db_server, db_user, db_password)
+    raw_data = gather_patient_data(patient_info["patient_id"], db_name, role_enum, db_server, db_user, db_password)
     structured = generate_structured_report(patient_info, raw_data, hospital_name, llm)
 
     structured.setdefault("patient_name", patient_info.get("name"))

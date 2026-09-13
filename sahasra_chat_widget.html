@@ -726,9 +726,11 @@ function showSuggestions(list) {
   suggestionsEl.innerHTML = '';
   list.forEach((item, i) => {
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.textContent = item.label;
     btn.style.animationDelay = (i * 0.04) + 's';
     btn.onclick = () => {
+
       suggestionsEl.classList.remove('open');
       suggestionsEl.innerHTML = '';
       if (item.action) {
@@ -817,6 +819,11 @@ async function downloadCollectionExcel(period, reportType, location) {
 }
 
 function showExcelMenu() {
+  if (suggestionsEl.classList.contains('open') && suggestionsEl.dataset.menu === 'excel') {
+    suggestionsEl.classList.remove('open');
+    suggestionsEl.innerHTML = '';
+    return;
+  }
   showSuggestions([
     { label: 'Collection · Today', action: () => downloadCollectionExcel('today', 'collection') },
     { label: 'Collection · Yesterday', action: () => downloadCollectionExcel('yesterday', 'collection') },
@@ -825,6 +832,7 @@ function showExcelMenu() {
     { label: 'Refunds · Today', action: () => downloadCollectionExcel('today', 'refunds') },
     { label: 'Registrations · Today', action: () => downloadCollectionExcel('today', 'registrations') },
   ]);
+  suggestionsEl.dataset.menu = 'excel';
 }
 async function promptForLocationThenDownload(period, reportType) {
   addMessage('Loading branches...', 'bot');
