@@ -878,7 +878,7 @@ async function processMessage(text) {
     // This is what makes it a "Smart Report" rather than a generic
     // PDF-ification of old text — a targeted database lookup, not a
     // re-hash of a previous unrelated answer (e.g. a 5-patient list).
-    const uhidMatch = text.match(/\b([A-Z]{2,6}\d{3,})\b/i);
+    const uhidMatch = text.match(/\b([A-Z]{1,6}\d{3,})\b/i);
     if (uhidMatch) {
       await downloadPatientReport(uhidMatch[1]);
       return;
