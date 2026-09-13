@@ -615,7 +615,7 @@ def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, match
             "FROM trnINVLABDET a "
             "JOIN trnINVLABPRI b ON a.BILLNO = b.BILLNO "
             "JOIN mstInvestigations c ON a.TCODE = c.INVCODE "
-            "JOIN trnParamResult p ON a.BILLNO = p.BILLNO "
+            "JOIN trnParamResult p ON a.BILLNO = p.BILLNO AND p.INVCODE = a.TCODE "
             "WHERE a.BILLNO LIKE ?",
             (billno + "%",),
         )
