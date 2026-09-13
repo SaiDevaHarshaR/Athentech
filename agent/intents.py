@@ -598,7 +598,7 @@ def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, match
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     m = re.search(
-    r"\b(?:bill\s*(?:no\.?|number)?\s*[:\-]?\s*)?([A-Z]{2,4}\d{5,})\b",
+    r"\b(?:bill\s*(?:no\.?|number)?\s*[:\-]?\s*)?([A-Z]{2,4}\d{3,})\b",
     q.upper(),
 )
 # only treat as bill if 'bill' in q or pattern looks like KSU2619400
