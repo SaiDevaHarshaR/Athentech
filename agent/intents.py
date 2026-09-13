@@ -613,11 +613,11 @@ def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, match
         cursor.execute(
             "SELECT b.Name, b.Phone, c.INVNAME, p.PARAMHEADNAME, p.PVALUE, p.MINVALUE, p.MAXVALUE "
             "FROM trnINVLABDET a "
-            "JOIN trnINVLABPRI b ON LTRIM(RTRIM(a.BILLNO)) = LTRIM(RTRIM(b.BILLNO)) "
+            "JOIN trnINVLABPRI b ON a.BILLNO = b.BILLNO "
             "JOIN mstInvestigations c ON a.TCODE = c.INVCODE "
-            "JOIN trnParamResult p ON LTRIM(RTRIM(a.BILLNO)) = LTRIM(RTRIM(p.BILLNO)) "
-            "WHERE LTRIM(RTRIM(a.BILLNO)) = ?",
-            (billno,),
+            "JOIN trnParamResult p ON a.BILLNO = p.BILLNO "
+            "WHERE a.BILLNO LIKE ?",
+            (billno + "%",),
         )
         rows = cursor.fetchall()
         if not rows:
