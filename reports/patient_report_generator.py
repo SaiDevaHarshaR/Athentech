@@ -330,7 +330,6 @@ this exact shape:
   "action_plan": {{"doctor": "-no_data unless a real, non-null doctor name/ID exists in the provided raw_data", "food": "...", "activity": "...", "followup": "..."}}
 }}
 
-For "body": only set a status other than "unknown" for an organ system that genuinely has a real finding tied to it (matching all_findings' categories). If there's no real data for an organ, leave it "unknown" with label "-no_data" — never guess a status for an organ with no real supporting finding.
 
 If there is no real clinical data at all (raw records are empty), return
 empty lists for priority_findings/all_findings/health_connections/trends,
