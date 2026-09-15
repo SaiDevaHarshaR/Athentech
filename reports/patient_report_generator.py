@@ -169,7 +169,64 @@ def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, 
     }
 
 
+def gather_patient_data(patient_id, db_name: str, role: Role, uhid: str = None) -> dict:
+    from auth.table_relationships import UHID_TABLE_RELATIONSHIPS
 
+    allowed_categories = get_allowed_tables(role)
+    conn = get_hospital_connection(db_name)
+    if not conn:
+        raise ConnectionError("Could not connect to the hospital database.")
+
+    gathered = {}
+    tables_checked = 0
+    try:
+        for table_name, relationships in REAL_TABLE_RELATIONSHIPS.items():
+            category = REAL_TABLE_TO_CATEGORY.get(table_name)
+            if category not in allowed_categories:
+                continue
+
+            for column, joins_to_table, joins_to_column in relationships:
+                if joins_to_table != PATIENT_TABLE:
+                    continue
+                tables_checked += 1
+                try:
+                    cursor = conn.cursor()
+                    query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?"
+                    cursor.execute(query, (patient_id,))
+                    col_names = [d[0] for d in cursor.description]
+                    rows = cursor.fetchall()
+                    print(f"[gather_patient_data] {table_name}.{column} = {patient_id}: {len(rows)} row(s)")
+                    if rows:
+                        gathered[table_name] = [dict(zip(col_names, r)) for r in rows]
+                except Exception as e:
+                    print(f"[gather_patient_data] {table_name}.{column} query FAILED (not just empty): {e}")
+                    continue
+
+            # Fallback: PATIENTID/PATID confirmed unreliable (NULL on real
+            # records) — try the same table again via UHID if this table
+            # didn't already return data via the ID-based join above.
+            if uhid and table_name not in gathered and table_name in UHID_TABLE_RELATIONSHIPS:
+                for column, joins_to_table, joins_to_column in UHID_TABLE_RELATIONSHIPS[table_name]:
+                    tables_checked += 1
+                    try:
+                        cursor = conn.cursor()
+                        query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?"
+                        cursor.execute(query, (uhid,))
+                        col_names = [d[0] for d in cursor.description]
+                        rows = cursor.fetchall()
+                        print(f"[gather_patient_data] (UHID fallback) {table_name}.{column} = {uhid}: {len(rows)} row(s)")
+                        if rows:
+                            gathered[table_name] = [dict(zip(col_names, r)) for r in rows]
+                    except Exception as e:
+                        print(f"[gather_patient_data] (UHID fallback) {table_name}.{column} query FAILED: {e}")
+                        continue
+    finally:
+        conn.close()
+
+    print(f"[gather_patient_data] Checked {tables_checked} table(s) for patient_id={patient_id}/uhid={uhid}, "
+          f"found real data in {len(gathered)} of them.")
+
+    return gathered
 
 
 def _parse_llm_json(text: str) -> dict:
