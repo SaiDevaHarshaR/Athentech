@@ -299,8 +299,23 @@ scores not supported by this data.
 
 Patient: {json.dumps(patient_info, default=str)}
 
-Real related records found in the database (empty if none were found — in that case you only have demographic data, and every clinical field below must be "-no_data" or empty; do not invent findings to fill gaps):
-{json.dumps({"trnparamresult": raw_data.get("trnparamresult", [])}, default=str)[:6000]}
+    # Strip verbose/irrelevant columns before sending to the LLM — a
+    # patient with many real results (e.g. 42 rows) can easily exceed
+    # any reasonable character budget with full raw rows, silently
+    # truncating mid-object and losing most of the real data. Keeping
+    # only what the report actually needs lets far more real results
+    # fit in the same budget.
+    trimmed_results = [
+        {
+            "test_name": r.get("PARAMHEADNAME") or r.get("PARAMID"),
+            "value": r.get("PVALUE"),
+            "min": r.get("MINVALUE"),
+            "max": r.get("MAXVALUE"),
+            "unit": r.get("UNITID"),
+            "description": r.get("DESCRIPTION"),
+        }
+        for r in raw_data.get("trnparamresult", [])
+    ]
 
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
