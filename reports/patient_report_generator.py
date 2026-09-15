@@ -143,7 +143,31 @@ def find_patient(identifier: str, db_name: str, db_server: str = None, db_user: 
     finally:
         conn.close()
 
-
+def find_alternate_uhids(patient_name: str, canonical_uhid: str, db_name: str, db_server=None, db_user=None, db_password=None) -> list:
+    if not patient_name:
+        print("[find_alternate_uhids] No patient_name provided, skipping.")
+        return []
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        print("[find_alternate_uhids] Could not connect, skipping.")
+        return []
+    try:
+        cursor = conn.cursor()
+        normalized_name = " ".join(patient_name.strip().upper().split())  # collapse extra whitespace
+        cursor.execute(
+            "SELECT DISTINCT UHID, Name FROM trninvlabpri WHERE UPPER(LTRIM(RTRIM(Name))) LIKE ?",
+            (f"%{normalized_name}%",),
+        )
+        rows = cursor.fetchall()
+        print(f"[find_alternate_uhids] Searched trninvlabpri.Name LIKE '%{normalized_name}%': {len(rows)} row(s) — {rows}")
+        alternates = [r[0] for r in rows if r[0] and r[0] != canonical_uhid]
+        print(f"[find_alternate_uhids] {len(alternates)} alternate UHID(s) differ from canonical '{canonical_uhid}': {alternates}")
+        return alternates
+    except Exception as e:
+        print(f"[find_alternate_uhids] Query failed (non-fatal): {e}")
+        return []
+    finally:
+        conn.close()
 
 def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, dob_col, gender_col, reg_date_col) -> dict:
     row_dict = dict(zip(select_cols, row))
