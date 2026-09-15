@@ -169,57 +169,7 @@ def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, 
     }
 
 
-def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = None, db_user: str = None, db_password: str = None) -> dict:
-    """
-    Uses REAL_TABLE_RELATIONSHIPS to find every mapped, role-permitted
-    table with a known join back to the patient table, and pulls a
-    bounded number of real rows for this specific patient from each.
 
-    Returns {} for tables if REAL_TABLE_RELATIONSHIPS hasn't been
-    populated yet (see discover_table_relationships.py) — this function
-    only ever reports what it can actually find, never fabricates
-    relationships that haven't been confirmed.
-    """
-    allowed_categories = get_allowed_tables(role)
-    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
-    if not conn:
-        raise ConnectionError("Could not connect to the hospital database.")
-
-    gathered = {}
-    tables_checked = 0
-    try:
-        for table_name, relationships in REAL_TABLE_RELATIONSHIPS.items():
-            category = REAL_TABLE_TO_CATEGORY.get(table_name)
-            if category not in allowed_categories:
-                continue
-
-            for column, joins_to_table, joins_to_column in relationships:
-                if joins_to_table != PATIENT_TABLE:
-                    continue
-                tables_checked += 1
-                try:
-                    cursor = conn.cursor()
-                    query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?"
-                    cursor.execute(query, (patient_id,))
-                    col_names = [d[0] for d in cursor.description]
-                    rows = cursor.fetchall()
-                    print(f"[gather_patient_data] {table_name}.{column} = {patient_id}: {len(rows)} row(s)")
-                    if rows:
-                        gathered[table_name] = [dict(zip(col_names, r)) for r in rows]
-                except Exception as e:
-                    # Previously silently skipped with no visibility at all —
-                    # a genuine SQL error (e.g. a type mismatch between
-                    # patient_id and the join column) looked identical to
-                    # "no data exists" with nothing printed either way.
-                    print(f"[gather_patient_data] {table_name}.{column} query FAILED (not just empty): {e}")
-                    continue
-    finally:
-        conn.close()
-
-    print(f"[gather_patient_data] Checked {tables_checked} table(s) for patient_id={patient_id}, "
-          f"found real data in {len(gathered)} of them.")
-
-    return gathered
 
 
 def _parse_llm_json(text: str) -> dict:
