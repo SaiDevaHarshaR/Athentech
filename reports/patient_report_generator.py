@@ -220,6 +220,26 @@ def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = N
                     except Exception as e:
                         print(f"[gather_patient_data] (UHID fallback) {table_name}.{column} query FAILED: {e}")
                         continue
+                # Special 2-hop case: trnparamresult (the actual clinical VALUES —
+        # test results, ranges) has no direct UHID column, only BILLNO.
+        # Chain through trninvlabdet's BILLNOs (already confirmed to have
+        # UHID directly) to reach it — the generic single-hop UHID
+        # fallback above can't do this on its own.
+        if uhid and "trnparamresult" not in gathered and "trninvlabdet" in gathered:
+            billnos = list({row.get("BILLNO") for row in gathered["trninvlabdet"] if row.get("BILLNO")})
+            if billnos:
+                try:
+                    cursor = conn.cursor()
+                    placeholders = ", ".join("?" for _ in billnos)
+                    query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM trnparamresult WHERE BILLNO IN ({placeholders})"
+                    cursor.execute(query, billnos)
+                    col_names = [d[0] for d in cursor.description]
+                    rows = cursor.fetchall()
+                    print(f"[gather_patient_data] (2-hop via trninvlabdet.BILLNO) trnparamresult: {len(rows)} row(s)")
+                    if rows:
+                        gathered["trnparamresult"] = [dict(zip(col_names, r)) for r in rows]
+                except Exception as e:
+                    print(f"[gather_patient_data] (2-hop) trnparamresult query FAILED: {e}")
     finally:
         conn.close()
 
