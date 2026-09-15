@@ -331,6 +331,7 @@ this exact shape:
 }}
 
 For "body":  only set a status other than "unknown" for an organ system that genuinely has a real finding tied to it (matching all_findings' categories). If there's no real data for an organ, leave it "unknown" with label "No tests recorded" — never guess a status for an organ with no real supporting finding.
+For "doctor" fields with no real data: use "No referring doctor on record" instead of a generic placeholder. For "interpretation"/"why was it flagged" on a normal/negative finding: use "Not flagged — result was within the normal range" instead of a generic placeholder.
 If there is no real clinical data at all (raw records are empty), return
 empty lists for priority_findings/all_findings/health_connections/trends,
 "-no_data" for health_score, and a health_summary explaining that only
@@ -342,6 +343,10 @@ demographic information was available for this patient.
 
     try:
         parsed = _parse_llm_json(text)
+        findings = parsed.get("all_findings", [])
+        parsed["normal_count"] = sum(1 for f in findings if f.get("status") == "normal")
+        parsed["borderline_count"] = sum(1 for f in findings if f.get("status") == "watch")
+        parsed["abnormal_count"] = sum(1 for f in findings if f.get("status") == "attention")
         print(f"[generate_structured_report] LLM returned body: {parsed.get('body')}")
     except (json.JSONDecodeError, ValueError):
         # Fail safe: demographic-only report rather than a crash or a

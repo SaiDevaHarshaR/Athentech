@@ -65,8 +65,12 @@ def schema_hint_for_prompt(allowed_tables: list) -> str:
         "mstlabdesc is empty, never use. Radiology = SubDept 33,80 only (78 is "
         "'Radiology Store', inventory, exclude). 'Completed radiology' = "
         "trninvstatus.STATUS='Authenticated' via BILLNO, not TESTSTATUS. "
-        "mstInvestigations.DEPARTMENTID does NOT match mstsubdepartment — no "
-        "real lookup confirmed, don't filter by it.",
+        "mstInvestigations.DEPARTMENTID DOES match mstsubdepartment.SubDepartmentID "
+        "— confirmed via real CT-test rows (DEPARTMENTID=9, SubDepartmentID=9 IS "
+        "'CT SCAN'). Earlier 'broken' finding tested wrong target values (33/80, "
+        "generic Radiology Charges categories) instead of modality-specific ones. "
+        "For imaging: CT Scan=9, X-Ray=40, MRI=26, Ultrasound=39, 2D Echo=1, "
+        "Mammography=20, Doppler=12. Safe to filter by now.",
         "trninvlabdet.TESTSTATUS: '',Acknowledged,Cancelled,Pending,Registered,"
         "Result Entry,Sample Collected,Sample Rejected — NO 'Completed'. Use "
         "Result Entry/Acknowledged as closest equivalent. trninvstatus.STATUS "
