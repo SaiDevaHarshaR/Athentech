@@ -38,14 +38,14 @@ def check_zero_collection_locations(date_str: str, db_name: str, db_server=None,
         conn.close()
 
 
-def check_tat_compliance_alert(threshold_pct: float, period: str, db_name: str, db_server=None, db_user=None, db_password=None, specific_date: str = None, location_id: str = None) -> dict:
+def check_tat_compliance_alert(threshold_pct: float, period: str, db_name: str, db_server=None, db_user=None, db_password=None, specific_date: str = None, location_id: str = None, department: str = None) -> dict:
     """
     Flags if TAT compliance falls below threshold_pct for the period.
     Reuses the confirmed-working get_tat_compliance_dashboard directly
     — does not reimplement its logic.
     """
     from reports.tat_dashboard import get_tat_compliance_dashboard
-    result = get_tat_compliance_dashboard(period, db_name, db_server, db_user, db_password, specific_date, location_id)
+    result = get_tat_compliance_dashboard(period, db_name, db_server, db_user, db_password, specific_date, location_id, department)
     if "error" in result:
         return result
     if result.get("completed") == 0:

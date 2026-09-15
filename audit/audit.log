@@ -1084,3 +1084,4 @@
 {"ts": "2026-09-15T14:25:46.844759Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "CT scan volume this month", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-15T14:25:56.501164Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "X-ray count today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-15T14:26:03.467311Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance for radiology today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-15T14:43:45.108878Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT compliance for radiology today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
