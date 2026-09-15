@@ -29,7 +29,7 @@ from auth.table_access import REAL_TABLE_TO_CATEGORY
 from auth.roles import Role, get_allowed_tables
 
 PATIENT_TABLE = "mstpatientregistration"
-MAX_ROWS_PER_RELATED_TABLE = 20
+MAX_ROWS_PER_RELATED_TABLE = 60
 
 
 def _get_columns(conn, table_name: str) -> list:
@@ -155,8 +155,8 @@ def find_alternate_uhids(patient_name: str, canonical_uhid: str, db_name: str, d
         cursor = conn.cursor()
         normalized_name = " ".join(patient_name.strip().upper().split())  # collapse extra whitespace
         cursor.execute(
-            "SELECT DISTINCT UHID, Name FROM trninvlabpri WHERE UPPER(LTRIM(RTRIM(Name))) LIKE ?",
-            (f"%{normalized_name}%",),
+            "SELECT DISTINCT UHID, Name FROM trninvlabpri WHERE UPPER(LTRIM(RTRIM(Name))) = ?",
+            (normalized_name,),
         )
         rows = cursor.fetchall()
         print(f"[find_alternate_uhids] Searched trninvlabpri.Name LIKE '%{normalized_name}%': {len(rows)} row(s) — {rows}")
