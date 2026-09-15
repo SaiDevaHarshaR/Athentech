@@ -13,7 +13,25 @@ from database.connection import get_hospital_connection
 
 _ALLOWED_ROLES = ("admin", "doctor", "reception")
 
-
+def _unsupported_extras(q: str, allowed_tokens: set) -> bool:
+    """
+    True if the question has filter words the handler will NOT apply.
+    Then caller must return None so LLM handles it.
+    """
+    q = q.lower()
+    extras = {
+        "radiology", "laboratory", "haematology", "hematology", "biochemistry",
+        "microbiology", "pathology", "cardiology",
+        "for ", " at ", " in ", " of ",
+        "by branch", "by location", "by doctor", "by department",
+        "compare", " vs ", "growth", "trend",
+        "package", "uhid", "bill no", "phone",
+    }
+    # strip allowed words so they don't count as extras
+    cleaned = q
+    for t in sorted(allowed_tokens, key=len, reverse=True):
+        cleaned = cleaned.replace(t, " ")
+    return any(x in cleaned for x in extras if x.strip())
 def _period_dates(q: str):
     today = date.today()
     q = q.lower()
