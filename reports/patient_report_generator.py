@@ -305,20 +305,7 @@ Real related records found in the database (empty if none were found — in that
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
 
-Respond with ONLY a JSON object (no markdown fences, no other text) with
-this exact shape:
-{{
-  "patient_name": "...",
-  "patient_age": "...",
-  "patient_gender": "...",
-  "health_score": "-no_data or a number 0-1000 ONLY if genuinely computable from real data",
-  "health_summary": "...",
-  "priority_findings": [{{"icon": "emoji", "name": "...", "value": "...", "unit": "...", "anchor": "finding-N"}}],
-  "all_findings": [{{"anchor": "finding-N", "icon": "emoji", "name": "...", "category": "one of: Brain, Heart, Lungs, Blood, Bones, Metabolism, Kidney, Liver", "value": "...", "unit": "...", "status": "normal|watch|attention|unknown", "label": "...", "simple_explanation": "...", "why_it_matters": "...", "foods": ["..."], "lifestyle": ["..."], "doctor": "...", "next_step": "..."}}],
-  "health_connections": ["..."],
-  "trends": ["..."],
-  "action_plan": {{"doctor": "...", "food": "...", "activity": "...", "followup": "..."}}
-}}
+
 
 If there is no real clinical data at all (raw records are empty), return
 empty lists for priority_findings/all_findings/health_connections/trends,
