@@ -343,6 +343,7 @@ demographic information was available for this patient.
 
     try:
         parsed = _parse_llm_json(text)
+        print(f"[generate_structured_report] LLM returned body: {parsed.get('body')}")
     except (json.JSONDecodeError, ValueError):
         # Fail safe: demographic-only report rather than a crash or a
         # made-up structure if the LLM's output couldn't be parsed.
