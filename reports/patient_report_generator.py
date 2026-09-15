@@ -143,38 +143,7 @@ def find_patient(identifier: str, db_name: str, db_server: str = None, db_user: 
     finally:
         conn.close()
 
-def find_alternate_uhids(patient_name: str, canonical_uhid: str, db_name: str, db_server=None, db_user=None, db_password=None) -> list:
-    """
-    SELECT-only safety net for the confirmed real data-quality issue:
-    the same patient can have a different UHID stored on their bills
-    (trninvlabpri.UHID) than in mstpatientregistration.UHID (the
-    "canonical" one find_patient returns). Uses an EXACT name match
-    (not LIKE) to minimize false-positive matches to unrelated people
-    with a similar name. Returns any UHIDs found that differ from the
-    canonical one, so gather_patient_data can check both.
-    """
-    if not patient_name:
-        return []
-    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
-    if not conn:
-        return []
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT DISTINCT UHID FROM trninvlabpri WHERE UPPER(LTRIM(RTRIM(Name))) = ?",
-            (patient_name.strip().upper(),),
-        )
-        rows = cursor.fetchall()
-        alternates = [r[0] for r in rows if r[0] and r[0] != canonical_uhid]
-        if alternates:
-            print(f"[find_alternate_uhids] Found {len(alternates)} alternate UHID(s) for "
-                  f"'{patient_name}' differing from canonical '{canonical_uhid}': {alternates}")
-        return alternates
-    except Exception as e:
-        print(f"[find_alternate_uhids] Query failed (non-fatal, continuing with canonical UHID only): {e}")
-        return []
-    finally:
-        conn.close()
+
 
 def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, dob_col, gender_col, reg_date_col) -> dict:
     row_dict = dict(zip(select_cols, row))
