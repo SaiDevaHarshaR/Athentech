@@ -357,7 +357,15 @@ def build_patient_report_data(patient_identifier: str, db_name: str, role: str, 
     role_enum = Role(role)
 
     patient_info = find_patient(patient_identifier, db_name, db_server, db_user, db_password)
+    alternate_uhids = find_alternate_uhids(patient_info.get("name"), patient_info.get("uhid"), db_name, db_server, db_user, db_password)
     raw_data = gather_patient_data(patient_info["patient_id"], db_name, role_enum, db_server, db_user, db_password, uhid=patient_info.get("uhid"))
+    for alt_uhid in alternate_uhids:
+        alt_data = gather_patient_data(patient_info["patient_id"], db_name, role_enum, db_server, db_user, db_password, uhid=alt_uhid)
+        for table, rows in alt_data.items():
+            if table not in raw_data:
+                raw_data[table] = rows
+            else:
+                raw_data[table].extend(rows)
     structured = generate_structured_report(patient_info, raw_data, hospital_name, llm)
 
     structured.setdefault("patient_name", patient_info.get("name"))
