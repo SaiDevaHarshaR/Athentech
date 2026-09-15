@@ -1067,3 +1067,7 @@
 {"ts": "2026-09-13T15:07:49.274023Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show test results for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-13T15:09:16.515066Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "show test results for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-13T15:21:00.081111Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
+{"ts": "2026-09-13T15:34:57.377141Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "what is the PATIENTID and PATID value for bill KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-13T15:36:10.048041Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "PATIENTID for KOM211 from trninvlabpri", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-13T15:39:31.823146Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "does trninvlabpri have a UHID column, show its value for KOM211", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-13T15:40:19.194475Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "describe trninvlabpri", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

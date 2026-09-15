@@ -75,6 +75,17 @@ REAL_TABLE_RELATIONSHIPS = {
 }
 
 
+# UHID-based relationships — a fallback path for gather_patient_data,
+# since PATIENTID/PATID (the primary join key) was confirmed NULL for
+# at least some real records (bill KOM211 specifically) even though
+# real billing data genuinely exists for that patient. UHID is the
+# reliably-populated identifier instead. Only add a table here once
+# its UHID column is CONFIRMED real — don't guess.
+UHID_TABLE_RELATIONSHIPS = {
+    "trninvlabpri": [("UHID", "mstpatientregistration", "UHID")],
+    "trnmodeofcollectionsdet": [("UHID", "mstpatientregistration", "UHID")],
+}
+
 def get_relationships_for_table(table_name: str) -> list:
     """Returns [(column, joins_to_table, joins_to_column), ...] or []."""
     return REAL_TABLE_RELATIONSHIPS.get(table_name.strip().lower(), [])

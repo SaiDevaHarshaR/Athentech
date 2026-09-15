@@ -862,6 +862,7 @@ async function promptForLocationThenDownload(period, reportType) {
   }
 }
 async function processMessage(text) {
+  alert('processMessage called with: ' + text);
   const q = text.toLowerCase();
   // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
   // missed anything phrased naturally, like "download a report pdf about
