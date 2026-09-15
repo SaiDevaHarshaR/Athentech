@@ -763,6 +763,7 @@ def get_tat_compliance_dashboard(
     db_name: str = None,
     db_server: str = None,
     db_user: str = None,
+    department: str = None,
     db_password: str = None,
     location_keyword: str = None,
     specific_date: str = None,
