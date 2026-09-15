@@ -305,7 +305,32 @@ Real related records found in the database (empty if none were found — in that
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
 
+Respond with ONLY a JSON object (no markdown fences, no other text) with
+this exact shape:
+{{
+  "patient_name": "...",
+  "patient_age": "...",
+  "patient_gender": "...",
+  "health_score": "-no_data or a number 0-1000 ONLY if genuinely computable from real data",
+  "health_summary": "...",
+  "body": {{
+    "brain": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "heart": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "lungs": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "blood": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "bones": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "metabolism": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "kidney": {{"status": "normal|watch|attention|unknown", "label": "..."}},
+    "liver": {{"status": "normal|watch|attention|unknown", "label": "..."}}
+  }},
+  "priority_findings": [{{"icon": "emoji", "name": "...", "value": "...", "unit": "...", "anchor": "finding-N"}}],
+  "all_findings": [{{"anchor": "finding-N", "icon": "emoji", "name": "...", "category": "one of: Brain, Heart, Lungs, Blood, Bones, Metabolism, Kidney, Liver", "value": "...", "unit": "...", "status": "normal|watch|attention|unknown", "label": "...", "simple_explanation": "...", "why_it_matters": "...", "foods": ["..."], "lifestyle": ["..."], "doctor": "-no_data unless a real, non-null doctor name/ID exists in the provided raw_data — do not invent a name", "next_step": "..."}}],
+  "health_connections": [] if there is nothing genuinely connecting two or more findings, otherwise ["..."],
+  "trends": ["..."],
+  "action_plan": {{"doctor": "-no_data unless a real, non-null doctor name/ID exists in the provided raw_data", "food": "...", "activity": "...", "followup": "..."}}
+}}
 
+For "body": only set a status other than "unknown" for an organ system that genuinely has a real finding tied to it (matching all_findings' categories). If there's no real data for an organ, leave it "unknown" with label "-no_data" — never guess a status for an organ with no real supporting finding.
 
 If there is no real clinical data at all (raw records are empty), return
 empty lists for priority_findings/all_findings/health_connections/trends,
