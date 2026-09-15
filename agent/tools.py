@@ -892,7 +892,7 @@ def check_tat_alert(
             return f"Error: no location found matching '{location_keyword}'."
         if resolved_loc_id == "AMBIGUOUS":
             return f"Multiple locations match '{location_keyword}': {', '.join(matched_name)}."
-    result = check_tat_compliance_alert(threshold_pct, period, db_name, db_server, db_user, db_password,location_id=resolved_loc_id)
+    result = check_tat_compliance_alert(threshold_pct, period, db_name, db_server, db_user, db_password, location_id=resolved_loc_id, department=department)
     if "error" in result:
         return f"Error: {result['error']}"
     if not result.get("alert"):
