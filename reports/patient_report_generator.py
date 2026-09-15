@@ -293,12 +293,6 @@ def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name
     """
     has_clinical_data = bool(raw_data)
 
-    prompt = f"""You are producing a structured health report for ONE real patient, based ONLY
-on the real data below. Never invent values, findings, doctor names, or
-scores not supported by this data.
-
-Patient: {json.dumps(patient_info, default=str)}
-
     # Strip verbose/irrelevant columns before sending to the LLM — a
     # patient with many real results (e.g. 42 rows) can easily exceed
     # any reasonable character budget with full raw rows, silently
@@ -316,6 +310,15 @@ Patient: {json.dumps(patient_info, default=str)}
         }
         for r in raw_data.get("trnparamresult", [])
     ]
+
+    prompt = f"""You are producing a structured health report for ONE real patient, based ONLY
+on the real data below. Never invent values, findings, doctor names, or
+scores not supported by this data.
+
+Patient: {json.dumps(patient_info, default=str)}
+
+Real test results found in the database (empty if none were found — in that case you only have demographic data, and every clinical field below must be "-no_data" or empty; do not invent findings to fill gaps):
+{json.dumps({"trnparamresult": trimmed_results}, default=str)[:10000]}
 
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
