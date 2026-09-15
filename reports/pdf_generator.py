@@ -37,7 +37,7 @@ from playwright.sync_api import sync_playwright
 
 class NoDataUndefined(Undefined):
     def __str__(self):
-        return "-no_data"
+        return "Not available"
 
     def __iter__(self):
         return iter([])
