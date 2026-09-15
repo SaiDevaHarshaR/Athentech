@@ -216,7 +216,7 @@ def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = N
                 tables_checked += 1
                 try:
                     cursor = conn.cursor()
-                    order_col = "BILLDATE" if table_name in ("trninvlabdet", "trninvlabpri", "trnmodeofcollectionsdet") else None
+                    order_col = "DATEOFBILL" if table_name == "trnmodeofcollectionsdet" else ("BILLDATE" if table_name in ("trninvlabdet", "trninvlabpri") else None)
                     order_clause = f" ORDER BY {order_col} DESC" if order_col else ""
                     query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?{order_clause}"
                     cursor.execute(query, (patient_id,))
@@ -236,7 +236,7 @@ def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = N
                     tables_checked += 1
                     try:
                         cursor = conn.cursor()
-                        order_col = "BILLDATE" if table_name in ("trninvlabdet", "trninvlabpri", "trnmodeofcollectionsdet") else None
+                        order_col = "DATEOFBILL" if table_name == "trnmodeofcollectionsdet" else ("BILLDATE" if table_name in ("trninvlabdet", "trninvlabpri") else None)
                         order_clause = f" ORDER BY {order_col} DESC" if order_col else ""
                         query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM {table_name} WHERE {column} = ?{order_clause}"
                         cursor.execute(query, (uhid,))
