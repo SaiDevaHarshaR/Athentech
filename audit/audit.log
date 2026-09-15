@@ -1074,3 +1074,5 @@
 {"ts": "2026-09-15T08:08:27.543268Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
 {"ts": "2026-09-15T08:19:06.850122Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "describe trninvlabdet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-15T08:21:04.723265Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "describe trnParamResult", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-15T08:32:47.329951Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "SELECT UHID, NAME FROM mstpatientregistration WHERE NAME LIKE '%KAUSHIK%'", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-15T08:37:30.637944Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "SELECT UHID, NAME FROM mstpatientregistration WHERE NAME LIKE '%KANUMURI KAUSHIK%'", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
