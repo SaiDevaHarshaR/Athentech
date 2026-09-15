@@ -104,7 +104,7 @@ def get_tat_compliance_dashboard(
     )
 
     where_common = (
-        f"WHERE {date_sql} {loc_sql}"
+        f"WHERE {date_sql} {loc_sql} {dept_sql} "
         "AND s.SAMPLECOLLECTEDDATE IS NOT NULL AND s.RESULTENTRYDATE IS NOT NULL "
         f"AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL "
         f"AND {actual_tat_expr} IS NOT NULL"
