@@ -28,13 +28,7 @@ import re
 from database.connection import get_hospital_connection
 
 
-def get_tat_compliance_dashboard(
-    period: str,
-    db_name: str,
-    db_server=None, db_user=None, db_password=None,
-    specific_date: str = None,
-    location_id: str = None,
-) -> dict:
+
     """
     period: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'day'
       (use period='day' with specific_date='YYYY-MM-DD' for one exact date)
