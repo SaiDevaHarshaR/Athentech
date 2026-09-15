@@ -28,7 +28,14 @@ import re
 from database.connection import get_hospital_connection
 
 
-
+def get_tat_compliance_dashboard(
+    period: str,
+    db_name: str,
+    db_server=None, db_user=None, db_password=None,
+    specific_date: str = None,
+    location_id: str = None,
+    department: str = None,
+) -> dict:
     """
     period: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'day'
       (use period='day' with specific_date='YYYY-MM-DD' for one exact date)
@@ -73,6 +80,15 @@ from database.connection import get_hospital_connection
         return {"error": f"Unsupported period '{period}'."}
 
     loc_sql = ""
+    dept_sql = ""
+    if department:
+        dept_map = {
+            "radiology": [9, 40, 26, 39, 1, 20, 12],  # CT, X-Ray, MRI, Ultrasound, 2D Echo, Mammography, Doppler
+        }
+        dept_ids = dept_map.get(department.lower())
+        if dept_ids:
+            ids_str = ",".join(str(i) for i in dept_ids)
+            dept_sql = f"AND inv.DEPARTMENTID IN ({ids_str})"
     if location_id:
         loc_sql = f"AND l.LOCATIONID = '{location_id}' "
 
