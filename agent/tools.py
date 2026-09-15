@@ -759,7 +759,7 @@ def get_lab_day_collection(
 def get_tat_compliance_dashboard(
     department: str = None,
     period: str = "today",
-    role: str = "viewer",
+    role: str = "viewer",    
     db_name: str = None,
     db_server: str = None,
     db_user: str = None,
