@@ -299,10 +299,11 @@ scores not supported by this data.
 
 Patient: {json.dumps(patient_info, default=str)}
 
-Real related records found in the database (empty if none were found —
-in that case you only have demographic data, and every clinical field
-below must be "-no_data" or empty; do not invent findings to fill gaps):
-{json.dumps(raw_data, default=str)[:6000]}
+Real related records found in the database (empty if none were found — in that case you only have demographic data, and every clinical field below must be "-no_data" or empty; do not invent findings to fill gaps):
+{json.dumps({"trnparamresult": raw_data.get("trnparamresult", [])}, default=str)[:6000]}
+
+Other related records (billing/administrative, for context only):
+{json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
 
 Respond with ONLY a JSON object (no markdown fences, no other text) with
 this exact shape:
