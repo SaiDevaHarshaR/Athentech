@@ -169,7 +169,11 @@ def _row_to_patient_dict(row, select_cols, id_col, uhid_col, name_col, age_col, 
     }
 
 
+def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = None, db_user: str = None, db_password: str = None, uhid: str = None) -> dict:
+    from auth.table_relationships import UHID_TABLE_RELATIONSHIPS
 
+    allowed_categories = get_allowed_tables(role)
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         raise ConnectionError("Could not connect to the hospital database.")
 
