@@ -805,7 +805,29 @@ async def ask_question(req: QueryRequest):
                 "hospital_name": hospital_name if is_premium else None,
             }
 
+        if is_premium:
+            from auth.usage_limiter import check_budget, record_usage
+            budget = check_budget(institution_code)
+            if not budget["allowed"]:
+                return {
+                    "status": "error",
+                    "answer": f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.",
+                }
 
+        answer, tokens_used = ask_agent(
+            question=req.question,
+            db_name=db_name,
+            chat_history=history,
+            is_premium=is_premium,
+            role=role,
+            hospital_name=hospital_name,
+            db_server=db_server,
+            db_user=db_user,
+            db_password=db_password,
+        )
+
+        if is_premium:
+            record_usage(institution_code, tokens_used)
 
         return {
             "status": "success",
