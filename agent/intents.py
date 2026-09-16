@@ -40,7 +40,6 @@ def _period_dates(q: str):
         d = today - timedelta(days=1)
         return d.isoformat(), (d + timedelta(days=1)).isoformat(), "Yesterday"
     if "last week" in q:
-        # Monday-start previous week
         start = today - timedelta(days=today.weekday() + 7)
         end = start + timedelta(days=7)
         return start.isoformat(), end.isoformat(), "Last Week"
@@ -62,8 +61,32 @@ def _period_dates(q: str):
     if m:
         d = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
         return d, (date.fromisoformat(d) + timedelta(days=1)).isoformat(), d
-    return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 
+    # Specific named date, e.g. "april 20th 2025", "20 april 2025"
+    months = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+              "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
+    m2 = re.search(r"\b(" + "|".join(months) + r")\s+(\d{1,2})\w*,?\s+(20\d{2})\b", q)
+    if not m2:
+        m2 = re.search(r"\b(\d{1,2})\w*\s+(" + "|".join(months) + r")\s+(20\d{2})\b", q)
+        if m2:
+            day_val, month_name, year_val = m2.group(1), m2.group(2), m2.group(3)
+        else:
+            month_name = day_val = year_val = None
+    else:
+        month_name, day_val, year_val = m2.group(1), m2.group(2), m2.group(3)
+
+    if month_name:
+        try:
+            d_obj = date(int(year_val), months[month_name], int(day_val))
+            d = d_obj.isoformat()
+            return d, (d_obj + timedelta(days=1)).isoformat(), d
+        except ValueError:
+            pass  # invalid date like Feb 30 — fall through to unrecognized
+
+    if "today" in q:
+        return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
+
+    return None  # genuinely unrecognized — caller must fall through to LLM, never silently default
 def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
 
