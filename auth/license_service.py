@@ -108,6 +108,7 @@ def validate_license(code: str):
         "SELECT * FROM institutions WHERE id = ?",
         (row["institution_id"],)
     ).fetchone()
+    print(f"[DEBUG] institution row keys: {dict(inst).keys() if inst else 'inst is None'}")
     conn.close()
 
     db_name = row["db_name"]
