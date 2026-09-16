@@ -1115,3 +1115,7 @@
 {"ts": "2026-09-16T08:56:28.799460Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T08:57:57.835179Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "attapur collection last month", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T08:58:02.336839Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T09:27:32.183514Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T09:27:39.126372Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T09:29:35.710172Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T09:29:42.021806Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
