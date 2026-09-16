@@ -375,7 +375,7 @@ def ask_agent(
             "date_str": target_date, "role": role,
             "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
         })
-        return check_output(raw if isinstance(raw, str) else str(raw))
+        return check_output(raw if isinstance(raw, str) else str(raw)), 0
     if is_premium and is_dashboard:
         matched = [d for d in DEPT_KEYWORDS if d in q]
         if matched:
