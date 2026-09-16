@@ -360,6 +360,7 @@ demographic information was available for this patient.
     from langchain_core.messages import HumanMessage
     print(f"[generate_structured_report] Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
     response = _invoke_with_retry(llm, [HumanMessage(content=prompt)], retries=1)
+    print(f"[generate_structured_report] response.tool_calls: {getattr(response, 'tool_calls', 'NO TOOL_CALLS ATTR')}")
 
     if response is None:
         print("[generate_structured_report] _invoke_with_retry returned None (rate-limited after retries, or a real error printed above).")
