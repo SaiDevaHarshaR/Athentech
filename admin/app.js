@@ -2446,7 +2446,50 @@ function renderFailureChart() {
 // =========================================================
 // ROLES & PERMISSIONS
 // =========================================================
+async function manageLimit(institutionId, hospitalCode) {
+  const res = await fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/limit`);
+  const current = await res.json();
 
+  $('modalEyebrow').textContent = 'REQUEST LIMIT';
+  $('modalTitle').textContent = `Limit — ${hospitalCode}`;
+  $('modalFields').innerHTML = `
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Period</label>
+        <select id="limitPeriodType">
+          <option value="day" ${current.period_type === 'day' ? 'selected' : ''}>Per Day</option>
+          <option value="month" ${current.period_type === 'month' ? 'selected' : ''}>Per Month</option>
+          <option value="year" ${current.period_type === 'year' ? 'selected' : ''}>Per Year</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Limit</label>
+        <input id="limitValue" type="number" min="1" value="${current.limit_value}">
+      </div>
+    </div>
+  `;
+
+  $('modalOverlay').classList.add('show');
+
+  $('modalForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const period_type = $('limitPeriodType').value;
+    const limit_value = parseInt($('limitValue').value, 10);
+
+    const saveRes = await fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period_type, limit_value }),
+    });
+
+    if (saveRes.ok) {
+      showToast('Request limit updated.');
+      $('modalOverlay').classList.remove('show');
+    } else {
+      showToast('Failed to update limit.');
+    }
+  };
+}
 async function renderRoles() {
   try {
     const res = await authFetch(`${API_BASE}/admin/roles`);
