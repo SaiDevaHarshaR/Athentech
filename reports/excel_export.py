@@ -100,10 +100,8 @@ def export_all_branches_collection(
     p = (period or "today").lower().replace(" ", "_")
 
     if p in ("today", "yesterday", "day"):
-        from reports.day_collection_reconciliation import (
-            get_day_collection_all_branches,
-            _REPORT_LABELS,
-        )
+        from reports.day_collection_readonly import get_day_collection_all_branches_readonly as get_day_collection_all_branches
+        from reports.day_collection_reconciliation import _REPORT_LABELS
         bill_date = "yesterday" if p == "yesterday" else "today"
         result = get_day_collection_all_branches(
             bill_date, db_name, db_server, db_user, db_password

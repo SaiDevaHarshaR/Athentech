@@ -353,6 +353,11 @@ def ask_agent(
     intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
     if intent_answer is not None:
         return check_output(intent_answer), 0
+    if is_premium:
+        from auth.usage_limiter import check_budget
+        budget = check_budget(db_name)  # using db_name here since institution_code isn't available inside ask_agent — see note below
+        if not budget["allowed"]:
+            return f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.", 0
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
         kw in q for kw in ["compliance", "below", "above", "threshold", "target"]

@@ -3,3 +3,8 @@
 .env
 __pycache__/
 *.pyc
+licenses.db*
+*.db
+audit/*.log
+exports/
+usage_limits.db*
