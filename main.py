@@ -529,7 +529,7 @@ def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(requi
 
 # ---------- Reports ----------
 
-from auth.usage_limiter import get_plan_limit, set_plan_limit, get_usage_today
+from auth.usage_limiter import get_token_plan, set_token_plan, get_usage_today
 
 @app.get("/admin/institutions/{hospital_id}/limit")
 def get_institution_limit(hospital_id: str):
