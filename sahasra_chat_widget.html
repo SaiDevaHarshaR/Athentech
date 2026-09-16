@@ -1036,7 +1036,10 @@ async function callBackend(question) {
     console.log("Backend response:", data);
 
     typingEl.remove();
-
+    if (data.usage_warning) {
+      document.getElementById('usageBannerText').textContent = data.usage_warning;
+      document.getElementById('usageBanner').style.display = 'flex';
+    }
     if (data.status === 'success') {
       addMessage(data.answer, 'bot');
       state.history.push({ role: 'assistant', content: data.answer });

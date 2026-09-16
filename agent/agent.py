@@ -241,19 +241,28 @@ def _extract_text(content):
     return str(content) if content else ""
 
 
+def _extract_tokens(response) -> int:
+    meta = getattr(response, "usage_metadata", None)
+    if meta and isinstance(meta, dict):
+        return meta.get("total_tokens", 0) or 0
+    return 0
+
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
+    total_tokens = 0
 
     response = _invoke_with_retry(llm_with_tools, messages)
     if response is None:
         return (
             "AI rate limit reached. Please wait about 1 minute, "
             "clear chat history, and try a shorter question."
-        )
+        ), total_tokens
+    total_tokens += _extract_tokens(response)
 
     for _ in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
-            return _extract_text(response.content) or None
+            return (_extract_text(response.content) or None), total_tokens
 
         messages.append(response)
 
@@ -279,11 +288,11 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             return (
                 "AI rate limit reached while processing tools. "
                 "Wait 1 minute and try again."
-            )
+            ), total_tokens
+        total_tokens += _extract_tokens(response)
 
-    # Check final response after last loop iteration
     if not getattr(response, "tool_calls", None):
-        return _extract_text(response.content) or None
+        return (_extract_text(response.content) or None), total_tokens
 
     messages.append(
         HumanMessage(
@@ -295,8 +304,9 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     )
     final = _invoke_with_retry(llm, messages, retries=0)
     if final is None:
-        return "AI rate limit reached. Wait 1 minute and try again."
-    return _extract_text(final.content) or None
+        return "AI rate limit reached. Wait 1 minute and try again.", total_tokens
+    total_tokens += _extract_tokens(final)
+    return (_extract_text(final.content) or None), total_tokens
 
 # BEFORE: nothing here
 

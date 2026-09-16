@@ -35,7 +35,7 @@ from notifications.email import send_alert_email
 from notifications.webhook import send_webhook_alert
 from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
 from config import settings
-
+from auth.usage_limiter import check_budget, record_usage
 app = FastAPI(title="Sahasra AI Agent")
 
 WINDOW = 60  # seconds — rate limit window; the limit itself is now read from settings (was a hardcoded constant)
