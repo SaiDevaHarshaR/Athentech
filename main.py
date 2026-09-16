@@ -802,13 +802,12 @@ async def ask_question(req: QueryRequest):
             }
 
         if is_premium:
-            budget_after = record_usage(institution_code, tokens_used)
-            pct = round((budget_after["used"] / budget_after["limit"]) * 100) if budget_after["limit"] else 0
-            usage_warning = None
-            if pct >= 50:
-                usage_warning = f"You've used {pct}% of your token allowance this {budget_after['period_type']}."
-        else:
-            usage_warning = None
+            budget = check_budget(institution_code)
+            if not budget["allowed"]:
+                return {
+                    "status": "error",
+                    "answer": f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.",
+                }
 
         answer, tokens_used = ask_agent(
             question=req.question,
@@ -822,8 +821,12 @@ async def ask_question(req: QueryRequest):
             db_password=db_password,
         )
 
+        usage_warning = None
         if is_premium:
-            record_usage(institution_code, tokens_used)
+            budget_after = record_usage(institution_code, tokens_used)
+            pct = round((budget_after["used"] / budget_after["limit"]) * 100) if budget_after["limit"] else 0
+            if pct >= 50:
+                usage_warning = f"You've used {pct}% of your token allowance this {budget_after['period_type']}."
 
         return {
             "status": "success",
