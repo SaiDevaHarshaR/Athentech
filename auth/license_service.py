@@ -108,7 +108,7 @@ def validate_license(code: str):
         "SELECT * FROM institutions WHERE id = ?",
         (row["institution_id"],)
     ).fetchone()
-    print(f"[DEBUG] institution row keys: {dict(inst).keys() if inst else 'inst is None'}")
+    #print(f"[DEBUG] institution row keys: {dict(inst).keys() if inst else 'inst is None'}")
     conn.close()
 
     db_name = row["db_name"]
@@ -129,7 +129,7 @@ def validate_license(code: str):
     return {
         "valid": True,
         "code": row["code"],
-        "institution_code": inst["code"] if inst else None,
+        "institution_code": inst["client_prefix"] if inst else None,
         "role": row["role"],
         "db_name": db_name,
         "hospital_name": hospital_name,
