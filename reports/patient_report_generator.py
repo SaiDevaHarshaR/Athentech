@@ -356,20 +356,24 @@ empty lists for priority_findings/all_findings/health_connections/trends,
 demographic information was available for this patient.
 """
 
-    try:
-        response = llm.invoke(prompt)
-        text = response.content if hasattr(response, "content") else str(response)
-    except Exception as invoke_err:
-        print(f"[generate_structured_report] LLM invoke FAILED: {invoke_err}")
+    from agent.agent import _invoke_with_retry
+    from langchain_core.messages import HumanMessage
+
+    response = _invoke_with_retry(llm, [HumanMessage(content=prompt)], retries=1)
+
+    if response is None:
+        print("[generate_structured_report] _invoke_with_retry returned None (rate-limited after retries, or a real error printed above).")
         return {
             "patient_name": patient_info.get("name"),
             "patient_age": patient_info.get("age"),
             "patient_gender": patient_info.get("gender"),
-            "health_summary": "Could not generate detailed findings for this patient right now (AI service error).",
+            "health_summary": "Could not generate detailed findings right now — the AI service is temporarily rate-limited. Please try again in a minute.",
         }
 
+    text = response.content if hasattr(response, "content") else str(response)
+
     if not text or not text.strip():
-        print("[generate_structured_report] LLM returned an EMPTY response (likely rate-limited or provider error).")
+        print("[generate_structured_report] LLM returned an EMPTY response despite no exception.")
         return {
             "patient_name": patient_info.get("name"),
             "patient_age": patient_info.get("age"),
