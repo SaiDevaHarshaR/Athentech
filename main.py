@@ -807,7 +807,7 @@ async def ask_question(req: QueryRequest):
 
         if is_premium:
             from auth.usage_limiter import check_and_increment
-            usage = check_and_increment(db_name)
+            usage = check_and_increment(institution_code)
             if not usage["allowed"]:
                 return {
                     "status": "error",
