@@ -1103,3 +1103,7 @@
 {"ts": "2026-09-16T07:36:03.633061Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "how many patients registered on april 20th 2026", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T07:36:43.417608Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "cash reconciliation on may 2026 attapur", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T07:37:24.266899Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "cash collection may 2026 suryapet", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T08:15:21.672313Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
+{"ts": "2026-09-16T08:15:53.745487Z", "event": "admin_action", "role": null, "code": null, "question": "Updated institution: Apollo Demo Hospital", "meta": {"actor": "test123", "action": "Updated institution", "target": "Apollo Demo Hospital", "changes": {"status": "Inactive"}}}
+{"ts": "2026-09-16T08:15:54.641190Z", "event": "admin_action", "role": null, "code": null, "question": "Updated institution: Apollo Demo Hospital", "meta": {"actor": "test123", "action": "Updated institution", "target": "Apollo Demo Hospital", "changes": {"status": "Active"}}}
+{"ts": "2026-09-16T08:19:28.092476Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}

@@ -797,11 +797,16 @@ async def ask_question(req: QueryRequest):
                 "role": role if is_premium else None,
                 "hospital_name": hospital_name if is_premium else None,
             }
-        from auth.usage_limiter import check_and_increment
 
-        usage = check_and_increment(hospital_id)  # from your activation-code validation
-        if not usage["allowed"]:
-            return {"answer": f"Request limit reached ({usage['used']}/{usage['limit']} this {usage['period_type']}). Contact your admin to upgrade."}
+        if is_premium:
+            from auth.usage_limiter import check_and_increment
+            usage = check_and_increment(db_name)
+            if not usage["allowed"]:
+                return {
+                    "status": "error",
+                    "answer": f"Request limit reached ({usage['used']}/{usage['limit']} this {usage['period_type']}). Contact your admin to upgrade.",
+                }
+
         answer = ask_agent(
             question=req.question,
             db_name=db_name,
