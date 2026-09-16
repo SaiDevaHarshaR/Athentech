@@ -529,7 +529,19 @@ def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(requi
 
 # ---------- Reports ----------
 
+from auth.usage_limiter import get_plan_limit, set_plan_limit, get_usage_today
 
+@app.get("/admin/institutions/{hospital_id}/limit")
+def get_institution_limit(hospital_id: str):
+    return get_plan_limit(hospital_id)
+
+@app.post("/admin/institutions/{hospital_id}/limit")
+def set_institution_limit(hospital_id: str, period_type: str, limit_value: int):
+    return set_plan_limit(hospital_id, period_type, limit_value)
+
+@app.get("/admin/institutions/{hospital_id}/usage")
+def get_institution_usage(hospital_id: str):
+    return get_usage_today(hospital_id)
 
 
 @app.post("/generate-excel")
@@ -785,7 +797,11 @@ async def ask_question(req: QueryRequest):
                 "role": role if is_premium else None,
                 "hospital_name": hospital_name if is_premium else None,
             }
+        from auth.usage_limiter import check_and_increment
 
+        usage = check_and_increment(hospital_id)  # from your activation-code validation
+        if not usage["allowed"]:
+            return {"answer": f"Request limit reached ({usage['used']}/{usage['limit']} this {usage['period_type']}). Contact your admin to upgrade."}
         answer = ask_agent(
             question=req.question,
             db_name=db_name,
