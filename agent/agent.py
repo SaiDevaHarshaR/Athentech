@@ -414,7 +414,7 @@ def ask_agent(
             "db_user": db_user,
             "db_password": db_password,
         })
-        return check_output(raw if isinstance(raw, str) else str(raw))
+        return check_output(raw if isinstance(raw, str) else str(raw)), 0
 # ---- end forced dashboard ----
     # =======================================
 
