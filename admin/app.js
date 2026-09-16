@@ -2483,10 +2483,10 @@ async function manageLimit(institutionId, hospitalCode) {
     });
 
     if (saveRes.ok) {
-      showToast('Request limit updated.');
       $('modalOverlay').classList.remove('show');
+      try { showToast('Request limit updated.'); } catch (e) { console.log('Limit saved.'); }
     } else {
-      showToast('Failed to update limit.');
+      try { showToast('Failed to update limit.'); } catch (e) { console.log('Failed to update limit.'); }
     }
   };
 }

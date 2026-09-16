@@ -535,9 +535,15 @@ from auth.usage_limiter import get_plan_limit, set_plan_limit, get_usage_today
 def get_institution_limit(hospital_id: str):
     return get_plan_limit(hospital_id)
 
+from pydantic import BaseModel
+
+class LimitRequest(BaseModel):
+    period_type: str
+    limit_value: int
+
 @app.post("/admin/institutions/{hospital_id}/limit")
-def set_institution_limit(hospital_id: str, period_type: str, limit_value: int):
-    return set_plan_limit(hospital_id, period_type, limit_value)
+def set_institution_limit(hospital_id: str, req: LimitRequest):
+    return set_plan_limit(hospital_id, req.period_type, req.limit_value)
 
 @app.get("/admin/institutions/{hospital_id}/usage")
 def get_institution_usage(hospital_id: str):
