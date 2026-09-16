@@ -712,7 +712,7 @@ refusal — nothing else fits A or C.
             )
         messages.append(HumanMessage(content=user_message))
 
-        answer = _run_tool_loop(
+        answer, tokens_used = _run_tool_loop(
             llm_with_tools,
             messages,
             tools_by_name,
