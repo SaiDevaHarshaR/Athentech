@@ -356,12 +356,40 @@ empty lists for priority_findings/all_findings/health_connections/trends,
 demographic information was available for this patient.
 """
 
-    response = llm.invoke(prompt)
-    text = response.content if hasattr(response, "content") else str(response)
+    try:
+        response = llm.invoke(prompt)
+        text = response.content if hasattr(response, "content") else str(response)
+    except Exception as invoke_err:
+        print(f"[generate_structured_report] LLM invoke FAILED: {invoke_err}")
+        return {
+            "patient_name": patient_info.get("name"),
+            "patient_age": patient_info.get("age"),
+            "patient_gender": patient_info.get("gender"),
+            "health_summary": "Could not generate detailed findings for this patient right now (AI service error).",
+        }
+
+    if not text or not text.strip():
+        print("[generate_structured_report] LLM returned an EMPTY response (likely rate-limited or provider error).")
+        return {
+            "patient_name": patient_info.get("name"),
+            "patient_age": patient_info.get("age"),
+            "patient_gender": patient_info.get("gender"),
+            "health_summary": "Could not generate detailed findings for this patient right now (AI service returned nothing).",
+        }
 
     try:
         parsed = _parse_llm_json(text)
         findings = parsed.get("all_findings", [])
+    except (json.JSONDecodeError, ValueError) as parse_err:
+        print(f"[generate_structured_report] JSON PARSE FAILED: {parse_err}")
+        print(f"[generate_structured_report] Raw LLM response (first 2000 chars): {text[:2000]}")
+        parsed = {
+            "patient_name": patient_info.get("name"),
+            "patient_age": patient_info.get("age"),
+            "patient_gender": patient_info.get("gender"),
+            "health_summary": "Could not generate detailed findings for this patient right now.",
+        }
+        return parsed
         parsed["normal_count"] = sum(1 for f in findings if f.get("status") == "normal")
         parsed["borderline_count"] = sum(1 for f in findings if f.get("status") == "watch")
         parsed["abnormal_count"] = sum(1 for f in findings if f.get("status") == "attention")
