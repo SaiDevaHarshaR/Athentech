@@ -422,7 +422,7 @@ def ask_agent(
         try:
             role_enum = Role(role)
         except ValueError:
-            return check_output(f"Unknown role '{role}'.")
+            return check_output(f"Unknown role '{role}'."), 0
 
         allowed_tables = list_allowed_tables_for_role(role_enum)
         # allowed_tables_str (a full comma-joined list of every allowed
