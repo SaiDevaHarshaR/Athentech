@@ -2446,7 +2446,58 @@ function renderFailureChart() {
 // =========================================================
 // ROLES & PERMISSIONS
 // =========================================================
+async function manageLimit(institutionId, hospitalCode) {
+  const [planRes, usageRes] = await Promise.all([
+    fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/limit`),
+    fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/usage`),
+  ]);
+  const current = await planRes.json();
+  const usage = await usageRes.json();
+  const pct = usage.limit ? Math.round((usage.used / usage.limit) * 100) : 0;
 
+  $('modalEyebrow').textContent = 'TOKEN LIMIT';
+  $('modalTitle').textContent = `Token Limit — ${hospitalCode}`;
+  $('modalFields').innerHTML = `
+    <div style="grid-column:1/-1;font-size:11px;color:#64748b;margin-bottom:10px;">
+      Used <strong>${usage.used.toLocaleString()}</strong> / ${usage.limit.toLocaleString()} tokens this ${usage.period_type} (${pct}%)
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Period</label>
+        <select id="limitPeriodType">
+          <option value="day" ${current.period_type === 'day' ? 'selected' : ''}>Per Day</option>
+          <option value="month" ${current.period_type === 'month' ? 'selected' : ''}>Per Month</option>
+          <option value="year" ${current.period_type === 'year' ? 'selected' : ''}>Per Year</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Token Limit</label>
+        <input id="limitValue" type="number" min="1" value="${current.token_limit}">
+      </div>
+    </div>
+  `;
+
+  $('modalOverlay').classList.add('show');
+
+  $('modalForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const period_type = $('limitPeriodType').value;
+    const token_limit = parseInt($('limitValue').value, 10);
+
+    const saveRes = await fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period_type, token_limit }),
+    });
+
+    if (saveRes.ok) {
+      $('modalOverlay').classList.remove('show');
+      try { showToast('Token limit updated.'); } catch (e) { console.log('Token limit saved.'); }
+    } else {
+      try { showToast('Failed to update.'); } catch (e) { console.log('Failed to update.'); }
+    }
+  };
+}
 async function renderRoles() {
   try {
     const res = await authFetch(`${API_BASE}/admin/roles`);

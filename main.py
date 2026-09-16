@@ -530,20 +530,16 @@ def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(requi
 # ---------- Reports ----------
 
 from auth.usage_limiter import get_token_plan, set_token_plan, get_usage_today
+class LimitRequest(BaseModel):
+    period_type: str
+    token_limit: int
 
 @app.get("/admin/institutions/{hospital_id}/limit")
 def get_institution_limit(hospital_id: str):
-    return get_plan_limit(hospital_id)
-
-from pydantic import BaseModel
-
-class LimitRequest(BaseModel):
-    period_type: str
-    limit_value: int
-
+    return get_token_plan(hospital_id)
 @app.post("/admin/institutions/{hospital_id}/limit")
 def set_institution_limit(hospital_id: str, req: LimitRequest):
-    return set_plan_limit(hospital_id, req.period_type, req.limit_value)
+    return set_token_plan(hospital_id, req.period_type, req.token_limit)
 
 @app.get("/admin/institutions/{hospital_id}/usage")
 def get_institution_usage(hospital_id: str):
@@ -806,13 +802,13 @@ async def ask_question(req: QueryRequest):
             }
 
         if is_premium:
-            from auth.usage_limiter import check_budget, record_usage
-            budget = check_budget(institution_code)
-            if not budget["allowed"]:
-                return {
-                    "status": "error",
-                    "answer": f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.",
-                }
+            budget_after = record_usage(institution_code, tokens_used)
+            pct = round((budget_after["used"] / budget_after["limit"]) * 100) if budget_after["limit"] else 0
+            usage_warning = None
+            if pct >= 50:
+                usage_warning = f"You've used {pct}% of your token allowance this {budget_after['period_type']}."
+        else:
+            usage_warning = None
 
         answer, tokens_used = ask_agent(
             question=req.question,
@@ -835,6 +831,7 @@ async def ask_question(req: QueryRequest):
             "mode": "premium" if is_premium else "normal",
             "role": role if is_premium else None,
             "hospital_name": hospital_name if is_premium else None,
+            "usage_warning": usage_warning,
         }
     #
 
