@@ -801,13 +801,7 @@ async def ask_question(req: QueryRequest):
                 "hospital_name": hospital_name if is_premium else None,
             }
 
-        if is_premium:
-            budget = check_budget(institution_code)
-            if not budget["allowed"]:
-                return {
-                    "status": "error",
-                    "answer": f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.",
-                }
+
 
         answer, tokens_used = ask_agent(
             question=req.question,

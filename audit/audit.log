@@ -1123,3 +1123,5 @@
 {"ts": "2026-09-16T09:59:49.322844Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T10:19:41.077617Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-16T10:33:37.792446Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T10:43:07.158078Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-16T10:44:28.339231Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
