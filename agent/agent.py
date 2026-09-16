@@ -336,7 +336,7 @@ def ask_agent(
     # ========== GUARDRAILS (INPUT) ==========
     ok, msg = check_input(question)
     if not ok:
-        return msg
+        return msg, 0
     
 
     # ---- Deterministic dashboards (do not rely on LLM tool choice) ----
@@ -352,7 +352,7 @@ def ask_agent(
     from agent.intents import try_intent
     intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
     if intent_answer is not None:
-        return check_output(intent_answer)
+        return check_output(intent_answer), 0
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
         kw in q for kw in ["compliance", "below", "above", "threshold", "target"]
@@ -365,7 +365,7 @@ def ask_agent(
             "threshold_pct": threshold, "period": period, "role": role,
             "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
         })
-        return check_output(raw if isinstance(raw, str) else str(raw))
+        return check_output(raw if isinstance(raw, str) else str(raw)), 0
 
     is_zero_collection = "zero collection" in q or ("zero" in q and "collection" in q)
     if is_premium and is_zero_collection:
@@ -786,8 +786,8 @@ Rules:
         messages.extend(chat_history)
         messages.append(HumanMessage(content=question))
 
-        answer, tokens_used = _run_tool_loop(llm_with_tools, messages, tools_by_name)
+        answer = _run_tool_loop(llm_with_tools, messages, tools_by_name)
         if not answer:
             answer = "I could not find an answer."
 
-        return check_output(answer), tokens_used
+        return check_output(answer)
