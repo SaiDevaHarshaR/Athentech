@@ -128,6 +128,7 @@ def validate_license(code: str):
     return {
         "valid": True,
         "code": row["code"],
+        "institution_code": inst["code"] if inst else None,
         "role": row["role"],
         "db_name": db_name,
         "hospital_name": hospital_name,

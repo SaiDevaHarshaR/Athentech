@@ -759,6 +759,7 @@ async def ask_question(req: QueryRequest):
                 db_server = validation.get("db_server")
                 db_user = validation.get("db_user")
                 db_password = validation.get("db_password")
+                institution_code = validation.get("institution_code") or db_name  # fallback if inst lookup failed
             else:
                 # Real failure event — previously invalid attempts were
                 # never recorded anywhere, so the admin panel's "failed
