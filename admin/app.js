@@ -1176,17 +1176,28 @@ function renderInstitutions() {
                                 ◉
                             </button>
 
-                            <button
-                                class="row-action"
-                                title="Delete institution and all its licenses"
-                                onclick="
-                                    deleteInstitution(
-                                        ${institution.id}
-                                    )
-                                "
-                            >
-                                🗑
-                            </button>
+                              <button
+                                 class="row-action"
+                                 title="Set request limit"
+                                 onclick="
+                                     manageLimit(
+                                         ${institution.id}, '${institution.code}'
+                                     )
+                                 "
+                             >
+                                 ⏱
+                             </button>
+                              <button
+                                 class="row-action"
+                                 title="Delete institution and all its licenses"
+                                 onclick="
+                                     deleteInstitution(
+                                         ${institution.id}
+                                     )
+                                 "
+                             >
+                                 🗑
+                             </button>
 
                         </div>
 
