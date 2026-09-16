@@ -13,6 +13,9 @@ from database.connection import get_hospital_connection
 
 _ALLOWED_ROLES = ("admin", "doctor", "reception")
 
+class _UnrecognizedPeriod(Exception):
+    pass
+
 def _unsupported_extras(q: str, allowed_tokens: set) -> bool:
     """
     True if the question has filter words the handler will NOT apply.
@@ -86,7 +89,7 @@ def _period_dates(q: str):
     if "today" in q:
         return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 
-    return None  # genuinely unrecognized — caller must fall through to LLM, never silently default
+    raise _UnrecognizedPeriod(q)  # genuinely unrecognized — caller must fall through to LLM, never silently default
 def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
 
