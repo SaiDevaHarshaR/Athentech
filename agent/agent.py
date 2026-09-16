@@ -786,8 +786,8 @@ Rules:
         messages.extend(chat_history)
         messages.append(HumanMessage(content=question))
 
-        answer = _run_tool_loop(llm_with_tools, messages, tools_by_name)
+        answer, tokens_used = _run_tool_loop(llm_with_tools, messages, tools_by_name)
         if not answer:
             answer = "I could not find an answer."
 
-        return check_output(answer)
+        return check_output(answer), tokens_used
