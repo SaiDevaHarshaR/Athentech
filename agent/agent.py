@@ -750,7 +750,7 @@ refusal — nothing else fits A or C.
         if not answer:
             answer = "I could not find relevant data."
 
-        return check_output(answer)
+        return check_output(answer), tokens_used
 
     else:
         # NORMAL MODE
