@@ -102,7 +102,29 @@ def _is_rate_limit_error(e: Exception) -> bool:
     return "rate_limit" in msg or "rate limit" in msg or "429" in msg
 
 
-
+def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None):
+    for i in range(retries + 1):
+        try:
+            return runnable.invoke(messages)
+        except Exception as e:
+            print(f"[_invoke_with_retry] REAL ERROR: {e}")
+            if not _is_rate_limit_error(e):
+                raise
+            if i == retries:
+                if _openai_fallback_llm is not None:
+                    print("[_invoke_with_retry] Groq exhausted, falling back to OpenAI.")
+                    try:
+                        fallback_runnable = (
+                            _openai_fallback_llm.bind_tools(fallback_tools)
+                            if fallback_tools else _openai_fallback_llm
+                        )
+                        return fallback_runnable.invoke(messages)
+                    except Exception as fallback_err:
+                        print(f"[_invoke_with_retry] OpenAI fallback ALSO failed: {fallback_err}")
+                        return None
+                return None
+            time.sleep(20)
+    return None
 
 import re
 from datetime import datetime
