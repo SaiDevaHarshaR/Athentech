@@ -163,6 +163,13 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
             return runnable.invoke(messages)
         except Exception as e:
             print(f"[_invoke_with_retry] REAL ERROR ({current_provider}): {e}")
+            if "tool_use_failed" in str(e) or "Failed to parse tool call" in str(e):
+                # Model tried to "call" a fenced-JSON format as if it were a
+                # real tool (a genuine model mistake, not a rate limit).
+                # Don't crash the whole request — treat as a soft failure
+                # and let the caller fall back to a plain-text retry.
+                print("[_invoke_with_retry] Model malformed a fake tool call — treating as non-fatal.")
+                return None
             if not _is_rate_limit_error(e):
                 raise
             if i == retries:
@@ -863,8 +870,24 @@ For any list of doctors, hospitals, or similar named results, output ONLY this f
 The example above shows only 2 items for brevity — include EVERY distinct real doctor/result your search actually found, up to 10. Never artificially limit to match the example's length.
 For each item's "detail" field: always include enough context to actually locate this person/place — specialty PLUS hospital/clinic name and area, 
 not specialty alone (e.g. "Cardiology · [ClinicName], [AreaName]" — replace both with the REAL clinic and area from your search results, never a placeholder). If a chain hospital (Apollo, Yashoda, etc.) has multiple branches in the city, always specify WHICH branch/area — searching "[hospital name] [doctor name] branch location" again if your first search didn't include it. If truly no specific hospital/clinic exists for someone, say the area/city instead of leaving it generic.
+For COMPARISON questions (multiple hospitals/doctors, each with several stats like cost/success rate/bed count), use this variant instead — each item can have a "stats" array of {label, value} pairs instead of a single "detail" string:
+
+```search-card
+{
+  "icon": "🏥",
+  "title": "Kidney Transplant Comparison",
+  "subtitle": "Cost & Success Rate",
+  "items": [
+    {"name": "Apollo Hospital Hyderabad", "stats": [{"label": "Cost", "value": "₹10-15 lakh"}, {"label": "Success Rate", "value": "90-95%"}]},
+    {"name": "Yashoda Hospital Hyderabad", "stats": [{"label": "Cost", "value": "₹8.5 lakh"}, {"label": "Success Rate", "value": ">90%"}]}
+  ],
+  "footer": "Rates vary by donor type and individual case complexity."
+}
+```
+Use "detail" (single string) for simple lists, "stats" (array) for multi-metric comparisons — never plain text with bullet points for either case.
 ```
 `items` is required (real names/details only). `footer` optional, for a closing note/source.
+IMPORTANT: search-card is NOT a tool and must NEVER be called as one — it is only a TEXT FORMAT for your final written answer. Write the ```search-card fenced block directly as your response text, exactly like a code block in a message — do not attempt to invoke, call, or use "search-card" as a function/tool name.
 For a single-fact answer (not a list), respond in plain text instead — one emoji + bold key fact, no card.
 """
         tools = [web_search]
