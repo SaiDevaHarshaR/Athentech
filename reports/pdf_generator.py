@@ -230,18 +230,7 @@ def generate_smart_report(data: dict) -> BytesIO:
         data = dict(data)
         data["all_findings"] = build_findings_from_content_lines(data["content_lines"])
 
-    merged = _deep_merge(DEFAULT_REPORT_DATA, data)
 
-    merged.setdefault("report_date", datetime.now().strftime("%d/%m/%Y %H:%M"))
-    merged.setdefault("report_id", str(uuid.uuid4())[:8].upper())
-    merged["organ_links"] = _compute_organ_links(merged.get("all_findings"))
-
-    env = Environment(
-        loader=FileSystemLoader(_template_dir()),
-        undefined=NoDataUndefined,
-    )
-    template = env.get_template("smart_report.html")
-    html_content = template.render(**merged)
 
     # Written to a temp file INSIDE the templates folder so relative
     # asset references (styles.css) resolve naturally via a real
