@@ -875,6 +875,31 @@ async function processMessage(text) {
   const mentionsPdf = q.includes('pdf');
   const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
 
+  if (q === '/limit') {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/usage-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode || '' }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addMessage(data.error, 'bot');
+      } else {
+        addMessage(
+          `⏱️ **Token Usage** (${data.institution_code})\n\n` +
+          `**${data.used.toLocaleString()}** / **${data.limit.toLocaleString()}** tokens used this ${data.period_type} (**${data.pct}%**)\n\n` +
+          `Remaining: **${data.remaining.toLocaleString()}**`,
+          'bot'
+        );
+      }
+    } catch (err) {
+      addMessage('Could not fetch usage status.', 'bot');
+    }
+    return;
+  }
+
+
   if (mentionsPdf && hasActionWord) {
     // If the request names a specific patient (UHID pattern, e.g.
     // KDX26929648), fetch a REAL fresh report for that one patient
