@@ -740,6 +740,61 @@ function renderListCard(data) {
   chatEl.appendChild(card);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
+function extractSearchCard(text) {
+  const match = text.match(/```search-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderSearchCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot search-card';
+
+  const header = document.createElement('div');
+  header.className = 'search-card-header';
+  header.textContent = (data.icon || '🌐') + ' ' + data.title;
+  card.appendChild(header);
+
+  if (data.subtitle) {
+    const sub = document.createElement('div');
+    sub.className = 'search-card-subtitle';
+    sub.textContent = data.subtitle;
+    card.appendChild(sub);
+  }
+
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'search-card-items';
+  data.items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'search-card-item';
+    const name = document.createElement('strong');
+    name.textContent = item.name || '';
+    row.appendChild(name);
+    if (item.detail) {
+      const detail = document.createElement('span');
+      detail.textContent = item.detail;
+      row.appendChild(detail);
+    }
+    itemsWrap.appendChild(row);
+  });
+  card.appendChild(itemsWrap);
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'search-card-footer';
+    footer.textContent = data.footer;
+    card.appendChild(footer);
+  }
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
 
 function showSuggestions(list) {
   suggestionsEl.innerHTML = '';
