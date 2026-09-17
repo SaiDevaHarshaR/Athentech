@@ -230,7 +230,37 @@ def generate_smart_report(data: dict) -> BytesIO:
         data = dict(data)
         data["all_findings"] = build_findings_from_content_lines(data["content_lines"])
 
+    merged = _deep_merge(DEFAULT_REPORT_DATA, data)
 
+    merged.setdefault("report_date", datetime.now().strftime("%d/%m/%Y %H:%M"))
+    merged.setdefault("report_id", str(uuid.uuid4())[:8].upper())
+    merged["organ_links"] = _compute_organ_links(merged.get("all_findings"))
+
+    if not merged.get("all_findings"):
+        # No real clinical data at all — a full 3-page template of empty
+        # organ boxes is worse than useless, it looks broken. Render a
+        # short, honest one-page notice instead.
+        html_content = f"""
+        <html><head><meta charset="utf-8"></head>
+        <body style="font-family: sans-serif; padding: 60px; text-align: center;">
+          <h1 style="color:#333;">Sahasra AI Report</h1>
+          <p style="color:#666; font-size:14px;">{merged.get('hospital_name','')}</p>
+          <h2 style="margin-top:50px;">{merged.get('patient_name','')}</h2>
+          <p>{merged.get('patient_age','')} years &middot; {merged.get('patient_gender','')}</p>
+          <div style="margin-top:60px; font-size:18px; color:#444;">
+            No lab or imaging results are on record for this patient yet.<br>
+            Once tests are completed, a full health report will be available here.
+          </div>
+          <p style="margin-top:80px; font-size:11px; color:#999;">Report ID: {merged.get('report_id','')} &middot; {merged.get('report_date','')}</p>
+        </body></html>
+        """
+    else:
+        env = Environment(
+            loader=FileSystemLoader(_template_dir()),
+            undefined=NoDataUndefined,
+        )
+        template = env.get_template("smart_report.html")
+        html_content = template.render(**merged)
 
     # Written to a temp file INSIDE the templates folder so relative
     # asset references (styles.css) resolve naturally via a real
