@@ -183,7 +183,7 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
         except Exception as fallback_err:
             print(f"[_invoke_with_retry] '{name}' ALSO failed: {fallback_err}")
             if _is_rate_limit_error(fallback_err):
-                retry_seconds = _extract_retry_seconds(str(fallback_err))
+                retry_seconds = _extract_retry_seconds(str(fallback_err), name)
                 mark_exhausted(name, ttl_seconds=retry_seconds)
             continue
 
