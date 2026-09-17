@@ -545,7 +545,16 @@ def set_institution_limit(hospital_id: str, req: LimitRequest):
 def get_institution_usage(hospital_id: str):
     return get_usage_today(hospital_id)
 
-
+@app.post("/usage-status")
+def usage_status(req: dict):
+    validation = validate_license(req.get("activation_code", ""))
+    if not validation.get("valid"):
+        return {"error": "Invalid or expired activation code."}
+    institution_code = validation.get("institution_code") or validation.get("db_name")
+    from auth.usage_limiter import get_usage_today
+    usage = get_usage_today(institution_code)
+    pct = round((usage["used"] / usage["limit"]) * 100) if usage["limit"] else 0
+    return {**usage, "pct": pct, "institution_code": institution_code}
 @app.post("/generate-excel")
 async def generate_excel(req: ExcelExportRequest):
     validation = validate_license(req.activation_code)
