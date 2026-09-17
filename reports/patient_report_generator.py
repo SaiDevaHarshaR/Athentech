@@ -306,7 +306,7 @@ def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name
     # fit in the same budget.
     trimmed_results = [
         {
-            "test_name": r.get("DESCRIPTION") or r.get("PARAMHEADNAME") or r.get("PARAMID"),
+            "test_name": r.get("PARAMNAME") or r.get("PARAMHEADNAME") or r.get("PARAMID"),
             "section": r.get("PARAMHEADNAME"),
             "value": r.get("PVALUE"),
             "min": r.get("MINVALUE"),
