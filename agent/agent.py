@@ -166,7 +166,7 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
             if not _is_rate_limit_error(e):
                 raise
             if i == retries:
-                retry_seconds = _extract_retry_seconds(str(e))
+                retry_seconds = _extract_retry_seconds(str(e), current_provider)
                 mark_exhausted(current_provider, ttl_seconds=retry_seconds)
                 break
             time.sleep(20)
