@@ -423,10 +423,11 @@ def ask_agent(
         "2d echo", "ecg", "tmt", "colonoscopy", "mammography", "ultrasound",
         "ct scan", "mri", "doppler", "opg", "pft",
     ]
-    from agent.intents import try_intent
-    intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
-    if intent_answer is not None:
-        return check_output(intent_answer), 0
+    if is_premium:
+        from agent.intents import try_intent
+        intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
+        if intent_answer is not None:
+            return check_output(intent_answer), 0
     if is_premium:
         from auth.usage_limiter import check_budget
         key = institution_code or db_name

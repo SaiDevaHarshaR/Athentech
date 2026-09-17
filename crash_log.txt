@@ -102,3 +102,35 @@ Traceback (most recent call last):
     raise self._make_status_error_from_response(err.response) from None
 groq.BadRequestError: Error code: 400 - {'error': {'message': 'Failed to parse tool call arguments as JSON', 'type': 'invalid_request_error', 'code': 'tool_use_failed', 'failed_generation': '{"name": "search-card", "arguments": ```search-card\n{\n  "icon": "🏥",\n  "title": "Best Diagnostics in Malkajgiri",\n  "subtitle": "Top Diagnostic Centers",\n  "items": [\n    {\n      "name": "Hanuman Diagnostics",\n      "detail": "Diagnostic Services · Hanuman Diagnostics, 18-99/1, Hanumanpet, Malkajgiri, Hyderabad"\n    },\n    {\n      "name": "Sahasra Diagnostics",\n      "detail": "Diagnostic Services · Sahasra Diagnostics, Secunderabad (Malkajgiri area), Hyderabad"\n    },\n    {\n      "name": "Apollo Diagnostics",\n      "detail": "Diagnostic Services · Apollo Diagnostics, Opposite Katta Maisamma Temple, Malkajgiri, Hyderabad"\n    },\n    {\n      "name": "Tapadia Diagnostics",\n      "detail": "Diagnostic Services · Tapadia Diagnostics, House No. 18-410/2, Surya Towers, Bhavani Nagar, Malkajgiri, Hyderabad"\n    }\n  ],\n  "footer": "4 top diagnostics centers in Malkajgiri. Check their websites or contact numbers for more details."\n}\n```"}'}}
 
+
+============================================================
+2026-09-17T17:57:08.418804
+Traceback (most recent call last):
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\main.py", line 818, in ask_question
+    answer, tokens_used = ask_agent(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\agent\agent.py", line 877, in ask_agent
+    answer, tokens_used = _run_tool_loop(llm_with_tools, messages, tools_by_name)
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\agent\agent.py", line 328, in _run_tool_loop
+    response = _invoke_with_retry(llm_with_tools, messages, fallback_tools=list(tools_by_name.values()))
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\agent\agent.py", line 163, in _invoke_with_retry
+    return runnable.invoke(messages)
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_core\runnables\base.py", line 6014, in invoke
+    return self.bound.invoke(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_core\language_models\chat_models.py", line 488, in invoke
+    self.generate_prompt(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_core\language_models\chat_models.py", line 1877, in generate_prompt
+    return self.generate(prompt_messages, stop=stop, callbacks=callbacks, **kwargs)
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_core\language_models\chat_models.py", line 1684, in generate
+    self._generate_with_cache(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_core\language_models\chat_models.py", line 2022, in _generate_with_cache
+    result = self._generate(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\langchain_groq\chat_models.py", line 627, in _generate
+    response = self.client.create(messages=message_dicts, **params)
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\groq\resources\chat\completions.py", line 461, in create
+    return self._post(
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\groq\_base_client.py", line 1242, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\venv\lib\site-packages\groq\_base_client.py", line 1044, in request
+    raise self._make_status_error_from_response(err.response) from None
+groq.BadRequestError: Error code: 400 - {'error': {'message': 'Failed to parse tool call arguments as JSON', 'type': 'invalid_request_error', 'code': 'tool_use_failed', 'failed_generation': '{"name": "web_search", "arguments": {"query":"Apollo Hospital Hyderabad total knee replacement cost",""}"}'}}
+
