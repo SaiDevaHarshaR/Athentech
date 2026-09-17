@@ -299,17 +299,7 @@ def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name
     # truncating mid-object and losing most of the real data. Keeping
     # only what the report actually needs lets far more real results
     # fit in the same budget.
-    trimmed_results = [
-        {
-            "test_name": r.get("PARAMHEADNAME") or r.get("PARAMID"),
-            "value": r.get("PVALUE"),
-            "min": r.get("MINVALUE"),
-            "max": r.get("MAXVALUE"),
-            "unit": r.get("UNITID"),
-            "description": r.get("DESCRIPTION"),
-        }
-        for r in raw_data.get("trnparamresult", [])
-    ]
+
 
     prompt = f"""You are producing a structured health report for ONE real patient, based ONLY
 on the real data below. Never invent values, findings, doctor names, or
