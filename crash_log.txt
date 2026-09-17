@@ -1,0 +1,8 @@
+
+============================================================
+2026-09-17T14:23:16.041831
+Traceback (most recent call last):
+  File "C:\Users\rsbros\Desktop\Gen-AI\AthenTech\Sahasra-AI-Agent\main.py", line 827, in ask_question
+    institution_code=institution_code,
+UnboundLocalError: local variable 'institution_code' referenced before assignment
+

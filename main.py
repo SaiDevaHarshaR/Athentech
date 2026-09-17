@@ -740,6 +740,7 @@ async def ask_question(req: QueryRequest):
         db_server = None
         db_user = None
         db_password = None
+        institution_code = None
 
         if req.activation_code:
             validation = validate_license(req.activation_code)
