@@ -782,10 +782,21 @@ function renderSearchCard(data) {
     const name = document.createElement('strong');
     name.textContent = item.name || '';
     row.appendChild(name);
+
     if (item.detail) {
       const detail = document.createElement('span');
       detail.textContent = item.detail;
       row.appendChild(detail);
+    } else if (Array.isArray(item.stats)) {
+      const statsWrap = document.createElement('div');
+      statsWrap.className = 'search-card-stats';
+      item.stats.forEach(s => {
+        const pill = document.createElement('span');
+        pill.className = 'search-card-stat-pill';
+        pill.textContent = `${s.label}: ${s.value}`;
+        statsWrap.appendChild(pill);
+      });
+      row.appendChild(statsWrap);
     }
     itemsWrap.appendChild(row);
   });
