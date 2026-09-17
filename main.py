@@ -842,7 +842,3 @@ async def ask_question(req: QueryRequest):
         }
     #
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise
