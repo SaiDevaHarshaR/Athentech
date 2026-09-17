@@ -4,7 +4,18 @@ Credentials from environment variables:
     UPSTASH_REDIS_REST_URL
     UPSTASH_REDIS_REST_TOKEN
 """
+import json
+import os
+from datetime import date
+from urllib.parse import quote
 
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
+_UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 import json
 import os
 from datetime import date

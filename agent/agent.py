@@ -327,6 +327,7 @@ def ask_agent(
     db_server: str = None,
     db_user: str = None,
     db_password: str = None,
+    institution_code: str = None,
 ):
     if chat_history is None:
         chat_history = []

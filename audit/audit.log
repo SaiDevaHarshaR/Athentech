@@ -1128,3 +1128,13 @@
 {"ts": "2026-09-16T12:08:14.725138Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-17T05:46:12.566096Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-17T05:55:38.082852Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "/limit", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:52:45.806534Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}
+{"ts": "2026-09-17T06:53:10.051388Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:53:13.781042Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Show me all patients", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:54:47.054529Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:54:48.299101Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "Today's collection data", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:55:08.540196Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's attapur UPI collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:56:12.271680Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's Suryapet UPI collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:57:40.589591Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today's radiology dashboard Attapur", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:57:51.987576Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "2025radiology dashboard Attapur", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-17T06:58:05.820715Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "radiology dashboard 2025 attapur", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}

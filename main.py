@@ -822,6 +822,7 @@ async def ask_question(req: QueryRequest):
             db_server=db_server,
             db_user=db_user,
             db_password=db_password,
+            institution_code=institution_code,
         )
 
         usage_warning = None
