@@ -78,19 +78,45 @@ def _build_llm():
     )
 
 
+import os
+from auth.provider_exhaustion import is_exhausted, mark_exhausted
+
 try:
     llm = _build_llm()
-    from langchain_openai import ChatOpenAI
 
-    _openai_fallback_llm = None
+    from langchain_openai import ChatOpenAI
+    _PROVIDER_CHAIN = [("groq", llm)]
+
+    if os.environ.get("MISTRAL_API_KEY"):
+        from langchain_mistralai import ChatMistralAI
+        _PROVIDER_CHAIN.append(("mistral", ChatMistralAI(
+            model="mistral-large-latest", temperature=0,
+            api_key=os.environ.get("MISTRAL_API_KEY"),
+        )))
+
+    if os.environ.get("COHERE_API_KEY"):
+        from langchain_cohere import ChatCohere
+        _PROVIDER_CHAIN.append(("cohere", ChatCohere(
+            model="command-r-plus", temperature=0,
+            cohere_api_key=os.environ.get("COHERE_API_KEY"),
+        )))
+
+    if os.environ.get("OPENROUTER_API_KEY"):
+        _PROVIDER_CHAIN.append(("openrouter", ChatOpenAI(
+            model="anthropic/claude-3.5-sonnet", temperature=0,
+            api_key=os.environ.get("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )))
+
     if settings.openai_api_key:
-        _openai_fallback_llm = ChatOpenAI(
+        _PROVIDER_CHAIN.append(("openai", ChatOpenAI(
             model="gpt-4o-mini", temperature=0, api_key=settings.openai_api_key,
-        )
+        )))
+
 except Exception as e:
     import traceback
     traceback.print_exc()
-    raise 
+    raise
 MAX_TOOL_ROUNDS = 6
 # Was 2 — enough for one focused metric group (describe_table + run_sql_query
 # on a single table) but not for a broad multi-source dashboard question
