@@ -137,7 +137,16 @@ def _is_rate_limit_error(e: Exception) -> bool:
 
 import re
 
-def _extract_retry_seconds(error_message: str) -> int:
+_PROVIDER_FALLBACK_TTL = {
+    "groq": 26 * 60 * 60,        # daily, midnight UTC
+    "gemini": 26 * 60 * 60,      # daily, midnight Mountain View time
+    "openrouter": 26 * 60 * 60,  # daily, confirmed
+    "mistral": 31 * 24 * 60 * 60,  # MONTHLY quota — don't retry for ~31 days if no countdown given
+    "cohere": 31 * 24 * 60 * 60,   # MONTHLY quota (1000 calls/mo) — same
+    "openai": 26 * 60 * 60,      # daily-ish default, paid tiers vary
+}
+
+def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> int:
     match = re.search(r"try again in (\d+)m([\d.]+)s", error_message)
     if match:
         minutes, seconds = int(match.group(1)), float(match.group(2))
@@ -145,7 +154,7 @@ def _extract_retry_seconds(error_message: str) -> int:
     match = re.search(r"try again in ([\d.]+)s", error_message)
     if match:
         return int(float(match.group(1))) + 10
-    return 26 * 60 * 60  # unknown — conservative fallback
+    return _PROVIDER_FALLBACK_TTL.get(provider_name, 26 * 60 * 60) # unknown — conservative fallback
 
 
 def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
