@@ -135,30 +135,50 @@ def _is_rate_limit_error(e: Exception) -> bool:
     return "rate_limit" in msg or "rate limit" in msg or "429" in msg
 
 
-def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None):
+import re
+
+def _extract_retry_seconds(error_message: str) -> int:
+    match = re.search(r"try again in (\d+)m([\d.]+)s", error_message)
+    if match:
+        minutes, seconds = int(match.group(1)), float(match.group(2))
+        return int(minutes * 60 + seconds) + 10
+    match = re.search(r"try again in ([\d.]+)s", error_message)
+    if match:
+        return int(float(match.group(1))) + 10
+    return 26 * 60 * 60  # unknown — conservative fallback
+
+
+def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
     for i in range(retries + 1):
         try:
             return runnable.invoke(messages)
         except Exception as e:
-            print(f"[_invoke_with_retry] REAL ERROR: {e}")
+            print(f"[_invoke_with_retry] REAL ERROR ({current_provider}): {e}")
             if not _is_rate_limit_error(e):
                 raise
             if i == retries:
-                if _openai_fallback_llm is not None:
-                    print("[_invoke_with_retry] Groq exhausted, falling back to OpenAI.")
-                    try:
-                        fallback_runnable = (
-                            _openai_fallback_llm.bind_tools(fallback_tools)
-                            if fallback_tools else _openai_fallback_llm
-                        )
-                        return fallback_runnable.invoke(messages)
-                    except Exception as fallback_err:
-                        print(f"[_invoke_with_retry] OpenAI fallback ALSO failed: {fallback_err}")
-                        return None
-                return None
+                retry_seconds = _extract_retry_seconds(str(e))
+                mark_exhausted(current_provider, ttl_seconds=retry_seconds)
+                break
             time.sleep(20)
-    return None
 
+    remaining = [(name, m) for name, m in _PROVIDER_CHAIN if name != current_provider]
+    for name, model in remaining:
+        if is_exhausted(name):
+            print(f"[_invoke_with_retry] Skipping '{name}', already exhausted today.")
+            continue
+        try:
+            print(f"[_invoke_with_retry] Trying fallback provider: {name}")
+            fallback_runnable = model.bind_tools(fallback_tools) if fallback_tools else model
+            return fallback_runnable.invoke(messages)
+        except Exception as fallback_err:
+            print(f"[_invoke_with_retry] '{name}' ALSO failed: {fallback_err}")
+            if _is_rate_limit_error(fallback_err):
+                retry_seconds = _extract_retry_seconds(str(fallback_err))
+                mark_exhausted(name, ttl_seconds=retry_seconds)
+            continue
+
+    return None
 import re
 from datetime import datetime
 
