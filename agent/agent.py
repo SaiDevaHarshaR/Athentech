@@ -270,7 +270,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     tool_extra_kwargs = tool_extra_kwargs or {}
     total_tokens = 0
 
-    response = _invoke_with_retry(llm_with_tools, messages)
+    response = _invoke_with_retry(llm_with_tools, messages, fallback_tools=list(tools_by_name.values()))
     if response is None:
         return (
             "AI rate limit reached. Please wait about 1 minute, "
@@ -802,8 +802,11 @@ For any list of doctors, hospitals, or similar named results, output ONLY this f
     {"name": "Dr. Jaswinder Singh", "detail": "ENT Specialist"},
     {"name": "Dr. Praveen Kumar", "detail": "Pediatrician"}
   ],
-  "footer": "17 total doctors across multiple specialties. Visit Apollo 247 for the full list."
+  "footer": "17 total doctors across multiple specialties. Visit Apollo 24/7 for the full list."
 }
+The example above shows only 2 items for brevity — include EVERY distinct real doctor/result your search actually found, up to 10. Never artificially limit to match the example's length.
+For each item's "detail" field: always include enough context to actually locate this person/place — specialty PLUS hospital/clinic name and area, 
+not specialty alone (e.g. "Cardiology · [ClinicName], [AreaName]" — replace both with the REAL clinic and area from your search results, never a placeholder). If a chain hospital (Apollo, Yashoda, etc.) has multiple branches in the city, always specify WHICH branch/area — searching "[hospital name] [doctor name] branch location" again if your first search didn't include it. If truly no specific hospital/clinic exists for someone, say the area/city instead of leaving it generic.
 ```
 `items` is required (real names/details only). `footer` optional, for a closing note/source.
 For a single-fact answer (not a list), respond in plain text instead — one emoji + bold key fact, no card.

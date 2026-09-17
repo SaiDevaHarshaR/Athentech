@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <link rel="icon" href="Favicon.ico" type="image/x-icon" />
-<link rel="apple-touch-icon" href="favicon.ico" />
+<link rel="apple-touch-icon" href="Favicon.ico" />
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sahasra AI Assistant</title>
@@ -476,6 +476,12 @@ function addMessage(text, type) {
   const listCard = type === 'bot' ? extractListCard(text) : null;
   if (listCard) {
     renderListCard(listCard);
+    return;
+  }
+
+  const searchCard = type === 'bot' ? extractSearchCard(text) : null;
+  if (searchCard) {
+    renderSearchCard(searchCard);
     return;
   }
 
@@ -1162,7 +1168,7 @@ async function callBackend(question) {
     showSuggestions([
       { label: 'Show all patients', send: 'Show me all patients' },
       { label: "Today's collection", send: "Today's collection data" },
-      { label: 'TAT dashboard today', send: 'TAT dashboard today' }
+      { label: 'TAT dashboard', send: 'TAT dashboard today' }
     ]);
   } else {
     showSuggestions([
