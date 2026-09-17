@@ -359,8 +359,7 @@ demographic information was available for this patient.
     from agent.agent import _invoke_with_retry
     from langchain_core.messages import HumanMessage
     print(f"[generate_structured_report] Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
-    llm_with_more_tokens = llm.bind(max_tokens=16000, reasoning_effort="low")
-    response = _invoke_with_retry(llm_with_more_tokens, [HumanMessage(content=prompt)], retries=1)
+
     print(f"[generate_structured_report] response.tool_calls: {getattr(response, 'tool_calls', 'NO TOOL_CALLS ATTR')}")
 
     if response is None:
