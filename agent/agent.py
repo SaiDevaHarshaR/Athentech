@@ -301,7 +301,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                 ToolMessage(content=result_text, tool_call_id=tool_call["id"])
             )
 
-        response = _invoke_with_retry(llm_with_tools, messages)
+        response = _invoke_with_retry(llm_with_tools, messages, fallback_tools=list(tools_by_name.values()))
         if response is None:
             return (
                 "AI rate limit reached while processing tools. "
@@ -320,7 +320,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             )
         )
     )
-    final = _invoke_with_retry(llm, messages, retries=0)
+    final = _invoke_with_retry(llm, messages, retries=0, fallback_tools=list(tools_by_name.values()))
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again.", total_tokens
     total_tokens += _extract_tokens(final)
