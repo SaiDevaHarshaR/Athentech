@@ -329,7 +329,7 @@ this exact shape:
   "patient_name": "...",
   "patient_age": "...",
   "patient_gender": "...",
-
+  "health_score": "compute this whenever at least one real finding exists: start at 1000, subtract 100 for each finding with status='watch', subtract 250 for each finding with status='attention'. Only use '-no_data' if all_findings is completely empty.",
   "health_summary": "...",
   "body": {{
     "brain": {{"status": "normal|watch|attention|unknown", "label": "..."}},
