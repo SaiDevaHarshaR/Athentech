@@ -329,7 +329,7 @@ this exact shape:
   "patient_name": "...",
   "patient_age": "...",
   "patient_gender": "...",
-  "health_score": "-no_data or a number 0-1000 ONLY if genuinely computable from real data",
+
   "health_summary": "...",
   "body": {{
     "brain": {{"status": "normal|watch|attention|unknown", "label": "..."}},
