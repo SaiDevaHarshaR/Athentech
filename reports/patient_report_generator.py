@@ -259,7 +259,12 @@ def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = N
                 try:
                     cursor = conn.cursor()
                     placeholders = ", ".join("?" for _ in billnos)
-                    query = f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} * FROM trnparamresult WHERE BILLNO IN ({placeholders})"
+                    query = (
+                        f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} p.*, m.PARAMNAME "
+                        f"FROM trnparamresult p "
+                        f"LEFT JOIN mstoltestparamsmapping m ON p.PARAMID = m.PARAMID "
+                        f"WHERE p.BILLNO IN ({placeholders})"
+                    )
                     cursor.execute(query, billnos)
                     col_names = [d[0] for d in cursor.description]
                     rows = cursor.fetchall()
