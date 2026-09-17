@@ -102,18 +102,7 @@ def _is_rate_limit_error(e: Exception) -> bool:
     return "rate_limit" in msg or "rate limit" in msg or "429" in msg
 
 
-def _invoke_with_retry(runnable, messages, retries=1):
-    for i in range(retries + 1):
-        try:
-            return runnable.invoke(messages)
-        except Exception as e:
-            print(f"[_invoke_with_retry] REAL ERROR: {e}")
-            if not _is_rate_limit_error(e):
-                raise
-            if i == retries:
-                return None
-            time.sleep(20)
-    return None
+
 
 import re
 from datetime import datetime
