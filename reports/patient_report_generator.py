@@ -323,6 +323,8 @@ Real test results found in the database (empty if none were found — in that ca
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
 
+If multiple raw rows share the same PARAMHEADNAME (a test panel like "Differential Count") and are ALL within normal range, combine them into ONE finding entry summarizing the panel (e.g. "Differential Count — all components normal"), rather than one separate finding per row. Only give abnormal/watch-status rows their own individual finding entry.
+
 Respond with ONLY a JSON object (no markdown fences, no other text) with
 this exact shape:
 {{
