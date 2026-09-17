@@ -842,3 +842,11 @@ async def ask_question(req: QueryRequest):
         }
     #
 
+    except Exception as e:
+        import traceback
+        error_text = traceback.format_exc()
+        print(error_text)
+        with open("crash_log.txt", "a", encoding="utf-8") as f:
+            from datetime import datetime
+            f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
+        raise
