@@ -130,6 +130,7 @@ def validate_license(code: str):
         "valid": True,
         "code": row["code"],
         "institution_code": inst["client_prefix"] if inst else None,
+        "institution_type": (dict(inst).get("type", "Diagnostic") if inst else "Diagnostic").strip().lower(),
         "role": row["role"],
         "db_name": db_name,
         "hospital_name": hospital_name,
@@ -139,6 +140,7 @@ def validate_license(code: str):
         "db_server": db_server,       # None → use .env fallback later
         "db_user": db_user,
         "db_password": db_password,
+        "institution_type": dict(inst).get("institution_type", "diagnostic") if inst else "diagnostic",
     }
 
 def list_licenses():
