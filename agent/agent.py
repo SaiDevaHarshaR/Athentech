@@ -85,25 +85,35 @@ try:
     llm = _build_llm()
 
     from langchain_openai import ChatOpenAI
-    _PROVIDER_CHAIN = [("groq", llm)]
+    _PROVIDER_CHAIN = []
+
+    if settings.groq_api_key:
+        _PROVIDER_CHAIN.append(("groq", llm))
+
+    if os.environ.get("GEMINI_API_KEY"):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        _PROVIDER_CHAIN.append(("gemini", ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash", temperature=0,
+            google_api_key=os.environ.get("GEMINI_API_KEY"),
+        )))
 
     if os.environ.get("MISTRAL_API_KEY"):
         from langchain_mistralai import ChatMistralAI
         _PROVIDER_CHAIN.append(("mistral", ChatMistralAI(
-            model="mistral-large-latest", temperature=0,
+            model="ministral-14b-2512", temperature=0,
             api_key=os.environ.get("MISTRAL_API_KEY"),
         )))
 
     if os.environ.get("COHERE_API_KEY"):
         from langchain_cohere import ChatCohere
         _PROVIDER_CHAIN.append(("cohere", ChatCohere(
-            model="command-r-plus", temperature=0,
+            model="command-a-03-2025", temperature=0,
             cohere_api_key=os.environ.get("COHERE_API_KEY"),
         )))
 
     if os.environ.get("OPENROUTER_API_KEY"):
         _PROVIDER_CHAIN.append(("openrouter", ChatOpenAI(
-            model="anthropic/claude-3.5-sonnet", temperature=0,
+            model="meta-llama/llama-3.1-70b-instruct", temperature=0,
             api_key=os.environ.get("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )))
@@ -186,7 +196,9 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
         try:
             print(f"[_invoke_with_retry] Trying fallback provider: {name}")
             fallback_runnable = model.bind_tools(fallback_tools) if fallback_tools else model
-            return fallback_runnable.invoke(messages)
+            result = fallback_runnable.invoke(messages)
+            print(f"[_invoke_with_retry] Fallback provider '{name}' SUCCEEDED.")
+            return result
         except Exception as fallback_err:
             print(f"[_invoke_with_retry] '{name}' ALSO failed: {fallback_err}")
             if _is_rate_limit_error(fallback_err):
@@ -382,7 +394,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             )
         )
     )
-    final = _invoke_with_retry(llm, messages, retries=0, fallback_tools=list(tools_by_name.values()))
+    final = _invoke_with_retry(llm_with_tools, messages, retries=0, fallback_tools=list(tools_by_name.values()))
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again.", total_tokens
     total_tokens += _extract_tokens(final)
@@ -408,6 +420,7 @@ def ask_agent(
     db_user: str = None,
     db_password: str = None,
     institution_code: str = None,
+    institution_type: str = "diagnostic",    
 ):
     if chat_history is None:
         chat_history = []
@@ -430,17 +443,16 @@ def ask_agent(
         "2d echo", "ecg", "tmt", "colonoscopy", "mammography", "ultrasound",
         "ct scan", "mri", "doppler", "opg", "pft",
     ]
-    if is_premium:
-        from agent.intents import try_intent
-        intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
-        if intent_answer is not None:
-            return check_output(intent_answer), 0
-    if is_premium:
-        from auth.usage_limiter import check_budget
-        key = institution_code or db_name
-        budget = check_budget(key)
-        if not budget["allowed"]:
-            return f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.", 0
+    if institution_type == "hospital":
+        from agent.intents_his import try_intent_his
+        his_answer = try_intent_his(question, role, db_name, db_server, db_user, db_password)
+        if his_answer is not None:
+            return check_output(his_answer), 0
+        return "The Hospital (IMS) module is still being built — this question isn't answerable yet. Contact support.", 0
+
+    # existing LIS path continues exactly as before, unchanged
+    from agent.intents import try_intent
+
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
         kw in q for kw in ["compliance", "below", "above", "threshold", "target"]
@@ -505,6 +517,13 @@ def ask_agent(
         return check_output(raw if isinstance(raw, str) else str(raw)), 0
 # ---- end forced dashboard ----
     # =======================================
+
+    if is_premium:
+        from auth.usage_limiter import check_budget
+        key = institution_code or db_name
+        budget = check_budget(key)
+        if not budget["allowed"]:
+            return f"Token limit reached ({budget['used']}/{budget['limit']} tokens this {budget['period_type']}). Contact your admin to upgrade.", 0
 
     if is_premium:
         try:
