@@ -1,0 +1,868 @@
+import time
+#from reports.excel_export import export_all_branches_collection
+from reports.excel_export import run_excel_export
+from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
+from typing import List, Optional
+from agent.agent import ask_agent
+from langchain_core.messages import HumanMessage, AIMessage
+from database.connection import get_hospital_connection
+from auth.license_service import (
+    create_license,
+    validate_license,
+    list_licenses,
+    revoke_license,
+    delete_license,
+    list_institutions,
+    create_institution,
+    update_institution,
+    delete_institution,
+    set_license_status,
+    get_role_permissions,
+    update_role_permissions,
+    get_settings,
+    update_settings,
+)
+from auth.admin_auth import require_admin, create_admin_token, check_admin_credentials
+from auth.admin_service import list_admins, create_admin, set_admin_status, change_admin_password
+from audit.log import audit, read_audit_log
+from reports.pdf_generator import generate_smart_report
+from reports.patient_report_generator import build_patient_report_data, PatientNotFound, PatientAmbiguous
+from database.license_db import init_license_db, seed_demo_institutions, seed_bootstrap_admin
+from notifications.email import send_alert_email
+from notifications.webhook import send_webhook_alert
+from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
+from config import settings
+from auth.usage_limiter import check_budget, record_usage
+app = FastAPI(title="Sahasra AI Agent")
+print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
+# CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    origin = request.headers.get("origin")
+    def _with_cors(response):
+        if origin and origin in settings.allowed_origins_list:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    try:
+        limit = get_settings()["rate_limit_per_minute"]
+    except Exception:
+        limit = 300
+
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    hits = [t for t in RATE.get(ip, []) if now - t < WINDOW]
+    if len(hits) >= limit:
+        return _with_cors(JSONResponse(status_code=429, content={"detail": "Too many requests"}))
+    hits.append(now)
+    RATE[ip] = hits
+
+    response = await call_next(request)
+
+    # Security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+
+    return response
+
+
+WINDOW = 60  # seconds — rate limit window; the limit itself is now read from settings (was a hardcoded constant)
+RATE = {}
+# Separate from the per-IP RATE above: many real users can share one IP
+# (NAT, a hospital's shared network), so a pure per-IP limit means one
+# busy hospital can eat the shared budget for everyone else on the same
+# network. This tracks usage per ACTIVATION CODE instead — a hospital's
+# heavy legitimate usage only affects that hospital's own limit.
+CODE_RATE = {}
+
+init_license_db()
+seed_demo_institutions()
+seed_bootstrap_admin()  # one-time migration: legacy .env admin -> real admins table, see auth/admin_service.py
+start_background_expiry_checker()  # actually fires the "email alerts for expiring licenses" setting
+
+
+def _log_admin_action(admin: str, action: str, target: str = "", meta: dict = None):
+    """
+    Real per-admin accountability: every mutating admin action gets
+    logged with the actual authenticated admin's username, not just a
+    generic 'Admin' label. Visible in /admin/audit and the Audit Logs
+    page alongside the existing premium_query / invalid_code_attempt
+    events.
+    """
+    audit(event="admin_action", role=None, code=None, question=f"{action}: {target}",
+          meta={"actor": admin, "action": action, "target": target, **(meta or {})})
+
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/widget", StaticFiles(directory="widget_files", html=True), name="widget")
+# ---------- Request/response models ----------
+
+class RolePermissionUpdate(BaseModel):
+    role: str
+    tables: list[str]
+
+
+class LicenseStatusRequest(BaseModel):
+    code: str
+    status: str  # Active / Suspended / Revoked
+
+
+class InstitutionCreateRequest(BaseModel):
+    name: str
+    client_prefix: str
+    db_name: str
+    db_server: str | None = None
+    db_user: str | None = None
+    db_password: str | None = None    
+    type: str = "Hospital"
+    city: str = ""
+    status: str = "Active"
+
+
+
+class InstitutionUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    client_prefix: Optional[str] = None
+    db_name: Optional[str] = None
+    db_server: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
+    type: Optional[str] = None
+    city: Optional[str] = None
+    status: Optional[str] = None
+
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class QueryRequest(BaseModel):
+    question: str
+    activation_code: Optional[str] = None
+    chat_history: Optional[List[Message]] = []
+
+
+class GenerateLicenseRequest(BaseModel):
+    institution_id: int
+    role: str
+    phone: str
+    dob_year: str
+    plan: str = "Standard"
+    valid_days: Optional[int] = None  # falls back to the admin-configured default if not given
+
+
+class ValidateLicenseRequest(BaseModel):
+    code: str
+
+
+class RevokeLicenseRequest(BaseModel):
+    code: str
+
+
+class PDFRequest(BaseModel):
+    title: str = "Sahasra AI Report"
+    hospital_name: str = "Hospital"
+    role: str = "Staff"
+    activation_code: str = ""
+    content_lines: list[str] = []
+
+
+class PatientReportRequest(BaseModel):
+    patient_identifier: str  # UHID or name
+    activation_code: str
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminCreateRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+
+
+class AdminStatusRequest(BaseModel):
+    status: str  # Active / Inactive
+
+
+class AdminPasswordRequest(BaseModel):
+    new_password: str
+
+
+class SettingsUpdateRequest(BaseModel):
+    license_validity_days: Optional[int] = None
+    normal_mode_enabled: Optional[bool] = None
+    rate_limit_per_minute: Optional[int] = None
+    extra_blocked_patterns: Optional[List[str]] = None
+    output_redaction_enabled: Optional[bool] = None
+    email_alerts_enabled: Optional[bool] = None
+    webhook_url: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    alert_email_to: Optional[str] = None
+
+
+# ---------- Public ----------
+
+@app.get("/")
+def home():
+    return {"message": "Sahasra AI Agent is running"}
+
+
+# ---------- Admin auth ----------
+
+@app.post("/admin/login")
+def api_admin_login(req: AdminLoginRequest):
+    try:
+        ok = check_admin_credentials(req.username, req.password)
+    except RuntimeError as e:
+        # No admin accounts exist yet — see auth/admin_auth.py for the bootstrap flow.
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not ok:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_admin_token(req.username)
+    audit(event="admin_login", role=None, code=None, question=None, meta={"actor": req.username})
+    return {"status": "success", "token": token}
+
+
+# ---------- Admin: user accounts (auth required) ----------
+# Real multi-admin accounts, replacing the single shared login — see
+# auth/admin_service.py. Any logged-in admin can manage other admins;
+# there's no role hierarchy (super-admin vs regular) yet.
+
+@app.get("/admin/users")
+def api_list_admin_users(admin: str = Depends(require_admin)):
+    return {"status": "success", "admins": list_admins()}
+
+
+@app.post("/admin/users")
+def api_create_admin_user(req: AdminCreateRequest, admin: str = Depends(require_admin)):
+    try:
+        data = create_admin(req.username, req.password, req.display_name)
+        _log_admin_action(admin, "Created admin account", req.username)
+        return {"status": "success", "admin": data}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/admin/users/{username}/status")
+def api_set_admin_status(username: str, req: AdminStatusRequest, admin: str = Depends(require_admin)):
+    try:
+        ok = set_admin_status(username, req.status)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    if not ok:
+        return {"status": "error", "message": "Admin not found"}
+    _log_admin_action(admin, f"Set admin status to {req.status}", username)
+    return {"status": "success"}
+
+
+@app.post("/admin/users/{username}/password")
+def api_change_admin_password(username: str, req: AdminPasswordRequest, admin: str = Depends(require_admin)):
+    try:
+        ok = change_admin_password(username, req.new_password)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    if not ok:
+        return {"status": "error", "message": "Admin not found"}
+    _log_admin_action(admin, "Changed admin password", username)
+    return {"status": "success"}
+
+
+# ---------- Admin: institutions (auth required) ----------
+
+@app.get("/admin/institutions")
+def api_list_institutions(admin: str = Depends(require_admin)):
+    return {"status": "success", "institutions": list_institutions()}
+
+
+@app.post("/admin/institutions")
+def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
+    try:
+        data = create_institution(
+            name=req.name,
+            client_prefix=req.client_prefix,
+            db_name=req.db_name,
+            db_server=req.db_server,
+            db_user=req.db_user,
+            db_password=req.db_password,            
+            type_=req.type,
+            city=req.city,
+            status=req.status
+        )
+        _log_admin_action(admin, "Created institution", req.name)
+        return {"status": "success", "institution": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.patch("/admin/institutions/{institution_id}")
+def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, admin: str = Depends(require_admin)):
+    try:
+        data = update_institution(institution_id, **req.model_dump(exclude_unset=True))
+        # Don't log the raw db_password into the audit trail — same
+        # reasoning as excluding smtp_password from the settings-update
+        # audit log elsewhere: the audit log is meant to record WHAT
+        # changed, not BE a place secrets end up in plaintext.
+        safe_changes = {k: v for k, v in req.model_dump(exclude_unset=True).items() if k != "db_password"}
+        if "db_password" in req.model_dump(exclude_unset=True):
+            safe_changes["db_password"] = "[changed]"
+        _log_admin_action(admin, "Updated institution", data.get("name", str(institution_id)),
+                           meta={"changes": safe_changes})
+        return {"status": "success", "institution": data}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.delete("/admin/institutions/{institution_id}")
+def api_delete_institution(institution_id: int, admin: str = Depends(require_admin)):
+    try:
+        result = delete_institution(institution_id)
+        _log_admin_action(
+            admin, "Deleted institution", result["institution_name"],
+            meta={"licenses_removed": result["licenses_removed"]},
+        )
+        return {"status": "success", "deleted": result}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/locations")
+def get_locations(req: dict):
+    validation = validate_license(req.get("activation_code", ""))
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+    conn = get_hospital_connection(validation.get("db_name"), validation.get("db_server"), validation.get("db_user"), validation.get("db_password"))
+    if not conn:
+        return {"locations": []}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1 ORDER BY LOCATIONNAME")
+        names = [row[0] for row in cursor.fetchall()]
+        return {"locations": names}
+    finally:
+        conn.close()
+# ---------- Admin: licenses (auth required) ----------
+
+@app.get("/admin/licenses")
+def api_list_licenses(admin: str = Depends(require_admin)):
+    return {"status": "success", "licenses": list_licenses()}
+
+
+@app.post("/admin/licenses/generate")
+def api_generate_license(req: GenerateLicenseRequest, admin: str = Depends(require_admin)):
+    try:
+        valid_days = req.valid_days
+        if valid_days is None:
+            valid_days = get_settings()["license_validity_days"]
+
+        data = create_license(
+            institution_id=req.institution_id,
+            role=req.role,
+            phone=req.phone,
+            dob_year=req.dob_year,
+            plan=req.plan,
+            valid_days=valid_days,
+            created_by=admin,  # real admin username, not the old hardcoded "admin" literal
+        )
+        _log_admin_action(admin, "Generated license", data.get("code", ""))
+        return {"status": "success", "license": data}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/admin/licenses/status")
+def api_set_license_status(req: LicenseStatusRequest, admin: str = Depends(require_admin)):
+    ok = set_license_status(req.code, req.status)
+    if not ok:
+        return {"status": "error", "message": "License not found"}
+    _log_admin_action(admin, f"Set license status to {req.status}", req.code)
+    return {"status": "success", "message": f"License marked {req.status}"}
+
+
+@app.post("/admin/licenses/revoke")
+def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_admin)):
+    ok = revoke_license(req.code)
+    if not ok:
+        return {"status": "error", "message": "Code not found"}
+    _log_admin_action(admin, "Revoked license", req.code)
+    return {"status": "success", "message": "License revoked"}
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+
+
+
+class ExcelExportRequest(BaseModel):
+    period: str = "today"
+    report_type: str = "collection"
+    activation_code: str = ""
+    location: str = ""
+
+@app.delete("/admin/licenses/{code}")
+def api_delete_license(code: str, admin: str = Depends(require_admin)):
+    ok = delete_license(code)
+    if not ok:
+        return {"status": "error", "message": "Code not found"}
+    _log_admin_action(admin, "Deleted license", code)
+    return {"status": "success", "message": "License deleted"}
+# */
+
+# ---------- Admin: roles (auth required) ----------
+
+@app.get("/admin/roles")
+def api_get_roles(admin: str = Depends(require_admin)):
+    return {"status": "success", "roles": get_role_permissions()}
+
+
+@app.put("/admin/roles")
+def api_update_role(req: RolePermissionUpdate, admin: str = Depends(require_admin)):
+    update_role_permissions(req.role, req.tables)
+    _log_admin_action(admin, "Updated role permissions", req.role, meta={"tables": req.tables})
+    return {"status": "success"}
+
+
+# ---------- Admin: settings (auth required) ----------
+
+@app.get("/admin/settings")
+def api_get_settings(admin: str = Depends(require_admin)):
+    # get_settings() itself returns the real decrypted smtp_password —
+    # notifications/email.py needs that to actually send mail. But the
+    # API response to the browser should never include it, same reasoning
+    # as institution db_password: a has_smtp_password flag is enough for
+    # the UI to show "(saved)" without ever putting the real value where
+    # a network tab or a compromised browser extension could read it.
+    settings_data = get_settings()
+    has_smtp_password = bool(settings_data.get("smtp_password"))
+    settings_data["smtp_password"] = ""
+    settings_data["has_smtp_password"] = has_smtp_password
+    return {"status": "success", "settings": settings_data}
+
+
+@app.put("/admin/settings")
+def api_update_settings(req: SettingsUpdateRequest, admin: str = Depends(require_admin)):
+    changed_fields = req.model_dump(exclude_unset=True)
+    updated = update_settings(**changed_fields)
+    # Don't log secret values (smtp_password) into the audit trail.
+    safe_changes = {k: v for k, v in changed_fields.items() if k != "smtp_password"}
+    _log_admin_action(admin, "Updated settings", "", meta={"changes": safe_changes})
+    return {"status": "success", "settings": updated}
+
+
+# ---------- Admin: notifications (auth required) ----------
+# Makes the email/webhook settings actually do something you can verify
+# right now, instead of wondering whether they're wired up at all.
+from fastapi.responses import FileResponse
+
+#@app.get("/download/{filename}")
+
+#def download_file(filename: str):
+ #   return FileResponse(f"exports/{filename}", filename=filename)
+
+
+@app.post("/admin/notifications/test")
+def api_test_notifications(admin: str = Depends(require_admin)):
+    email_ok, email_msg = send_alert_email(
+        "Sahasra AI Agent — Notification Test",
+        f"This confirms your email notification setup is working correctly.\n\n"
+        f"Triggered by: {admin}\n"
+        f"From: Sahasra AI Agent Admin Panel"
+    )
+    webhook_ok, webhook_msg = send_webhook_alert("test_alert", {"triggered_by": admin})
+
+    _log_admin_action(admin, "Sent test notification", "",
+                       meta={"email_ok": email_ok, "webhook_ok": webhook_ok})
+
+    return {
+        "status": "success",
+        "email": {"success": email_ok, "message": email_msg},
+        "webhook": {"success": webhook_ok, "message": webhook_msg},
+    }
+
+
+@app.post("/admin/notifications/check-expiring")
+def api_check_expiring_licenses(admin: str = Depends(require_admin)):
+    """Manually trigger the same expiry check the background job runs daily — useful to verify it actually works without waiting a day."""
+    result = check_and_alert()
+    return {"status": "success", "result": result}
+
+
+# ---------- Admin: audit log (auth required) ----------
+# Real compliance data — every premium query, invalid activation attempt,
+# and now every admin action (who created/edited/revoked what), read
+# straight from audit/audit.log.
+
+@app.get("/admin/audit")
+def api_get_audit(limit: int = 500, admin: str = Depends(require_admin)):
+    return {"status": "success", "events": read_audit_log(limit=limit)}
+
+
+# ---------- Admin utility: raw code validation (auth required) ----------
+# Not used by the public chat widget (which validates via /ask with
+# question="validate"). Gated because an unauthenticated version of this
+# is a ready-made oracle for brute-forcing activation codes.
+
+@app.post("/licenses/validate")
+def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(require_admin)):
+    result = validate_license(req.code)
+    if not result.get("valid"):
+        return {"status": "error", "message": result.get("reason", "invalid")}
+    return {"status": "success", "license": result}
+
+
+# ---------- Reports ----------
+
+from auth.usage_limiter import get_token_plan, set_token_plan, get_usage_today
+class LimitRequest(BaseModel):
+    period_type: str
+    token_limit: int
+
+@app.get("/admin/institutions/{hospital_id}/limit")
+def get_institution_limit(hospital_id: str):
+    return get_token_plan(hospital_id)
+@app.post("/admin/institutions/{hospital_id}/limit")
+def set_institution_limit(hospital_id: str, req: LimitRequest):
+    return set_token_plan(hospital_id, req.period_type, req.token_limit)
+
+@app.get("/admin/institutions/{hospital_id}/usage")
+def get_institution_usage(hospital_id: str):
+    return get_usage_today(hospital_id)
+
+@app.post("/usage-status")
+def usage_status(req: dict):
+    validation = validate_license(req.get("activation_code", ""))
+    if not validation.get("valid"):
+        return {"error": "Invalid or expired activation code."}
+    institution_code = validation.get("institution_code") or validation.get("db_name")
+    from auth.usage_limiter import get_usage_today
+    usage = get_usage_today(institution_code)
+    pct = round((usage["used"] / usage["limit"]) * 100) if usage["limit"] else 0
+    return {**usage, "pct": pct, "institution_code": institution_code}
+@app.post("/generate-excel")
+async def generate_excel(req: ExcelExportRequest):
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: run_excel_export(
+            report_type=getattr(req, "report_type", None) or "collection",
+            period=req.period or "today",
+            db_name=validation.get("db_name"),
+            db_server=validation.get("db_server"),
+            db_user=validation.get("db_user"),
+            db_password=validation.get("db_password"),
+            hospital_name=validation.get("hospital_name") or "Hospital",
+            location_keyword=(getattr(req, "location", None) or "").strip() or None,
+        ),
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return StreamingResponse(
+        result["file"],
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
+    )
+@app.post("/generate-pdf")
+async def generate_pdf(req: PDFRequest):
+    data = {
+        "report_title": req.title,
+        "hospital_name": req.hospital_name,
+        "user_role": req.role,
+        "activation_code": req.activation_code,
+        "content_lines": req.content_lines,
+    }
+
+    # generate_smart_report uses Playwright's sync API (launches a real
+    # browser to render) — that's a ~0.7s blocking call. Running it
+    # directly here would freeze the whole async event loop for that
+    # long on every PDF request, stalling any other concurrent request
+    # (chat, admin panel, everything) for the duration. run_in_executor
+    # runs it in a background thread instead, so only this one request
+    # waits on it.
+    import asyncio
+    loop = asyncio.get_event_loop()
+    pdf_file = await loop.run_in_executor(None, generate_smart_report, data)
+
+    return StreamingResponse(
+        pdf_file,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"},
+    )
+
+from fastapi.responses import StreamingResponse
+
+# @app.post("/generate-excel")
+# def generate_excel(period: str = "today", db_name: str = None, db_server: str = None, db_user: str = None, db_password: str = None):
+#     result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
+#     if "error" in result:
+#         return {"error": result["error"]}
+#     return StreamingResponse(
+#         result["file"],
+#         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
+#     )
+
+
+@app.post("/generate-patient-report")
+async def generate_patient_report(req: PatientReportRequest):
+    """
+    The REAL Smart Report — looks up one specific real patient and
+    builds their report from freshly-queried real data, instead of
+    just re-wrapping whatever the last chat answer happened to say.
+    """
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+
+    role = validation.get("role", "viewer")
+    db_name = validation.get("db_name")
+    hospital_name = validation.get("hospital_name", "Hospital")
+    db_server = validation.get("db_server")
+    db_user = validation.get("db_user")
+    db_password = validation.get("db_password")
+
+    from agent.agent import llm as agent_llm
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    try:
+        report_data = await loop.run_in_executor(
+            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
+            db_server, db_user, db_password,
+        )
+    except PatientNotFound:
+        raise HTTPException(status_code=404, detail=f"No patient found matching '{req.patient_identifier}'.")
+    except PatientAmbiguous as e:
+        names = ", ".join(f"{c['name']} (UHID: {c['uhid']})" for c in e.candidates[:5])
+        raise HTTPException(
+            status_code=409,
+            detail=f"Multiple matching patients found: {names}. Please specify the UHID instead."
+        )
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    pdf_file = await loop.run_in_executor(None, generate_smart_report, report_data)
+
+    return StreamingResponse(
+        pdf_file,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=patient_report.pdf"},
+    )
+
+@app.get("/health")
+def health():
+    """
+    Lightweight readiness check for IIS / monitoring.
+    Does not require auth. Does not open hospital DBs by default
+    (that would make health flaky if one hospital server is down).
+    """
+    status = {
+        "status": "ok",
+        "service": "sahasra-ai-agent",
+        "checks": {},
+    }
+    overall = "ok"
+
+    # licenses.db readable
+    try:
+        from database.license_db import get_conn
+        conn = get_conn()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        status["checks"]["licenses_db"] = "ok"
+    except Exception as e:
+        status["checks"]["licenses_db"] = f"error: {e}"
+        overall = "degraded"
+
+    # encryption key configured (needed for institution passwords)
+    try:
+        if settings.encryption_key:
+            status["checks"]["encryption_key"] = "ok"
+        else:
+            status["checks"]["encryption_key"] = "missing"
+            overall = "degraded"
+    except Exception as e:
+        status["checks"]["encryption_key"] = f"error: {e}"
+        overall = "degraded"
+
+    # settings readable
+    try:
+        get_settings()
+        status["checks"]["settings"] = "ok"
+    except Exception as e:
+        status["checks"]["settings"] = f"error: {e}"
+        overall = "degraded"
+
+    status["status"] = overall
+    code = 200 if overall == "ok" else 503
+    return JSONResponse(content=status, status_code=code)
+# ---------- Public: ask ----------
+
+@app.post("/ask")
+async def ask_question(req: QueryRequest):
+    try:
+        history = []
+        for msg in req.chat_history or []:
+            if msg.role == "user":
+                history.append(HumanMessage(content=msg.content))
+            else:
+                history.append(AIMessage(content=msg.content))
+
+        is_premium = False
+        role = "viewer"
+        db_name = "hospital_demo"
+        hospital_name = "Demo Hospital"
+        db_server = None
+        db_user = None
+        db_password = None
+        institution_code = None
+        institution_type = "diagnostic"
+
+        if req.activation_code:
+            validation = validate_license(req.activation_code)
+            if validation.get("valid"):
+                # Per-code limit, separate from the per-IP one above —
+                # protects each hospital's fair share independently of
+                # how many other users happen to share their network/IP.
+                code_key = req.activation_code.upper()
+                now_ts = time.time()
+                code_hits = [t for t in CODE_RATE.get(code_key, []) if now_ts - t < WINDOW]
+                per_code_limit = get_settings()["rate_limit_per_minute"]
+                if len(code_hits) >= per_code_limit:
+                    return {
+                        "status": "error",
+                        "answer": "This activation code has made too many requests in the last minute. Please wait a moment and try again.",
+                    }
+                code_hits.append(now_ts)
+                CODE_RATE[code_key] = code_hits
+
+                is_premium = True
+                role = validation.get("role", "viewer")
+                db_name = validation.get("db_name", "hospital_demo")
+                hospital_name = validation.get("hospital_name", "Hospital")
+                db_server = validation.get("db_server")
+                db_user = validation.get("db_user")
+                db_password = validation.get("db_password")
+                institution_code = validation.get("institution_code") or db_name 
+                institution_type = validation.get("institution_type", "diagnostic") # fallback if inst lookup failed
+            else:
+                # Real failure event — previously invalid attempts were
+                # never recorded anywhere, so the admin panel's "failed
+                # validation" analytics had nothing real to show.
+                audit(
+                    event="invalid_code_attempt",
+                    role=None,
+                    code=req.activation_code,
+                    question=None,
+                    meta={"reason": validation.get("reason", "invalid")},
+                )
+                return {
+                    "status": "error",
+                    "answer": "Invalid or expired activation code.",
+                }
+
+        if not is_premium and not get_settings()["normal_mode_enabled"]:
+            return {
+                "status": "error",
+                "answer": "General-knowledge mode is currently disabled. Please enter a hospital activation code to continue.",
+            }
+
+        is_validate_ping = req.question.strip().lower() == "validate"
+
+        if is_premium and not is_validate_ping:
+            audit(
+                event="premium_query",
+                role=role,
+                code=req.activation_code,
+                question=req.question,
+                meta={"db_name": db_name, "hospital": hospital_name},
+            )
+
+        # Fast-path: the widget sends question="validate" right after the
+        # user enters an activation code, just to confirm it worked and
+        # learn the role/hospital name. No need to invoke the LLM for that.
+        if is_validate_ping:
+            return {
+                "status": "success",
+                "answer": "Code validated" if is_premium else "Invalid or expired activation code.",
+                "mode": "premium" if is_premium else "normal",
+                "role": role if is_premium else None,
+                "hospital_name": hospital_name if is_premium else None,
+            }
+
+
+
+        answer, tokens_used = ask_agent(
+            question=req.question,
+            db_name=db_name,
+            chat_history=history,
+            is_premium=is_premium,
+            role=role,
+            hospital_name=hospital_name,
+            db_server=db_server,
+            db_user=db_user,
+            db_password=db_password,
+            institution_code=institution_code,
+            institution_type=institution_type,
+        )
+
+        usage_warning = None
+        if is_premium:
+            budget_after = record_usage(institution_code, tokens_used)
+            pct = round((budget_after["used"] / budget_after["limit"]) * 100) if budget_after["limit"] else 0
+            if pct >= 50:
+                usage_warning = f"You've used {pct}% of your token allowance this {budget_after['period_type']}."
+
+        return {
+            "status": "success",
+            "answer": answer,
+            "mode": "premium" if is_premium else "normal",
+            "role": role if is_premium else None,
+            "hospital_name": hospital_name if is_premium else None,
+            "usage_warning": usage_warning,
+        }
+    #
+
+    except Exception as e:
+        import traceback
+        error_text = traceback.format_exc()
+        print(error_text)
+        with open("crash_log.txt", "a", encoding="utf-8") as f:
+            from datetime import datetime
+            f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
+        raise
