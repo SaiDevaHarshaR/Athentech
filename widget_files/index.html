@@ -1086,6 +1086,7 @@ async function processMessage(text) {
         state.mode = 'premium';
         state.activationCode = text.toUpperCase();   // ← MUST save the code
         state.role = data.role;
+        state.institutionType = data.institution_type || 'diagnostic';
         state.hospitalName = data.hospital_name || data.hospitalName || null;
         state.waitingForCode = false;        
         statusEl.textContent = `Premium • ${data.role}`;
