@@ -108,7 +108,7 @@ def validate_license(code: str):
         "SELECT * FROM institutions WHERE id = ?",
         (row["institution_id"],)
     ).fetchone()
-    #print(f"[DEBUG] institution row keys: {dict(inst).keys() if inst else 'inst is None'}")
+    print(f"[DEBUG] institution row keys: {dict(inst).keys() if inst else 'inst is None'}")
     conn.close()
 
     db_name = row["db_name"]
@@ -140,7 +140,6 @@ def validate_license(code: str):
         "db_server": db_server,       # None → use .env fallback later
         "db_user": db_user,
         "db_password": db_password,
-        "institution_type": dict(inst).get("institution_type", "diagnostic") if inst else "diagnostic",
     }
 
 def list_licenses():
