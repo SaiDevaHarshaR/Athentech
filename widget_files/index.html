@@ -1086,6 +1086,7 @@ async function processMessage(text) {
         state.activationCode = text.toUpperCase();   // ← MUST save the code
         state.role = data.role;
         state.institutionType = data.institution_type || 'diagnostic';
+        // alert('institutionType: ' + state.institutionType);
         state.hospitalName = data.hospital_name || data.hospitalName || null;
         state.waitingForCode = false;        
         statusEl.textContent = `Premium • ${data.role}`;
@@ -1097,10 +1098,29 @@ async function processMessage(text) {
           'bot'
         );
 
-        showSuggestions([
-          { label: 'Show all patients', send: 'Show me all patients' },
-          { label: "Today's collection", send: "Today's collection data" }
-        ]);
+        if (state.institutionType === 'hospital') {
+          const rolesButtons = {
+            doctor: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+            reception: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+            admin: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+          };
+          const buttons = rolesButtons[state.role] || rolesButtons.admin;
+          showSuggestions(buttons);
+        } else {
+          showSuggestions([
+            { label: 'Show all patients', send: 'Show me all patients' },
+            { label: "Today's collection", send: "Today's collection data" }
+          ]);
+        }
       }else {
         state.waitingForCode = false;
         addMessage(`❌ Invalid or expired activation code.`, 'bot');
