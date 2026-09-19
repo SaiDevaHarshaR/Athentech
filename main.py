@@ -823,6 +823,7 @@ async def ask_question(req: QueryRequest):
                 "mode": "premium" if is_premium else "normal",
                 "role": role if is_premium else None,
                 "hospital_name": hospital_name if is_premium else None,
+                "institution_type": institution_type if is_premium else None,
             }
 
 
