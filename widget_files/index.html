@@ -486,7 +486,6 @@ function addMessage(text, type) {
 
   const searchCard = type === 'bot' ? extractSearchCard(text) : null;
   if (searchCard) {
-    //alert(JSON.stringify(searchCard, null, 2));
     renderSearchCard(searchCard);
     return;
   }
@@ -1182,13 +1181,40 @@ async function callBackend(question) {
   }
 
   // Suggestions
-  if (state.mode === 'premium') {
+if (state.mode === 'premium' && state.institutionType === 'hospital') {
+    const rolesButtons = {
+      doctor: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: "Today's OPD list (soon)", send: null },
+        { label: 'Pending lab reports (soon)', send: null },
+      ],
+      reception: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: 'Book appointment (soon)', send: null },
+        { label: 'Patient registration (soon)', send: null },
+      ],
+      admin: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: 'Revenue dashboard (soon)', send: null },
+        { label: 'Outstanding bills (soon)', send: null },
+      ],
+    };
+    const buttons = rolesButtons[state.role] || rolesButtons.admin;
+    showSuggestions(buttons.map(b => ({
+      label: b.label,
+      action: b.send ? null : () => addMessage("This feature isn't built yet — coming soon.", 'bot'),
+      send: b.send,
+    })));
+} else if (state.mode === 'premium') {
     showSuggestions([
       { label: 'Show all patients', send: 'Show me all patients' },
       { label: "Today's collection", send: "Today's collection data" },
-      { label: 'TAT dashboard', send: 'TAT dashboard today' }
+      { label: 'TAT dashboard today', send: 'TAT dashboard today' }
     ]);
-  } else {
+} else {
     showSuggestions([
       { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
       { label: 'Enter Activation Code', send: 'Enter activation code' }
