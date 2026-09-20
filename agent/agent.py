@@ -458,7 +458,7 @@ def ask_agent(
 
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
-        kw in q for kw in ["compliance", "below", "above", "threshold", "target"]
+        kw in q for kw in ["compliance", "below", "above", "threshold", "target", "dashboard", "summary"]
     )
     if is_premium and is_tat_compliance:
         m = re.search(r"(\d+(?:\.\d+)?)\s*%", q)
