@@ -461,13 +461,20 @@ def ask_agent(
         kw in q for kw in ["compliance", "below", "above", "threshold", "target", "dashboard", "summary"]
     )
     if is_premium and is_tat_compliance:
-        m = re.search(r"(\d+(?:\.\d+)?)\s*%", q)
-        threshold = float(m.group(1)) if m else 80.0
         period, _ = parse_dashboard_period(q)
-        raw = check_tat_alert.invoke({
-            "threshold_pct": threshold, "period": period, "role": role,
-            "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
-        })
+        has_threshold = any(kw in q for kw in ["compliance", "below", "above", "threshold", "target"]) or re.search(r"\d+\s*%", q)
+        if has_threshold:
+            m = re.search(r"(\d+(?:\.\d+)?)\s*%", q)
+            threshold = float(m.group(1)) if m else 80.0
+            raw = check_tat_alert.invoke({
+                "threshold_pct": threshold, "period": period, "role": role,
+                "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
+            })
+        else:
+            raw = get_tat_compliance_dashboard.invoke({
+                "period": period, "role": role,
+                "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password,
+            })
         return check_output(raw if isinstance(raw, str) else str(raw)), 0
 
     is_zero_collection = "zero collection" in q or ("zero" in q and "collection" in q)
