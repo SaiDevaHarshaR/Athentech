@@ -37,7 +37,7 @@ from notifications.expiry_checker import start_background_expiry_checker, check_
 from config import settings
 from auth.usage_limiter import check_budget, record_usage
 app = FastAPI(title="Sahasra AI Agent")
-print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
+#print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
 app.add_middleware(
     CORSMiddleware,
@@ -753,9 +753,7 @@ async def ask_question(req: QueryRequest):
         institution_code = None
         institution_type = "diagnostic"
 
-        if req.activation_code:
-            validation = validate_license(req.activation_code)
-            if validation.get("valid"):
+
                 # Per-code limit, separate from the per-IP one above —
                 # protects each hospital's fair share independently of
                 # how many other users happen to share their network/IP.
