@@ -791,21 +791,7 @@ async def ask_question(req: QueryRequest):
                 db_password = validation.get("db_password")
                 institution_code = validation.get("institution_code") or db_name 
                 institution_type = validation.get("institution_type", "diagnostic") # fallback if inst lookup failed
-            else:
-                # Real failure event — previously invalid attempts were
-                # never recorded anywhere, so the admin panel's "failed
-                # validation" analytics had nothing real to show.
-                audit(
-                    event="invalid_code_attempt",
-                    role=None,
-                    code=req.activation_code,
-                    question=None,
-                    meta={"reason": validation.get("reason", "invalid")},
-                )
-                return {
-                    "status": "error",
-                    "answer": "Invalid or expired activation code.",
-                }
+
 
         if not is_premium and not get_settings()["normal_mode_enabled"]:
             return {
