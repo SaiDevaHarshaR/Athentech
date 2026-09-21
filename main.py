@@ -734,7 +734,7 @@ def health():
 # ---------- Public: ask ----------
 
 @app.post("/ask")
-async def ask_question(req: QueryRequest):
+async def ask_question(req: QueryRequest, request: Request):
     try:
         history = []
         for msg in req.chat_history or []:
