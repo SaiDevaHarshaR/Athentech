@@ -773,4 +773,3 @@ _INTENTS_HIS = [
 ]
 
 
-def try_intent_his(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
