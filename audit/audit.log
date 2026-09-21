@@ -1223,3 +1223,4 @@
 {"ts": "2026-09-21T12:32:35.057077Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT MIN(REGDT), MAX(REGDT) FROM tblOPRegistration", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:33:51.060929Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:34:00.033005Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-09", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:36:30.968101Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
