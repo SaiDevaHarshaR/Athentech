@@ -297,7 +297,7 @@ def _handle_day_collection(q, role, db_name, db_server, db_user, db_password, ma
             FROM tblOPPAYDTLS P
             INNER JOIN tblOPRegistration R
                 ON P.BILLDT = R.REGDT AND P.BILLNO = R.Billno AND P.TTYPE = R.TTYPE
-            WHERE CAST(DTPAID AS DATE) = ?
+                WHERE CAST(DTPAID AS DATE) >= ? AND CAST(DTPAID AS DATE) < ?
               AND P.TTYPE = 0
               AND ISNULL(R.Cancelled, 0) = 0
               AND ISNULL(Refund, 0) = 0
