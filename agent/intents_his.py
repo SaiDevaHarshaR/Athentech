@@ -273,7 +273,49 @@ def _period_dates(q: str):
     # Default: today (HIS ops questions often omit the word)
     return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 # ---------- day_collection (real, from confirmed dbo.Daycollection_net) ----------
+def _handle_day_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
 
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # SAME joins/tables — only date predicate widened
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN MODE = 0 THEN AMTPAID ELSE 0 END) AS CASH,
+                SUM(CASE WHEN MODE = 1 THEN AMTPAID ELSE 0 END) AS CARD,
+                SUM(CASE WHEN MODE > 1 THEN AMTPAID ELSE 0 END) AS ONLINE,
+                SUM(AMTPAID) AS TOTAL
+            FROM tblOPPAYDTLS P
+            INNER JOIN tblOPRegistration R
+                ON P.BILLDT = R.REGDT AND P.BILLNO = R.Billno AND P.TTYPE = R.TTYPE
+            WHERE CAST(DTPAID AS DATE) >= ? AND CAST(DTPAID AS DATE) < ?
+              AND P.TTYPE = 0
+              AND ISNULL(R.Cancelled, 0) = 0
+              AND ISNULL(Refund, 0) = 0
+        """, (date_from, date_to))
+        row = cursor.fetchone()
+        cash, card, online, total = (float(x or 0) for x in row) if row else (0, 0, 0, 0)
+        return _dashboard_card(
+            icon="💰", title="Day Collection", subtitle=label,
+            stats=[
+                {"label": "TOTAL COLLECTED", "value": f"₹{total:,.0f}"},
+                {"label": "CASH", "value": f"₹{cash:,.0f}"},
+                {"label": "CARD", "value": f"₹{card:,.0f}"},
+                {"label": "ONLINE", "value": f"₹{online:,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
 
 # ---------- investigations_ordered (real, from confirmed dbo.R_Investigations) ----------
 def _handle_investigations_ordered(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
