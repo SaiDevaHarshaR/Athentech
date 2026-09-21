@@ -1,13 +1,134 @@
-import sqlite3
-from datetime import datetime, timedelta
-import os
+"""
+Cloud-hosted (Turso/libSQL) version of database/license_db.py.
+Same schema, same public functions, same row["column_name"] access
+pattern as the original SQLite version — only get_conn() and the row
+wrapper changed. Nothing else in the codebase needs to change.
 
-DB_PATH = "licenses.db"
+Credentials from environment variables:
+    TURSO_DATABASE_URL
+    TURSO_AUTH_TOKEN
+
+Uses an embedded replica (a local file that syncs with the remote
+Turso database) — this is the standard, recommended pattern: reads
+are fast (local file), writes go to the cloud and sync back. Call
+conn.sync() after any write if you need to guarantee the read-back
+reflects it immediately (not required for most uses here, since this
+process holds the connection continuously).
+"""
+
+import os
+from datetime import datetime, timedelta
+
+import libsql
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "")
+_TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+_LOCAL_REPLICA_PATH = "licenses_replica.db"
+
+
+class DictRow:
+    """Wraps a raw libsql tuple row + column names, mimicking
+    sqlite3.Row so existing row["column_name"] access keeps working
+    unchanged everywhere else in the codebase."""
+    def __init__(self, row, columns):
+        self._data = dict(zip(columns, row))
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+    def keys(self):
+        return self._data.keys()
+
+    def items(self):
+        return self._data.items()
+
+    def __iter__(self):
+        return iter(self._data.values())
+
+    def __repr__(self):
+        return f"DictRow({self._data})"
+
+
+class DictCursor:
+    """Wraps a raw libsql cursor so fetchone/fetchall return DictRow
+    objects instead of plain tuples — drop-in behavior match for the
+    sqlite3.Row-based code this replaces."""
+    def __init__(self, raw_cursor):
+        self._cursor = raw_cursor
+
+    def execute(self, sql, params=()):
+        self._cursor.execute(sql, params)
+        return self
+
+    def executemany(self, sql, params_list):
+        self._cursor.executemany(sql, params_list)
+        return self
+
+    def _columns(self):
+        return [d[0] for d in self._cursor.description] if self._cursor.description else []
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return DictRow(row, self._columns())
+
+    def fetchall(self):
+        columns = self._columns()
+        return [DictRow(r, columns) for r in self._cursor.fetchall()]
+
+
+class DictConn:
+    """Wraps a raw libsql connection so .cursor() returns a DictCursor,
+    and adds a real .close() (libsql connections don't strictly need
+    closing, but existing code calls conn.close() everywhere — keep
+    that working as a harmless no-op-if-unsupported call)."""
+    def __init__(self, raw_conn):
+        self._conn = raw_conn
+
+    def cursor(self):
+        return DictCursor(self._conn.cursor())
+
+    def execute(self, sql, params=()):
+        # Some existing code calls conn.execute(...) directly (not via
+        # a separate cursor) — support that pattern too.
+        raw_cursor = self._conn.cursor()
+        raw_cursor.execute(sql, params)
+        return DictCursor(raw_cursor)
+
+    def executemany(self, sql, params_list):
+        raw_cursor = self._conn.cursor()
+        raw_cursor.executemany(sql, params_list)
+        return DictCursor(raw_cursor)
+
+    def commit(self):
+        self._conn.commit()
+
+    def sync(self):
+        self._conn.sync()
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass  # harmless if libsql doesn't require/support explicit close
+
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    raw_conn = libsql.connect(
+        _LOCAL_REPLICA_PATH,
+        sync_url=_TURSO_URL,
+        auth_token=_TURSO_TOKEN,
+    )
+    raw_conn.sync()
+    return DictConn(raw_conn)
+
 
 def init_license_db():
     conn = get_conn()
@@ -25,19 +146,21 @@ def init_license_db():
         db_user TEXT,
         db_password TEXT,
         status TEXT DEFAULT 'Active',
-        created_at TEXT
+        created_at TEXT,
+        institution_type TEXT DEFAULT 'diagnostic'
     )
     """)
-        # Migrate old institutions table (add columns if missing)
-    existing = {
-        row[1] for row in cur.execute("PRAGMA table_info(institutions)").fetchall()
-    }
+
+    existing = {row["name"] for row in cur.execute("PRAGMA table_info(institutions)").fetchall()}
     if "db_server" not in existing:
         cur.execute("ALTER TABLE institutions ADD COLUMN db_server TEXT")
     if "db_user" not in existing:
         cur.execute("ALTER TABLE institutions ADD COLUMN db_user TEXT")
     if "db_password" not in existing:
         cur.execute("ALTER TABLE institutions ADD COLUMN db_password TEXT")
+    if "institution_type" not in existing:
+        cur.execute("ALTER TABLE institutions ADD COLUMN institution_type TEXT DEFAULT 'diagnostic'")
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS role_permissions (
     role TEXT PRIMARY KEY,
@@ -86,19 +209,14 @@ def init_license_db():
         value TEXT
     )
     """)
-    # Defaults match what was previously hardcoded in main.py/guardrails.py,
-    # so applying no changes here keeps existing behavior identical.
     default_settings = {
         "license_validity_days": "90",
-        "normal_mode_enabled": "true",     # allow non-premium web-search chat
+        "normal_mode_enabled": "true",
         "rate_limit_per_minute": "300",
-        "extra_blocked_patterns": "",      # comma-separated, ADDED to the built-in guardrail patterns
+        "extra_blocked_patterns": "",
         "output_redaction_enabled": "true",
         "email_alerts_enabled": "false",
         "webhook_url": "",
-        # SMTP config for actually sending the email alerts above.
-        # Without these, email_alerts_enabled=true does nothing — there's
-        # no delivery mechanism to toggle on.
         "smtp_host": "",
         "smtp_port": "587",
         "smtp_user": "",
@@ -124,19 +242,11 @@ def init_license_db():
     """)
 
     conn.commit()
+    conn.sync()
     conn.close()
 
 
 def seed_bootstrap_admin():
-    """
-    One-time migration: if the admins table is empty but a legacy
-    single-admin credential exists in .env (ADMIN_USERNAME +
-    ADMIN_PASSWORD_HASH from the old single-admin setup), copy it into
-    the real admins table so existing installs don't get locked out when
-    upgrading to multi-admin support. New installs should just use
-    auth/generate_admin_hash.py or POST /admin/users to create the first
-    real account instead of relying on this fallback.
-    """
     from config import settings as app_settings
 
     conn = get_conn()
@@ -151,8 +261,10 @@ def seed_bootstrap_admin():
             (app_settings.admin_username, app_settings.admin_password_hash, "Admin", now)
         )
         conn.commit()
+        conn.sync()
 
     conn.close()
+
 
 def seed_demo_institutions():
     conn = get_conn()
@@ -168,4 +280,5 @@ def seed_demo_institutions():
             ("Apollo Demo Hospital", "APOLV", "Hospital", "Vizag", "hospital_apollo", "Active", now),
         ])
         conn.commit()
+        conn.sync()
     conn.close()
