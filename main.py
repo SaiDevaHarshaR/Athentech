@@ -753,7 +753,20 @@ async def ask_question(req: QueryRequest):
         institution_code = None
         institution_type = "diagnostic"
 
+        if req.activation_code:
+            client_ip = request.client.host if request.client else "unknown"
+            from auth.activation_lockout import is_locked_out, record_failed_attempt, clear_failed_attempts
 
+            lockout = is_locked_out(client_ip)
+            if lockout["locked_out"]:
+                return {
+                    "status": "error",
+                    "answer": "Too many invalid activation code attempts. Please wait 15 minutes and try again.",
+                }
+
+            validation = validate_license(req.activation_code)
+            if validation.get("valid"):
+                clear_failed_attempts(client_ip)
                 # Per-code limit, separate from the per-IP one above —
                 # protects each hospital's fair share independently of
                 # how many other users happen to share their network/IP.
