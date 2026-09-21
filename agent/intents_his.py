@@ -774,16 +774,3 @@ _INTENTS_HIS = [
 
 
 def try_intent_his(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
-    """
-    Returns an answer string (dashboard-card/list-card JSON, or a plain
-    error/no-data string) if a fixed-SQL HIS intent matched, or None to
-    fall through to the "still being built" placeholder in ask_agent.
-    """
-    q = (question or "").strip().lower()
-    for keywords, handler in _INTENTS_HIS:
-        matched = next((kw for kw in keywords if kw in q), None)
-        if matched:
-            result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
-            if result is not None:
-                return result
-    return None
