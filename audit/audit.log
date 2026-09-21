@@ -1230,3 +1230,7 @@
 {"ts": "2026-09-21T12:42:48.190314Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT LCODE, LocName FROM tblHOSPDTLS", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:43:58.696394Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue at Kothapet on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:45:11.878206Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue at Kothapet on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:49:22.731116Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:49:29.915054Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure on 2026", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:49:36.547170Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure on 2025", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:50:17.195341Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT COUNT(*) FROM tblVoucherGeneration WHERE CAST(VoucherDt AS DATE) = '2026-09-10'", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}

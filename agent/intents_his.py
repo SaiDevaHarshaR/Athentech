@@ -174,24 +174,104 @@ def _resolve_location(q: str, cursor):
     return None, None
 
 
-def _resolve_target_date(q: str) -> str:
+from datetime import date, timedelta
+import re
+
+class _UnrecognizedPeriod(Exception):
+    pass
+
+
+def _period_dates(q: str):
     """
-    Real date resolution for HIS intents — was hardcoded to
-    today/yesterday only, silently ignoring any specific date the user
-    named (a real bug against this static/non-live test database,
-    where "today" almost never has real data). Checks explicit
-    YYYY-MM-DD first, then falls back to today/yesterday keywords.
+    Returns (date_from, date_to_exclusive, label).
+    date_to is exclusive (use >= from AND < to).
+    Raises _UnrecognizedPeriod if nothing usable is found.
     """
-    import re
-    from datetime import date, timedelta
-    m = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", q)
-    if m:
-        return m.group(1)
+    today = date.today()
+    q = (q or "").lower()
+
     if "yesterday" in q:
-        return (date.today() - timedelta(days=1)).isoformat()
-    return date.today().isoformat()
+        d = today - timedelta(days=1)
+        return d.isoformat(), (d + timedelta(days=1)).isoformat(), "Yesterday"
+    if "last week" in q:
+        start = today - timedelta(days=today.weekday() + 7)
+        return start.isoformat(), (start + timedelta(days=7)).isoformat(), "Last Week"
+    if "this week" in q:
+        start = today - timedelta(days=today.weekday())
+        return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Week"
+    if "last month" in q:
+        first_this = today.replace(day=1)
+        last_start = (first_this - timedelta(days=1)).replace(day=1)
+        return last_start.isoformat(), first_this.isoformat(), "Last Month"
+    if "this month" in q:
+        start = today.replace(day=1)
+        return start.isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
+    if "last year" in q:
+        y = today.year - 1
+        return f"{y}-01-01", f"{today.year}-01-01", str(y)
+    if "this year" in q:
+        return f"{today.year}-01-01", (today + timedelta(days=1)).isoformat(), "This Year"
 
+    # YYYY-MM-DD
+    m = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})\b", q)
+    if m:
+        d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        return d.isoformat(), (d + timedelta(days=1)).isoformat(), d.isoformat()
 
+    months = {
+        "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+        "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
+        "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+    }
+
+    # "4th september 2025" / "september 4 2025"
+    m = re.search(
+        r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(20\d{2})?\b",
+        q,
+    )
+    if m:
+        day, mon_s, yr = int(m.group(1)), m.group(2).lower(), m.group(3)
+        mon = next(v for k, v in months.items() if mon_s.startswith(k[:3]))
+        year = int(yr) if yr else today.year
+        d = date(year, mon, day)
+        return d.isoformat(), (d + timedelta(days=1)).isoformat(), d.isoformat()
+
+    m = re.search(
+        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*(20\d{2})?\b",
+        q,
+    )
+    if m:
+        mon_s, day, yr = m.group(1).lower(), int(m.group(2)), m.group(3)
+        mon = next(v for k, v in months.items() if mon_s.startswith(k[:3]))
+        year = int(yr) if yr else today.year
+        d = date(year, mon, day)
+        return d.isoformat(), (d + timedelta(days=1)).isoformat(), d.isoformat()
+
+    # Bare month: "july" / "july 2025"
+    m = re.search(
+        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b(?:\s+(20\d{2}))?",
+        q,
+    )
+    if m:
+        mon_s, yr = m.group(1).lower(), m.group(2)
+        mon = next(v for k, v in months.items() if mon_s.startswith(k[:3]))
+        year = int(yr) if yr else today.year
+        start = date(year, mon, 1)
+        end = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+        return start.isoformat(), end.isoformat(), f"{start.strftime('%b %Y')}"
+
+    # Bare year: "2025"
+    m = re.search(r"\b(20\d{2})\b", q)
+    if m:
+        y = int(m.group(1))
+        return f"{y}-01-01", f"{y + 1}-01-01", str(y)
+
+    if "today" in q:
+        return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
+
+    # Default: today (HIS ops questions often omit the word)
+    return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 # ---------- day_collection (real, from confirmed dbo.Daycollection_net) ----------
 def _handle_day_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
