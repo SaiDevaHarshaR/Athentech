@@ -625,7 +625,50 @@ def _handle_doctor_lookup(q, role, db_name, db_server, db_user, db_password, mat
         conn.close()
 
 
+# ---------- expenditure (real, from confirmed dbo.R_EXPENDITURE) ----------
+def _handle_expenditure(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    target_date = _resolve_target_date(q)
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real query from confirmed dbo.R_EXPENDITURE (All/ALL branch) —
+        # combined credit + debit vouchers for one date.
+        cursor.execute("""
+            SELECT 'Debit' AS VoucherType, V.VoucherNo, AC.AccountHeaderNAME, -Amount AS Amount, Remarks
+            FROM tblVoucherGeneration V
+            INNER JOIN tblAccountHeader AC ON AC.AccountHeaderID = V.AccHeaderId
+            WHERE V.VoucherType = 0 AND CAST(V.VoucherDt AS DATE) = ?
+            UNION ALL
+            SELECT 'Credit' AS VoucherType, V.VoucherNo, AC.AccountHeaderNAME, Amount, Remarks
+            FROM tblVoucherGeneration V
+            INNER JOIN tblAccountHeader AC ON AC.AccountHeaderID = V.AccHeaderId
+            WHERE V.VoucherType = 1 AND CAST(V.VoucherDt AS DATE) = ?
+        """, (target_date, target_date))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No expenditure vouchers recorded on {target_date}."
+
+        total = sum(float(amt or 0) for _, _, _, amt, _ in rows)
+        return _list_card(
+            icon="🧾", title="Expenditure Vouchers", intro=f"{target_date} — Net: ₹{total:,.0f} ({len(rows)} entries):",
+            items=[
+                {"primary": f"{vtype} · {header}", "fields": [f"Voucher #{vno}", f"₹{float(amt or 0):,.0f}", remarks or "-"]}
+                for vtype, vno, header, amt, remarks in rows[:15]
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
 _INTENTS_HIS = [
+    (["expenditure", "vouchers", "credit debit", "expense vouchers"], _handle_expenditure),
     (["appointments today", "today's appointments", "book appointment", "appointment list"],
      _handle_appointments),
     (["low stock", "stock items", "stock report"], _handle_low_stock),
