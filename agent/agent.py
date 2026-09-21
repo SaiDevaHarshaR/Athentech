@@ -448,7 +448,43 @@ def ask_agent(
         his_answer = try_intent_his(question, role, db_name, db_server, db_user, db_password)
         if his_answer is not None:
             return check_output(his_answer), 0
-        return "The Hospital (IMS) module is still being built — this question isn't answerable yet. Contact support.", 0
+
+        # No fixed HIS intent matched — fall through to raw SQL/LLM
+        # discovery, same tools as LIS uses, so ad-hoc "run this query"
+        # style questions still work while HIS handlers are still being
+        # built out.
+        from datetime import date as _date
+        real_today = _date.today().isoformat()
+        his_prompt = f"""
+You are Sahasra AI Assistant for {hospital_name} (Hospital/IMS module).
+Answer ONLY using real data from the hospital database — never invent
+table/column names or numbers. TODAY'S REAL DATE: {real_today}.
+
+Table names are cryptic (tblXxx style); never guess a column from
+memory. search_schema (find tables) → describe_table on every table
+you'll reference → write the query with only verified real column
+names → run_sql_query → answer.
+
+Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a
+real range, never a single '=' match on a datetime column. A genuine
+zero result: state it plainly, don't invent a reason.
+"""
+        tools = [search_schema, describe_table, run_sql_query]
+        tools_by_name = {t.name: t for t in tools}
+        llm_with_tools = llm.bind_tools(tools)
+        messages = [
+            SystemMessage(content=his_prompt),
+            HumanMessage(content=question),
+        ]
+        answer, tokens_used = _run_tool_loop(
+            llm_with_tools, messages, tools_by_name,
+            tool_extra_kwargs={
+                "run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
+                "describe_table": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
+                "search_schema": {"role": role},
+            }
+        )
+        return check_output(answer or "I could not find relevant data."), tokens_used
 
     # existing LIS path continues exactly as before, unchanged
     if is_premium:
