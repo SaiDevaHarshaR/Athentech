@@ -148,13 +148,31 @@ def _handle_admission_lookup(q, role, db_name, db_server, db_user, db_password, 
         conn.close()
 
 
+def _resolve_target_date(q: str) -> str:
+    """
+    Real date resolution for HIS intents — was hardcoded to
+    today/yesterday only, silently ignoring any specific date the user
+    named (a real bug against this static/non-live test database,
+    where "today" almost never has real data). Checks explicit
+    YYYY-MM-DD first, then falls back to today/yesterday keywords.
+    """
+    import re
+    from datetime import date, timedelta
+    m = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", q)
+    if m:
+        return m.group(1)
+    if "yesterday" in q:
+        return (date.today() - timedelta(days=1)).isoformat()
+    return date.today().isoformat()
+
+
 # ---------- day_collection (real, from confirmed dbo.Daycollection_net) ----------
 def _handle_day_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     import re
     from datetime import date, timedelta
-    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+    target_date = _resolve_target_date(q)
 
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
@@ -201,7 +219,7 @@ def _handle_investigations_ordered(q, role, db_name, db_server, db_user, db_pass
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     from datetime import date, timedelta
-    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+    target_date = _resolve_target_date(q)
 
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
@@ -250,7 +268,7 @@ def _handle_op_revenue(q, role, db_name, db_server, db_user, db_password, matche
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     from datetime import date, timedelta
-    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+    target_date = _resolve_target_date(q)
 
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
@@ -312,7 +330,7 @@ def _handle_ip_revenue(q, role, db_name, db_server, db_user, db_password, matche
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
     from datetime import date, timedelta
-    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+    target_date = _resolve_target_date(q)
 
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
