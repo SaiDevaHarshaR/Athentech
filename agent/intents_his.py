@@ -316,20 +316,22 @@ def _handle_op_revenue(q, role, db_name, db_server, db_user, db_password, matche
         reg, services, ops, op_total = (float(x or 0) for x in cursor.fetchone())
 
         params2 = (target_date, lcode) if lcode else (target_date,)
+        loc_sql_qualified = " AND P.LCODE = ?" if lcode else ""
         cursor.execute(f"""
             SELECT ISNULL(SUM(P.AMTPAID), 0)
             FROM tblOPPAYDTLS P
             INNER JOIN tblOPRegistration R ON R.Billno = P.BILLNO AND R.TTYPE = P.TTYPE
-            WHERE CAST(P.DTPAID AS DATE) = ? AND R.TTYPE = 0 AND R.Cancelled = 'False'{loc_sql}
+            WHERE CAST(P.DTPAID AS DATE) = ? AND R.TTYPE = 0 AND R.Cancelled = 'False'{loc_sql_qualified}
         """, params2)
         consultation = float(cursor.fetchone()[0] or 0)
 
         params3 = (target_date, lcode) if lcode else (target_date,)
+        loc_sql_qualified2 = " AND PD.LCODE = ?" if lcode else ""
         cursor.execute(f"""
             SELECT ISNULL(SUM(PD.AMTPAID), 0)
             FROM tblPATREQPYMTDET PD
             INNER JOIN tblPatReqHdr H ON H.REQDT = PD.REQDT AND H.REQNO = PD.REQNO
-            WHERE CAST(PD.DTPAID AS DATE) = ? AND H.CAN_FLG = 'N'{loc_sql}
+            WHERE CAST(PD.DTPAID AS DATE) = ? AND H.CAN_FLG = 'N'{loc_sql_qualified2}
         """, params3)
         oplab = float(cursor.fetchone()[0] or 0)
 

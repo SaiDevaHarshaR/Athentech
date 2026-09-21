@@ -1224,3 +1224,8 @@
 {"ts": "2026-09-21T12:33:51.060929Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:34:00.033005Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-09", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:36:30.968101Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:41:30.442720Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "ip revenue on 2026-09-05", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:41:42.416058Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue at Vizag on 2023-06-01", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:42:10.854292Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue at Kompally on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:42:48.190314Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT LCODE, LocName FROM tblHOSPDTLS", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T12:43:58.696394Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "op revenue at Kothapet on 2026-09-10", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
