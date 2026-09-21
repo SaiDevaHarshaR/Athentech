@@ -773,3 +773,15 @@ _INTENTS_HIS = [
 ]
 
 
+def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_password=None):
+    q = (question or "").strip().lower()
+    for keywords, handler in _INTENTS_HIS:
+        matched = next((kw for kw in keywords if kw in q), None)
+        if matched:
+            try:
+                result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
+            except _UnrecognizedPeriod:
+                continue
+            if result is not None:
+                return result
+    return None
