@@ -744,7 +744,33 @@ def _handle_expenditure(q, role, db_name, db_server, db_user, db_password, match
         conn.close()
 
 
-
+_INTENTS_HIS = [
+    (["expenditure", "vouchers", "expense", "expenses today", "expenses yesterday"], _handle_expenditure),
+    (["appointments", "appointment list", "today's appointments", "doctor appointments"],
+     _handle_appointments),
+    (["low stock", "stock below", "reorder level", "stock report"], _handle_low_stock),
+    (["find doctor", "search doctor", "lookup doctor"], _handle_doctor_lookup),
+    (["equipment usage", "equipment collection", "medical equipment"], _handle_equipment_usage),
+    (["investigation catalog", "test catalog", "list investigations", "list tests", "all tests"],
+     _handle_test_catalog),
+    (["find patient", "search patient", "lookup patient"], _handle_patient_search),
+    (["op revenue", "outpatient revenue", "op collection", "outpatient collection", "opd revenue"],
+     _handle_op_revenue),
+    (["ip revenue", "inpatient revenue", "ip collection", "inpatient collection"],
+     _handle_ip_revenue),
+    (["day collection", "today's collection", "collection today", "collection yesterday",
+      "collection this month", "collection this year", "total collection"],
+     _handle_day_collection),
+    (["investigations ordered", "tests ordered", "lab tests today", "investigations today",
+      "investigations this month"],
+     _handle_investigations_ordered),
+    (["beds occupied", "bed occupancy", "occupied beds", "how many beds", "bed status",
+      "beds available", "available beds"],
+     _handle_bed_occupancy_count),
+    (["currently admitted", "admitted patients", "who is admitted", "patients admitted"],
+     _handle_currently_admitted),
+    (["admission for", "admission details", "admitted uhid", "ipno"], _handle_admission_lookup),
+]
 
 
 def try_intent_his(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
