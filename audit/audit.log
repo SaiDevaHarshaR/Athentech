@@ -1234,3 +1234,6 @@
 {"ts": "2026-09-21T12:49:29.915054Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure on 2026", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:49:36.547170Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure on 2025", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
 {"ts": "2026-09-21T12:50:17.195341Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT COUNT(*) FROM tblVoucherGeneration WHERE CAST(VoucherDt AS DATE) = '2026-09-10'", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T13:18:47.649938Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure 2026", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T13:19:46.415763Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure 2025", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
+{"ts": "2026-09-21T13:20:13.257207Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "expenditure 2023", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
