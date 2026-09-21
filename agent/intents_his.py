@@ -496,7 +496,107 @@ def _handle_equipment_usage(q, role, db_name, db_server, db_user, db_password, m
         conn.close()
 
 
+# ---------- appointments (real, from confirmed tblDocAppointments) ----------
+def _handle_appointments(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    target_date = _resolve_target_date(q)
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT TOP 15 A.PatientName, D.DocName, A.FromTime, A.ToTime, A.MobileNumber
+            FROM tblDocAppointments A
+            LEFT JOIN tblDoctorInfo D ON D.DocId = A.DocId
+            WHERE CAST(A.AppointDt AS DATE) = ?
+            ORDER BY A.FromTime
+        """, (target_date,))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No appointments found for {target_date}."
+        return _list_card(
+            icon="📅", title="Appointments", intro=f"{target_date} — {len(rows)} shown:",
+            items=[
+                {"primary": pat, "fields": [f"Dr. {doc or 'Unknown'}", f"{ft}–{tt}", f"Ph: {mob}" if mob else "Ph: -"]}
+                for pat, doc, ft, tt, mob in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- low_stock (real, from confirmed viewstock) ----------
+def _handle_low_stock(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT TOP 15 MEDNM, MedDeptName, CurrQty, ReqQty
+            FROM viewstock
+            WHERE CurrQty < ReqQty
+            ORDER BY (ReqQty - CurrQty) DESC
+        """)
+        rows = cursor.fetchall()
+        if not rows:
+            return "No items currently below their required stock level."
+        return _list_card(
+            icon="💊", title="Low Stock Items", intro=f"{len(rows)} items below required level:",
+            items=[
+                {"primary": name, "fields": [f"Dept: {dept}", f"Current: {int(cur or 0)}", f"Required: {int(req or 0)}"]}
+                for name, dept, cur, req in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- doctor_lookup (real, from confirmed tblDoctorInfo) ----------
+def _handle_doctor_lookup(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    import re
+    m = re.search(r"(?:find|search|lookup)\s+doctor\s+([a-zA-Z ]+)", q)
+    if not m:
+        return None
+    name_search = m.group(1).strip()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT TOP 10 DocName, DoctrDeptID FROM tblDoctorInfo WHERE DocName LIKE ?
+        """, (f"%{name_search}%",))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No doctors found matching '{name_search}'."
+        return _list_card(
+            icon="👨‍⚕️", title="Doctor Search", intro=f"Matching '{name_search}':",
+            items=[{"primary": name, "fields": [f"Dept ID: {dept}"]} for name, dept in rows],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
 _INTENTS_HIS = [
+    (["appointments today", "today's appointments", "book appointment", "appointment list"],
+     _handle_appointments),
+    (["low stock", "stock items", "stock report"], _handle_low_stock),
+    (["find doctor", "search doctor", "lookup doctor"], _handle_doctor_lookup),
     (["equipment usage", "equipment collection", "medical equipment"], _handle_equipment_usage),
     (["investigation catalog", "test catalog", "list investigations", "list tests", "list all tests", "all tests"],
      _handle_test_catalog),
