@@ -148,7 +148,349 @@ def _handle_admission_lookup(q, role, db_name, db_server, db_user, db_password, 
         conn.close()
 
 
+# ---------- day_collection (real, from confirmed dbo.Daycollection_net) ----------
+def _handle_day_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    import re
+    from datetime import date, timedelta
+    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real formula from confirmed dbo.Daycollection_net: MODE=0 Cash,
+        # MODE=1 Card, MODE>1 Online. Consultation (TTYPE=0) + Registration
+        # (TTYPE=4) branches, both requiring Cancelled=0 AND Refund=0.
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN MODE = 0 THEN AMTPAID ELSE 0 END) AS CASH,
+                SUM(CASE WHEN MODE = 1 THEN AMTPAID ELSE 0 END) AS CARD,
+                SUM(CASE WHEN MODE > 1 THEN AMTPAID ELSE 0 END) AS ONLINE,
+                SUM(AMTPAID) AS TOTAL
+            FROM tblOPPAYDTLS P
+            INNER JOIN tblOPRegistration R
+                ON P.BILLDT = R.REGDT AND P.BILLNO = R.Billno AND P.TTYPE = R.TTYPE
+            WHERE CAST(DTPAID AS DATE) = ?
+              AND P.TTYPE = 0
+              AND ISNULL(R.Cancelled, 0) = 0
+              AND ISNULL(Refund, 0) = 0
+        """, (target_date,))
+        row = cursor.fetchone()
+        cash, card, online, total = (float(x or 0) for x in row) if row else (0, 0, 0, 0)
+
+        return _dashboard_card(
+            icon="💰", title="Day Collection", subtitle=target_date,
+            stats=[
+                {"label": "TOTAL COLLECTED", "value": f"₹{total:,.0f}"},
+                {"label": "CASH", "value": f"₹{cash:,.0f}"},
+                {"label": "CARD", "value": f"₹{card:,.0f}"},
+                {"label": "ONLINE", "value": f"₹{online:,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- investigations_ordered (real, from confirmed dbo.R_Investigations) ----------
+def _handle_investigations_ordered(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from datetime import date, timedelta
+    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real formula from confirmed dbo.R_Investigations (OP branch only,
+        # for now — IP-CASH/IP-CREDIT branches need the same treatment
+        # later). CAN_FLG='N' means not cancelled; isIP<>1 means OP.
+        cursor.execute("""
+            SELECT TOP 15
+                D.DocName AS CONSULTANT, ST.DeptName AS INVDEPT, S.INVNAME,
+                DT.INVRATE AS CHARGE, I.Initial + '' + I.PatName AS PATIENTNAME
+            FROM tblPatReqTransDet DT
+            INNER JOIN tblInvMst S ON CONVERT(varchar, S.INVCODE) = DT.INVCODE
+            INNER JOIN tblDept ST ON ST.DeptID = S.DeptID
+            INNER JOIN tblPatReqHdr FM ON FM.REQNO = DT.REQNO AND FM.REQDT = DT.REQDT AND DT.lcode = FM.lcode
+            INNER JOIN tblPatInfo I ON I.UHID = FM.UHID
+            INNER JOIN tblDoctorInfo D ON D.DOCID = FM.DocId
+            INNER JOIN tblDoctorDept DD ON DD.DoctrDeptID = D.DoctrDeptID
+            WHERE ISNULL(FM.CAN_FLG, '') = 'N' AND ISNULL(FM.isIP, 0) <> 1
+              AND CAST(FM.REQDT AS DATE) = ?
+            ORDER BY FM.REQDT DESC
+        """, (target_date,))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No investigations ordered on {target_date} (OP)."
+
+        return _list_card(
+            icon="🧪", title="Investigations Ordered (OP)", intro=f"{target_date} — {len(rows)} shown:",
+            items=[
+                {"primary": inv_name, "fields": [
+                    f"Patient: {pat}", f"Consultant: {doc}", f"Dept: {dept}", f"₹{float(charge or 0):,.0f}",
+                ]}
+                for doc, dept, inv_name, charge, pat in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- op_revenue (real, simplified from confirmed dbo.DAYWISEOP) ----------
+def _handle_op_revenue(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from datetime import date, timedelta
+    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Simplified from confirmed dbo.DAYWISEOP — same categories
+        # (Registration=TTYPE4, Consultation=TTYPE0 via tblOPRegistration
+        # join, Services=TTYPE3, Operations=TTYPE2), collapsed from
+        # per-mode UNION branches into one CASE-aggregated query.
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN TTYPE = 4 THEN AMTPAID ELSE 0 END) AS Registration,
+                SUM(CASE WHEN TTYPE = 3 THEN AMTPAID ELSE 0 END) AS Services,
+                SUM(CASE WHEN TTYPE = 2 THEN AMTPAID ELSE 0 END) AS Operations,
+                SUM(AMTPAID) AS TOTAL
+            FROM tblOPPAYDTLS
+            WHERE CAST(DTPAID AS DATE) = ? AND TTYPE IN (2, 3, 4)
+        """, (target_date,))
+        reg, services, ops, op_total = (float(x or 0) for x in cursor.fetchone())
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(P.AMTPAID), 0)
+            FROM tblOPPAYDTLS P
+            INNER JOIN tblOPRegistration R ON R.Billno = P.BILLNO AND R.TTYPE = P.TTYPE
+            WHERE CAST(P.DTPAID AS DATE) = ? AND R.TTYPE = 0 AND R.Cancelled = 'False'
+        """, (target_date,))
+        consultation = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(PD.AMTPAID), 0)
+            FROM tblPATREQPYMTDET PD
+            INNER JOIN tblPatReqHdr H ON H.REQDT = PD.REQDT AND H.REQNO = PD.REQNO
+            WHERE CAST(PD.DTPAID AS DATE) = ? AND H.CAN_FLG = 'N'
+        """, (target_date,))
+        oplab = float(cursor.fetchone()[0] or 0)
+
+        grand_total = op_total + consultation + oplab
+
+        return _dashboard_card(
+            icon="🏥", title="OP Revenue", subtitle=target_date,
+            stats=[
+                {"label": "TOTAL", "value": f"₹{grand_total:,.0f}"},
+                {"label": "REGISTRATION", "value": f"₹{reg:,.0f}"},
+                {"label": "CONSULTATION", "value": f"₹{consultation:,.0f}"},
+                {"label": "SERVICES", "value": f"₹{services:,.0f}"},
+                {"label": "OPERATIONS", "value": f"₹{ops:,.0f}"},
+                {"label": "OP LAB", "value": f"₹{oplab:,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- ip_revenue (real, simplified from confirmed dbo.DAYWISEIP) ----------
+def _handle_ip_revenue(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from datetime import date, timedelta
+    target_date = (date.today() - timedelta(days=1)).isoformat() if "yesterday" in q else date.today().isoformat()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Simplified from confirmed dbo.DAYWISEIP — Advances (TTYPE=0 in
+        # tblIPAdvances), Final Bill cash (TTYPE=21 in tblIPPAYDTLS),
+        # Final Bill corporate (TTYPE=25 in tblIPCORPPAYDTLS).
+        cursor.execute("""
+            SELECT ISNULL(SUM(PAIDAMT), 0)
+            FROM tblIPAdvances WHERE CAST(BILLDT AS DATE) = ? AND TTYPE = 0
+        """, (target_date,))
+        advance = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(AMTPAID), 0)
+            FROM tblIPPAYDTLS WHERE CAST(DTPAID AS DATE) = ? AND TTYPE = 21
+        """, (target_date,))
+        final_cash = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(AMTPAID), 0)
+            FROM tblIPCORPPAYDTLS WHERE CAST(DTPAID AS DATE) = ? AND TTYPE = 25
+        """, (target_date,))
+        final_corp = float(cursor.fetchone()[0] or 0)
+
+        total = advance + final_cash + final_corp
+
+        return _dashboard_card(
+            icon="🛏️", title="IP Revenue", subtitle=target_date,
+            stats=[
+                {"label": "TOTAL", "value": f"₹{total:,.0f}"},
+                {"label": "ADVANCES", "value": f"₹{advance:,.0f}"},
+                {"label": "FINAL BILL (CASH)", "value": f"₹{final_cash:,.0f}"},
+                {"label": "FINAL BILL (CORPORATE)", "value": f"₹{final_corp:,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- test_catalog (real, from confirmed dbo.R_BranchInvestigationMaster) ----------
+def _handle_test_catalog(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real query from confirmed dbo.R_BranchInvestigationMaster —
+        # per-branch test catalog with real rates.
+        cursor.execute("""
+            SELECT TOP 15 M.INVNAME, D.DeptName, DT.RATE
+            FROM tblInvMst M
+            INNER JOIN tblInvDetails DT ON DT.INVCODE = M.INVCODE
+            INNER JOIN tblDept D ON D.DeptID = M.DeptID
+            ORDER BY M.INVNAME
+        """)
+        rows = cursor.fetchall()
+        if not rows:
+            return "No investigations found in the catalog."
+        return _list_card(
+            icon="🧪", title="Investigation Catalog",
+            intro=f"{len(rows)} shown:",
+            items=[
+                {"primary": name, "fields": [f"Dept: {dept}", f"₹{float(rate or 0):,.0f}"]}
+                for name, dept, rate in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- patient_search (real, from confirmed dbo.PatientData) ----------
+def _handle_patient_search(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    import re
+    m = re.search(r"(?:find|search|lookup)\s+patient\s+([a-zA-Z ]+)", q)
+    if not m:
+        return None
+    name_search = m.group(1).strip()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real query base from confirmed dbo.PatientData, adapted with a
+        # WHERE filter (the original has none — returns the whole table,
+        # unsafe for a real lookup) and TOP 10 for a real name search.
+        cursor.execute("""
+            SELECT TOP 10 Initial + ' ' + PatName AS FullName,
+                CONVERT(varchar, Age) + ' ' + CASE AgeType WHEN 0 THEN 'Yrs' WHEN 1 THEN 'Months' ELSE 'Days' END AS AgeStr,
+                Gender, PHONE
+            FROM tblPatInfo
+            WHERE PatName LIKE ?
+        """, (f"%{name_search}%",))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No patients found matching '{name_search}'."
+        return _list_card(
+            icon="🧑‍🤝‍🧑", title="Patient Search",
+            intro=f"Matching '{name_search}':",
+            items=[
+                {"primary": name, "fields": [age, gender, f"Phone: {phone}" if phone else "Phone: -"]}
+                for name, age, gender, phone in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- equipment_usage (real, from confirmed dbo.MedicalEquipmentCollection Details) ----------
+def _handle_equipment_usage(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    from datetime import date, timedelta
+    from_date = (date.today() - timedelta(days=30)).isoformat() if "month" in q else (date.today() - timedelta(days=1)).isoformat()
+    to_date = date.today().isoformat()
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # Real query from confirmed dbo.MedicalEquipmentCollection
+        # (Details branch) — discharged IP patients' equipment usage.
+        cursor.execute("""
+            SELECT TOP 15 doc.DocName, I.Initial + I.PatName AS Patient, M.MEName, ED.Duration, ED.AMOUNT
+            FROM tblIPRegistration IP
+            INNER JOIN tblIPMachineEquipmentMst E ON CONVERT(varchar, E.IPNO) = IP.IPNO AND E.LCODE = IP.LCODE
+            INNER JOIN tblIPMachineEquipmentDtls ED ON ED.BILLNO = E.BILLNO AND ED.BILLDT = E.BILLDT
+                AND ED.LCODE = E.LCODE AND CONVERT(varchar, ED.IPNO) = E.IPNO
+            INNER JOIN tblIPMachineEquipment M ON M.MEID = ED.MEID
+            INNER JOIN tblPatInfo I ON I.UHID = CONVERT(varchar, IP.UHID)
+            INNER JOIN tblDoctorInfo doc ON doc.DocId = IP.DocId
+            WHERE IP.IsDischarge = 1 AND ED.RATE > 0
+              AND IP.REGDT BETWEEN ? AND ?
+            ORDER BY doc.DocName, IP.REGDT
+        """, (from_date, to_date))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No equipment usage recorded for discharged patients between {from_date} and {to_date}."
+        return _list_card(
+            icon="🩺", title="Equipment Usage", intro=f"{from_date} to {to_date} — {len(rows)} shown:",
+            items=[
+                {"primary": equip, "fields": [f"Patient: {pat}", f"Doctor: {doc}", f"{dur} hrs", f"₹{float(amt or 0):,.0f}"]}
+                for doc, pat, equip, dur, amt in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
 _INTENTS_HIS = [
+    (["equipment usage", "equipment collection", "medical equipment"], _handle_equipment_usage),
+    (["investigation catalog", "test catalog", "list investigations", "list tests", "list all tests", "all tests"],
+     _handle_test_catalog),
+    (["find patient", "search patient", "lookup patient"], _handle_patient_search),
+    (["op revenue", "outpatient revenue", "op collection", "outpatient collection"],
+     _handle_op_revenue),
+    (["ip revenue", "inpatient revenue", "ip collection", "inpatient collection"],
+     _handle_ip_revenue),
+    (["day collection", "today's collection", "collection today", "collection yesterday"],
+     _handle_day_collection),
+    (["investigations ordered", "tests ordered", "lab tests today", "investigations today"],
+     _handle_investigations_ordered),
     (["beds occupied", "bed occupancy", "occupied beds", "beds are occupied",
       "how many beds", "bed status", "beds available", "available beds"],
      _handle_bed_occupancy_count),

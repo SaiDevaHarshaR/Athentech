@@ -1211,3 +1211,6 @@
 {"ts": "2026-09-21T11:31:30.679174Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
 {"ts": "2026-09-21T11:31:33.660874Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdfs", "question": "", "meta": {"reason": "invalid_code"}}
 {"ts": "2026-09-21T11:31:36.975146Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsd", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T12:14:05.806321Z", "event": "admin_action", "role": null, "code": null, "question": "Created institution: Hospital_test", "meta": {"actor": "test123", "action": "Created institution", "target": "Hospital_test"}}
+{"ts": "2026-09-21T12:14:22.663193Z", "event": "admin_action", "role": null, "code": null, "question": "Generated license: HT-ADMIN-77700", "meta": {"actor": "test123", "action": "Generated license", "target": "HT-ADMIN-77700"}}
+{"ts": "2026-09-21T12:15:36.900390Z", "event": "premium_query", "role": "admin", "code": "HT-ADMIN-77700", "question": "run this query: SELECT MIN(REGDT), MAX(REGDT) FROM tblOPRegistration", "meta": {"db_name": "MHIMS", "hospital": "Hospital_test"}}
