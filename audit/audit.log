@@ -1197,3 +1197,17 @@
 {"ts": "2026-09-21T11:02:49.793342Z", "event": "premium_query", "role": "admin", "code": "CMLIS-ADMIN-75600", "question": "describe mstsubdepartment", "meta": {"db_name": "H023-CentromedLIS", "hospital": "CentroMed_LIS"}}
 {"ts": "2026-09-21T11:04:05.107809Z", "event": "premium_query", "role": "admin", "code": "CMLIS-ADMIN-75600", "question": "run this query: SELECT SubDepartmentID, SubDeptName FROM mstsubdepartment WHERE SubDeptName LIKE '%radiology%'", "meta": {"db_name": "H023-CentromedLIS", "hospital": "CentroMed_LIS"}}
 {"ts": "2026-09-21T11:06:23.048881Z", "event": "premium_query", "role": "admin", "code": "CMLIS-ADMIN-75600", "question": "run this query: SELECT COUNT(*) FROM trninvlabdet WHERE DEPTCODE = 33 AND BILLDATE >= '2026-01-01'", "meta": {"db_name": "H023-CentromedLIS", "hospital": "CentroMed_LIS"}}
+{"ts": "2026-09-21T11:24:16.958976Z", "event": "invalid_code_attempt", "role": null, "code": "dfsdfsfd", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:21.488083Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsfd", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:25.565142Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:27.973616Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:30.554568Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:33.182249Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsfds", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:35.967426Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdfsdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:24:39.487217Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:29:02.857441Z", "event": "invalid_code_attempt", "role": null, "code": "sdfdsfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:31:22.586748Z", "event": "invalid_code_attempt", "role": null, "code": "sfsd", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:31:26.520210Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:31:30.679174Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdf", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:31:33.660874Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsdfs", "question": "", "meta": {"reason": "invalid_code"}}
+{"ts": "2026-09-21T11:31:36.975146Z", "event": "invalid_code_attempt", "role": null, "code": "sdfsd", "question": "", "meta": {"reason": "invalid_code"}}

@@ -1121,14 +1121,7 @@ async function processMessage(text) {
             { label: "Today's collection", send: "Today's collection data" }
           ]);
         }
-      }else {
-        state.waitingForCode = false;
-        addMessage(`❌ Invalid or expired activation code.`, 'bot');
-        showSuggestions([
-          { label: 'Enter Activation Code', send: 'Enter activation code' },
-          { label: 'Continue in Normal Mode', send: 'hi' }
-        ]);
-      }
+
     } catch (err) {
       addMessage('Could not validate the code. Please try again.', 'bot');
     }
