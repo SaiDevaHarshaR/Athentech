@@ -62,6 +62,14 @@ class DictCursor:
     def __init__(self, raw_cursor):
         self._cursor = raw_cursor
 
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
     def execute(self, sql, params=()):
         self._cursor.execute(sql, params)
         return self
