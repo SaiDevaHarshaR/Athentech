@@ -1182,3 +1182,4 @@
 {"ts": "2026-09-20T13:52:59.076330Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "today total collection", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-20T13:53:05.155728Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
 {"ts": "2026-09-20T13:56:41.629080Z", "event": "premium_query", "role": "admin", "code": "ATH-P-ADMIN-55500", "question": "TAT dashboard today", "meta": {"db_name": "H022-KonnectLIS", "hospital": "AthenTech-prod"}}
+{"ts": "2026-09-21T07:45:37.863347Z", "event": "admin_login", "role": null, "code": null, "question": "", "meta": {"actor": "test123"}}

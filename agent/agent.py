@@ -451,10 +451,13 @@ def ask_agent(
         return "The Hospital (IMS) module is still being built — this question isn't answerable yet. Contact support.", 0
 
     # existing LIS path continues exactly as before, unchanged
-    from agent.intents import try_intent
-    intent_answer = try_intent(question, role, db_name, db_server, db_user, db_password)
-    if intent_answer is not None:
-        return check_output(intent_answer), 0
+    if is_premium:
+        from agent.intents import try_intent
+        intent_answer = try_intent(
+            question, role, db_name, db_server, db_user, db_password
+        )
+        if intent_answer is not None:
+            return check_output(intent_answer), 0
 
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(
