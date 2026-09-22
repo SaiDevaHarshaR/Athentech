@@ -9,6 +9,72 @@ year like "2026", a bare month like "july", an exact YYYY-MM-DD, etc.)
 instead of a single-date match. This matters specifically because this
 is STATIC test data (not continuously updated), so "today" almost
 never has real data.
+
+=============================================================================
+CONFIRMED SCHEMA REFERENCE — direct from AthenTech's own developers,
+not guessed/reverse-engineered. Master/detail table pairs + real TTYPE
+codes for every transaction type. Use this before guessing a table
+name for a new handler.
+=============================================================================
+
+--- OP (Outpatient) ---
+tblpatinfo              — Registration            TTYPE=4   (where ENTRYDATE=...)
+tblOPRegistration       — Consultation             TTYPE=0   (where REGDT=...)
+tblTransServicesMst     — Procedure Master         TTYPE=3   (where BILLDT=...)
+tblTransServicesDtls    — Procedure Details        TTYPE=3
+tblOPAMTTRANS           — OP amount transactions
+tblOPPAYDTLS            — OP payment details (CONFIRMED: has BOTH BILLDT and
+                          DTPAID as real separate columns — likely bill date
+                          vs actual payment date, not interchangeable)
+tblOPCredit_Card_Details, tblOPConcessions, tblOPRefunds, tblOPCancellation
+tblOPServices           — OP services master
+
+--- IP (Inpatient) ---
+tblIPRegistration       — IP Admission             (where REGDT=...)
+tblIpBedsDtl            — bed allotment            (ALLOTDT — confirmed, already used)
+tblIPAdvances           — IP Advances              TTYPE=0
+tblIPTransServicesMst   — IP Procedure Master       TTYPE=1
+tblIPTransServicesDtls  — IP Procedure Details      TTYPE=1
+tblIPFinalBillMst       — Cash Final Bill MASTER (bill record: ToalAmount,
+                          ADVANCEAMT, CONCAMT — NOT the payment table)
+tblIPFinalBillDtls      — Cash Final Bill Details   TTYPE=21
+tblIPPAYDTLS            — CONFIRMED: actual IP payment table (AMTPAID, DTPAID,
+                          BILLDT, TTYPE) — this is what ip_revenue queries
+tblIPCorpFinalBillMst   — Credit(insurance) Final Bill Master  TTYPE=25
+tblIPCorpFinalBillDtls  — Credit Final Bill Details TTYPE=25
+tblIPAMTTRANS, tblIPPAYDTLS, tblIPCredit_Card_Details, tblIPConcessions
+  (NOT for Advances/IP Admission), tblIPFinalRefunds, tblIPCancellation
+tblIpBeds, tblIpRooms, tblIpRoomType, tblIPFloors — bed/room/floor masters
+--- IP Credit (insurance) ---
+tblIPCorpAMTTRANS, tblIPCorpPaydtls, tblIPCorpCredit_Card_Details,
+tblIPCorpConcessions (NOT for Advances/IP Admission), tblIPCorpFinalRefunds
+
+--- Lab ---
+tblPatReqHdr            — lab request header       (where REQDT=...)
+tblPatReqTransDet       — lab request line items    (where REQDT=...)
+tblAmountTrans, tblPatReqPymtDet, tblCredit_Card_Details, tblConcessions,
+tblRefunds, tblCancellation — all keyed off REQDT
+tblDept, tblMainDept    — department hierarchy (2 levels)
+tblInvMst               — investigation/test master
+
+--- Pharmacy --- (each pair is Master + Details, real TTYPE per transaction type)
+tblPharmPurchaseMst/Dtls       — GRN (goods received)         TTYPE=0  (PurchDate)
+tblPharmPurchRetMast/Dtls      — GRN Return                   TTYPE=1  (PRBILLDT)
+tblPharmSalesMst/Dtls          — OP Sales                     TTYPE=2  (SALEDT)
+tblPharmSaleRetMast/Dtls       — OP Sales Return               TTYPE=3  (SALERETDT)
+tblPharmipSalesMst/tblPharmIPSalesDtls — IP Sales              TTYPE=4  (SALEDT)
+tblPharmIPSaleRetMast/Dtls     — IP Sales Return                TTYPE=5  (SALERETDT)
+tblPharmAmountTrans, tblPharmPymtDet, tblPharmCr_Cd_Details, tblPharmConcessions — keyed off BILLDT
+tblPharmDepts, tblPharmMedicines — masters
+tblPharmDeptIssueMst/Dtls      — inter-department issue        (ISSUEDT)
+tblPharmDeptMedDtls            — REAL STOCK TABLE, CONFIRMED via SSMS (MEDID,
+                                  BATCHNO, CURRQTY, EXPDT). No name/threshold
+                                  column here — join tblPharmMedicines.MEDID for
+                                  the name and ROL (Reorder Level)/ROQ.
+tblPharmMedicines               — medicine master, CONFIRMED (MEDNM, GENERICNM,
+                                  ROL=Reorder Level, ROQ=Reorder Qty)
+tblPharmaTrack                 — stock ADJUSTMENTS (separate from stock levels)
+=============================================================================
 """
 
 import json
@@ -611,7 +677,9 @@ def _handle_appointments(q, role, db_name, db_server, db_user, db_password, matc
         conn.close()
 
 
-# ---------- low_stock (real, from confirmed viewstock) ----------
+# ---------- low_stock (real, corrected — tblPharmMedicines.ROL is the
+# real reorder-level threshold, confirmed via SSMS; earlier versions
+# guessed wrong column names or lacked a real threshold entirely) ----------
 def _handle_low_stock(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
@@ -621,19 +689,21 @@ def _handle_low_stock(q, role, db_name, db_server, db_user, db_password, matched
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT TOP 15 MEDNM, MedDeptName, CurrQty, ReqQty
-            FROM viewstock
-            WHERE CurrQty < ReqQty
-            ORDER BY (ReqQty - CurrQty) DESC
+            SELECT TOP 15 M.MEDNM, D.CURRQTY, M.ROL, D.EXPDT
+            FROM tblPharmDeptMedDtls D
+            INNER JOIN tblPharmMedicines M ON M.MEDID = D.MEDID
+            WHERE D.CURRQTY < M.ROL
+            ORDER BY (M.ROL - D.CURRQTY) DESC
         """)
         rows = cursor.fetchall()
         if not rows:
-            return "No items currently below their required stock level."
+            return "No items currently below their reorder level."
         return _list_card(
-            icon="💊", title="Low Stock Items", intro=f"{len(rows)} items below required level:",
+            icon="💊", title="Low Stock Items (Below Reorder Level)",
+            intro=f"{len(rows)} shown:",
             items=[
-                {"primary": name, "fields": [f"Dept: {dept}", f"Current: {int(cur or 0)}", f"Required: {int(req or 0)}"]}
-                for name, dept, cur, req in rows
+                {"primary": name, "fields": [f"Current: {int(qty or 0)}", f"Reorder Level: {int(rol or 0)}", f"Expires: {exp}"]}
+                for name, qty, rol, exp in rows
             ],
         )
     except Exception as e:
@@ -744,15 +814,40 @@ _INTENTS_HIS = [
 ]
 
 
+# Handlers that genuinely support location filtering — everything else
+# should NOT silently answer a location-scoped question as if it were
+# unscoped. Add a handler here only once it actually applies the
+# resolved LCODE to its query.
+_LOCATION_AWARE_HANDLERS = {_handle_op_revenue, _handle_ip_revenue}
+
+
 def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_password=None):
     q = (question or "").strip().lower()
     for keywords, handler in _INTENTS_HIS:
         matched = next((kw for kw in keywords if kw in q), None)
-        if matched:
-            try:
-                result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
-            except _UnrecognizedPeriod:
-                continue
-            if result is not None:
-                return result
+        if not matched:
+            continue
+
+        # Real safety check: if the question names a location but the
+        # matched handler doesn't actually use one, don't silently
+        # answer as if unscoped — that's a wrong answer, not a right
+        # one with a missing filter. Fall through to the next intent
+        # (and eventually the LLM) instead.
+        if handler not in _LOCATION_AWARE_HANDLERS:
+            conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+            if conn:
+                try:
+                    cursor = conn.cursor()
+                    lcode, loc_name = _resolve_location(q, cursor)
+                    if lcode:
+                        continue  # a real location was named, this handler can't honor it — skip it
+                finally:
+                    conn.close()
+
+        try:
+            result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
+        except _UnrecognizedPeriod:
+            continue
+        if result is not None:
+            return result
     return None
