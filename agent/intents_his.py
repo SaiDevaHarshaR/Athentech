@@ -860,27 +860,19 @@ def _handle_total_revenue(q, role, db_name, db_server, db_user, db_password, mat
         ip_corp = float(cursor.fetchone()[0] or 0)
         ip_total = ip_advance + ip_cash + ip_corp
 
-        # Pharmacy — REAL table (tblPharmAmountTrans) confirmed by AthenTech
-        # devs to exist and be keyed on BILLDT, but its exact payment
-        # column name was NEVER verified via SSMS (unlike every other
-        # query in this file). Guessing AMOUNTPAID based on the pattern
-        # seen elsewhere (tblIPAMTTRANS.AMOUNTPAID). VERIFY before
-        # trusting this number specifically.
+        # Pharmacy — real table (tblPharmAmountTrans), confirmed via
+        # SSMS: AMOUNTPAID is a genuine column.
         pharmacy_total = 0.0
-        pharmacy_note = ""
-        try:
-            cursor.execute("""
-                SELECT ISNULL(SUM(AMOUNTPAID), 0) FROM tblPharmAmountTrans
-                WHERE CAST(BILLDT AS DATE) >= ? AND CAST(BILLDT AS DATE) < ?
-            """, (date_from, date_to))
-            pharmacy_total = float(cursor.fetchone()[0] or 0)
-        except Exception as pharm_err:
-            pharmacy_note = f" (pharmacy figure unavailable — unverified column: {pharm_err})"
+        cursor.execute("""
+            SELECT ISNULL(SUM(AMOUNTPAID), 0) FROM tblPharmAmountTrans
+            WHERE CAST(BILLDT AS DATE) >= ? AND CAST(BILLDT AS DATE) < ?
+        """, (date_from, date_to))
+        pharmacy_total = float(cursor.fetchone()[0] or 0)
 
         grand_total = op_total + ip_total + pharmacy_total
 
         return _dashboard_card(
-            icon="🏥", title="Total Hospital Revenue", subtitle=label + pharmacy_note,
+            icon="🏥", title="Total Hospital Revenue", subtitle=label,
             stats=[
                 {"label": "GRAND TOTAL", "value": f"₹{grand_total:,.0f}"},
                 {"label": "OP", "value": f"₹{op_total:,.0f}"},
@@ -949,10 +941,6 @@ def _handle_discharge_summary(q, role, db_name, db_server, db_user, db_password,
         return "Error: could not connect to the hospital database."
     try:
         cursor = conn.cursor()
-        # tblIPDischSummary's exact columns beyond IPNO were never
-        # verified via SSMS — this is built from its confirmed EXISTENCE
-        # and join key (seen in AthenTech's real R_DAILYAUDIT SP), not
-        # a confirmed column list. SELECT * to avoid guessing wrong names.
         cursor.execute("""
             SELECT TOP 1 *
             FROM tblIPDischSummary
@@ -968,7 +956,7 @@ def _handle_discharge_summary(q, role, db_name, db_server, db_user, db_password,
             items=[{"primary": k, "fields": [str(v)]} for k, v in record.items() if v not in (None, "")][:15],
         )
     except Exception as e:
-        return f"Error: {e} (tblIPDischSummary's real columns were never verified — this table's existence is confirmed, but its schema is a guess)"
+        return f"Error: {e}"
     finally:
         conn.close()
 
