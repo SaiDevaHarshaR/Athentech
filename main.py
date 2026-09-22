@@ -36,6 +36,10 @@ from notifications.webhook import send_webhook_alert
 from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
 from config import settings
 from auth.usage_limiter import check_budget, record_usage
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 app = FastAPI(title="Sahasra AI Agent")
 #print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
@@ -366,7 +370,11 @@ def get_locations(req: dict):
         return {"locations": []}
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1 ORDER BY LOCATIONNAME")
+        institution_type = validation.get("institution_type", "diagnostic")
+        if institution_type == "hospital":
+            cursor.execute("SELECT LocName FROM tblHOSPDTLS ORDER BY LocName")
+        else:
+            cursor.execute("SELECT LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1 ORDER BY LOCATIONNAME")
         names = [row[0] for row in cursor.fetchall()]
         return {"locations": names}
     finally:
