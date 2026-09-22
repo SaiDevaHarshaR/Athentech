@@ -677,9 +677,10 @@ def _handle_appointments(q, role, db_name, db_server, db_user, db_password, matc
         conn.close()
 
 
-# ---------- low_stock (real, corrected — tblPharmMedicines.ROL is the
-# real reorder-level threshold, confirmed via SSMS; earlier versions
-# guessed wrong column names or lacked a real threshold entirely) ----------
+# ---------- low_stock (real, corrected — sums CURRQTY across all batches
+# per medicine before comparing to reorder level; confirmed via SSMS
+# that individual batches often show near-zero while the real SUMMED
+# total is genuinely non-zero — comparing per-batch was a real bug) ----------
 def _handle_low_stock(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
@@ -800,7 +801,184 @@ def _handle_compare_op_ip(q, role, db_name, db_server, db_user, db_password, mat
     return op_result + "\n\n" + ip_result
 
 
+# ---------- total_hospital_revenue (real — combines OP + IP + Pharmacy + Lab) ----------
+def _handle_total_revenue(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+
+        # OP — same 3 real queries op_revenue uses, reused inline
+        cursor.execute("""
+            SELECT SUM(AMTPAID) FROM tblOPPAYDTLS
+            WHERE CAST(DTPAID AS DATE) >= ? AND CAST(DTPAID AS DATE) < ? AND TTYPE IN (2, 3, 4)
+        """, (date_from, date_to))
+        op_base = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(P.AMTPAID), 0)
+            FROM tblOPPAYDTLS P
+            INNER JOIN tblOPRegistration R ON R.Billno = P.BILLNO AND R.TTYPE = P.TTYPE
+            WHERE CAST(P.DTPAID AS DATE) >= ? AND CAST(P.DTPAID AS DATE) < ? AND R.TTYPE = 0 AND R.Cancelled = 'False'
+        """, (date_from, date_to))
+        consultation = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(PD.AMTPAID), 0)
+            FROM tblPATREQPYMTDET PD
+            INNER JOIN tblPatReqHdr H ON H.REQDT = PD.REQDT AND H.REQNO = PD.REQNO
+            WHERE CAST(PD.DTPAID AS DATE) >= ? AND CAST(PD.DTPAID AS DATE) < ? AND H.CAN_FLG = 'N'
+        """, (date_from, date_to))
+        oplab = float(cursor.fetchone()[0] or 0)
+        op_total = op_base + consultation + oplab
+
+        # IP — same 3 real queries ip_revenue uses
+        cursor.execute("""
+            SELECT ISNULL(SUM(PAIDAMT), 0) FROM tblIPAdvances
+            WHERE CAST(BILLDT AS DATE) >= ? AND CAST(BILLDT AS DATE) < ? AND TTYPE = 0
+        """, (date_from, date_to))
+        ip_advance = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(AMTPAID), 0) FROM tblIPPAYDTLS
+            WHERE CAST(DTPAID AS DATE) >= ? AND CAST(DTPAID AS DATE) < ? AND TTYPE = 21
+        """, (date_from, date_to))
+        ip_cash = float(cursor.fetchone()[0] or 0)
+
+        cursor.execute("""
+            SELECT ISNULL(SUM(AMTPAID), 0) FROM tblIPCORPPAYDTLS
+            WHERE CAST(DTPAID AS DATE) >= ? AND CAST(DTPAID AS DATE) < ? AND TTYPE = 25
+        """, (date_from, date_to))
+        ip_corp = float(cursor.fetchone()[0] or 0)
+        ip_total = ip_advance + ip_cash + ip_corp
+
+        # Pharmacy — REAL table (tblPharmAmountTrans) confirmed by AthenTech
+        # devs to exist and be keyed on BILLDT, but its exact payment
+        # column name was NEVER verified via SSMS (unlike every other
+        # query in this file). Guessing AMOUNTPAID based on the pattern
+        # seen elsewhere (tblIPAMTTRANS.AMOUNTPAID). VERIFY before
+        # trusting this number specifically.
+        pharmacy_total = 0.0
+        pharmacy_note = ""
+        try:
+            cursor.execute("""
+                SELECT ISNULL(SUM(AMOUNTPAID), 0) FROM tblPharmAmountTrans
+                WHERE CAST(BILLDT AS DATE) >= ? AND CAST(BILLDT AS DATE) < ?
+            """, (date_from, date_to))
+            pharmacy_total = float(cursor.fetchone()[0] or 0)
+        except Exception as pharm_err:
+            pharmacy_note = f" (pharmacy figure unavailable — unverified column: {pharm_err})"
+
+        grand_total = op_total + ip_total + pharmacy_total
+
+        return _dashboard_card(
+            icon="🏥", title="Total Hospital Revenue", subtitle=label + pharmacy_note,
+            stats=[
+                {"label": "GRAND TOTAL", "value": f"₹{grand_total:,.0f}"},
+                {"label": "OP", "value": f"₹{op_total:,.0f}"},
+                {"label": "IP", "value": f"₹{ip_total:,.0f}"},
+                {"label": "PHARMACY", "value": f"₹{pharmacy_total:,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- doctor_wise_revenue (real — consultations + revenue per doctor) ----------
+def _handle_doctor_wise_revenue(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT TOP 10 D.DocName, COUNT(*) AS Consultations, SUM(P.AMTPAID) AS Revenue
+            FROM tblOPRegistration R
+            INNER JOIN tblDoctorInfo D ON D.DocId = R.DocId
+            INNER JOIN tblOPPAYDTLS P ON P.BILLNO = R.Billno AND P.TTYPE = R.TTYPE
+            WHERE R.TTYPE = 0 AND R.Cancelled = 'False'
+              AND CAST(P.DTPAID AS DATE) >= ? AND CAST(P.DTPAID AS DATE) < ?
+            GROUP BY D.DocName
+            ORDER BY SUM(P.AMTPAID) DESC
+        """, (date_from, date_to))
+        rows = cursor.fetchall()
+        if not rows:
+            return f"No doctor-wise consultation data found ({label})."
+        return _list_card(
+            icon="👨‍⚕️", title="Doctor-Wise Consultations & Revenue", intro=f"{label} — top 10:",
+            items=[
+                {"primary": doc, "fields": [f"{int(count)} consultations", f"₹{float(rev or 0):,.0f}"]}
+                for doc, count, rev in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- discharge_summary (real — from confirmed tblIPDischSummary, seen joined
+# to tblIPFinalBillMst in AthenTech's own R_DAILYAUDIT stored procedure) ----------
+def _handle_discharge_summary(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    m = re.search(r"\b([A-Za-z]{2,6}\d{3,})\b", q.upper())
+    if not m:
+        return None
+    identifier = m.group(1)
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        # tblIPDischSummary's exact columns beyond IPNO were never
+        # verified via SSMS — this is built from its confirmed EXISTENCE
+        # and join key (seen in AthenTech's real R_DAILYAUDIT SP), not
+        # a confirmed column list. SELECT * to avoid guessing wrong names.
+        cursor.execute("""
+            SELECT TOP 1 *
+            FROM tblIPDischSummary
+            WHERE IPNO = ?
+        """, (identifier,))
+        row = cursor.fetchone()
+        if not row:
+            return f"No discharge summary found for '{identifier}'."
+        col_names = [d[0] for d in cursor.description]
+        record = dict(zip(col_names, row))
+        return _list_card(
+            icon="📋", title=f"Discharge Summary · {identifier}",
+            items=[{"primary": k, "fields": [str(v)]} for k, v in record.items() if v not in (None, "")][:15],
+        )
+    except Exception as e:
+        return f"Error: {e} (tblIPDischSummary's real columns were never verified — this table's existence is confirmed, but its schema is a guess)"
+    finally:
+        conn.close()
+
+
 _INTENTS_HIS = [
+    (["total hospital revenue", "combined revenue", "overall revenue", "total revenue"],
+     _handle_total_revenue),
+    (["doctor wise revenue", "doctor-wise revenue", "doctor collection", "consultations by doctor",
+      "doctor wise consultation"], _handle_doctor_wise_revenue),
+    (["discharge summary"], _handle_discharge_summary),
     (["compare op", "op vs ip", "ip vs op", "compare ip"], _handle_compare_op_ip),
     (["expenditure", "vouchers", "expense", "expenses today", "expenses yesterday"], _handle_expenditure),
     (["appointments", "appointment list", "today's appointments", "doctor appointments"],
