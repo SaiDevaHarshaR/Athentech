@@ -191,6 +191,7 @@ def _resolve_location(q: str, cursor):
         "for", "at", "in", "on", "revenue", "collection", "op", "ip",
         "january", "february", "march", "april", "may", "june", "july",
         "august", "september", "october", "november", "december",
+        "compare", "vs", "versus",
     ]
     text = q
     for w in sorted(strip_words, key=len, reverse=True):
@@ -796,6 +797,7 @@ def _handle_compare_op_ip(q, role, db_name, db_server, db_user, db_password, mat
 
     op_result = _handle_op_revenue(q, role, db_name, db_server, db_user, db_password)
     ip_result = _handle_ip_revenue(q, role, db_name, db_server, db_user, db_password)
+    print(f"[DEBUG] ip_result: {ip_result!r}")
     if not op_result or not ip_result:
         return None
     return op_result + "\n\n" + ip_result
@@ -982,10 +984,10 @@ _INTENTS_HIS = [
     (["ip revenue", "inpatient revenue", "ip collection", "inpatient collection"],
      _handle_ip_revenue),
     (["day collection", "today's collection", "collection today", "collection yesterday",
-      "collection this month", "collection this year", "total collection", "collection 20"],
+      "collection this month", "collection this year", "total collection", "collection"],
      _handle_day_collection),
     (["investigations ordered", "tests ordered", "lab tests today", "investigations today",
-      "investigations this month"],
+      "investigations this month", "investigations"],
      _handle_investigations_ordered),
     (["beds occupied", "bed occupancy", "occupied beds", "how many beds", "bed status",
       "beds available", "available beds"],
@@ -1000,7 +1002,7 @@ _INTENTS_HIS = [
 # should NOT silently answer a location-scoped question as if it were
 # unscoped. Add a handler here only once it actually applies the
 # resolved LCODE to its query.
-_LOCATION_AWARE_HANDLERS = {_handle_op_revenue, _handle_ip_revenue}
+_LOCATION_AWARE_HANDLERS = {_handle_op_revenue, _handle_ip_revenue, _handle_compare_op_ip}
 
 
 def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_password=None):
@@ -1009,6 +1011,7 @@ def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_pas
         matched = next((kw for kw in keywords if kw in q), None)
         if not matched:
             continue
+        print(f"[DISPATCH DEBUG] q={q!r} matched={matched!r} handler={handler.__name__}")
 
         # Real safety check: if the question names a location but the
         # matched handler doesn't actually use one, don't silently
