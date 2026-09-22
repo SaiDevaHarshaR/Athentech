@@ -4,9 +4,12 @@ python-dotenv
 mysql-connector-python
 sqlalchemy
 langchain
-langchain-groq        
+langchain-groq
 langchain-openai
 langchain-anthropic
+langchain-google-genai
+langchain-mistralai
+langchain-cohere
 langgraph
 pandas
 openpyxl
@@ -19,3 +22,5 @@ jinja2
 python-multipart
 pytest
 pypdf
+requests
+libsql
