@@ -785,7 +785,22 @@ def _handle_expenditure(q, role, db_name, db_server, db_user, db_password, match
         conn.close()
 
 
+# ---------- compare_op_ip_revenue (real — calls both handlers, combines results) ----------
+def _handle_compare_op_ip(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    if "op" not in q or "ip" not in q:
+        return None  # not genuinely a compare question, fall through
+
+    op_result = _handle_op_revenue(q, role, db_name, db_server, db_user, db_password)
+    ip_result = _handle_ip_revenue(q, role, db_name, db_server, db_user, db_password)
+    if not op_result or not ip_result:
+        return None
+    return op_result + "\n\n" + ip_result
+
+
 _INTENTS_HIS = [
+    (["compare op", "op vs ip", "ip vs op", "compare ip"], _handle_compare_op_ip),
     (["expenditure", "vouchers", "expense", "expenses today", "expenses yesterday"], _handle_expenditure),
     (["appointments", "appointment list", "today's appointments", "doctor appointments"],
      _handle_appointments),
@@ -800,7 +815,7 @@ _INTENTS_HIS = [
     (["ip revenue", "inpatient revenue", "ip collection", "inpatient collection"],
      _handle_ip_revenue),
     (["day collection", "today's collection", "collection today", "collection yesterday",
-      "collection this month", "collection this year", "total collection"],
+      "collection this month", "collection this year", "total collection", "collection 20"],
      _handle_day_collection),
     (["investigations ordered", "tests ordered", "lab tests today", "investigations today",
       "investigations this month"],
