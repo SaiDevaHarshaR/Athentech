@@ -177,7 +177,7 @@ def _handle_uhid_lookup(q, role, db_name, db_server, db_user, db_password, match
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
 # Prefer explicit "UHID xxx", else a code like KDX26929648
-    m = re.search(r"\buhid\s*[:\-]?\s*([A-Za-z0-9]{5,})\b", q, re.IGNORECASE)
+    m = re.search(r"\buhid\s*[:\-]?\s*([A-Za-z0-9]*\d[A-Za-z0-9]{4,})\b", q, re.IGNORECASE)
     if not m:
         m = re.search(r"\b([A-Za-z]{2,4}\d{5,})\b", q, re.IGNORECASE)
 
