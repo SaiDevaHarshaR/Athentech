@@ -453,7 +453,10 @@ def ask_agent(
         # discovery, same tools as LIS uses, so ad-hoc "run this query"
         # style questions still work while HIS handlers are still being
         # built out.
-
+        from datetime import date as _date
+        from agent.his_tools import his_describe_table, his_run_sql_query
+        from agent.his_schema_search import his_search_schema
+        real_today = _date.today().isoformat()
         his_prompt = f"""
 You are Sahasra AI Assistant for {hospital_name} (Hospital/IMS module).
 Answer ONLY using real data from the hospital database — never invent
