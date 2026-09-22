@@ -797,7 +797,6 @@ def _handle_compare_op_ip(q, role, db_name, db_server, db_user, db_password, mat
 
     op_result = _handle_op_revenue(q, role, db_name, db_server, db_user, db_password)
     ip_result = _handle_ip_revenue(q, role, db_name, db_server, db_user, db_password)
-    print(f"[DEBUG] ip_result: {ip_result!r}")
     if not op_result or not ip_result:
         return None
     return op_result + "\n\n" + ip_result
@@ -963,7 +962,76 @@ def _handle_discharge_summary(q, role, db_name, db_server, db_user, db_password,
         conn.close()
 
 
+# ---------- ward_census (real, from confirmed tblIpRooms/tblIpRoomType/tblIPFloors) ----------
+def _handle_ward_census(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT F.FLOORNO, RT.ROOMTYPE, COUNT(*) AS RoomCount
+            FROM tblIpRooms R
+            INNER JOIN tblIPFloors F ON F.FLOORID = R.FLOORID
+            INNER JOIN tblIpRoomType RT ON RT.ROOMTYPEID = R.ROOMTYPEID
+            WHERE R.ACTIVE = 1
+            GROUP BY F.FLOORNO, RT.ROOMTYPE
+            ORDER BY F.FLOORNO, RT.ROOMTYPE
+        """)
+        rows = cursor.fetchall()
+        if not rows:
+            return "No active room data found."
+        return _list_card(
+            icon="🏨", title="Rooms by Floor & Type", intro=f"{len(rows)} groupings:",
+            items=[
+                {"primary": f"Floor {floor}", "fields": [rtype, f"{int(count)} rooms"]}
+                for floor, rtype, count in rows
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
+# ---------- pharmacy_purchases (real, from confirmed tblPharmPurchaseMst) ----------
+def _handle_pharmacy_purchases(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
+
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the hospital database."
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) AS PurchCount, SUM(NETAMT) AS TotalNet
+            FROM tblPharmPurchaseMst
+            WHERE CAST(PurchDate AS DATE) >= ? AND CAST(PurchDate AS DATE) < ? AND TTYPE = 0
+        """, (date_from, date_to))
+        count, total = cursor.fetchone()
+        return _dashboard_card(
+            icon="📦", title="Pharmacy Purchases (GRN)", subtitle=label,
+            stats=[
+                {"label": "PURCHASES", "value": f"{int(count or 0):,}"},
+                {"label": "NET AMOUNT", "value": f"₹{float(total or 0):,.0f}"},
+            ],
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    finally:
+        conn.close()
+
+
 _INTENTS_HIS = [
+    (["ward census", "rooms by floor", "room census", "ward occupancy"], _handle_ward_census),
+    (["pharmacy purchases", "pharmacy grn", "goods received"], _handle_pharmacy_purchases),
     (["total hospital revenue", "combined revenue", "overall revenue", "total revenue"],
      _handle_total_revenue),
     (["doctor wise revenue", "doctor-wise revenue", "doctor collection", "consultations by doctor",
@@ -1011,7 +1079,6 @@ def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_pas
         matched = next((kw for kw in keywords if kw in q), None)
         if not matched:
             continue
-        print(f"[DISPATCH DEBUG] q={q!r} matched={matched!r} handler={handler.__name__}")
 
         # Real safety check: if the question names a location but the
         # matched handler doesn't actually use one, don't silently
