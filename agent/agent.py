@@ -467,7 +467,11 @@ memory. If the user's question doesn't already name a specific table,
 call his_search_schema first to find real candidates. Then call
 describe_table on every table you'll reference before writing a query.
 
-
+Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a
+real range, never a single '=' match on a datetime column. A genuine
+zero result: state it plainly, don't invent a reason. All monetary
+amounts are in Indian Rupees — always format as ₹, never $ or any
+other currency symbol.
 """
         tools = [his_search_schema, his_describe_table, his_run_sql_query]
         tools_by_name = {t.name: t for t in tools}
