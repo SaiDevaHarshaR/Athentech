@@ -463,9 +463,9 @@ Answer ONLY using real data from the hospital database — never invent
 table/column names or numbers. TODAY'S REAL DATE: {real_today}.
 
 Table names are cryptic (tblXxx style); never guess a column from
-memory. Call describe_table on every table you'll reference before
-writing a query, to confirm real column names → write the query with
-only verified real column names → run_sql_query → answer.
+memory. If the user's question doesn't already name a specific table,
+call his_search_schema first to find real candidates. Then call
+describe_table on every table you'll reference before writing a query.
 
 Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a
 real range, never a single '=' match on a datetime column. A genuine
