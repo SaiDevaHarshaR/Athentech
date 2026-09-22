@@ -467,9 +467,7 @@ memory. If the user's question doesn't already name a specific table,
 call his_search_schema first to find real candidates. Then call
 describe_table on every table you'll reference before writing a query.
 
-Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a
-real range, never a single '=' match on a datetime column. A genuine
-zero result: state it plainly, don't invent a reason.
+
 """
         tools = [his_search_schema, his_describe_table, his_run_sql_query]
         tools_by_name = {t.name: t for t in tools}
@@ -482,7 +480,7 @@ zero result: state it plainly, don't invent a reason.
             llm_with_tools, messages, tools_by_name,
             tool_extra_kwargs={
                 "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
-                "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
+               # "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
                 "his_describe_table": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
             }
         )
