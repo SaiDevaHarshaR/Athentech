@@ -471,7 +471,7 @@ Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a
 real range, never a single '=' match on a datetime column. A genuine
 zero result: state it plainly, don't invent a reason.
 """
-        tools = [his_describe_table, his_run_sql_query]
+
         tools_by_name = {t.name: t for t in tools}
         llm_with_tools = llm.bind_tools(tools)
         messages = [
