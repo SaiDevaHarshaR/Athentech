@@ -28,7 +28,8 @@ _HIS_SCHEMA = [
      "question needs, e.g. 'when was this billed' vs 'when was this actually paid')"),
     ("tblOPConcessions", "op", ["op concession", "op discount"], "OP concessions"),
     ("tblOPRefunds", "op", ["op refund"], "OP refunds"),
-    ("tblOPCancellation", "op", ["op cancel", "op cancellation"], "OP cancellations"),
+    ("tblOPCancellation", "op", ["op cancel", "op cancellation", "cancelled patients", "cancellation"],
+     "OP cancellations"),
     ("tblOPServices", "op", ["op services master", "service catalog"], "OP services master catalog"),
 
     ("tblIPRegistration", "ip", ["ip admission", "inpatient admission", "admitted"],
@@ -48,7 +49,7 @@ _HIS_SCHEMA = [
      "IP insurance/corporate final bill master (TTYPE=25, filter on BILLDT)"),
     ("tblIPConcessions", "ip", ["ip concession"], "IP concessions (NOT for advances/admission)"),
     ("tblIPFinalRefunds", "ip", ["ip refund"], "IP refunds"),
-    ("tblIPCancellation", "ip", ["ip cancel"], "IP cancellations"),
+    ("tblIPCancellation", "ip", ["ip cancel", "cancelled patients", "cancellation"], "IP cancellations"),
     ("tblIpBeds", "ip", ["bed master", "bed list", "total beds"], "Bed master"),
     ("tblIpRooms", "ip", ["room"], "Room master"),
     ("tblIpRoomType", "ip", ["room type"], "Room type master"),
