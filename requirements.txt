@@ -25,3 +25,4 @@ pypdf
 requests
 libsql
 pydantic-settings
+tavily-python
