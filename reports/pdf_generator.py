@@ -258,6 +258,8 @@ def generate_smart_report(data: dict) -> BytesIO:
         env = Environment(
             loader=FileSystemLoader(_template_dir()),
             undefined=NoDataUndefined,
+            trim_blocks=True,
+            lstrip_blocks=True,
         )
         template = env.get_template("smart_report.html")
         html_content = template.render(**merged)

@@ -328,8 +328,6 @@ Real test results found in the database (empty if none were found — in that ca
 Other related records (billing/administrative, for context only):
 {json.dumps({k: v for k, v in raw_data.items() if k != "trnparamresult"}, default=str)[:2000]}
 
-If multiple raw rows share the same PARAMHEADNAME (a test panel like "Differential Count") and are ALL within normal range, combine them into ONE finding entry summarizing the panel (e.g. "Differential Count — all components normal"), rather than one separate finding per row. Only give abnormal/watch-status rows their own individual finding entry.
-
 Respond with ONLY a JSON object (no markdown fences, no other text) with
 this exact shape:
 {{
@@ -393,23 +391,13 @@ demographic information was available for this patient.
     try:
         parsed = _parse_llm_json(text)
         findings = parsed.get("all_findings", [])
-    except (json.JSONDecodeError, ValueError) as parse_err:
-        print(f"[generate_structured_report] JSON PARSE FAILED: {parse_err}")
-        print(f"[generate_structured_report] Raw LLM response (first 2000 chars): {text[:2000]}")
-        parsed = {
-            "patient_name": patient_info.get("name"),
-            "patient_age": patient_info.get("age"),
-            "patient_gender": patient_info.get("gender"),
-            "health_summary": "Could not generate detailed findings for this patient right now.",
-        }
-        return parsed
         parsed["normal_count"] = sum(1 for f in findings if f.get("status") == "normal")
         parsed["borderline_count"] = sum(1 for f in findings if f.get("status") == "watch")
         parsed["abnormal_count"] = sum(1 for f in findings if f.get("status") == "attention")
         print(f"[generate_structured_report] LLM returned body: {parsed.get('body')}")
-    except (json.JSONDecodeError, ValueError):
-        # Fail safe: demographic-only report rather than a crash or a
-        # made-up structure if the LLM's output couldn't be parsed.
+    except (json.JSONDecodeError, ValueError) as parse_err:
+        print(f"[generate_structured_report] JSON PARSE FAILED: {parse_err}")
+        print(f"[generate_structured_report] Raw LLM response (first 2000 chars): {text[:2000]}")
         parsed = {
             "patient_name": patient_info.get("name"),
             "patient_age": patient_info.get("age"),
