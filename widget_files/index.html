@@ -11,7 +11,7 @@
 
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: #0f172a;
+    background: #ffffff;
     height: 100vh;
     display: flex;
     justify-content: center;
@@ -34,7 +34,6 @@
 
   .container {
     width: 100%;
-    max-width: 430px;
     height: 100vh;
     background: #f8fafc;
     display: flex;
@@ -55,7 +54,7 @@
   .logo {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: transparent;
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -419,7 +418,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">AI</div>
+      <div class="logo"><img src="Favicon.ico" alt="AthenTech" style="width: 24px; height: 24px; border-radius: 4px;" /></div>
       <div class="header-info">
         <h1>Sahasra AI Assistant</h1>
         <p id="status">General Mode</p>
@@ -438,6 +437,9 @@
       <button onclick="handleSend()">→</button>
       <button type="button" onclick="showExcelMenu()">Excel ▾</button>
     </div>
+    <div style="text-align:center; padding:6px; font-size:10px; color:#94a3b8; background:white;">
+      Powered by Athentech
+    </div>
   </div>
 
 <script>
@@ -447,7 +449,7 @@ const statusEl = document.getElementById('status');
 const modeBadge = document.getElementById('modeBadge');
 const input = document.getElementById('msg');
 
-const API_URL = "http://127.0.0.1:8000/ask";
+const API_URL = "http://192.168.0.163:8000/ask";
 
 let state = {
   mode: 'normal',
@@ -472,6 +474,11 @@ function escapeHtml(str) {
 }
 
 function addMessage(text, type) {
+  if (type === 'bot' && window.parent !== window) {
+    const preview = (text || '').replace(/```[\s\S]*?```/g, '').replace(/[*_#]/g, '').trim().slice(0, 80);
+    window.parent.postMessage({ type: 'sahasra-new-message', preview: preview || 'New message' }, '*');
+  }
+
   const card = type === 'bot' ? extractDashboardCard(text) : null;
   if (card) {
     renderDashboardCard(card);
