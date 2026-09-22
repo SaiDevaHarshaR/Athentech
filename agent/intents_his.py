@@ -688,24 +688,7 @@ def _handle_low_stock(q, role, db_name, db_server, db_user, db_password, matched
         return "Error: could not connect to the hospital database."
     try:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT TOP 15 M.MEDNM, D.CURRQTY, M.ROL, D.EXPDT
-            FROM tblPharmDeptMedDtls D
-            INNER JOIN tblPharmMedicines M ON M.MEDID = D.MEDID
-            WHERE D.CURRQTY < M.ROL
-            ORDER BY (M.ROL - D.CURRQTY) DESC
-        """)
-        rows = cursor.fetchall()
-        if not rows:
-            return "No items currently below their reorder level."
-        return _list_card(
-            icon="💊", title="Low Stock Items (Below Reorder Level)",
-            intro=f"{len(rows)} shown:",
-            items=[
-                {"primary": name, "fields": [f"Current: {int(qty or 0)}", f"Reorder Level: {int(rol or 0)}", f"Expires: {exp}"]}
-                for name, qty, rol, exp in rows
-            ],
-        )
+
     except Exception as e:
         return f"Error: {e}"
     finally:
