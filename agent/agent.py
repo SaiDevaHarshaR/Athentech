@@ -482,6 +482,7 @@ zero result: state it plainly, don't invent a reason.
             llm_with_tools, messages, tools_by_name,
             tool_extra_kwargs={
                 "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
+                "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
                 "his_describe_table": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
             }
         )
