@@ -127,10 +127,7 @@ def validate_license(code: str):
         # safe to call even before the migration script has run.
         db_password = decrypt_secret(inst["db_password"])
 
-    return {
-        "valid": True,
-        "code": row["code"],
-        "institution_code": inst["client_prefix"] if inst else None,
+
         "institution_type": (dict(inst.items()).get("type", "Diagnostic") if inst else "Diagnostic").strip().lower(),
         "role": row["role"],
         "db_name": db_name,
