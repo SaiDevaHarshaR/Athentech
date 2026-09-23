@@ -833,15 +833,7 @@ async def ask_question(req: QueryRequest, request: Request):
         # Fast-path: the widget sends question="validate" right after the
         # user enters an activation code, just to confirm it worked and
         # learn the role/hospital name. No need to invoke the LLM for that.
-        if is_validate_ping:
-            return {
-                "status": "success",
-                "answer": "Code validated" if is_premium else "Invalid or expired activation code.",
-                "mode": "premium" if is_premium else "normal",
-                "role": role if is_premium else None,
-                "hospital_name": hospital_name if is_premium else None,
-                "institution_type": institution_type if is_premium else None,
-            }
+
 
 
 
