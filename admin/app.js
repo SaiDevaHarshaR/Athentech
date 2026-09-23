@@ -1933,21 +1933,7 @@ function openLicense(license = null) {
         licenseFields(license || {}),
         data => {
             // ===== EDIT existing license =====
-            if (license) {
-                Object.assign(license, {
-                    institutionId: Number(data.institutionId),
-                    role: data.role,
-                    plan: data.plan
-                });
 
-                addActivity('License updated', license.code);
-                toast('License updated');
-                save();
-                closeModal();
-                renderLicenses();
-                renderDashboard();
-                return;
-            }
 
             // ===== GENERATE new license via API =====
             if (!data.phone || !data.dobYear) {
