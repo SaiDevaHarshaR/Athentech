@@ -1169,7 +1169,16 @@ async function processMessage(text) {
     statusEl.textContent = 'Validating code...';
 
     try {
-
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: "validate",
+          activation_code: text,
+          chat_history: [],
+          device_fingerprint: DEVICE_FINGERPRINT
+        })
+      });
 
       const data = await response.json();
 
