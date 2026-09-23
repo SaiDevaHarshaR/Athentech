@@ -484,7 +484,28 @@ def api_get_settings(admin: str = Depends(require_admin)):
     settings_data["has_smtp_password"] = has_smtp_password
     return {"status": "success", "settings": settings_data}
 
+@app.post("/verify-otp")
+def verify_otp_endpoint(req: dict):
+    activation_code = req.get("activation_code", "")
+    otp = req.get("otp", "")
 
+    from auth.email_otp import verify_otp
+    result = verify_otp(activation_code, otp)
+    if not result["valid"]:
+        return {"status": "error", "answer": result["reason"]}
+
+    validation = validate_license(activation_code)
+    if not validation.get("valid"):
+        return {"status": "error", "answer": "Session expired. Please enter your activation code again."}
+
+    return {
+        "status": "success",
+        "mode": "premium",
+        "role": validation.get("role", "viewer"),
+        "hospital_name": validation.get("hospital_name"),
+        "institution_type": validation.get("institution_type", "diagnostic"),
+        "plan": validation.get("plan"),
+    }
 @app.put("/admin/settings")
 def api_update_settings(req: SettingsUpdateRequest, admin: str = Depends(require_admin)):
     changed_fields = req.model_dump(exclude_unset=True)
