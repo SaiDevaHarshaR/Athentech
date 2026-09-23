@@ -1182,7 +1182,7 @@ async function processMessage(text) {
           ]);
         }
       }else {
-        state.waitingForCode = false;
+       // state.waitingForCode = false;
         addMessage(data.answer || `❌ Invalid or expired activation code.`, 'bot');
         showSuggestions([
           { label: 'Enter Activation Code', send: 'Enter activation code' },
