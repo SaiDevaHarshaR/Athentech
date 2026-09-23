@@ -1,958 +1,1528 @@
-import time
-#from reports.excel_export import export_all_branches_collection
-from reports.excel_export import run_excel_export
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
-from typing import List, Optional
-from agent.agent import ask_agent
-from langchain_core.messages import HumanMessage, AIMessage
-from database.connection import get_hospital_connection
-from auth.license_service import (
-    create_license,
-    validate_license,
-    list_licenses,
-    revoke_license,
-    delete_license,
-    list_institutions,
-    create_institution,
-    update_institution,
-    delete_institution,
-    set_license_status,
-    get_role_permissions,
-    update_role_permissions,
-    get_settings,
-    update_settings,
-)
-from auth.admin_auth import require_admin, create_admin_token, check_admin_credentials
-from auth.admin_service import list_admins, create_admin, set_admin_status, change_admin_password
-from audit.log import audit, read_audit_log
-from reports.pdf_generator import generate_smart_report
-from reports.patient_report_generator import build_patient_report_data, PatientNotFound, PatientAmbiguous
-from database.license_db import init_license_db, seed_demo_institutions, seed_bootstrap_admin
-from notifications.email import send_alert_email
-from notifications.webhook import send_webhook_alert
-from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
-from config import settings
-from auth.usage_limiter import check_budget, record_usage
-import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-app = FastAPI(title="Sahasra AI Agent")
-#print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
-# CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.middleware("http")
-async def security_middleware(request: Request, call_next):
-    if request.method == "OPTIONS":
-        return await call_next(request)
-
-    origin = request.headers.get("origin")
-    def _with_cors(response):
-        if origin and origin in settings.allowed_origins_list:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
-
-    try:
-        limit = get_settings()["rate_limit_per_minute"]
-    except Exception:
-        limit = 300
-
-    ip = request.client.host if request.client else "unknown"
-    now = time.time()
-    hits = [t for t in RATE.get(ip, []) if now - t < WINDOW]
-    if len(hits) >= limit:
-        return _with_cors(JSONResponse(status_code=429, content={"detail": "Too many requests"}))
-    hits.append(now)
-    RATE[ip] = hits
-
-    response = await call_next(request)
-
-    # Security headers
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Cache-Control"] = "no-store"
-
-    return response
-
-
-WINDOW = 60  # seconds — rate limit window; the limit itself is now read from settings (was a hardcoded constant)
-RATE = {}
-# Separate from the per-IP RATE above: many real users can share one IP
-# (NAT, a hospital's shared network), so a pure per-IP limit means one
-# busy hospital can eat the shared budget for everyone else on the same
-# network. This tracks usage per ACTIVATION CODE instead — a hospital's
-# heavy legitimate usage only affects that hospital's own limit.
-CODE_RATE = {}
-
-init_license_db()
-seed_demo_institutions()
-seed_bootstrap_admin()  # one-time migration: legacy .env admin -> real admins table, see auth/admin_service.py
-start_background_expiry_checker()  # actually fires the "email alerts for expiring licenses" setting
-
-
-def _log_admin_action(admin: str, action: str, target: str = "", meta: dict = None):
-    """
-    Real per-admin accountability: every mutating admin action gets
-    logged with the actual authenticated admin's username, not just a
-    generic 'Admin' label. Visible in /admin/audit and the Audit Logs
-    page alongside the existing premium_query / invalid_code_attempt
-    events.
-    """
-    audit(event="admin_action", role=None, code=None, question=f"{action}: {target}",
-          meta={"actor": admin, "action": action, "target": target, **(meta or {})})
-
-from fastapi.staticfiles import StaticFiles
-
-app.mount("/widget", StaticFiles(directory="widget_files", html=True), name="widget")
-# ---------- Request/response models ----------
-
-class RolePermissionUpdate(BaseModel):
-    role: str
-    tables: list[str]
-
-
-class LicenseStatusRequest(BaseModel):
-    code: str
-    status: str  # Active / Suspended / Revoked
-
-
-class InstitutionCreateRequest(BaseModel):
-    name: str
-    client_prefix: str
-    db_name: str
-    db_server: str | None = None
-    db_user: str | None = None
-    db_password: str | None = None    
-    type: str = "Hospital"
-    city: str = ""
-    status: str = "Active"
-
-
-
-class InstitutionUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    client_prefix: Optional[str] = None
-    db_name: Optional[str] = None
-    db_server: Optional[str] = None
-    db_user: Optional[str] = None
-    db_password: Optional[str] = None
-    type: Optional[str] = None
-    city: Optional[str] = None
-    status: Optional[str] = None
-
-
-
-class Message(BaseModel):
-    role: str
-    content: str
-
-
-class QueryRequest(BaseModel):
-    question: str
-    activation_code: Optional[str] = None
-    chat_history: Optional[List[Message]] = []
-    device_fingerprint: Optional[str] = None
-
-
-class GenerateLicenseRequest(BaseModel):
-    institution_id: int
-    role: str
-    phone: str
-    dob_year: str
-    plan: str = "Standard"
-    valid_days: Optional[int] = None  # falls back to the admin-configured default if not given
-
-
-class ValidateLicenseRequest(BaseModel):
-    code: str
-
-
-class RevokeLicenseRequest(BaseModel):
-    code: str
-
-
-class PDFRequest(BaseModel):
-    title: str = "Sahasra AI Report"
-    hospital_name: str = "Hospital"
-    role: str = "Staff"
-    activation_code: str = ""
-    content_lines: list[str] = []
-
-
-class PatientReportRequest(BaseModel):
-    patient_identifier: str  # UHID or name
-    activation_code: str
-
-
-class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class AdminCreateRequest(BaseModel):
-    username: str
-    password: str
-    display_name: str = ""
-
-
-class AdminStatusRequest(BaseModel):
-    status: str  # Active / Inactive
-
-
-class AdminPasswordRequest(BaseModel):
-    new_password: str
-
-
-class SettingsUpdateRequest(BaseModel):
-    license_validity_days: Optional[int] = None
-    normal_mode_enabled: Optional[bool] = None
-    rate_limit_per_minute: Optional[int] = None
-    extra_blocked_patterns: Optional[List[str]] = None
-    output_redaction_enabled: Optional[bool] = None
-    email_alerts_enabled: Optional[bool] = None
-    webhook_url: Optional[str] = None
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    alert_email_to: Optional[str] = None
-
-
-# ---------- Public ----------
-
-@app.get("/")
-def home():
-    return {"message": "Sahasra AI Agent is running"}
-
-
-# ---------- Admin auth ----------
-
-@app.post("/admin/login")
-def api_admin_login(req: AdminLoginRequest):
-    try:
-        ok = check_admin_credentials(req.username, req.password)
-    except RuntimeError as e:
-        # No admin accounts exist yet — see auth/admin_auth.py for the bootstrap flow.
-        raise HTTPException(status_code=500, detail=str(e))
-
-    if not ok:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    token = create_admin_token(req.username)
-    audit(event="admin_login", role=None, code=None, question=None, meta={"actor": req.username})
-    return {"status": "success", "token": token}
-
-
-# ---------- Admin: user accounts (auth required) ----------
-# Real multi-admin accounts, replacing the single shared login — see
-# auth/admin_service.py. Any logged-in admin can manage other admins;
-# there's no role hierarchy (super-admin vs regular) yet.
-
-@app.get("/admin/users")
-def api_list_admin_users(admin: str = Depends(require_admin)):
-    return {"status": "success", "admins": list_admins()}
-
-
-@app.post("/admin/users")
-def api_create_admin_user(req: AdminCreateRequest, admin: str = Depends(require_admin)):
-    try:
-        data = create_admin(req.username, req.password, req.display_name)
-        _log_admin_action(admin, "Created admin account", req.username)
-        return {"status": "success", "admin": data}
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-
-
-@app.post("/admin/users/{username}/status")
-def api_set_admin_status(username: str, req: AdminStatusRequest, admin: str = Depends(require_admin)):
-    try:
-        ok = set_admin_status(username, req.status)
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-    if not ok:
-        return {"status": "error", "message": "Admin not found"}
-    _log_admin_action(admin, f"Set admin status to {req.status}", username)
-    return {"status": "success"}
-
-
-@app.post("/admin/users/{username}/password")
-def api_change_admin_password(username: str, req: AdminPasswordRequest, admin: str = Depends(require_admin)):
-    try:
-        ok = change_admin_password(username, req.new_password)
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-    if not ok:
-        return {"status": "error", "message": "Admin not found"}
-    _log_admin_action(admin, "Changed admin password", username)
-    return {"status": "success"}
-
-
-# ---------- Admin: institutions (auth required) ----------
-
-@app.get("/admin/institutions")
-def api_list_institutions(admin: str = Depends(require_admin)):
-    return {"status": "success", "institutions": list_institutions()}
-
-
-@app.post("/admin/institutions")
-def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
-    try:
-        data = create_institution(
-            name=req.name,
-            client_prefix=req.client_prefix,
-            db_name=req.db_name,
-            db_server=req.db_server,
-            db_user=req.db_user,
-            db_password=req.db_password,            
-            type_=req.type,
-            city=req.city,
-            status=req.status
-        )
-        _log_admin_action(admin, "Created institution", req.name)
-        return {"status": "success", "institution": data}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-@app.patch("/admin/institutions/{institution_id}")
-def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, admin: str = Depends(require_admin)):
-    try:
-        data = update_institution(institution_id, **req.model_dump(exclude_unset=True))
-        # Don't log the raw db_password into the audit trail — same
-        # reasoning as excluding smtp_password from the settings-update
-        # audit log elsewhere: the audit log is meant to record WHAT
-        # changed, not BE a place secrets end up in plaintext.
-        safe_changes = {k: v for k, v in req.model_dump(exclude_unset=True).items() if k != "db_password"}
-        if "db_password" in req.model_dump(exclude_unset=True):
-            safe_changes["db_password"] = "[changed]"
-        _log_admin_action(admin, "Updated institution", data.get("name", str(institution_id)),
-                           meta={"changes": safe_changes})
-        return {"status": "success", "institution": data}
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-@app.delete("/admin/institutions/{institution_id}")
-def api_delete_institution(institution_id: int, admin: str = Depends(require_admin)):
-    try:
-        result = delete_institution(institution_id)
-        _log_admin_action(
-            admin, "Deleted institution", result["institution_name"],
-            meta={"licenses_removed": result["licenses_removed"]},
-        )
-        return {"status": "success", "deleted": result}
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/locations")
-def get_locations(req: dict):
-    validation = validate_license(req.get("activation_code", ""))
-    if not validation.get("valid"):
-        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
-    conn = get_hospital_connection(validation.get("db_name"), validation.get("db_server"), validation.get("db_user"), validation.get("db_password"))
-    if not conn:
-        return {"locations": []}
-    try:
-        cursor = conn.cursor()
-        institution_type = validation.get("institution_type", "diagnostic")
-        if institution_type == "hospital":
-            cursor.execute("SELECT LocName FROM tblHOSPDTLS ORDER BY LocName")
-        else:
-            cursor.execute("SELECT LOCATIONNAME FROM mstlocation WHERE ACTIVE = 1 ORDER BY LOCATIONNAME")
-        names = [row[0] for row in cursor.fetchall()]
-        return {"locations": names}
-    finally:
-        conn.close()
-# ---------- Admin: licenses (auth required) ----------
-@app.patch("/admin/licenses/{code}")
-def update_license_endpoint(code: str, req: dict, admin=Depends(require_admin)):
-    try:
-        updated = update_license(code, **req)
-        return {"status": "success", "license": updated}
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/release-device")
-def release_device_lock(req: dict):
-    from auth.device_lock import release_device
-    code = req.get("activation_code", "")
-    if code:
-        release_device(code.upper())
-    return {"status": "success"}
-
-@app.get("/admin/licenses")
-def api_list_licenses(admin: str = Depends(require_admin)):
-    return {"status": "success", "licenses": list_licenses()}
-
-
-@app.post("/admin/licenses/generate")
-def api_generate_license(req: GenerateLicenseRequest, admin: str = Depends(require_admin)):
-    try:
-        valid_days = req.valid_days
-        if valid_days is None:
-            valid_days = get_settings()["license_validity_days"]
-
-        data = create_license(
-            institution_id=req.institution_id,
-            role=req.role,
-            phone=req.phone,
-            dob_year=req.dob_year,
-            plan=req.plan,
-            valid_days=valid_days,
-            created_by=admin,  # real admin username, not the old hardcoded "admin" literal
-        )
-        _log_admin_action(admin, "Generated license", data.get("code", ""))
-        return {"status": "success", "license": data}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-@app.post("/admin/licenses/status")
-def api_set_license_status(req: LicenseStatusRequest, admin: str = Depends(require_admin)):
-    ok = set_license_status(req.code, req.status)
-    if not ok:
-        return {"status": "error", "message": "License not found"}
-    _log_admin_action(admin, f"Set license status to {req.status}", req.code)
-    return {"status": "success", "message": f"License marked {req.status}"}
-
-
-@app.post("/admin/licenses/revoke")
-def api_revoke_license(req: RevokeLicenseRequest, admin: str = Depends(require_admin)):
-    ok = revoke_license(req.code)
-    if not ok:
-        return {"status": "error", "message": "Code not found"}
-    _log_admin_action(admin, "Revoked license", req.code)
-    return {"status": "success", "message": "License revoked"}
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-
-
-
-
-class ExcelExportRequest(BaseModel):
-    period: str = "today"
-    report_type: str = "collection"
-    activation_code: str = ""
-    location: str = ""
-
-@app.delete("/admin/licenses/{code}")
-def api_delete_license(code: str, admin: str = Depends(require_admin)):
-    ok = delete_license(code)
-    if not ok:
-        return {"status": "error", "message": "Code not found"}
-    _log_admin_action(admin, "Deleted license", code)
-    return {"status": "success", "message": "License deleted"}
-# */
-
-# ---------- Admin: roles (auth required) ----------
-
-@app.get("/admin/roles")
-def api_get_roles(admin: str = Depends(require_admin)):
-    return {"status": "success", "roles": get_role_permissions()}
-
-
-@app.put("/admin/roles")
-def api_update_role(req: RolePermissionUpdate, admin: str = Depends(require_admin)):
-    update_role_permissions(req.role, req.tables)
-    _log_admin_action(admin, "Updated role permissions", req.role, meta={"tables": req.tables})
-    return {"status": "success"}
-
-
-# ---------- Admin: settings (auth required) ----------
-
-@app.get("/admin/settings")
-def api_get_settings(admin: str = Depends(require_admin)):
-    # get_settings() itself returns the real decrypted smtp_password —
-    # notifications/email.py needs that to actually send mail. But the
-    # API response to the browser should never include it, same reasoning
-    # as institution db_password: a has_smtp_password flag is enough for
-    # the UI to show "(saved)" without ever putting the real value where
-    # a network tab or a compromised browser extension could read it.
-    settings_data = get_settings()
-    has_smtp_password = bool(settings_data.get("smtp_password"))
-    settings_data["smtp_password"] = ""
-    settings_data["has_smtp_password"] = has_smtp_password
-    return {"status": "success", "settings": settings_data}
-
-@app.post("/verify-otp")
-def verify_otp_endpoint(req: dict):
-    activation_code = req.get("activation_code", "")
-    otp = req.get("otp", "")
-
-    from auth.email_otp import verify_otp
-    result = verify_otp(activation_code, otp)
-    if not result["valid"]:
-        return {"status": "error", "answer": result["reason"]}
-
-    validation = validate_license(activation_code)
-    if not validation.get("valid"):
-        return {"status": "error", "answer": "Session expired. Please enter your activation code again."}
-
-    return {
-        "status": "success",
-        "mode": "premium",
-        "role": validation.get("role", "viewer"),
-        "hospital_name": validation.get("hospital_name"),
-        "institution_type": validation.get("institution_type", "diagnostic"),
-        "plan": validation.get("plan"),
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="Favicon.ico" type="image/x-icon" />
+<link rel="apple-touch-icon" href="Favicon.ico" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sahasra AI Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #ffffff;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  @keyframes bg-drift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .typing-dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin: 0 2px;
+  background: #999;
+  border-radius: 50%;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+  .container {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #f0f4ff 0%, #fdf2ff 50%, #f0fdfa 100%);
+    background-size: 200% 200%;
+    animation: bg-drift 18s ease-in-out infinite;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #8B008B, #4c1d95, #1e293b);
+    background-size: 200% 200%;
+    animation: header-shift 8s ease-in-out infinite;
+    color: white;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(139,0,139,0.25);
+    position: relative;
+    z-index: 2;
+  }
+  @keyframes header-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .logo {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .header-info { flex: 1; }
+  .header-info h1 { font-size: 15px; font-weight: 600; }
+  .header-info p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+
+  .badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    background: #22c55e;
+    color: white;
+  }
+  .badge.premium { background: #f59e0b; }
+
+  /* Chat area */
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-image: radial-gradient(circle, #e8ecf3 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-color: #fafbfd;
+  }
+
+  .message {
+    max-width: 85%;
+    padding: 11px 13px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .bot {
+    background: white;
+    border: 1px solid #e2e8f0;
+    align-self: flex-start;
+    border-radius: 18px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 8px rgba(30,41,59,0.06);
+  }
+
+  .user {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    align-self: flex-end;
+    border-radius: 18px;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.25);
+  }
+
+  .time {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 5px;
+    display: block;
+  }
+
+  /* Role chip */
+  .role-chip {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .msg-enter {
+  animation: msg-rise 0.45s cubic-bezier(0.34, 1.4, 0.4, 1) both;
+}
+@keyframes msg-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.9); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+  /* Suggestions */
+.suggestions {
+  padding: 0 14px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #e2e8f0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+
+.suggestions.open {
+  padding: 10px 14px;
+  max-height: 200px;
+  opacity: 1;
+}
+
+.suggestions button {
+  background: white;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 7px 13px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transform: scale(0.9);
+  opacity: 0;
+  animation: popIn 0.2s ease forwards;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.suggestions button:hover {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+@keyframes popIn {
+  to { transform: scale(1); opacity: 1; }
+}
+
+  /* Input */
+  .input-area {
+    padding: 12px 14px;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+  }
+
+  .input-area input {
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    outline: none;
+  }
+
+   .input-area input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .input-area button {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    border: none;
+    width: 46px;
+    border-radius: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.3);
+    transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease;
+  }
+  .input-area button:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(124,58,237,0.4); }
+  .input-area button:active { transform: scale(0.9); }
+  .search-card {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 8px 0;
+}
+.search-card-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.search-card-stat-pill {
+  background: #e0f2fe; color: #0369a1; font-size: 10.5px;
+  padding: 3px 8px; border-radius: 10px;
+}
+.search-card-header { font-weight: 700; font-size: 14px; color: #0c4a6e; }
+.search-card-subtitle { font-size: 11px; color: #0369a1; margin-top: 2px; margin-bottom: 10px; }
+.search-card-item {
+  display: flex; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid #e0f2fe; font-size: 12.5px;
+}
+.search-card-item:last-child { border-bottom: none; }
+.search-card-item span { color: #64748b; }
+.search-card-footer { margin-top: 10px; font-size: 10.5px; color: #64748b; font-style: italic; }
+
+  /* ===== Dashboard Card ===== */
+  .dash-card {
+    max-width: 92%;
+    align-self: flex-start;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .dash-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  .dash-card-icon { font-size: 16px; }
+  .dash-card-title { font-weight: 700; color: #0f766e; }
+  .dash-card-subtitle { color: #64748b; font-size: 13px; }
+
+  .dash-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .dash-stat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .dash-stat-box {
+    background: #eff6ff;
+    border-left: 3px solid #2563eb;
+    border-radius: 6px;
+    padding: 7px 12px;
+    min-width: 90px;
+    flex: 1 1 auto;
+  }
+  .dash-stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .dash-stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-top: 1px;
+  }
+
+  .dash-divider {
+    border: none;
+    border-top: 1px dotted #cbd5e1;
+    margin: 12px 0;
+  }
+
+  .dash-callout {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .dash-callout-label { font-weight: 700; color: #0f766e; }
+  .dash-delta-down { color: #dc2626; font-weight: 700; }
+  .dash-delta-up { color: #16a34a; font-weight: 700; }
+
+  .dash-bar-section-title {
+    font-weight: 700;
+    color: #0f766e;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
+  .dash-bar-section-title .dash-subtitle-italic {
+    font-weight: 400;
+    font-style: italic;
+    color: #64748b;
+  }
+
+  .dash-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .dash-bar-label {
+    width: 96px;
+    flex-shrink: 0;
+    color: #334155;
+    line-height: 1.25;
+  }
+  .dash-bar-track {
+    flex: 1;
+    height: 14px;
+    background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 3px, #e2e8f0 3px, #e2e8f0 6px);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .dash-bar-fill {
+    height: 100%;
+    background: #1e293b;
+    border-radius: 3px 0 0 3px;
+  }
+  .dash-bar-values {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    min-width: 70px;
+    justify-content: flex-end;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-footer {
+    margin-top: 10px;
+    font-weight: 700;
+    color: #0f766e;
+    font-size: 13px;
+  }
+
+  .dash-card-time {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 8px;
+    display: block;
+    text-align: right;
+  }
+
+  /* ===== List Card (record lists: recent patients, top doctors, etc.) ===== */
+  .dash-list-intro {
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .dash-list-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .dash-list-item:last-of-type { border-bottom: none; }
+
+  .dash-list-badge {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
+  .dash-list-body { flex: 1; min-width: 0; }
+  .dash-list-primary {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 13px;
+  }
+  .dash-list-fields {
+    color: #64748b;
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  .dash-list-fields span:not(:last-child)::after {
+    content: " · ";
+    color: #cbd5e1;
+  }
+
+  .dash-list-footer {
+    margin-top: 10px;
+    font-size: 12px;
+    font-style: italic;
+    color: #64748b;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo"><img src="Favicon.ico" alt="AthenTech" style="width: 24px; height: 24px; border-radius: 4px;" /></div>
+      <div class="header-info">
+        <h1>Sahasra AI Assistant</h1>
+        <p id="status"><span class="status-dot"></span>General Mode</p>
+      </div>
+      <div class="badge" id="modeBadge">Normal</div>
+    </div>
+<div id="usageBanner" style="display:none; background:#fef3c7; color:#92400e; padding:8px 14px; font-size:12px; justify-content:space-between; align-items:center;">
+  <span id="usageBannerText"></span>
+  <button onclick="document.getElementById('usageBanner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:14px;">×</button>
+</div>
+    <div class="chat" id="chat"></div>
+    <div class="suggestions" id="suggestions"></div>
+
+    <div class="input-area">
+      <input id="msg" type="text" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')handleSend()" />
+      <button onclick="handleSend()">→</button>
+        <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none;">Excel ▾</button>
+    </div>
+
+
+  
+
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; padding:6px; font-size:10px; color:#94a3b8; background:white;">
+      <span onclick="document.getElementById('disclaimerModal').style.display='flex'" style="position:absolute; left:10px; cursor:pointer; font-size:13px;" title="Disclaimer">⚠️</span>
+      <span>Powered by AthenTech</span>
+    </div>
+  </div>
+
+  <div id="disclaimerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; width:300px; max-width:85%; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.3); overflow:hidden;">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#e2e8f0; padding:8px 12px; border-bottom:1px solid #cbd5e1;">
+        <span style="font-size:12px; font-weight:700; color:#1e293b;">Disclaimer</span>
+        <span onclick="document.getElementById('disclaimerModal').style.display='none'" style="cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; background:#dc2626; color:white; font-size:12px; font-weight:700; border-radius:2px;">✕</span>
+      </div>
+      <div style="padding:16px; font-size:13px; line-height:1.5; color:#334155;">
+        ⚠️ This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.
+      </div>
+    </div>
+  </div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const suggestionsEl = document.getElementById('suggestions');
+const statusEl = document.getElementById('status');
+const modeBadge = document.getElementById('modeBadge');
+const input = document.getElementById('msg');
+
+const API_URL = "http://192.168.0.163:8000/ask";
+function getDeviceFingerprint() {
+  const raw = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ].join('|');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return 'fp_' + Math.abs(hash).toString(36);
+}
+const DEVICE_FINGERPRINT = getDeviceFingerprint();
+let state = {
+  mode: 'normal',
+  activationCode: null,
+  role: null,
+  waitingForCode: false,
+  history: []
+};
+
+function now() {
+  const d = new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function addMessage(text, type) {
+  if (type === 'bot' && window.parent !== window) {
+    const preview = (text || '').replace(/```[\s\S]*?```/g, '').replace(/[*_#]/g, '').trim().slice(0, 80);
+    window.parent.postMessage({ type: 'sahasra-new-message', preview: preview || 'New message' }, '*');
+  }
+
+  const card = type === 'bot' ? extractDashboardCard(text) : null;
+  if (card) {
+    renderDashboardCard(card);
+    return;
+  }
+
+  const listCard = type === 'bot' ? extractListCard(text) : null;
+  if (listCard) {
+    renderListCard(listCard);
+    return;
+  }
+
+  const searchCard = type === 'bot' ? extractSearchCard(text) : null;
+  if (searchCard) {
+    renderSearchCard(searchCard);
+    return;
+  }
+
+  const div = document.createElement('div');
+  div.className = `message ${type}`;
+
+  // Escape raw text FIRST — text can contain real data pulled from the
+  // hospital DB (patient names, etc). Without escaping first, any HTML
+  // characters in that data would render as live markup instead of
+  // plain text — a real injection risk, not just a formatting bug.
+  let formatted = escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.*?)\*/g, '<i>$1</i>')
+    .replace(/\n/g, '<br>');
+
+  div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
+  div.classList.add('msg-enter');
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+function extractDashboardCard(text) {
+  // The LLM emits a ```dashboard-card fenced JSON block when a question
+  // calls for a stat/breakdown summary. Anything else (a plain answer,
+  // an explanation, a refusal) just falls through to normal text
+  // rendering — this only activates for genuinely structured answers.
+  const match = text.match(/```dashboard-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.stats)) return null;
+    return data;
+  } catch (e) {
+    return null; // malformed JSON — fall back to plain text rather than crash
+  }
+}
+
+function renderDashboardCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  if (data.subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'dash-card-subtitle';
+    sub.textContent = ' · ' + data.subtitle;
+    header.appendChild(sub);
+  }
+  card.appendChild(header);
+
+  if (Array.isArray(data.meta)) {
+    for (const m of data.meta) {
+      const line = document.createElement('div');
+      line.className = 'dash-meta-line';
+      if (m.icon) {
+        const icon = document.createElement('span');
+        icon.textContent = m.icon;
+        line.appendChild(icon);
+      }
+      line.appendChild(document.createTextNode(m.text || ''));
+      card.appendChild(line);
     }
-@app.put("/admin/settings")
-def api_update_settings(req: SettingsUpdateRequest, admin: str = Depends(require_admin)):
-    changed_fields = req.model_dump(exclude_unset=True)
-    updated = update_settings(**changed_fields)
-    # Don't log secret values (smtp_password) into the audit trail.
-    safe_changes = {k: v for k, v in changed_fields.items() if k != "smtp_password"}
-    _log_admin_action(admin, "Updated settings", "", meta={"changes": safe_changes})
-    return {"status": "success", "settings": updated}
+  }
 
+  if (data.stats && data.stats.length) {
+    const grid = document.createElement('div');
+    grid.className = 'dash-stat-grid';
+    for (const stat of data.stats) {
+      const box = document.createElement('div');
+      box.className = 'dash-stat-box';
+      const label = document.createElement('div');
+      label.className = 'dash-stat-label';
+      label.textContent = stat.label || '';
+      const value = document.createElement('div');
+      value.className = 'dash-stat-value';
+      value.textContent = stat.value != null ? stat.value : '-no_data';
+      box.appendChild(label);
+      box.appendChild(value);
+      grid.appendChild(box);
+    }
+    card.appendChild(grid);
+  }
 
-# ---------- Admin: notifications (auth required) ----------
-# Makes the email/webhook settings actually do something you can verify
-# right now, instead of wondering whether they're wired up at all.
-from fastapi.responses import FileResponse
+  if (data.callout) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
+    const callout = document.createElement('div');
+    callout.className = 'dash-callout';
+    if (data.callout.label) {
+      const lbl = document.createElement('span');
+      lbl.className = 'dash-callout-label';
+      lbl.textContent = data.callout.label + ': ';
+      callout.appendChild(lbl);
+    }
+    callout.appendChild(document.createTextNode(data.callout.text || ''));
+    if (data.callout.delta) {
+      const isDown = String(data.callout.delta).trim().startsWith('-');
+      const delta = document.createElement('span');
+      delta.className = isDown ? 'dash-delta-down' : 'dash-delta-up';
+      delta.textContent = ' ' + (isDown ? '▼' : '▲') + String(data.callout.delta).replace('-', '') + (data.callout.delta_label || '');
+      callout.appendChild(delta);
+    }
+    card.appendChild(callout);
+  }
 
-#@app.get("/download/{filename}")
+  if (data.bar_section && Array.isArray(data.bar_section.rows) && data.bar_section.rows.length) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
 
-#def download_file(filename: str):
- #   return FileResponse(f"exports/{filename}", filename=filename)
+    const secTitle = document.createElement('div');
+    secTitle.className = 'dash-bar-section-title';
+    secTitle.textContent = data.bar_section.title || '';
+    if (data.bar_section.subtitle) {
+      const subEl = document.createElement('span');
+      subEl.className = 'dash-subtitle-italic';
+      subEl.textContent = ' ' + data.bar_section.subtitle;
+      secTitle.appendChild(subEl);
+    }
+    card.appendChild(secTitle);
 
+    const maxVal = Math.max(...data.bar_section.rows.map(r => Number(r.value) || 0), 1);
 
-@app.post("/admin/notifications/test")
-def api_test_notifications(admin: str = Depends(require_admin)):
-    email_ok, email_msg = send_alert_email(
-        "Sahasra AI Agent — Notification Test",
-        f"This confirms your email notification setup is working correctly.\n\n"
-        f"Triggered by: {admin}\n"
-        f"From: Sahasra AI Agent Admin Panel"
-    )
-    webhook_ok, webhook_msg = send_webhook_alert("test_alert", {"triggered_by": admin})
+    for (const row of data.bar_section.rows) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'dash-bar-row';
 
-    _log_admin_action(admin, "Sent test notification", "",
-                       meta={"email_ok": email_ok, "webhook_ok": webhook_ok})
+      const labelEl = document.createElement('div');
+      labelEl.className = 'dash-bar-label';
+      labelEl.textContent = row.label || '';
+      rowEl.appendChild(labelEl);
 
-    return {
-        "status": "success",
-        "email": {"success": email_ok, "message": email_msg},
-        "webhook": {"success": webhook_ok, "message": webhook_msg},
+      const track = document.createElement('div');
+      track.className = 'dash-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'dash-bar-fill';
+      const pct = Math.max(4, Math.round(((Number(row.value) || 0) / maxVal) * 100));
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      rowEl.appendChild(track);
+
+      const valuesEl = document.createElement('div');
+      valuesEl.className = 'dash-bar-values';
+      const valSpan = document.createElement('span');
+      valSpan.textContent = row.value != null ? String(row.value) : '';
+      valuesEl.appendChild(valSpan);
+      if (row.extra) {
+        const extraSpan = document.createElement('span');
+        extraSpan.textContent = row.extra;
+        valuesEl.appendChild(extraSpan);
+      }
+      rowEl.appendChild(valuesEl);
+
+      card.appendChild(rowEl);
+    }
+  }
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-footer';
+    footer.textContent = (data.footer.label ? data.footer.label + ': ' : '') + (data.footer.value || '');
+    card.appendChild(footer);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function extractListCard(text) {
+  const match = text.match(/```list-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderListCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  card.appendChild(header);
+
+  if (data.intro) {
+    const intro = document.createElement('div');
+    intro.className = 'dash-list-intro';
+    intro.textContent = data.intro;
+    card.appendChild(intro);
+  }
+
+  data.items.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'dash-list-item';
+
+    const badge = document.createElement('div');
+    badge.className = 'dash-list-badge';
+    badge.textContent = String(i + 1);
+    row.appendChild(badge);
+
+    const body = document.createElement('div');
+    body.className = 'dash-list-body';
+
+    const primary = document.createElement('div');
+    primary.className = 'dash-list-primary';
+    primary.textContent = item.primary || '';
+    body.appendChild(primary);
+
+    if (Array.isArray(item.fields) && item.fields.length) {
+      const fields = document.createElement('div');
+      fields.className = 'dash-list-fields';
+      for (const f of item.fields) {
+        const span = document.createElement('span');
+        span.textContent = f;
+        fields.appendChild(span);
+      }
+      body.appendChild(fields);
     }
 
+    row.appendChild(body);
+    card.appendChild(row);
+  });
 
-@app.post("/admin/notifications/check-expiring")
-def api_check_expiring_licenses(admin: str = Depends(require_admin)):
-    """Manually trigger the same expiry check the background job runs daily — useful to verify it actually works without waiting a day."""
-    result = check_and_alert()
-    return {"status": "success", "result": result}
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-list-footer';
+    footer.textContent = data.footer;
+    card.appendChild(footer);
+  }
 
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
 
-# ---------- Admin: audit log (auth required) ----------
-# Real compliance data — every premium query, invalid activation attempt,
-# and now every admin action (who created/edited/revoked what), read
-# straight from audit/audit.log.
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function extractSearchCard(text) {
+  const match = text.match(/```search-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
 
-@app.get("/admin/audit")
-def api_get_audit(limit: int = 500, admin: str = Depends(require_admin)):
-    return {"status": "success", "events": read_audit_log(limit=limit)}
+function renderSearchCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot search-card';
 
+  const header = document.createElement('div');
+  header.className = 'search-card-header';
+  header.textContent = (data.icon || '🌐') + ' ' + data.title;
+  card.appendChild(header);
 
-# ---------- Admin utility: raw code validation (auth required) ----------
-# Not used by the public chat widget (which validates via /ask with
-# question="validate"). Gated because an unauthenticated version of this
-# is a ready-made oracle for brute-forcing activation codes.
+  if (data.subtitle) {
+    const sub = document.createElement('div');
+    sub.className = 'search-card-subtitle';
+    sub.textContent = data.subtitle;
+    card.appendChild(sub);
+  }
 
-@app.post("/licenses/validate")
-def api_validate_license(req: ValidateLicenseRequest, admin: str = Depends(require_admin)):
-    result = validate_license(req.code)
-    if not result.get("valid"):
-        return {"status": "error", "message": result.get("reason", "invalid")}
-    return {"status": "success", "license": result}
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'search-card-items';
+  data.items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'search-card-item';
+    const name = document.createElement('strong');
+    name.textContent = item.name || '';
+    row.appendChild(name);
 
+    if (item.detail) {
+      const detail = document.createElement('span');
+      detail.textContent = item.detail;
+      row.appendChild(detail);
+    } else if (Array.isArray(item.stats)) {
+      const statsWrap = document.createElement('div');
+      statsWrap.className = 'search-card-stats';
+      item.stats.forEach(s => {
+        const pill = document.createElement('span');
+        pill.className = 'search-card-stat-pill';
+        pill.textContent = `${s.label}: ${s.value}`;
+        statsWrap.appendChild(pill);
+      });
+      row.appendChild(statsWrap);
+    }
+    itemsWrap.appendChild(row);
+  });
+  card.appendChild(itemsWrap);
 
-# ---------- Reports ----------
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'search-card-footer';
+    footer.textContent = data.footer;
+    card.appendChild(footer);
+  }
 
-from auth.usage_limiter import get_token_plan, set_token_plan, get_usage_today
-class LimitRequest(BaseModel):
-    period_type: str
-    token_limit: int
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
 
-@app.get("/admin/institutions/{hospital_id}/limit")
-def get_institution_limit(hospital_id: str):
-    return get_token_plan(hospital_id)
-@app.post("/admin/institutions/{hospital_id}/limit")
-def set_institution_limit(hospital_id: str, req: LimitRequest):
-    return set_token_plan(hospital_id, req.period_type, req.token_limit)
+function showSuggestions(list) {
+  suggestionsEl.innerHTML = '';
+  list.forEach((item, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = item.label;
+    btn.style.animationDelay = (i * 0.04) + 's';
+    btn.onclick = () => {
 
-@app.get("/admin/institutions/{hospital_id}/usage")
-def get_institution_usage(hospital_id: str):
-    return get_usage_today(hospital_id)
+      suggestionsEl.classList.remove('open');
+      suggestionsEl.innerHTML = '';
+      if (item.action) {
+        item.action();
+      } else {
+        input.value = item.send;
+        handleSend();
+      }
+    };
+    suggestionsEl.appendChild(btn);
+  });
+  suggestionsEl.classList.add('open');
+}
 
-@app.post("/usage-status")
-def usage_status(req: dict):
-    validation = validate_license(req.get("activation_code", ""))
-    if not validation.get("valid"):
-        return {"error": "Invalid or expired activation code."}
-    institution_code = validation.get("institution_code") or validation.get("db_name")
-    from auth.usage_limiter import get_usage_today
-    usage = get_usage_today(institution_code)
-    pct = round((usage["used"] / usage["limit"]) * 100) if usage["limit"] else 0
-    return {**usage, "pct": pct, "institution_code": institution_code}
+function start() {
+  chatEl.innerHTML = '';
+  state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
+  statusEl.textContent = 'General Mode';
+  modeBadge.textContent = 'Normal';
+  modeBadge.classList.remove('premium');
 
-@app.patch("/admin/licenses/{code}")
-def update_license_endpoint(code: str, req: dict, admin=Depends(require_admin)):
-    try:
-        updated = update_license(code, **req)
-        return {"status": "success", "license": updated}
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-@app.post("/generate-excel")
-async def generate_excel(req: ExcelExportRequest):
-    validation = validate_license(req.activation_code)
-    if not validation.get("valid"):
-        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+  // ===== DISCLAIMER (put it here) =====
 
-    import asyncio
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: run_excel_export(
-            report_type=getattr(req, "report_type", None) or "collection",
-            period=req.period or "today",
-            db_name=validation.get("db_name"),
-            db_server=validation.get("db_server"),
-            db_user=validation.get("db_user"),
-            db_password=validation.get("db_password"),
-            hospital_name=validation.get("hospital_name") or "Hospital",
-            location_keyword=(getattr(req, "location", None) or "").strip() or None,
-        ),
-    )
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
+  addMessage(
+    `Hello! 👋\n\nI'm **Sahasra AI Assistant**.\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
+    'bot'
+  );
 
-    return StreamingResponse(
-        result["file"],
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
-    )
-@app.post("/generate-pdf")
-async def generate_pdf(req: PDFRequest):
-    data = {
-        "report_title": req.title,
-        "hospital_name": req.hospital_name,
-        "user_role": req.role,
-        "activation_code": req.activation_code,
-        "content_lines": req.content_lines,
+  showSuggestions([
+    { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+    { label: 'Enter Activation Code', send: 'Enter activation code' }
+  ]);
+}
+
+function handleSend() {
+  const text = input.value.trim();
+  if (!text) return;
+  addMessage(text, 'user');
+  input.value = '';
+  processMessage(text);
+}
+
+async function downloadCollectionExcel(period, reportType, location) {
+  addMessage('Generating Excel export...', 'bot');
+
+  const payload = {
+    period: period || "today",
+    report_type: reportType || "collection",
+    activation_code: state.activationCode ? String(state.activationCode) : "",
+    location: location ? String(location) : ""
+  };
+  console.log("EXCEL PAYLOAD", payload);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/generate-excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.log("EXCEL ERROR", response.status, errText);
+      addMessage("Excel failed (" + response.status + "): " + errText, "bot");
+      return;
     }
 
-    # generate_smart_report uses Playwright's sync API (launches a real
-    # browser to render) — that's a ~0.7s blocking call. Running it
-    # directly here would freeze the whole async event loop for that
-    # long on every PDF request, stalling any other concurrent request
-    # (chat, admin panel, everything) for the duration. run_in_executor
-    # runs it in a background thread instead, so only this one request
-    # waits on it.
-    import asyncio
-    loop = asyncio.get_event_loop()
-    pdf_file = await loop.run_in_executor(None, generate_smart_report, data)
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "collection_" + (period || "today") + ".xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
 
-    return StreamingResponse(
-        pdf_file,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=sahasra_report.pdf"},
-    )
+    addMessage("✅ Excel downloaded.", "bot");
+  } catch (err) {
+    console.error(err);
+    addMessage("Could not download Excel. Try again.", "bot");
+  }
+}
 
-from fastapi.responses import StreamingResponse
+function showExcelMenu() {
+  if (state.mode  === 'premium'){
+  if (suggestionsEl.classList.contains('open') && suggestionsEl.dataset.menu === 'excel') {
+    suggestionsEl.classList.remove('open');
+    suggestionsEl.innerHTML = '';
+    return;
+  }
+  showSuggestions([
+    { label: 'Collection · Today', action: () => downloadCollectionExcel('today', 'collection') },
+    { label: 'Collection · Yesterday', action: () => downloadCollectionExcel('yesterday', 'collection') },
+    { label: 'Collection · This month', action: () => promptForLocationThenDownload('this_month', 'collection') },
+    { label: 'Top tests · Today', action: () => downloadCollectionExcel('today', 'top_tests') },
+    { label: 'Refunds · Today', action: () => downloadCollectionExcel('today', 'refunds') },
+    { label: 'Registrations · Today', action: () => downloadCollectionExcel('today', 'registrations') },
+  ]);
+  suggestionsEl.dataset.menu = 'excel';
+}}
+async function promptForLocationThenDownload(period, reportType) {
+  addMessage('Loading branches...', 'bot');
+  try {
+    const response = await fetch("http://127.0.0.1:8000/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activation_code: state.activationCode ? String(state.activationCode) : "" })
+    });
+    const data = await response.json();
+    const locations = data.locations || [];
 
-# @app.post("/generate-excel")
-# def generate_excel(period: str = "today", db_name: str = None, db_server: str = None, db_user: str = None, db_password: str = None):
-#     result = export_all_branches_collection(period, db_name, db_server, db_user, db_password)
-#     if "error" in result:
-#         return {"error": result["error"]}
-#     return StreamingResponse(
-#         result["file"],
-#         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#         headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
-#     )
-
-
-@app.post("/generate-patient-report")
-async def generate_patient_report(req: PatientReportRequest):
-    """
-    The REAL Smart Report — looks up one specific real patient and
-    builds their report from freshly-queried real data, instead of
-    just re-wrapping whatever the last chat answer happened to say.
-    """
-    validation = validate_license(req.activation_code)
-    if not validation.get("valid"):
-        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
-
-    role = validation.get("role", "viewer")
-    db_name = validation.get("db_name")
-    hospital_name = validation.get("hospital_name", "Hospital")
-    db_server = validation.get("db_server")
-    db_user = validation.get("db_user")
-    db_password = validation.get("db_password")
-
-    from agent.agent import llm as agent_llm
-
-    import asyncio
-    loop = asyncio.get_event_loop()
-
-    try:
-        report_data = await loop.run_in_executor(
-            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
-            db_server, db_user, db_password,
-        )
-    except PatientNotFound:
-        raise HTTPException(status_code=404, detail=f"No patient found matching '{req.patient_identifier}'.")
-    except PatientAmbiguous as e:
-        names = ", ".join(f"{c['name']} (UHID: {c['uhid']})" for c in e.candidates[:5])
-        raise HTTPException(
-            status_code=409,
-            detail=f"Multiple matching patients found: {names}. Please specify the UHID instead."
-        )
-    except ConnectionError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-    pdf_file = await loop.run_in_executor(None, generate_smart_report, report_data)
-
-    return StreamingResponse(
-        pdf_file,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=patient_report.pdf"},
-    )
-
-@app.get("/health")
-def health():
-    """
-    Lightweight readiness check for IIS / monitoring.
-    Does not require auth. Does not open hospital DBs by default
-    (that would make health flaky if one hospital server is down).
-    """
-    status = {
-        "status": "ok",
-        "service": "sahasra-ai-agent",
-        "checks": {},
+    if (!locations.length) {
+      addMessage('Could not load branch list.', 'bot');
+      return;
     }
-    overall = "ok"
 
-    # licenses.db readable
-    try:
-        from database.license_db import get_conn
-        conn = get_conn()
-        conn.execute("SELECT 1").fetchone()
-        conn.close()
-        status["checks"]["licenses_db"] = "ok"
-    except Exception as e:
-        status["checks"]["licenses_db"] = f"error: {e}"
-        overall = "degraded"
+    showSuggestions(
+      locations.map(loc => ({
+        label: loc,
+        action: () => downloadCollectionExcel(period, reportType, loc)
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    addMessage('Could not load branch list.', 'bot');
+  }
+}
+async function processMessage(text) {
+  // alert('processMessage called with: ' + text);
+  const q = text.toLowerCase();
+  // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
+  // missed anything phrased naturally, like "download a report pdf about
+  // X" — "download" and "pdf" are both there, just not adjacent, so it
+  // fell through to the LLM instead of triggering the PDF export. Now
+  // matches "pdf" plus any reasonable action word, in any order/spacing.
+  const mentionsPdf = q.includes('pdf');
+  const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
 
-    # encryption key configured (needed for institution passwords)
-    try:
-        if settings.encryption_key:
-            status["checks"]["encryption_key"] = "ok"
-        else:
-            status["checks"]["encryption_key"] = "missing"
-            overall = "degraded"
-    except Exception as e:
-        status["checks"]["encryption_key"] = f"error: {e}"
-        overall = "degraded"
-
-    # settings readable
-    try:
-        get_settings()
-        status["checks"]["settings"] = "ok"
-    except Exception as e:
-        status["checks"]["settings"] = f"error: {e}"
-        overall = "degraded"
-
-    status["status"] = overall
-    code = 200 if overall == "ok" else 503
-    return JSONResponse(content=status, status_code=code)
-# ---------- Public: ask ----------
-
-@app.post("/ask")
-async def ask_question(req: QueryRequest, request: Request):
-    try:
-        history = []
-        for msg in req.chat_history or []:
-            if msg.role == "user":
-                history.append(HumanMessage(content=msg.content))
-            else:
-                history.append(AIMessage(content=msg.content))
-
-        is_premium = False
-        role = "viewer"
-        db_name = "hospital_demo"
-        hospital_name = "Demo Hospital"
-        db_server = None
-        db_user = None
-        db_password = None
-        institution_code = None
-        institution_type = "diagnostic"
-
-        if req.activation_code:
-            client_ip = request.client.host if request.client else "unknown"
-            from auth.activation_lockout import is_locked_out, record_failed_attempt, clear_failed_attempts
-
-            lockout = is_locked_out(client_ip)
-            if lockout["locked_out"]:
-                return {
-                    "status": "error",
-                    "answer": "Too many invalid activation code attempts. Please wait 15 minutes and try again.",
-                }
-
-            validation = validate_license(req.activation_code)
-            if validation.get("valid"):
-                clear_failed_attempts(client_ip)
-
-                from auth.device_lock import check_and_bind_device, release_device
-                fingerprint = req.device_fingerprint or "unknown"
-                device_check = check_and_bind_device(req.activation_code.upper(), fingerprint)
-                if not device_check["allowed"]:
-                    return {
-                        "status": "error",
-                        "answer": "This activation code is already logged in on another device. Please log out there first, or contact your admin.",
-                    }
-
-                is_validate_ping_early = req.question.strip().lower() == "validate"
-                if is_validate_ping_early:
-                    from auth.email_otp import generate_and_send_otp
-                    otp_result = generate_and_send_otp(
-                        req.activation_code, validation.get("email"), validation.get("hospital_name", "your hospital")
-                    )
-                    if not otp_result["sent"]:
-                        return {
-                            "status": "error",
-                            "answer": f"Could not send verification code: {otp_result['reason']}",
-                        }
-                    return {
-                        "status": "success",
-                        "mode": "otp_required",
-                        "answer": "A verification code was sent to the registered email. Enter it to continue.",
-                    }
-                # Per-code limit, separate from the per-IP one above —
-                # protects each hospital's fair share independently of
-                # how many other users happen to share their network/IP.
-                code_key = req.activation_code.upper()
-                now_ts = time.time()
-                code_hits = [t for t in CODE_RATE.get(code_key, []) if now_ts - t < WINDOW]
-                per_code_limit = get_settings()["rate_limit_per_minute"]
-                if len(code_hits) >= per_code_limit:
-                    return {
-                        "status": "error",
-                        "answer": "This activation code has made too many requests in the last minute. Please wait a moment and try again.",
-                    }
-                code_hits.append(now_ts)
-                CODE_RATE[code_key] = code_hits
-
-                is_premium = True
-                role = validation.get("role", "viewer")
-                db_name = validation.get("db_name", "hospital_demo")
-                hospital_name = validation.get("hospital_name", "Hospital")
-                db_server = validation.get("db_server")
-                db_user = validation.get("db_user")
-                db_password = validation.get("db_password")
-                institution_code = validation.get("institution_code") or db_name 
-                institution_type = validation.get("institution_type", "diagnostic") # fallback if inst lookup failed
-            else:
-                record_failed_attempt(client_ip)
-                audit(
-                    event="invalid_code_attempt",
-                    role=None,
-                    code=req.activation_code,
-                    question=None,
-                    meta={"reason": validation.get("reason", "invalid")},
-                )
-                return {
-                    "status": "error",
-                    "answer": "Invalid or expired activation code.",
-                }
-
-        if not is_premium and not get_settings()["normal_mode_enabled"]:
-            return {
-                "status": "error",
-                "answer": "General-knowledge mode is currently disabled. Please enter a hospital activation code to continue.",
-            }
-
-        is_validate_ping = req.question.strip().lower() == "validate"
-
-        if is_premium and not is_validate_ping:
-            audit(
-                event="premium_query",
-                role=role,
-                code=req.activation_code,
-                question=req.question,
-                meta={"db_name": db_name, "hospital": hospital_name},
-            )
-
-        # Fast-path: the widget sends question="validate" right after the
-        # user enters an activation code, just to confirm it worked and
-        # learn the role/hospital name. No need to invoke the LLM for that.
-        if is_validate_ping:
-            return {
-                "status": "success",
-                "answer": "Code validated" if is_premium else "Invalid or expired activation code.",
-                "mode": "premium" if is_premium else "normal",
-                "role": role if is_premium else None,
-                "hospital_name": hospital_name if is_premium else None,
-                "institution_type": institution_type if is_premium else None,
-                "plan": validation.get("plan") if is_premium else None,
-            }
+  if (q === '/limit') {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/usage-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode || '' }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addMessage(data.error, 'bot');
+      } else {
+        addMessage(
+          `⏱️ **Token Usage** (${data.institution_code})\n\n` +
+          `**${data.used.toLocaleString()}** / **${data.limit.toLocaleString()}** tokens used this ${data.period_type} (**${data.pct}%**)\n\n` +
+          `Remaining: **${data.remaining.toLocaleString()}**`,
+          'bot'
+        );
+      }
+    } catch (err) {
+      addMessage('Could not fetch usage status.', 'bot');
+    }
+    return;
+  }
 
 
+  if (mentionsPdf && hasActionWord) {
+    // If the request names a specific patient (UHID pattern, e.g.
+    // KDX26929648), fetch a REAL fresh report for that one patient
+    // instead of just re-wrapping whatever the last chat answer said.
+    // This is what makes it a "Smart Report" rather than a generic
+    // PDF-ification of old text — a targeted database lookup, not a
+    // re-hash of a previous unrelated answer (e.g. a 5-patient list).
+    const uhidMatch = text.match(/\b([A-Z]{1,6}\d{3,})\b/i);
+    if (uhidMatch) {
+      await downloadPatientReport(uhidMatch[1]);
+      return;
+    }
 
-        answer, tokens_used = ask_agent(
-            question=req.question,
-            db_name=db_name,
-            chat_history=history,
-            is_premium=is_premium,
-            role=role,
-            hospital_name=hospital_name,
-            db_server=db_server,
-            db_user=db_user,
-            db_password=db_password,
-            institution_code=institution_code,
-            institution_type=institution_type,
-        )
+    if (!state.lastAnswer) {
+      addMessage('Please ask a data question first, then request the PDF.', 'bot');
+      return;
+    }
+    await downloadPdf(state.lastAnswer);
+    return;
+}
+  // ===== EXCEL =====
+  if (
+    (q.includes('excel') || q.includes('xlsx')) &&
+    (q.includes('export') || q.includes('download') || q.includes('generate') || q.includes('excel'))
+  ) {
+    let period = 'today';
+    if (q.includes('yesterday')) period = 'yesterday';
+    else if (q.includes('last month')) period = 'last_month';
+    else if (q.includes('this month')) period = 'this_month';
+    else if (q.includes('this week')) period = 'this_week';
 
-        usage_warning = None
-        if is_premium:
-            budget_after = record_usage(institution_code, tokens_used)
-            pct = round((budget_after["used"] / budget_after["limit"]) * 100) if budget_after["limit"] else 0
-            if pct >= 50:
-                usage_warning = f"You've used {pct}% of your token allowance this {budget_after['period_type']}."
+    let reportType = 'collection';
+    if (q.includes('top test')) reportType = 'top_tests';
+    else if (q.includes('refund')) reportType = 'refunds';
+    else if (q.includes('registration') || q.includes('register')) reportType = 'registrations';
 
-        return {
-            "status": "success",
-            "answer": answer,
-            "mode": "premium" if is_premium else "normal",
-            "role": role if is_premium else None,
-            "hospital_name": hospital_name if is_premium else None,
-            "usage_warning": usage_warning,
+    await downloadExcel(period, reportType);
+    return;
+  }
+
+
+  // ===== EXIT PREMIUM =====
+  if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
+    if (state.activationCode) {
+      fetch('http://192.168.0.163:8000/release-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode })
+      }).catch(() => {});
+    }
+    state.mode = 'normal';
+    document.getElementById('excelBtn').style.display = 'none';
+    state.activationCode = null;
+    state.role = null;
+    state.hospitalName = null;
+    state.history = [];
+
+    statusEl.textContent = 'General Mode';
+    modeBadge.textContent = 'Normal';
+    modeBadge.classList.remove('premium');
+
+    addMessage(`You have exited Premium mode.\nNow in **Normal Mode**.`, 'bot');
+
+    showSuggestions([
+      { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+      { label: 'Enter Activation Code', send: 'Enter activation code' }
+    ]);
+    return;
+  }
+
+
+  // User wants to enter code
+  if (q.includes('enter activation code') || q.includes('activation code')) {
+    state.waitingForCode = true;
+    addMessage(`Please type your activation code.`, 'bot');
+    showSuggestions([]);
+    return;
+  }
+
+  // Waiting for code
+  if (state.waitingForCode) {
+        if (q === 'cancel') {
+      state.waitingForCode = false;
+      addMessage('Cancelled.', 'bot');
+      showSuggestions([
+        { label: 'Enter Activation Code', send: 'Enter activation code' },
+        { label: 'Continue in Normal Mode', send: 'hi' }
+      ]);
+      return;
+    }
+    statusEl.textContent = 'Validating code...';
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: "validate",
+          activation_code: text,
+          chat_history: [],
+          device_fingerprint: DEVICE_FINGERPRINT
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success' && data.mode === 'otp_required') {
+        state.pendingActivationCode = text.toUpperCase();
+        state.waitingForCode = false;
+        state.waitingForOtp = true;
+        addMessage(data.answer, 'bot');
+        showSuggestions([]);
+        return;
+      }
+
+      if (data.status === 'success' && data.mode === 'premium') {
+        state.mode = 'premium';
+        document.getElementById('excelBtn').style.display = 'inline-block';
+        state.activationCode = text.toUpperCase();   // ← MUST save the code
+        state.role = data.role;
+        state.institutionType = data.institution_type || 'diagnostic';
+        // alert('institutionType: ' + state.institutionType);
+        state.hospitalName = data.hospital_name || data.hospitalName || null;
+        state.waitingForCode = false;        
+        statusEl.textContent = `Premium • ${data.role}`;
+        modeBadge.textContent = 'Premium';
+        modeBadge.classList.add('premium');
+
+        addMessage(
+          `✅ **Premium activated**\n\nHospital: **${data.hospital_name || 'Unknown'}**\nRole: **${data.role.toUpperCase()}**\nPlan: **${data.plan || 'Standard'}**\nYou now have access to hospital live data.`,
+          'bot'
+        );
+
+        if (state.institutionType === 'hospital') {
+          const rolesButtons = {
+            doctor: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+            reception: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+            admin: [
+              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+              { label: 'Currently admitted', send: 'who is admitted currently' },
+            ],
+          };
+          const buttons = rolesButtons[state.role] || rolesButtons.admin;
+          showSuggestions(buttons);
+        } else {
+          showSuggestions([
+            { label: 'Show all patients', send: 'Show me all patients' },
+            { label: "Today's collection", send: "Today's collection data" }
+          ]);
         }
-    #
+      }else {
+       // state.waitingForCode = false;
+        addMessage(data.answer || `❌ Invalid or expired activation code. Try again, or type "cancel" to stop.`, 'bot');
+        showSuggestions([
+          { label: 'Enter Activation Code', send: 'Enter activation code' },
+          { label: 'Continue in Normal Mode', send: 'hi' }
+        ]);
+      }
+    } catch (err) {
+      addMessage('Could not validate the code. Please try again.', 'bot');
+    }
+    return;
+  }
 
-    except Exception as e:
-        import traceback
-        error_text = traceback.format_exc()
-        print(error_text)
-        with open("crash_log.txt", "a", encoding="utf-8") as f:
-            from datetime import datetime
-            f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
-        raise
+  if (state.waitingForOtp) {
+    statusEl.textContent = 'Verifying code...';
+    try {
+      const response = await fetch('http://192.168.0.163:8000/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activation_code: state.pendingActivationCode,
+          otp: text
+        })
+      });
+      const data = await response.json();
+
+      if (data.status === 'success' && data.mode === 'premium') {
+        state.mode = 'premium';
+        document.getElementById('excelBtn').style.display = 'inline-block';
+        state.activationCode = state.pendingActivationCode;
+        state.role = data.role;
+        state.institutionType = data.institution_type || 'diagnostic';
+        state.hospitalName = data.hospital_name || null;
+        state.waitingForOtp = false;
+        statusEl.textContent = `Premium • ${data.role}`;
+        modeBadge.textContent = 'Premium';
+        modeBadge.classList.add('premium');
+
+        addMessage(
+          `✅ **Premium activated**\n\nHospital: **${data.hospital_name || 'Unknown'}**\nRole: **${data.role.toUpperCase()}**\nPlan: **${data.plan || 'Standard'}**\nYou now have access to hospital live data.`,
+          'bot'
+        );
+
+        if (state.institutionType === 'hospital') {
+          showSuggestions([
+            { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+            { label: 'Currently admitted', send: 'who is admitted currently' },
+          ]);
+        } else {
+          showSuggestions([
+            { label: 'Show all patients', send: 'Show me all patients' },
+            { label: "Today's collection", send: "Today's collection data" }
+          ]);
+        }
+      } else {
+        addMessage(data.answer || 'Incorrect code. Try again.', 'bot');
+      }
+    } catch (err) {
+      addMessage('Could not verify the code. Please try again.', 'bot');
+    }
+    return;
+  }
+
+  // Normal continue
+  if (q === 'hi' || q.includes('continue without')) {
+    state.waitingForCode = false;
+    addMessage(`Continuing in Normal Mode.`, 'bot');
+    showSuggestions([
+      { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+      { label: 'Enter Activation Code', send: 'Enter activation code' }
+    ]);
+    return;
+  }
+
+  // Call backend
+  await callBackend(text);
+}
+
+async function callBackend(question) {
+  statusEl.textContent = 'Thinking...';
+  state.history.push({ role: 'user', content: question });
+
+  const typingEl = document.createElement('div');
+  typingEl.className = 'message bot typing-indicator';
+  typingEl.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  chatEl.appendChild(typingEl);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: question,
+        activation_code: state.activationCode,
+        chat_history: state.history,
+        device_fingerprint: DEVICE_FINGERPRINT
+      })
+    });
+
+    const data = await response.json();
+    console.log("Backend response:", data);
+
+    typingEl.remove();
+    if (data.usage_warning) {
+      document.getElementById('usageBannerText').textContent = data.usage_warning;
+      document.getElementById('usageBanner').style.display = 'flex';
+    }
+    if (data.status === 'success') {
+      addMessage(data.answer, 'bot');
+      state.history.push({ role: 'assistant', content: data.answer });
+      state.lastAnswer = data.answer;   // for PDF later
+      saveSession();
+    } else {
+      addMessage(data.answer || 'Something went wrong.', 'bot');
+    }
+
+  } catch (error) {
+    typingEl.remove();
+    addMessage('Could not connect to the AI server.', 'bot');
+    console.error(error);
+  }
+  // Restore status
+  if (state.mode === 'premium') {
+    statusEl.textContent = `Premium • ${state.role}`;
+  } else {
+    statusEl.textContent = 'General Mode';
+  }
+
+  // Suggestions
+if (state.mode === 'premium' && state.institutionType === 'hospital') {
+    const rolesButtons = {
+      doctor: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: "Today's OPD list (soon)", send: null },
+        { label: 'Pending lab reports (soon)', send: null },
+      ],
+      reception: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: 'Book appointment (soon)', send: null },
+        { label: 'Patient registration (soon)', send: null },
+      ],
+      admin: [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+        { label: 'Revenue dashboard (soon)', send: null },
+        { label: 'Outstanding bills (soon)', send: null },
+      ],
+    };
+    const buttons = rolesButtons[state.role] || rolesButtons.admin;
+    showSuggestions(buttons.map(b => ({
+      label: b.label,
+      action: b.send ? null : () => addMessage("This feature isn't built yet — coming soon.", 'bot'),
+      send: b.send,
+    })));
+} else if (state.mode === 'premium') {
+    showSuggestions([
+      { label: 'Show all patients', send: 'Show me all patients' },
+      { label: "Today's collection", send: "Today's collection data" },
+      { label: 'TAT dashboard', send: 'TAT dashboard today' }
+    ]);
+} else {
+    showSuggestions([
+      { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
+      { label: 'Enter Activation Code', send: 'Enter activation code' }
+    ]);
+  }
+}
+// ===== SESSION PERSISTENCE =====
+function saveSession() {
+  localStorage.setItem('sahasra_session', JSON.stringify({
+    mode: state.mode,
+    activationCode: state.activationCode,
+    role: state.role,
+    hospitalName: state.hospitalName || null,
+    history: state.history
+  }));
+}
+async function downloadPdf(answerText) {
+  addMessage('Generating PDF report...', 'bot');
+
+  const lines = answerText
+    .split('\n')
+    .map(l => l.replace(/<[^>]*>/g, '').trim())
+    .filter(l => l.length > 0);
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Sahasra AI Report',
+        hospital_name: state.hospitalName || 'Hospital',
+        role: state.role || 'Staff',
+        activation_code: state.activationCode || '',
+        content_lines: lines
+      })
+    });
+
+    if (!response.ok) {
+      addMessage('Failed to generate PDF.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sahasra_report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ PDF downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download PDF. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+async function downloadPatientReport(patientIdentifier) {
+  addMessage(`Generating Smart Report for ${patientIdentifier}...`, 'bot');
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/generate-patient-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_identifier: patientIdentifier,
+        activation_code: state.activationCode || ''
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || 'Failed to generate the patient report.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patient_report_${patientIdentifier}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ Patient report downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download the patient report. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+function loadSession() {
+  const raw = localStorage.getItem('sahasra_session');
+  if (!raw) return false;
+
+  try {
+    const saved = JSON.parse(raw);
+    state.mode = saved.mode || 'normal';
+    state.activationCode = saved.activationCode || null;
+    state.role = saved.role || null;
+    state.hospitalName = saved.hospitalName || null;
+    state.history = saved.history || [];
+
+    if (state.mode === 'premium') {
+      statusEl.textContent = `Premium • ${state.role}${state.hospitalName ? ' • ' + state.hospitalName : ''}`;
+      modeBadge.textContent = 'Premium';
+      modeBadge.classList.add('premium');
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem('sahasra_session');
+}
+
+start();
+</script>
+</body>
+</html>
