@@ -382,6 +382,14 @@ def get_locations(req: dict):
         conn.close()
 # ---------- Admin: licenses (auth required) ----------
 
+@app.post("/release-device")
+def release_device_lock(req: dict):
+    from auth.device_lock import release_device
+    code = req.get("activation_code", "")
+    if code:
+        release_device(code.upper())
+    return {"status": "success"}
+
 @app.get("/admin/licenses")
 def api_list_licenses(admin: str = Depends(require_admin)):
     return {"status": "success", "licenses": list_licenses()}
