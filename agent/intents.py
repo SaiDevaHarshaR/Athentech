@@ -1621,7 +1621,9 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
     return raw if isinstance(raw, str) else str(raw)
 
 _INTENTS = [
-      (["compare ", " vs "], _handle_branch_compare),
+    (["this month vs last month collection", "collection growth", "best growth branch"],
+     _handle_compare_collection),
+    (["compare ", " vs "], _handle_branch_compare),
     # most specific first
     (["cash in hand", "reconciliation", "day collection reconciliation"],
      _handle_cash_recon),
@@ -1718,8 +1720,6 @@ _INTENTS = [
     _handle_cancelled_tests),
     (["credit bills", "unpaid bills", "zero paid"], 
     _handle_credit_bills),
-    (["this month vs last month collection", "collection growth", "best growth branch"],
-     _handle_compare_collection),
     (["active locations", "active branches", "how many branches",
       "list all locations", "list all branches", "list locations",
       "branch list", "collection centres", "location codes"],
