@@ -191,7 +191,30 @@ def init_license_db():
         )
 
     cur.execute("""
+    CREATE TABLE IF NOT EXISTS licenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        institution_id INTEGER NOT NULL,
+        client_prefix TEXT NOT NULL,
+        role TEXT NOT NULL,
+        plan TEXT DEFAULT 'Standard',
+        phone TEXT,
+        dob_year TEXT,
+        user_ref TEXT,
+        email TEXT,
+        db_name TEXT NOT NULL,
+        hospital_name TEXT NOT NULL,
+        status TEXT DEFAULT 'Active',
+        expiry_date TEXT,
+        created_by TEXT DEFAULT 'admin',
+        created_at TEXT,
+        FOREIGN KEY(institution_id) REFERENCES institutions(id)
+    )
+    """)
 
+    existing_license_cols = {row["name"] for row in cur.execute("PRAGMA table_info(licenses)").fetchall()}
+    if "email" not in existing_license_cols:
+        cur.execute("ALTER TABLE licenses ADD COLUMN email TEXT")
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS settings (
