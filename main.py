@@ -605,6 +605,14 @@ def usage_status(req: dict):
     usage = get_usage_today(institution_code)
     pct = round((usage["used"] / usage["limit"]) * 100) if usage["limit"] else 0
     return {**usage, "pct": pct, "institution_code": institution_code}
+
+@app.patch("/admin/licenses/{code}")
+def update_license_endpoint(code: str, req: dict, admin=Depends(require_admin)):
+    try:
+        updated = update_license(code, **req)
+        return {"status": "success", "license": updated}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
 @app.post("/generate-excel")
 async def generate_excel(req: ExcelExportRequest):
     validation = validate_license(req.activation_code)
