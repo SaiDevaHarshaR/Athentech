@@ -160,7 +160,11 @@ class Message(BaseModel):
     content: str
 
 
-
+class QueryRequest(BaseModel):
+    question: str
+    activation_code: Optional[str] = None
+    chat_history: Optional[List[Message]] = []
+    device_fingerprint: Optional[str] = None
 
 
 class GenerateLicenseRequest(BaseModel):
