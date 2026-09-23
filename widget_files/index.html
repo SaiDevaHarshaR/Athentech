@@ -1153,10 +1153,7 @@ async function processMessage(text) {
         modeBadge.textContent = 'Premium';
         modeBadge.classList.add('premium');
 
-        addMessage(
-          `✅ **Premium activated**\n\nRole: **${data.role.toUpperCase()}**\nYou now have access to hospital live data.`,
-          'bot'
-        );
+
 
         if (state.institutionType === 'hospital') {
           const rolesButtons = {
