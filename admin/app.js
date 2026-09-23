@@ -1933,7 +1933,48 @@ function openLicense(license = null) {
         licenseFields(license || {}),
         data => {
             // ===== EDIT existing license =====
+            if (license) {
+                (async () => {
+                    try {
+                        const res = await authFetch(`${API_BASE}/admin/licenses/${license.code}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                role: data.role,
+                                plan: data.plan,
+                                phone: data.phone,
+                                dob_year: data.dobYear,
+                                email: data.email,
+                            }),
+                        });
+                        const result = await res.json();
 
+                        if (result.status !== 'success') {
+                            toast(result.message || 'Failed to update license');
+                            return;
+                        }
+
+                        Object.assign(license, {
+                            role: data.role,
+                            plan: data.plan,
+                            phone: data.phone,
+                            dobYear: data.dobYear,
+                            email: data.email,
+                        });
+
+                        addActivity('License updated', license.code);
+                        toast('License updated');
+                        save();
+                        closeModal();
+                        renderLicenses();
+                        renderDashboard();
+                    } catch (err) {
+                        console.error(err);
+                        toast('Could not reach the server to update the license');
+                    }
+                })();
+                return;
+            }
 
             // ===== GENERATE new license via API =====
             if (!data.phone || !data.dobYear) {
