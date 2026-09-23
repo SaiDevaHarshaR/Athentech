@@ -1262,16 +1262,7 @@ async function callBackend(question) {
   chatEl.appendChild(typingEl);
   chatEl.scrollTop = chatEl.scrollHeight;
 
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: question,
-        activation_code: state.activationCode,
-        chat_history: state.history
-      })
-    });
+
 
     const data = await response.json();
     console.log("Backend response:", data);
