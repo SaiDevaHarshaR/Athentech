@@ -517,7 +517,21 @@ const modeBadge = document.getElementById('modeBadge');
 const input = document.getElementById('msg');
 
 const API_URL = "http://192.168.0.163:8000/ask";
-
+function getDeviceFingerprint() {
+  const raw = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ].join('|');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return 'fp_' + Math.abs(hash).toString(36);
+}
+const DEVICE_FINGERPRINT = getDeviceFingerprint();
 let state = {
   mode: 'normal',
   activationCode: null,
