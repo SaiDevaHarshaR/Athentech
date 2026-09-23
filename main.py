@@ -785,7 +785,31 @@ async def ask_question(req: QueryRequest, request: Request):
             if validation.get("valid"):
                 clear_failed_attempts(client_ip)
 
+                from auth.device_lock import check_and_bind_device, release_device
+                fingerprint = req.device_fingerprint or "unknown"
+                device_check = check_and_bind_device(req.activation_code.upper(), fingerprint)
+                if not device_check["allowed"]:
+                    return {
+                        "status": "error",
+                        "answer": "This activation code is already logged in on another device. Please log out there first, or contact your admin.",
+                    }
 
+                is_validate_ping_early = req.question.strip().lower() == "validate"
+                if is_validate_ping_early:
+                    from auth.email_otp import generate_and_send_otp
+                    otp_result = generate_and_send_otp(
+                        req.activation_code, validation.get("email"), validation.get("hospital_name", "your hospital")
+                    )
+                    if not otp_result["sent"]:
+                        return {
+                            "status": "error",
+                            "answer": f"Could not send verification code: {otp_result['reason']}",
+                        }
+                    return {
+                        "status": "success",
+                        "mode": "otp_required",
+                        "answer": "A verification code was sent to the registered email. Enter it to continue.",
+                    }
                 # Per-code limit, separate from the per-IP one above —
                 # protects each hospital's fair share independently of
                 # how many other users happen to share their network/IP.
