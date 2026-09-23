@@ -491,7 +491,23 @@
 
   
 
+    <div style="display:flex; align-items:center; gap:6px; padding:6px; font-size:10px; color:#94a3b8; background:white;">
+      <span onclick="document.getElementById('disclaimerModal').style.display='flex'" style="cursor:pointer; font-size:13px;" title="Disclaimer">⚠️</span>
+      <span>Powered by AthenTech</span>
+    </div>
+  </div>
 
+  <div id="disclaimerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; width:300px; max-width:85%; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.3); overflow:hidden;">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#e2e8f0; padding:8px 12px; border-bottom:1px solid #cbd5e1;">
+        <span style="font-size:12px; font-weight:700; color:#1e293b;">Disclaimer</span>
+        <span onclick="document.getElementById('disclaimerModal').style.display='none'" style="cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; background:#dc2626; color:white; font-size:12px; font-weight:700; border-radius:2px;">✕</span>
+      </div>
+      <div style="padding:16px; font-size:13px; line-height:1.5; color:#334155;">
+        ⚠️ This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.
+      </div>
+    </div>
+  </div>
 
 <script>
 const chatEl = document.getElementById('chat');
