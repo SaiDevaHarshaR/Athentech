@@ -1965,6 +1965,7 @@ function openLicense(license = null) {
                             role: data.role,
                             phone: data.phone,
                             dob_year: data.dobYear,
+                            email: data.email,
                             plan: data.plan || 'Standard',
                             valid_days: 90
                         })
