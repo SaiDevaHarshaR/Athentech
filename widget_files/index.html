@@ -1253,8 +1253,7 @@ async function processMessage(text) {
     return;
   }
 
-  // Normal continue
-  if (q === 'hi' || q.includes('continue without')) {
+
     state.waitingForCode = false;
     addMessage(`Continuing in Normal Mode.`, 'bot');
     showSuggestions([
