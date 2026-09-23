@@ -1093,7 +1093,7 @@ async function processMessage(text) {
 
 
   // ===== EXIT PREMIUM =====
-  if (q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
+
     state.mode = 'normal';
     document.getElementById('excelBtn').style.display = 'none';
     state.activationCode = null;
@@ -1125,6 +1125,15 @@ async function processMessage(text) {
 
   // Waiting for code
   if (state.waitingForCode) {
+        if (q === 'cancel') {
+      state.waitingForCode = false;
+      addMessage('Cancelled.', 'bot');
+      showSuggestions([
+        { label: 'Enter Activation Code', send: 'Enter activation code' },
+        { label: 'Continue in Normal Mode', send: 'hi' }
+      ]);
+      return;
+    }
     statusEl.textContent = 'Validating code...';
 
     try {
