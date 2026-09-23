@@ -1183,7 +1183,7 @@ async function processMessage(text) {
         }
       }else {
        // state.waitingForCode = false;
-
+        addMessage(data.answer || `❌ Invalid or expired activation code. Try again, or type "cancel" to stop.`, 'bot');
         showSuggestions([
           { label: 'Enter Activation Code', send: 'Enter activation code' },
           { label: 'Continue in Normal Mode', send: 'hi' }
