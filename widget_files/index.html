@@ -1125,7 +1125,15 @@ async function processMessage(text) {
 
 
   // ===== EXIT PREMIUM =====
-
+  if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
+    if (state.activationCode) {
+      fetch('http://192.168.0.163:8000/release-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode })
+      }).catch(() => {});
+    }
+    state.mode = 'normal';
     document.getElementById('excelBtn').style.display = 'none';
     state.activationCode = null;
     state.role = null;
