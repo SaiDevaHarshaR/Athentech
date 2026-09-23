@@ -1909,6 +1909,11 @@ function licenseFields(license = {}) {
             </div>
 
             <div class="form-group">
+                <label>Email (for OTP verification)</label>
+                <input name="email" type="email" placeholder="admin@hospital.com" value="${license.email || ''}" required>
+            </div>
+
+            <div class="form-group">
                 <label>Plan</label>
                 <select name="plan">
                     ${['Standard', 'Professional', 'Enterprise'].map(plan => `
