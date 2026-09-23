@@ -484,8 +484,13 @@
     <div class="input-area">
       <input id="msg" type="text" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')handleSend()" />
       <button onclick="handleSend()">→</button>
-      <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none;">Excel ▾</button>
+        <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none;">Excel ▾</button>
+      <button type="button" onclick="alert('⚠️ Disclaimer\n\nThis assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.')" title="Terms & Disclaimer">⚠️</button>
     </div>
+
+
+  
+
     <div style="text-align:center; padding:6px; font-size:10px; color:#94a3b8; background:white;">
       Powered by Athentech
     </div>
