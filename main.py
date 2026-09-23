@@ -381,6 +381,13 @@ def get_locations(req: dict):
     finally:
         conn.close()
 # ---------- Admin: licenses (auth required) ----------
+@app.patch("/admin/licenses/{code}")
+def update_license_endpoint(code: str, req: dict, admin=Depends(require_admin)):
+    try:
+        updated = update_license(code, **req)
+        return {"status": "success", "license": updated}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/release-device")
 def release_device_lock(req: dict):
