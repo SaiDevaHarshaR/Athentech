@@ -766,7 +766,25 @@ async def ask_question(req: QueryRequest, request: Request):
             client_ip = request.client.host if request.client else "unknown"
             from auth.activation_lockout import is_locked_out, record_failed_attempt, clear_failed_attempts
 
+            lockout = is_locked_out(client_ip)
+            if lockout["locked_out"]:
+                return {
+                    "status": "error",
+                    "answer": "Too many invalid activation code attempts. Please wait 15 minutes and try again.",
+                }
 
+            validation = validate_license(req.activation_code)
+            if validation.get("valid"):
+                clear_failed_attempts(client_ip)
+
+                from auth.device_lock import check_and_bind_device, release_device
+                fingerprint = req.device_fingerprint or "unknown"
+                device_check = check_and_bind_device(req.activation_code.upper(), fingerprint)
+                if not device_check["allowed"]:
+                    return {
+                        "status": "error",
+                        "answer": "This activation code is already logged in on another device. Please log out there first, or contact your admin.",
+                    }
                 # Per-code limit, separate from the per-IP one above —
                 # protects each hospital's fair share independently of
                 # how many other users happen to share their network/IP.
