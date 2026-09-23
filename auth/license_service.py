@@ -48,26 +48,7 @@ def create_license(
     expiry = (datetime.utcnow() + timedelta(days=valid_days)).date().isoformat()
     now = datetime.utcnow().isoformat()
 
-    cur.execute("""
-        INSERT INTO licenses (
-            code, institution_id, client_prefix, role, plan, phone, dob_year,
-            user_ref, db_name, hospital_name, status, expiry_date, created_by, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?)
-    """, (
-        code,
-        institution_id,
-        inst["client_prefix"],
-        role.lower(),
-        plan,
-        phone,
-        str(dob_year),
-        phone,
-        inst["db_name"],
-        inst["name"],
-        expiry,
-        created_by,
-        now
-    ))
+
 
     conn.commit()
     license_id = cur.lastrowid
