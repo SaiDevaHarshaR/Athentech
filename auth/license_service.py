@@ -4,15 +4,7 @@ from auth.code_generator import generate_activation_code
 from auth.secrets_crypto import encrypt_secret, decrypt_secret
 
 
-def create_license(
-    institution_id: int,
-    role: str,
-    phone: str,
-    dob_year: str,
-    plan: str = "Standard",
-    valid_days: int = 90,
-    created_by: str = "admin"
-):
+
     conn = get_conn()
     cur = conn.cursor()
 
