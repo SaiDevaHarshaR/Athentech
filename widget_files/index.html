@@ -9,13 +9,17 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
+    body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: #ffffff;
     height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
+  }
+  @keyframes bg-drift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
   }
   .typing-dots span {
   display: inline-block;
@@ -35,7 +39,9 @@
   .container {
     width: 100%;
     height: 100vh;
-    background: #f8fafc;
+    background: linear-gradient(135deg, #f0f4ff 0%, #fdf2ff 50%, #f0fdfa 100%);
+    background-size: 200% 200%;
+    animation: bg-drift 18s ease-in-out infinite;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -43,12 +49,21 @@
 
   /* Header */
   .header {
-    background: linear-gradient(135deg, #8B008B, #1e293b);
+    background: linear-gradient(135deg, #8B008B, #4c1d95, #1e293b);
+    background-size: 200% 200%;
+    animation: header-shift 8s ease-in-out infinite;
     color: white;
-    padding: 14px 16px;
+    padding: 16px 18px;
     display: flex;
     align-items: center;
     gap: 12px;
+    box-shadow: 0 4px 20px rgba(139,0,139,0.25);
+    position: relative;
+    z-index: 2;
+  }
+  @keyframes header-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
   }
 
   .logo {
@@ -85,6 +100,9 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    background-image: radial-gradient(circle, #e8ecf3 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-color: #fafbfd;
   }
 
   .message {
@@ -99,15 +117,18 @@
     background: white;
     border: 1px solid #e2e8f0;
     align-self: flex-start;
+    border-radius: 18px;
     border-bottom-left-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 8px rgba(30,41,59,0.06);
   }
 
   .user {
-    background: #2563eb;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
     color: white;
     align-self: flex-end;
+    border-radius: 18px;
     border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.25);
   }
 
   .time {
@@ -128,7 +149,14 @@
     margin-bottom: 6px;
     font-weight: 600;
   }
-
+  .msg-enter {
+  animation: msg-rise 0.45s cubic-bezier(0.34, 1.4, 0.4, 1) both;
+}
+@keyframes msg-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.9); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
   /* Suggestions */
 .suggestions {
   padding: 0 14px;
@@ -190,17 +218,25 @@
     outline: none;
   }
 
-  .input-area input:focus { border-color: #2563eb; }
+   .input-area input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
 
   .input-area button {
-    background: #2563eb;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
     color: white;
     border: none;
     width: 46px;
     border-radius: 12px;
     font-size: 18px;
     cursor: pointer;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.3);
+    transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease;
   }
+  .input-area button:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(124,58,237,0.4); }
+  .input-area button:active { transform: scale(0.9); }
   .search-card {
   background: #f0f9ff;
   border: 1px solid #bae6fd;
@@ -304,6 +340,19 @@
     margin-bottom: 8px;
     font-size: 13px;
   }
+  .status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
   .dash-bar-section-title .dash-subtitle-italic {
     font-weight: 400;
     font-style: italic;
@@ -421,7 +470,7 @@
       <div class="logo"><img src="Favicon.ico" alt="AthenTech" style="width: 24px; height: 24px; border-radius: 4px;" /></div>
       <div class="header-info">
         <h1>Sahasra AI Assistant</h1>
-        <p id="status">General Mode</p>
+        <p id="status"><span class="status-dot"></span>General Mode</p>
       </div>
       <div class="badge" id="modeBadge">Normal</div>
     </div>
@@ -510,6 +559,7 @@ function addMessage(text, type) {
     .replace(/\n/g, '<br>');
 
   div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
+  div.classList.add('msg-enter');
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;
