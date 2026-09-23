@@ -128,7 +128,6 @@ def validate_license(code: str):
     return {
         "valid": True,
         "code": row["code"],
-        "email": row["email"],
         "institution_code": inst["client_prefix"] if inst else None,
         "institution_type": (dict(inst.items()).get("type", "Diagnostic") if inst else "Diagnostic").strip().lower(),
         "role": row["role"],
