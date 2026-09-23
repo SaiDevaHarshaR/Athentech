@@ -1125,8 +1125,7 @@ async function processMessage(text) {
 
 
   // ===== EXIT PREMIUM =====
-  if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
-    state.mode = 'normal';
+
     document.getElementById('excelBtn').style.display = 'none';
     state.activationCode = null;
     state.role = null;
