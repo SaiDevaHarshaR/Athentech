@@ -127,12 +127,22 @@
     <section class="content">
       <!-- DASHBOARD -->
       <div id="dashboardPage" class="page active-page">
-        <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1><p>Quick overview of Sahasra AI operations</p></div><div class="heading-actions"><button class="secondary-btn" id="refreshDashboard">↻ Refresh</button><button class="primary-btn" id="dashboardAdd">+ Add Institution</button></div></div>
+        <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1><p>Quick overview of Sahasra AI operations</p></div><div class="heading-actions">
+          <button id="tokensBtn" onclick="openTokensModal()" style="display:inline-flex; align-items:center; gap:6px; padding:8px 16px; background:linear-gradient(135deg, #8B008B, #1e293b); color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">⌁ Tokens</button>
+          
+          <button class="secondary-btn" id="refreshDashboard">↻ Refresh</button><button class="primary-btn" id="dashboardAdd">+ Add Institution</button></div></div>
         <div class="metric-grid">
+                   <div class="metric-card" id="openaiUsageCard">
+  <div class="metric-top"><span>OpenAI Credits (30d)</span><b class="metric-icon blue">⌁</b></div>
+  <strong id="openaiTokenTotal">-</strong>
+  <div style="font-size:11px; color:#94a3b8; margin-top:4px;" id="openaiRequestCount"></div>
+  <div id="openaiCreditBar"></div>
+</div>
           <div class="metric-card"><div class="metric-top"><span>Active Licenses</span><b class="metric-icon blue">◇</b></div><strong id="activeLicenses">0</strong><div class="metric-bottom positive">↑ 12.5% <small>vs last month</small></div></div>
           <div class="metric-card"><div class="metric-top"><span>Active Hospitals</span><b class="metric-icon purple">▦</b></div><strong id="activeHospitals">0</strong><div class="metric-bottom positive">↑ 8.2% <small>vs last month</small></div></div>
           <div class="metric-card"><div class="metric-top"><span>Queries Today</span><b class="metric-icon green">⌁</b></div><strong id="queriesToday">0</strong><div class="metric-bottom positive">↑ 18.7% <small>vs yesterday</small></div></div>
           <div class="metric-card"><div class="metric-top"><span>Failed Validations</span><b class="metric-icon red">!</b></div><strong id="failedValidations">0</strong><div class="metric-bottom negative">↓ 4.3% <small>vs yesterday</small></div></div>
+
         </div>
         <div class="dashboard-grid">
           <div class="panel"><div class="panel-heading"><div><h3>Usage by hospitals</h3><p>Query distribution across institutions</p></div></div><div class="chart-area"><div class="donut-chart" id="dashboardDonut"><div class="donut-center"><strong id="totalQueries">0</strong><span>Total queries</span></div></div><div class="chart-legend" id="chartLegend"></div></div></div>
@@ -155,7 +165,17 @@
       </div>
 
       <!-- AUDIT -->
-      <div id="auditPage" class="page"><div class="page-heading"><div><div class="eyebrow">SECURITY</div><h1>Audit Logs</h1><p>Searchable record of administrative and license activity</p></div></div><div class="filter-bar"><span class="filter-title">Search</span><div class="registry-search full"><span>⌕</span><input id="auditSearch" placeholder="Search audit events..."></div></div><div class="table-panel"><div class="table-header"><div><strong>Activity Log</strong><span id="auditCount">0 events</span></div></div><div class="table-wrapper"><table><thead><tr><th>Time</th><th>Event</th><th>Description</th><th>Actor</th></tr></thead><tbody id="auditTable"></tbody></table></div></div></div>
+      <div id="auditPage" class="page"><div class="page-heading"><div><div class="eyebrow">SECURITY</div><h1>Audit Logs</h1><p>Searchable record of administrative and license activity</p></div></div>
+     
+     
+<div class="filter-bar"><span class="filter-title">Search</span><div class="registry-search full"><span>⌕</span><input id="auditSearch" placeholder="Search audit events..."></div><select id="auditEventFilter"><option value="all">All events</option><option value="premium_query">Premium queries</option><option value="admin_action">Admin actions</option><option value="admin_login">Admin logins</option><option value="invalid_code_attempt">Invalid code attempts</option></select><input id="auditDateFrom" type="date"><input id="auditDateTo" type="date"></div>
+      
+      <div class="table-panel"><div class="table-header"><div><strong>Activity Log</strong><span id="auditCount">0 events</span></div></div><div class="table-wrapper"><table>
+       
+   <thead><tr><th>#</th><th>Time</th><th>Event</th><th>Description</th><th></th></tr></thead>
+        
+        
+        <tbody id="auditTable"></tbody></table></div></div></div>
 
       <!-- ANALYTICS -->
       <div id="analyticsPage" class="page">
@@ -179,6 +199,10 @@
           <div class="settings-section"><h3>Guardrails</h3><div class="setting"><div><strong>Blocked Patterns</strong><small>Comma-separated patterns rejected by the agent.</small></div><input id="blockedPatterns" class="setting-input"></div><div class="setting"><div><strong>Sensitive Data Redaction</strong><small>Redact sensitive fields from generated responses.</small></div><label class="switch"><input id="redaction" type="checkbox"><span></span></label></div></div>
           <div class="settings-section"><h3>Notifications</h3><div class="setting"><div><strong>Email alerts for expiring licenses</strong><small>Notify administrators before license expiry.</small></div><label class="switch"><input id="emailAlerts" type="checkbox"><span></span></label></div><div class="setting"><div><strong>SMTP Host</strong><small>e.g. smtp.gmail.com</small></div><input id="smtpHost" class="setting-input" placeholder="smtp.example.com"></div><div class="setting"><div><strong>SMTP Port</strong><small>Usually 587 (TLS)</small></div><input class="small-input" id="smtpPort" type="number" min="1"></div><div class="setting"><div><strong>SMTP Username</strong><small>Login for the sending mailbox.</small></div><input id="smtpUser" class="setting-input" placeholder="bot@yourdomain.com"></div><div class="setting"><div><strong>SMTP Password</strong><small>App password, not stored in audit logs.</small></div><input id="smtpPassword" type="password" class="setting-input"></div><div class="setting"><div><strong>Alert Recipient Email</strong><small>Where expiry alerts get sent.</small></div><input id="alertEmailTo" class="setting-input" placeholder="ops@yourdomain.com"></div><div class="setting"><div><strong>Slack / WhatsApp webhook</strong><small>Optional notification endpoint.</small></div><input id="webhook" class="setting-input" placeholder="https://..."></div><div class="setting"><div><strong>Test your setup</strong><small>Sends a real test email/webhook right now, using whatever's saved above.</small></div><button class="secondary-btn" id="testNotifications">Send Test Alert</button></div></div>
           <div class="settings-section"><h3>Admin Users</h3><div id="adminUsers"></div><button class="secondary-btn" id="addAdmin">+ Add Admin User</button></div>
+          <div class="form-group">
+<label>OpenAI Remaining Balance (USD) — update manually after checking OpenAI's dashboard</label>
+  <input id="openaiCreditLimit" type="number" step="0.01" placeholder="20">
+</div>
         </div>
       </div>
     </section>

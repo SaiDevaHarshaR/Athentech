@@ -705,6 +705,7 @@ document
 // =========================================================
 
 function renderDashboard() {
+    loadOpenAIUsage();
     const active = activeLicenses();
     const licenseCount = active.length;
 
@@ -1429,6 +1430,53 @@ function institutionFields(
 
 }
 
+async function openTokensModal() {
+  const data = await loadOpenAIUsage();
+  if (!data || !data.available) {
+    toast(data?.reason || 'Could not load OpenAI usage');
+    return;
+  }
+
+  const maxTokens = Math.max(...data.daily.map(d => d.total_tokens), 1);
+  const chartBars = data.daily.map(d => {
+    const heightPct = Math.round((d.total_tokens / maxTokens) * 100);
+    const date = new Date(d.start_time * 1000);
+    const label = `${date.getMonth() + 1}/${date.getDate()}`;
+    return `
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:0;">
+        <div style="width:60%; height:80px; display:flex; align-items:flex-end;">
+          <div style="width:100%; height:${Math.max(heightPct, 2)}%; background:#8B008B; border-radius:2px 2px 0 0;" title="${d.total_tokens.toLocaleString()} tokens"></div>
+        </div>
+        <div style="font-size:9px; color:#94a3b8; margin-top:4px;">${label}</div>
+      </div>
+    `;
+  }).join('');
+
+  const dailyRows = data.daily.map(d => {
+    const date = new Date(d.start_time * 1000).toLocaleDateString();
+    return `<tr><td>${date}</td><td>${d.input_tokens.toLocaleString()}</td><td>${d.output_tokens.toLocaleString()}</td><td>${d.total_tokens.toLocaleString()}</td><td>${d.requests}</td></tr>`;
+  }).join('');
+
+  openModal('TOKENS', 'OpenAI Usage (Last 30 Days)', `
+    <div style="max-height:70vh; overflow-y:auto;">
+      <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+        <div><div style="font-size:11px; color:#64748b;">TOTAL TOKENS</div><strong>${data.total_tokens.toLocaleString()}</strong></div>
+        <div><div style="font-size:11px; color:#64748b;">INPUT</div><strong>${data.total_input_tokens.toLocaleString()}</strong></div>
+        <div><div style="font-size:11px; color:#64748b;">OUTPUT</div><strong>${data.total_output_tokens.toLocaleString()}</strong></div>
+        <div><div style="font-size:11px; color:#64748b;">REQUESTS</div><strong>${data.total_requests.toLocaleString()}</strong></div>
+        <div><div style="font-size:11px; color:#64748b;">SPEND (USD)</div><strong>${data.total_usd != null ? '$' + data.total_usd.toFixed(2) : 'N/A'}</strong></div>
+      </div>
+      <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">Daily Token Usage</div>
+      <div style="display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:16px; overflow-x:auto;">
+        ${chartBars}
+      </div>
+      <table style="width:100%; font-size:12px;">
+        <thead><tr><th>Date</th><th>Input</th><th>Output</th><th>Total</th><th>Requests</th></tr></thead>
+        <tbody>${dailyRows}</tbody>
+      </table>
+    </div>
+  `, null);
+}
 
 function openInstitution(
     institution = null
@@ -2699,6 +2747,42 @@ function renderSettings() {
 }
 
 
+async function loadOpenAIUsage() {
+  try {
+    const res = await authFetch(`${API_BASE}/admin/openai-usage?days=30`);
+    const data = await res.json();
+    const settingsRes = await authFetch(`${API_BASE}/admin/settings`);
+    const settingsData = await settingsRes.json();
+    const creditLimit = parseFloat(settingsData.settings?.openai_credit_limit) || null;
+
+    if (!data.available) {
+      $('openaiTokenTotal').textContent = 'N/A';
+      $('openaiRequestCount').textContent = data.reason || 'Not configured';
+      return data;
+    }
+
+    $('openaiTokenTotal').textContent = data.total_tokens.toLocaleString();
+    $('openaiRequestCount').textContent = `${data.total_requests.toLocaleString()} requests`;
+
+    if (creditLimit) {
+      const remaining = creditLimit;
+      const pct = Math.max(0, Math.min(100, Math.round((remaining / 25) * 100))); // assumes a rough $25 "full bar" reference — adjust the 25 to whatever a typical top-up amount is for you
+      const barColor = pct < 15 ? '#dc2626' : pct < 35 ? '#f59e0b' : '#22c55e';
+      $('openaiCreditBar').innerHTML = `
+        <div style="background:#f1f5f9; border-radius:6px; height:8px; overflow:hidden; margin-top:8px;">
+          <div style="width:${pct}%; height:100%; background:${barColor}; transition:width 0.3s ease;"></div>
+        </div>
+        <div style="font-size:11px; color:#64748b; margin-top:4px;">$${remaining.toFixed(2)} remaining</div>
+      `;
+    }
+
+    return data;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
 function renderAdminUsersList() {
     $('adminUsers').innerHTML =
         (state.admins || [])
@@ -2757,86 +2841,74 @@ window.toggleAdminStatus = (username, newStatus) => {
 // AUDIT LOGS
 // =========================================================
 
-function renderAudit() {
+async function renderAudit() {
+    const search = $('auditSearch').value;
+    const eventType = $('auditEventFilter').value;
+    const dateFrom = $('auditDateFrom').value;
+    const dateTo = $('auditDateTo').value;
 
-    const search =
-        $('auditSearch')
-            .value
-            .toLowerCase();
+    const params = new URLSearchParams({ limit: 500 });
+    if (search) params.set('search', search);
+    if (eventType && eventType !== 'all') params.set('event_type', eventType);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
 
+    let events = [];
+    try {
+        const res = await authFetch(`${API_BASE}/admin/audit?${params.toString()}`);
+        const data = await res.json();
+        events = data.events || [];
+    } catch (err) {
+        console.error(err);
+        $('auditTable').innerHTML = `<tr><td colspan="5"><div class="empty">Could not load audit log.</div></td></tr>`;
+        return;
+    }
 
-    const rows =
-        state.activities.filter(
-            activity =>
+    $('auditCount').textContent = `${events.length} events`;
 
-                !search ||
+    $('auditTable').innerHTML = events.map(ev => `
+        <tr class="audit-row" onclick="toggleAuditDetail(${ev.id})" style="cursor:pointer;">
+            <td>#${ev.id}</td>
+            <td>${formatRelativeTime(ev.ts)}</td>
+            <td><strong>${ev.event}</strong></td>
+            <td>${(ev.question || '').slice(0, 60)}${(ev.question || '').length > 60 ? '…' : ''}</td>
+            <td style="text-align:center;">
+                <span id="audit-chevron-${ev.id}" style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#f1f5f9; font-size:16px; font-weight:700; color:#475569; transition:transform 0.2s ease;">›</span>
+            </td>
+        </tr>
+        <tr id="audit-detail-${ev.id}" style="display:none;">
+            <td colspan="5" style="background:#f8fafc; padding:16px 20px;">
+                <div style="font-size:12px; color:#64748b; margin-bottom:4px;">ROLE / CODE</div>
+                <div style="margin-bottom:12px;">${ev.role || '-'} ${ev.code ? '· ' + ev.code : ''}</div>
 
-                `${activity.title}
-                ${activity.description}
-                ${activity.actor}`
-                    .toLowerCase()
-                    .includes(search)
-        );
+                <div style="font-size:12px; color:#64748b; margin-bottom:4px;">QUESTION</div>
+                <div style="margin-bottom:12px; white-space:pre-wrap;">${ev.question || '-'}</div>
 
+                <div style="font-size:12px; color:#64748b; margin-bottom:4px;">ANSWER</div>
+                <div style="margin-bottom:12px; white-space:pre-wrap; max-height:200px; overflow-y:auto;">${ev.answer || '-'}</div>
 
-    $('auditCount')
-        .textContent =
-        `${rows.length} events`;
-
-
-    $('auditTable').innerHTML =
-
-        rows
-            .map(
-                activity => `
-
-                    <tr>
-
-                        <td>
-                            ${formatRelativeTime(activity.ts)}
-                        </td>
-
-                        <td>
-                            <strong>
-                                ${activity.title}
-                            </strong>
-                        </td>
-
-                        <td>
-                            ${activity.description}
-                        </td>
-
-                        <td>
-                            ${activity.actor}
-                        </td>
-
-                    </tr>
-
-                `
-            )
-            .join('')
-
-        ||
-
-        `
-
-            <tr>
-
-                <td colspan="4">
-
-                    <div class="empty">
-                        No matching events.
+                <div style="display:flex; gap:24px;">
+                    <div>
+                        <div style="font-size:12px; color:#64748b;">TOKENS USED</div>
+                        <div style="font-weight:700;">${ev.tokens_used != null ? ev.tokens_used : '-'}</div>
                     </div>
-
-                </td>
-
-            </tr>
-
-        `;
-
+                    <div>
+                        <div style="font-size:12px; color:#64748b;">TIMESTAMP</div>
+                        <div>${ev.ts}</div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    `).join('') || `<tr><td colspan="5"><div class="empty">No matching events.</div></td></tr>`;
 }
 
-
+function toggleAuditDetail(id) {
+    const row = document.getElementById(`audit-detail-${id}`);
+    const chevron = document.getElementById(`audit-chevron-${id}`);
+    const isOpen = row.style.display !== 'none';
+    row.style.display = isOpen ? 'none' : 'table-row';
+    chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+}
 // =========================================================
 // MODAL SYSTEM
 // =========================================================
@@ -2999,8 +3071,8 @@ $('saveSettings')
             smtp_user: $('smtpUser').value,
             smtp_password: $('smtpPassword').value,
             alert_email_to: $('alertEmailTo').value,
+            openai_credit_limit: Number($('openaiCreditLimit').value) || 0,
         };
-
         (async () => {
             try {
                 const res = await authFetch(`${API_BASE}/admin/settings`, {
@@ -3372,6 +3444,7 @@ window.addEventListener(
 // INITIAL LOAD
 // =========================================================
 renderDashboard();
+loadOpenAIUsage();
 renderInstitutions();
 renderLicenses();
 renderAnalytics();
