@@ -85,7 +85,7 @@ def audit(event: str, role: str = None, code: str = None, question: str = None,
 
 
 def read_audit_log(limit: int = 500, search: str = None, event_type: str = None,
-                    date_from: str = None, date_to: str = None) -> list:
+                    date_from: str = None, date_to: str = None, institution_id: int = None) -> list:
     """
     Returns the most recent `limit` audit events, newest first, with
     real filtering pushed down to the query instead of the old
@@ -120,6 +120,12 @@ def read_audit_log(limit: int = 500, search: str = None, event_type: str = None,
         if date_to:
             where_clauses.append("ts <= ?")
             params.append(date_to + "T23:59:59Z")
+
+        if institution_id:
+            where_clauses.append(
+                "code IN (SELECT code FROM licenses WHERE institution_id = ?)"
+            )
+            params.append(institution_id)
 
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
