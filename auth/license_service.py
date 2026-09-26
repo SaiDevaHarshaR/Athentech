@@ -129,6 +129,8 @@ def validate_license(code: str):
         "valid": True,
         "code": row["code"],
         "email": row["email"],
+        "two_factor_method": row["two_factor_method"] or "email",
+        "totp_secret": row["totp_secret"],
         "institution_code": inst["client_prefix"] if inst else None,
         "institution_type": (dict(inst.items()).get("type", "Diagnostic") if inst else "Diagnostic").strip().lower(),
         "role": row["role"],
@@ -184,7 +186,7 @@ def update_license(code: str, **fields):
         conn.close()
         raise ValueError("License not found")
 
-    allowed_fields = {"role", "plan", "phone", "dob_year", "email"}
+    allowed_fields = {"role", "plan", "phone", "dob_year", "email", "two_factor_method", "totp_secret"}
     updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
 
     if "role" in updates:
@@ -400,7 +402,8 @@ def get_settings() -> dict:
         "smtp_user": raw.get("smtp_user", ""),
         "smtp_password": decrypt_secret(raw.get("smtp_password", "")),
         "alert_email_to": raw.get("alert_email_to", ""),
-        "openai_credit_limit": float(raw.get("openai_credit_limit", 0) or 0),
+        "openai_token_budget": int(raw.get("openai_token_budget", 0) or 0),
+        "openai_token_baseline": int(raw.get("openai_token_baseline", 0) or 0),
     }
 
 
@@ -421,9 +424,9 @@ def update_settings(**fields) -> dict:
         "smtp_user": lambda v: str(v),
         "smtp_password": lambda v: encrypt_secret(str(v)),
         "alert_email_to": lambda v: str(v),
-        "openai_credit_limit": lambda v: str(float(v)),
+        "openai_token_budget": lambda v: str(int(v)),
+        "openai_token_baseline": lambda v: str(int(v)),
     }
-
     for key, value in fields.items():
         if key not in serializers or value is None:
             continue
