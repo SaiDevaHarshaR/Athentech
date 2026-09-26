@@ -77,6 +77,7 @@ def generate_and_send_otp(code: str, email: str, hospital_name: str) -> dict:
     smtp_password = decrypt_secret(smtp_password_encrypted)
 
     otp = str(random.randint(100000, 999999))
+    ref_id = "".join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", k=6))  # unique per-email reference, distinct from the OTP itself
     key = f"otp:{code.upper()}"
     attempts_key = f"otp_attempts:{code.upper()}"
 
@@ -89,14 +90,56 @@ def generate_and_send_otp(code: str, email: str, hospital_name: str) -> dict:
         return {"sent": False, "reason": "Could not generate OTP right now."}
 
     try:
-        msg = MIMEText(
-            f"Your Sahasra AI Assistant verification code for {hospital_name} is:\n\n"
+        from email.mime.multipart import MIMEMultipart
+
+        html_body = f"""\
+<html>
+  <body style="margin:0; padding:0; background:#f1f5f9; font-family: 'Segoe UI', Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding: 32px 0;">
+      <tr>
+        <td align="center">
+          <table width="420" cellpadding="0" cellspacing="0" style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="background:linear-gradient(135deg, #8B008B, #1e293b); padding:24px 32px;">
+                <span style="color:white; font-size:18px; font-weight:700;">Sahasra AI Assistant</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 8px; font-size:14px; color:#475569;">Verification code for</p>
+                <p style="margin:0 0 24px; font-size:16px; font-weight:700; color:#1e293b;">{hospital_name}</p>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px; text-align:center; margin-bottom:20px;">
+                  <span style="font-size:32px; font-weight:700; letter-spacing:6px; color:#8B008B;">{otp}</span>
+                </div>
+                <p style="margin:0 0 4px; font-size:13px; color:#64748b;">This code expires in 5 minutes.</p>
+                <p style="margin:0; font-size:13px; color:#64748b;">If you didn't request this, you can safely ignore this email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+                <p style="margin:0; font-size:11px; color:#94a3b8;">Reference: {ref_id} &middot; Powered by AthenTech</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+        plain_body = (
+            f"Sahasra AI Assistant verification code for {hospital_name}\n\n"
             f"{otp}\n\n"
-            f"This code expires in 5 minutes. If you didn't request this, ignore this email."
+            f"This code expires in 5 minutes. If you didn't request this, ignore this email.\n\n"
+            f"Reference: {ref_id}"
         )
-        msg["Subject"] = "Your Sahasra AI Assistant verification code"
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Your Sahasra AI Assistant verification code [{ref_id}]"
         msg["From"] = smtp_user
         msg["To"] = email
+        msg.attach(MIMEText(plain_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
 
         with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
             server.starttls()
