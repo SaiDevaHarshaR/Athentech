@@ -1079,11 +1079,10 @@ function renderInstitutions() {
 
             return `
 
-                <tr>
-
-                    <td>
-
-                        <div class="institution-name">
+<tr>
+    <td>#${institution.id}</td>
+    <td>
+        <div class="institution-name">
 
                             <div class="institution-logo">
                                 ${initials}
@@ -1437,16 +1436,23 @@ async function openTokensModal() {
     return;
   }
 
+  let allQuotas = {};
+  try {
+    const res = await authFetch(`${API_BASE}/admin/all-quotas`);
+    allQuotas = await res.json();
+  } catch (err) {
+    console.error(err);
+  }
+
   const maxTokens = Math.max(...data.daily.map(d => d.total_tokens), 1);
+  const CHART_MAX_PX = 80;
   const chartBars = data.daily.map(d => {
-    const heightPct = Math.round((d.total_tokens / maxTokens) * 100);
+    const heightPx = Math.max(Math.round((d.total_tokens / maxTokens) * CHART_MAX_PX), 2);
     const date = new Date(d.start_time * 1000);
     const label = `${date.getMonth() + 1}/${date.getDate()}`;
     return `
-      <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:0;">
-        <div style="width:60%; height:80px; display:flex; align-items:flex-end;">
-          <div style="width:100%; height:${Math.max(heightPct, 2)}%; background:#8B008B; border-radius:2px 2px 0 0;" title="${d.total_tokens.toLocaleString()} tokens"></div>
-        </div>
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:14px;">
+        <div style="width:12px; height:${heightPx}px; background:#8B008B; border-radius:2px 2px 0 0;" title="${d.total_tokens.toLocaleString()} tokens"></div>
         <div style="font-size:9px; color:#94a3b8; margin-top:4px;">${label}</div>
       </div>
     `;
@@ -1457,8 +1463,31 @@ async function openTokensModal() {
     return `<tr><td>${date}</td><td>${d.input_tokens.toLocaleString()}</td><td>${d.output_tokens.toLocaleString()}</td><td>${d.total_tokens.toLocaleString()}</td><td>${d.requests}</td></tr>`;
   }).join('');
 
-  openModal('TOKENS', 'OpenAI Usage (Last 30 Days)', `
+  const providerCard = (name, icon, content) => `
+    <div style="border:1px solid #e2e8f0; border-radius:10px; padding:14px; flex:1; min-width:180px;">
+      <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">${icon} ${name}</div>
+      ${content}
+    </div>
+  `;
+
+  const groqContent = allQuotas.groq?.available
+    ? `<div style="font-size:11px; color:#64748b;">TPM (per-minute)</div>
+       <div style="background:#f1f5f9; border-radius:6px; height:6px; overflow:hidden; margin:4px 0;"><div style="width:${allQuotas.groq.tpm_pct_used}%; height:100%; background:${allQuotas.groq.tpm_pct_used > 90 ? '#dc2626' : allQuotas.groq.tpm_pct_used > 70 ? '#f59e0b' : '#22c55e'};"></div></div>
+       <div style="font-size:11px;">${allQuotas.groq.tpm_remaining.toLocaleString()} / ${allQuotas.groq.tpm_limit.toLocaleString()} remaining</div>
+       ${allQuotas.groq.rpd_limit ? `<div style="font-size:11px; color:#64748b; margin-top:8px;">Requests/day: ${allQuotas.groq.rpd_remaining.toLocaleString()} / ${allQuotas.groq.rpd_limit.toLocaleString()} left</div>` : ''}`
+    : `<div style="font-size:11px; color:#94a3b8;">${allQuotas.groq?.reason || 'Unavailable'}</div>`;
+
+  const openrouterContent = allQuotas.openrouter?.available
+    ? `<div style="font-size:11px; color:#64748b;">${allQuotas.openrouter.is_free_tier ? 'Free tier' : 'Paid'}</div>
+       <div style="font-size:11px;">Credits used: $${Number(allQuotas.openrouter.credits_used).toFixed(4)}</div>
+       ${allQuotas.openrouter.credit_limit ? `<div style="font-size:11px;">Limit: $${allQuotas.openrouter.credit_limit}</div>` : '<div style="font-size:11px; color:#94a3b8;">No credit cap</div>'}
+       <div style="font-size:11px; color:#64748b; margin-top:8px;">Rate: ${allQuotas.openrouter.rate_limit_requests} req / ${allQuotas.openrouter.rate_limit_interval}</div>`
+    : `<div style="font-size:11px; color:#94a3b8;">${allQuotas.openrouter?.reason || 'Unavailable'}</div>`;
+
+
+  openModal('TOKENS', 'AI Provider Usage', `
     <div style="max-height:70vh; overflow-y:auto;">
+      <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:10px;">OpenAI (last 30 days)</div>
       <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
         <div><div style="font-size:11px; color:#64748b;">TOTAL TOKENS</div><strong>${data.total_tokens.toLocaleString()}</strong></div>
         <div><div style="font-size:11px; color:#64748b;">INPUT</div><strong>${data.total_input_tokens.toLocaleString()}</strong></div>
@@ -1466,10 +1495,16 @@ async function openTokensModal() {
         <div><div style="font-size:11px; color:#64748b;">REQUESTS</div><strong>${data.total_requests.toLocaleString()}</strong></div>
         <div><div style="font-size:11px; color:#64748b;">SPEND (USD)</div><strong>${data.total_usd != null ? '$' + data.total_usd.toFixed(2) : 'N/A'}</strong></div>
       </div>
-      <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">Daily Token Usage</div>
-      <div style="display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:16px; overflow-x:auto;">
+      <div style="display:flex; align-items:flex-end; gap:2px; height:${CHART_MAX_PX}px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:20px; overflow-x:auto;">
         ${chartBars}
       </div>
+
+      <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:10px;">Free-tier providers (live)</div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+        ${providerCard('Groq', '⚡', groqContent)}
+        ${providerCard('OpenRouter', '🔀', openrouterContent)}
+      </div>
+
       <table style="width:100%; font-size:12px;">
         <thead><tr><th>Date</th><th>Input</th><th>Output</th><th>Total</th><th>Requests</th></tr></thead>
         <tbody>${dailyRows}</tbody>
@@ -1800,6 +1835,8 @@ function renderLicenses() {
 
                 <tr>
 
+                    <td>#${license.id}</td>
+
                     <td>
 
                         <strong>
@@ -1908,7 +1945,7 @@ function renderLicenses() {
 
             <tr>
 
-                <td colspan="7">
+                <td colspan="8">
 
                     <div class="empty">
                         No licenses found.
@@ -1957,10 +1994,19 @@ function licenseFields(license = {}) {
             </div>
 
             <div class="form-group">
-                <label>Email (for OTP verification)</label>
-                <input name="email" type="email" placeholder="admin@hospital.com" value="${license.email || ''}" required>
+                <label>Two-Factor Method</label>
+                <select name="twoFactorMethod">
+                    <option value="email" ${(!license.twoFactorMethod || license.twoFactorMethod === 'email') ? 'selected' : ''}>Email OTP</option>
+                    <option value="totp" ${license.twoFactorMethod === 'totp' ? 'selected' : ''}>Authenticator App (TOTP)</option>
+                </select>
             </div>
 
+            <div class="form-group">
+                <label>Email (used if Email OTP selected)</label>
+                <input name="email" type="email" placeholder="admin@hospital.com" value="${license.email || ''}">
+            </div>
+
+          
             <div class="form-group">
                 <label>Plan</label>
                 <select name="plan">
@@ -1993,6 +2039,7 @@ function openLicense(license = null) {
                                 phone: data.phone,
                                 dob_year: data.dobYear,
                                 email: data.email,
+                                two_factor_method: data.twoFactorMethod,
                             }),
                         });
                         const result = await res.json();
@@ -2172,6 +2219,27 @@ window.deleteLicense = async (code) => {
 // =========================================================
 // ANALYTICS
 // =========================================================
+
+async function generateTotpQr(code) {
+    try {
+        const res = await authFetch(`${API_BASE}/admin/licenses/${code}/totp-qr`);
+        const result = await res.json();
+        if (result.status !== 'success') {
+            toast(result.message || 'Failed to generate QR code');
+            return;
+        }
+        openModal('TOTP SETUP', `Scan for ${code}`, `
+            <div style="text-align:center;">
+                <img src="${result.qr_code}" style="max-width:250px;" />
+                <p style="font-size:12px; color:#64748b; margin-top:12px;">Scan with Google Authenticator, Authy, or any TOTP app.</p>
+            </div>
+        `, null);
+    } catch (err) {
+        console.error(err);
+        toast('Could not reach the server to generate QR code');
+    }
+}
+
 
 function renderAnalytics() {
 
@@ -2753,7 +2821,9 @@ async function loadOpenAIUsage() {
     const data = await res.json();
     const settingsRes = await authFetch(`${API_BASE}/admin/settings`);
     const settingsData = await settingsRes.json();
-    const creditLimit = parseFloat(settingsData.settings?.openai_credit_limit) || null;
+    const tokenBudget = parseInt(settingsData.settings?.openai_token_budget) || null;
+    const tokenBaseline = parseInt(settingsData.settings?.openai_token_baseline) || 0;
+    
 
     if (!data.available) {
       $('openaiTokenTotal').textContent = 'N/A';
@@ -2761,18 +2831,19 @@ async function loadOpenAIUsage() {
       return data;
     }
 
-    $('openaiTokenTotal').textContent = data.total_tokens.toLocaleString();
+    const displayTokens = tokenBudget ? Math.max(0, (data.total_tokens || 0) - tokenBaseline) : data.total_tokens;
+    $('openaiTokenTotal').textContent = displayTokens.toLocaleString();
     $('openaiRequestCount').textContent = `${data.total_requests.toLocaleString()} requests`;
 
-    if (creditLimit) {
-      const remaining = creditLimit;
-      const pct = Math.max(0, Math.min(100, Math.round((remaining / 25) * 100))); // assumes a rough $25 "full bar" reference — adjust the 25 to whatever a typical top-up amount is for you
-      const barColor = pct < 15 ? '#dc2626' : pct < 35 ? '#f59e0b' : '#22c55e';
+    if (tokenBudget) {
+      const used = Math.max(0, (data.total_tokens || 0) - tokenBaseline);
+      const pct = Math.min(100, Math.round((used / tokenBudget) * 100));
+      const barColor = pct > 90 ? '#dc2626' : pct > 70 ? '#f59e0b' : '#22c55e';
       $('openaiCreditBar').innerHTML = `
         <div style="background:#f1f5f9; border-radius:6px; height:8px; overflow:hidden; margin-top:8px;">
           <div style="width:${pct}%; height:100%; background:${barColor}; transition:width 0.3s ease;"></div>
         </div>
-        <div style="font-size:11px; color:#64748b; margin-top:4px;">$${remaining.toFixed(2)} remaining</div>
+        <div style="font-size:11px; color:#64748b; margin-top:4px;">${pct}% used (${used.toLocaleString()} / ${tokenBudget.toLocaleString()} tokens)</div>
       `;
     }
 
@@ -2844,14 +2915,37 @@ window.toggleAdminStatus = (username, newStatus) => {
 async function renderAudit() {
     const search = $('auditSearch').value;
     const eventType = $('auditEventFilter').value;
-    const dateFrom = $('auditDateFrom').value;
-    const dateTo = $('auditDateTo').value;
+    const range = $('auditDateRange').value;
+    const institutionId = $('auditInstitutionFilter').value;
+    let dateFrom = '', dateTo = '';
+    const today = new Date();
+    const iso = d => d.toISOString().split('T')[0];
+
+    if (range === 'today') {
+      dateFrom = dateTo = iso(today);
+    } else if (range === 'yesterday') {
+      const y = new Date(today); y.setDate(y.getDate() - 1);
+      dateFrom = dateTo = iso(y);
+    } else if (range === 'last_week') {
+      const w = new Date(today); w.setDate(w.getDate() - 7);
+      dateFrom = iso(w); dateTo = iso(today);
+    } else if (range === 'last_month') {
+      const m = new Date(today); m.setMonth(m.getMonth() - 1);
+      dateFrom = iso(m); dateTo = iso(today);
+    } else if (range === 'last_year') {
+      const y = new Date(today); y.setFullYear(y.getFullYear() - 1);
+      dateFrom = iso(y); dateTo = iso(today);
+    } else if (range === 'custom') {
+      dateFrom = $('auditDateFrom').value;
+      dateTo = $('auditDateTo').value;
+    }
 
     const params = new URLSearchParams({ limit: 500 });
     if (search) params.set('search', search);
     if (eventType && eventType !== 'all') params.set('event_type', eventType);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
+    if (institutionId && institutionId !== 'all') params.set('institution_id', institutionId);
 
     let events = [];
     try {
@@ -2901,6 +2995,20 @@ async function renderAudit() {
         </tr>
     `).join('') || `<tr><td colspan="5"><div class="empty">No matching events.</div></td></tr>`;
 }
+
+function populateAuditInstitutionFilter() {
+    const sel = $('auditInstitutionFilter');
+    sel.innerHTML = '<option value="all">Institution</option>' +
+        state.institutions.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+}
+
+$('auditDateRange').addEventListener('change', () => {
+    const isCustom = $('auditDateRange').value === 'custom';
+    $('auditDateFrom').style.display = isCustom ? 'inline-block' : 'none';
+    $('auditDateTo').style.display = isCustom ? 'inline-block' : 'none';
+    renderAudit();
+});
+$('auditInstitutionFilter').addEventListener('change', renderAudit);
 
 function toggleAuditDetail(id) {
     const row = document.getElementById(`audit-detail-${id}`);
@@ -3071,7 +3179,7 @@ $('saveSettings')
             smtp_user: $('smtpUser').value,
             smtp_password: $('smtpPassword').value,
             alert_email_to: $('alertEmailTo').value,
-            openai_credit_limit: Number($('openaiCreditLimit').value) || 0,
+           openai_token_budget: Number($('openaiCreditLimit').value) || 0,
         };
         (async () => {
             try {
@@ -3125,6 +3233,26 @@ $('testNotifications')
             }
         })();
     };
+
+
+$('resetTokenBaseline').onclick = async () => {
+  try {
+    const res = await authFetch(`${API_BASE}/admin/openai-usage?days=30`);
+    const data = await res.json();
+    if (!data.available) { toast('Could not load current usage to reset against'); return; }
+
+    await authFetch(`${API_BASE}/admin/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ openai_token_baseline: data.total_tokens }),
+    });
+    toast('Counter reset — tracking from current usage forward');
+    loadOpenAIUsage();
+  } catch (err) {
+    console.error(err);
+    toast('Could not reset counter');
+  }
+};
 
 
 // =========================================================
@@ -3450,6 +3578,7 @@ renderLicenses();
 renderAnalytics();
 renderRoles();
 renderSettings();
+populateAuditInstitutionFilter();
 renderAudit();
 let bootstrapped = false;
 async function bootstrapAdmin() {
