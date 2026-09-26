@@ -26,3 +26,5 @@ requests
 libsql
 pydantic-settings
 tavily-python
+pyotp
+qrcode[pil]
