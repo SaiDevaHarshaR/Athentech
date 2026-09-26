@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AthenTech — Widget Test Page</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .header {
+      background: linear-gradient(135deg, #8B008B, #1e293b);
+      color: white;
+      padding: 24px 40px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    .content {
+      max-width: 700px;
+      margin: 60px auto;
+      padding: 0 20px;
+      text-align: center;
+    }
+    .content h2 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+    .content p {
+      color: #475569;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 8px 16px;
+      background: #ecfdf5;
+      color: #065f46;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AthenTech — Sample Page</h1>
+  </div>
+
+  <div class="content">
+    <h2>Widget Loader Test</h2>
+    <p>
+      This is a plain test page to confirm the Sahasra AI Assistant widget
+      loads correctly via the same script-tag method that will replace Zoho
+      on athentech.in.
+    </p>
+    <p>
+      Look for the chat bubble in the bottom-right corner. Click it to open
+      the widget.
+    </p>
+    <div class="badge">✅ If you see the bubble, the loader is working</div>
+  </div>
+
+  <!-- Sahasra AI Agent widget — replaces the old Zoho snippet -->
+  <script src="http://192.168.0.163:81/widget-loader.js" defer></script>
+</body>
+</html>
