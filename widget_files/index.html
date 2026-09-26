@@ -533,6 +533,39 @@ function getDeviceFingerprint() {
   return 'fp_' + Math.abs(hash).toString(36);
 }
 const DEVICE_FINGERPRINT = getDeviceFingerprint();
+
+let widgetConfig = {};
+
+async function loadWidgetConfig() {
+  try {
+    const res = await fetch(API_URL.replace('/ask', '/widget-config'));
+    widgetConfig = await res.json();
+    applyWidgetConfig();
+  } catch (err) {
+    console.error('Could not load widget config, using defaults', err);
+  }
+}
+
+function applyWidgetConfig() {
+  if (!widgetConfig || Object.keys(widgetConfig).length === 0) return;
+
+  document.querySelector('.header-info h1').textContent = widgetConfig.title || 'Sahasra AI Assistant';
+  document.querySelector('.header').style.background =
+    `linear-gradient(135deg, ${widgetConfig.primary_color}, ${widgetConfig.secondary_color})`;
+  document.querySelector('.container').style.width = widgetConfig.width_px ? widgetConfig.width_px + 'px' : '100%';
+  document.querySelector('.chat').style.backgroundColor = widgetConfig.bg_color || '#fafbfd';
+
+  const footerEl = document.querySelector('[onclick*="disclaimerModal"]')?.parentElement?.querySelector('span:last-child');
+  if (footerEl) footerEl.textContent = widgetConfig.footer_text || 'Powered by AthenTech';
+
+  const disclaimerBody = document.querySelector('#disclaimerModal div div:last-child');
+  if (disclaimerBody) disclaimerBody.textContent = '⚠️ ' + (widgetConfig.disclaimer_text || '');
+
+  if (widgetConfig.icon_url) {
+    const logoImg = document.querySelector('.logo img');
+    if (logoImg) logoImg.src = widgetConfig.icon_url;
+  }
+}
 let state = {
   mode: 'normal',
   activationCode: null,
@@ -932,6 +965,7 @@ function showSuggestions(list) {
 }
 
 function start() {
+  loadWidgetConfig();
   chatEl.innerHTML = '';
   state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
   statusEl.textContent = 'General Mode';
@@ -940,10 +974,13 @@ function start() {
 
   // ===== DISCLAIMER (put it here) =====
 
-  addMessage(
-    `Hello! 👋\n\nI'm **Sahasra AI Assistant**.\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
-    'bot'
-  );
+  setTimeout(() => {
+    addMessage(
+      (widgetConfig.welcome_message || `Hello! 👋\n\nI'm **Sahasra AI Assistant**.`) +
+      `\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
+      'bot'
+    );
+  }, 100);
 
   showSuggestions([
     { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
