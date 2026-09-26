@@ -231,8 +231,8 @@ class SettingsUpdateRequest(BaseModel):
     smtp_user: Optional[str] = None
     smtp_password: Optional[str] = None
     alert_email_to: Optional[str] = None
-    openai_credit_limit: Optional[float] = None
-
+    openai_token_budget: Optional[int] = None
+    openai_token_baseline: Optional[int] = None
 
 # ---------- Public ----------
 
@@ -408,6 +408,20 @@ def release_device_lock(req: dict):
 def api_list_licenses(admin: str = Depends(require_admin)):
     return {"status": "success", "licenses": list_licenses()}
 
+@app.get("/admin/groq-quota")
+def api_groq_quota(admin: str = Depends(require_admin)):
+    from auth.groq_quota import get_groq_quota
+    return get_groq_quota()
+
+@app.get("/admin/all-quotas")
+def api_all_quotas(admin: str = Depends(require_admin)):
+    from auth.groq_quota import get_groq_quota
+    from auth.openrouter_quota import get_openrouter_quota
+    return {
+        "groq": get_groq_quota(),
+        "openrouter": get_openrouter_quota(),
+    }
+
 @app.patch("/admin/licenses/{code}")
 def update_license_endpoint(code: str, req: dict, admin=Depends(require_admin)):
     try:
@@ -510,10 +524,18 @@ def verify_otp_endpoint(req: dict):
     activation_code = req.get("activation_code", "")
     otp = req.get("otp", "")
 
-    from auth.email_otp import verify_otp
-    result = verify_otp(activation_code, otp)
-    if not result["valid"]:
-        return {"status": "error", "answer": result["reason"]}
+    validation = validate_license(activation_code)
+    two_factor_method = validation.get("two_factor_method", "email") if validation.get("valid") else "email"
+
+    if two_factor_method == "totp":
+        from auth.totp_2fa import verify_totp_code
+        if not verify_totp_code(validation.get("totp_secret"), otp):
+            return {"status": "error", "answer": "Incorrect code."}
+    else:
+        from auth.email_otp import verify_otp
+        result = verify_otp(activation_code, otp)
+        if not result["valid"]:
+            return {"status": "error", "answer": result["reason"]}
 
     validation = validate_license(activation_code)
     if not validation.get("valid"):
@@ -579,6 +601,20 @@ def api_check_expiring_licenses(admin: str = Depends(require_admin)):
 # Real compliance data — every premium query, invalid activation attempt,
 # and now every admin action (who created/edited/revoked what), read
 # straight from audit/audit.log.
+@app.get("/admin/licenses/{code}/totp-qr")
+def get_totp_qr(code: str, admin: str = Depends(require_admin)):
+    from auth.totp_2fa import generate_totp_secret, generate_qr_code_data_uri
+    from auth.license_service import update_license, validate_license
+
+    validation = validate_license(code)
+    if not validation.get("valid"):
+        return {"status": "error", "message": "License not found"}
+
+    secret = generate_totp_secret()
+    update_license(code, totp_secret=secret)
+    qr_data_uri = generate_qr_code_data_uri(secret, validation.get("hospital_name", "Hospital"), code)
+
+    return {"status": "success", "qr_code": qr_data_uri}
 
 @app.get("/admin/audit")
 def api_get_audit(
@@ -587,11 +623,12 @@ def api_get_audit(
     event_type: str = None,
     date_from: str = None,
     date_to: str = None,
+    institution_id: int = None,
     admin: str = Depends(require_admin),
 ):
     events = read_audit_log(
         limit=limit, search=search, event_type=event_type,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, institution_id=institution_id,
     )
     return {"status": "success", "events": events}
 
@@ -849,6 +886,31 @@ async def ask_question(req: QueryRequest, request: Request):
 
                 is_validate_ping_early = req.question.strip().lower() == "validate"
                 if is_validate_ping_early:
+                    two_factor_method = validation.get("two_factor_method", "email")
+
+                    if two_factor_method == "totp":
+                        if not validation.get("totp_secret"):
+                            from auth.totp_2fa import generate_totp_secret, generate_qr_code_data_uri
+                            secret = generate_totp_secret()
+                            update_license(req.activation_code, totp_secret=secret)
+                            qr_data_uri = generate_qr_code_data_uri(
+                                secret, validation.get("hospital_name", "your hospital"), req.activation_code
+                            )
+                            return {
+                                "status": "success",
+                                "mode": "otp_required",
+                                "otp_method": "totp",
+                                "totp_first_setup": True,
+                                "qr_code": qr_data_uri,
+                                "answer": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code it shows.",
+                            }
+                        return {
+                            "status": "success",
+                            "mode": "otp_required",
+                            "otp_method": "totp",
+                            "answer": "Enter the 6-digit code from your authenticator app.",
+                        }
+
                     from auth.email_otp import generate_and_send_otp
                     otp_result = generate_and_send_otp(
                         req.activation_code, validation.get("email"), validation.get("hospital_name", "your hospital")
@@ -861,6 +923,7 @@ async def ask_question(req: QueryRequest, request: Request):
                     return {
                         "status": "success",
                         "mode": "otp_required",
+                        "otp_method": "email",
                         "answer": "A verification code was sent to the registered email. Enter it to continue.",
                     }
                 # Per-code limit, separate from the per-IP one above —

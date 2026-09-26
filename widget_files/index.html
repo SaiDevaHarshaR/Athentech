@@ -484,9 +484,10 @@
     <div class="input-area">
       <input id="msg" type="text" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')handleSend()" />
       <button onclick="handleSend()">→</button>
-        <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none;">Excel ▾</button>
-      <button type="button" onclick="alert('⚠️ Disclaimer\n\nThis assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.')" title="Terms & Disclaimer">⚠️</button>
-    </div>
+       <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none; width:auto; padding:8px 12px; white-space:nowrap; font-size:13px;">Excel ▾</button>
+    
+    
+      </div>
 
 
   
@@ -938,10 +939,7 @@ function start() {
   modeBadge.classList.remove('premium');
 
   // ===== DISCLAIMER (put it here) =====
-  addMessage(
-    `⚠️ **Disclaimer**\nThis assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.`,
-    'bot'
-  );
+
   addMessage(
     `Hello! 👋\n\nI'm **Sahasra AI Assistant**.\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
     'bot'
@@ -973,7 +971,7 @@ async function downloadCollectionExcel(period, reportType, location) {
   console.log("EXCEL PAYLOAD", payload);
 
   try {
-    const response = await fetch("http://127.0.0.1:8000/generate-excel", {
+        const response = await fetch(API_URL.replace('/ask', '/generate-excel'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -1023,7 +1021,7 @@ function showExcelMenu() {
 async function promptForLocationThenDownload(period, reportType) {
   addMessage('Loading branches...', 'bot');
   try {
-    const response = await fetch("http://127.0.0.1:8000/locations", {
+      const response = await fetch(API_URL.replace('/ask', '/locations'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activation_code: state.activationCode ? String(state.activationCode) : "" })
@@ -1060,7 +1058,7 @@ async function processMessage(text) {
 
   if (q === '/limit') {
     try {
-      const res = await fetch('http://127.0.0.1:8000/usage-status', {
+            const res = await fetch(API_URL.replace('/ask', '/usage-status'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activation_code: state.activationCode || '' }),
@@ -1127,7 +1125,7 @@ async function processMessage(text) {
   // ===== EXIT PREMIUM =====
   if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
     if (state.activationCode) {
-      fetch('http://192.168.0.163:8000/release-device', {
+      fetch(API_URL.replace('/ask', '/release-device'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activation_code: state.activationCode })
@@ -1191,9 +1189,23 @@ async function processMessage(text) {
 
       if (data.status === 'success' && data.mode === 'otp_required') {
         state.pendingActivationCode = text.toUpperCase();
+        state.otpMethod = data.otp_method || 'email';
         state.waitingForCode = false;
         state.waitingForOtp = true;
-        addMessage(data.answer, 'bot');
+
+        if (data.totp_first_setup && data.qr_code) {
+          addMessage(data.answer, 'bot');
+          const chatEl = document.getElementById('chat');
+          const imgDiv = document.createElement('div');
+          imgDiv.style.textAlign = 'center';
+          imgDiv.style.margin = '10px 0';
+          imgDiv.innerHTML = `<img src="${data.qr_code}" style="max-width:200px; border:1px solid #e2e8f0; border-radius:8px;" />`;
+          chatEl.appendChild(imgDiv);
+          chatEl.scrollTop = chatEl.scrollHeight;
+        } else {
+          addMessage(data.answer, 'bot');
+        }
+
         showSuggestions([]);
         return;
       }
@@ -1256,7 +1268,7 @@ async function processMessage(text) {
   if (state.waitingForOtp) {
     statusEl.textContent = 'Verifying code...';
     try {
-      const response = await fetch('http://192.168.0.163:8000/verify-otp', {
+      const response = await fetch(API_URL.replace('/ask', '/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1429,7 +1441,7 @@ async function downloadPdf(answerText) {
     .filter(l => l.length > 0);
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/generate-pdf', {
+      const response = await fetch(API_URL.replace('/ask', '/generate-pdf'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1467,7 +1479,7 @@ async function downloadPatientReport(patientIdentifier) {
   addMessage(`Generating Smart Report for ${patientIdentifier}...`, 'bot');
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/generate-patient-report', {
+      const response = await fetch(API_URL.replace('/ask', '/generate-patient-report'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
