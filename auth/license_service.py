@@ -402,7 +402,22 @@ def get_settings() -> dict:
         "smtp_user": raw.get("smtp_user", ""),
         "smtp_password": decrypt_secret(raw.get("smtp_password", "")),
         "alert_email_to": raw.get("alert_email_to", ""),
-        "openai_token_budget": int(raw.get("openai_token_budget", 0) or 0),
+                "openai_token_budget": int(raw.get("openai_token_budget", 0) or 0),
+        "widget_title": raw.get("widget_title", "Sahasra AI Assistant"),
+        "widget_subtitle": raw.get("widget_subtitle", "General Mode"),
+        "widget_welcome_message": raw.get("widget_welcome_message", "Hello! 👋 I'm Sahasra AI Assistant."),
+        "widget_primary_color": raw.get("widget_primary_color", "#8B008B"),
+        "widget_secondary_color": raw.get("widget_secondary_color", "#1e293b"),
+        "widget_bg_color": raw.get("widget_bg_color", "#ffffff"),
+        "widget_width_px": int(raw.get("widget_width_px", 420) or 420),
+        "widget_height_px": int(raw.get("widget_height_px", 700) or 700),
+        "widget_icon_url": raw.get("widget_icon_url", ""),
+        "widget_disclaimer_text": raw.get(
+            "widget_disclaimer_text",
+            "This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited."
+        ),
+        "widget_footer_text": raw.get("widget_footer_text", "Powered by AthenTech"),
+    
         "openai_token_baseline": int(raw.get("openai_token_baseline", 0) or 0),
     }
 
@@ -424,7 +439,18 @@ def update_settings(**fields) -> dict:
         "smtp_user": lambda v: str(v),
         "smtp_password": lambda v: encrypt_secret(str(v)),
         "alert_email_to": lambda v: str(v),
-        "openai_token_budget": lambda v: str(int(v)),
+                "openai_token_budget": lambda v: str(int(v)),
+        "widget_title": lambda v: str(v),
+        "widget_subtitle": lambda v: str(v),
+        "widget_welcome_message": lambda v: str(v),
+        "widget_primary_color": lambda v: str(v),
+        "widget_secondary_color": lambda v: str(v),
+        "widget_bg_color": lambda v: str(v),
+        "widget_width_px": lambda v: str(int(v)),
+        "widget_height_px": lambda v: str(int(v)),
+        "widget_icon_url": lambda v: str(v),
+        "widget_disclaimer_text": lambda v: str(v),
+        "widget_footer_text": lambda v: str(v),
         "openai_token_baseline": lambda v: str(int(v)),
     }
     for key, value in fields.items():
