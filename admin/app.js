@@ -2251,9 +2251,12 @@ async function generateTotpQr(code) {
             <div style="text-align:center;">
                 <img src="${result.qr_code}" style="max-width:250px;" />
                 <p style="font-size:12px; color:#64748b; margin-top:12px;">Scan with Google Authenticator, Authy, or any TOTP app.</p>
-                <div style="margin-top:16px; padding:12px; background:#f8fafc; border-radius:8px;">
-                    <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Can't scan? Enter manually:</div>
-                    <div style="font-family:monospace; font-size:14px; font-weight:700; letter-spacing:1px;">${result.manual_code}</div>
+                <div style="margin-top:16px; padding:12px; background:#f8fafc; border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Can't scan? Enter manually:</div>
+                        <div style="font-family:monospace; font-size:14px; font-weight:700; letter-spacing:1px;">${result.manual_code}</div>
+                    </div>
+                    <button type="button" class="secondary-btn" onclick="navigator.clipboard.writeText('${result.manual_code.replace(/ /g, '')}'); toast('Code copied');" style="flex-shrink:0;">Copy</button>
                 </div>
             </div>
         `, null);
