@@ -175,7 +175,11 @@ async function loadLicensesFromAPI() {
     plan: l.plan,
     status: l.status,
     expiry: l.expiry_date,
-    usage: 0
+    usage: 0,
+    phone: l.phone,
+    dobYear: l.dob_year,
+    email: l.email,
+    twoFactorMethod: l.two_factor_method,
   }));
   save();
 }
@@ -610,7 +614,10 @@ const pages = {
         $('rolesPage'),
 
     settings:
-        $('settingsPage')
+        $('settingsPage'),
+
+    chatbotSettings:
+        $('chatbotSettingsPage')
 
 };
 
@@ -657,7 +664,9 @@ function navigate(page) {
 
         roles: renderRoles,
 
-        settings: renderSettings
+        settings: renderSettings,
+
+        chatbotSettings: loadChatbotSettings
 
     };
 
@@ -1916,6 +1925,16 @@ function renderLicenses() {
                                 Suspend
                             </button>
 
+                            ${license.twoFactorMethod === 'totp' ? `
+                            <button
+                                class="row-action"
+                                title="Show QR / manual code"
+                                onclick="generateTotpQr('${license.code}')"
+                            >
+                                QR
+                            </button>
+                            ` : ''}
+
                             <button
                                 class="row-action"
                                 title="Permanently delete this license"
@@ -2228,10 +2247,14 @@ async function generateTotpQr(code) {
             toast(result.message || 'Failed to generate QR code');
             return;
         }
-        openModal('TOTP SETUP', `Scan for ${code}`, `
+        openModal('TOTP SETUP', `Authenticator Setup for ${code}`, `
             <div style="text-align:center;">
                 <img src="${result.qr_code}" style="max-width:250px;" />
                 <p style="font-size:12px; color:#64748b; margin-top:12px;">Scan with Google Authenticator, Authy, or any TOTP app.</p>
+                <div style="margin-top:16px; padding:12px; background:#f8fafc; border-radius:8px;">
+                    <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Can't scan? Enter manually:</div>
+                    <div style="font-family:monospace; font-size:14px; font-weight:700; letter-spacing:1px;">${result.manual_code}</div>
+                </div>
             </div>
         `, null);
     } catch (err) {
@@ -2995,6 +3018,52 @@ async function renderAudit() {
         </tr>
     `).join('') || `<tr><td colspan="5"><div class="empty">No matching events.</div></td></tr>`;
 }
+
+
+async function loadChatbotSettings() {
+    const res = await authFetch(`${API_BASE}/admin/settings`);
+    const data = await res.json();
+    const s = data.settings;
+    $('cbTitle').value = s.widget_title || '';
+    $('cbSubtitle').value = s.widget_subtitle || '';
+    $('cbWelcome').value = s.widget_welcome_message || '';
+    $('cbIconUrl').value = s.widget_icon_url || '';
+    $('cbFooter').value = s.widget_footer_text || '';
+    $('cbDisclaimer').value = s.widget_disclaimer_text || '';
+    $('cbPrimaryColor').value = s.widget_primary_color || '#8B008B';
+    $('cbSecondaryColor').value = s.widget_secondary_color || '#1e293b';
+    $('cbBgColor').value = s.widget_bg_color || '#ffffff';
+    $('cbWidth').value = s.widget_width_px || 420;
+    $('cbHeight').value = s.widget_height_px || 700;
+}
+
+$('saveChatbotSettings').onclick = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/admin/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                widget_title: $('cbTitle').value,
+                widget_subtitle: $('cbSubtitle').value,
+                widget_welcome_message: $('cbWelcome').value,
+                widget_icon_url: $('cbIconUrl').value,
+                widget_footer_text: $('cbFooter').value,
+                widget_disclaimer_text: $('cbDisclaimer').value,
+                widget_primary_color: $('cbPrimaryColor').value,
+                widget_secondary_color: $('cbSecondaryColor').value,
+                widget_bg_color: $('cbBgColor').value,
+                widget_width_px: Number($('cbWidth').value) || 420,
+                widget_height_px: Number($('cbHeight').value) || 700,
+            }),
+        });
+        const result = await res.json();
+        if (result.status !== 'success') { toast(result.message || 'Failed to save'); return; }
+        toast('ChatBot settings saved');
+    } catch (err) {
+        console.error(err);
+        toast('Could not reach the server');
+    }
+};
 
 function populateAuditInstitutionFilter() {
     const sel = $('auditInstitutionFilter');
