@@ -96,7 +96,7 @@
       <button class="nav-item" data-page="chatbotSettings"><span>💬</span>ChatBot Settings</button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="system-status"><span class="status-dot"></span><div><strong>System Online</strong><small>All services operational</small></div></div>
+    <div class="system-status"><span class="status-dot" id="systemStatusDot"></span><div><strong id="systemStatusText">Checking...</strong><small id="systemStatusSub">Connecting to backend</small></div></div>
       <div class="sidebar-version">Sahasra Admin v1.0</div>
     </div>
   </aside>
@@ -235,7 +235,7 @@
 <!----ChatBot Settings -->
 
 <div id="chatbotSettingsPage" class="page">
-  <div class="page-heading"><div><div class="eyebrow">CUSTOMIZATION</div><h1>ChatBot Settings</h1><p>Customize the widget's appearance and behavior</p></div></div>
+    <div class="page-heading"><div><div class="eyebrow">CUSTOMIZATION</div><h1>ChatBot Settings</h1><p>Customize the widget's appearance and behavior</p></div><button class="primary-btn" id="saveChatbotSettings">Save Changes</button></div>
   <div class="settings-grid">
     <div class="settings-section">
       <h3>Identity</h3>
@@ -273,9 +273,6 @@
       <div class="setting"><div><strong>Enable Idle Nudge</strong><small>Gentle re-engagement message after inactivity</small></div><label class="switch"><input id="cbIdleNudgeEnabled" type="checkbox"><span></span></label></div>
       <div class="setting"><div><strong>Idle Minutes</strong><small>How long before the nudge shows</small></div><input id="cbIdleMinutes" type="number" class="small-input"></div>
       <div class="setting"><div><strong>Nudge Message</strong><small>What it says</small></div><textarea id="cbIdleMsg" class="setting-input" rows="2"></textarea></div>
-    </div>
-    <div class="settings-section">
-      <button class="primary-btn" id="saveChatbotSettings">Save ChatBot Settings</button>
     </div>
   </div >
 </div>
