@@ -483,8 +483,11 @@ def update_settings(**fields) -> dict:
             # save would be a serious, easy-to-trigger regression.
             continue
         cur.execute(
-            "INSERT INTO settings(key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            "MERGE settings AS target "
+            "USING (SELECT ? AS [key], ? AS value) AS source "
+            "ON target.[key] = source.[key] "
+            "WHEN MATCHED THEN UPDATE SET value = source.value "
+            "WHEN NOT MATCHED THEN INSERT ([key], value) VALUES (source.[key], source.value);",
             (key, serializers[key](value))
         )
 
