@@ -1,38 +1,47 @@
 """
-Cloud-hosted (Turso/libSQL) version of database/license_db.py.
-Same schema, same public functions, same row["column_name"] access
-pattern as the original SQLite version — only get_conn() and the row
-wrapper changed. Nothing else in the codebase needs to change.
+Admin/license database — MSSQL-backed. Migrated from Turso (SQLite),
+which was used during testing since it was genuinely free forever
+with no pause-on-inactivity. Now that AthenTech has real MSSQL
+licenses, this uses the same database technology as the rest of the
+stack — one thing to monitor/back up instead of a separate external
+dependency.
 
-Credentials from environment variables:
-    TURSO_DATABASE_URL
-    TURSO_AUTH_TOKEN
+Connection details come from environment variables so moving from
+test to production is purely an .env change, no code change:
+    ADMIN_DB_SERVER   (e.g. "myserver.database.windows.net" or "192.168.0.163")
+    ADMIN_DB_PORT      (e.g. "1433")
+    ADMIN_DB_NAME      (e.g. "SahasraAdmin")
+    ADMIN_DB_USER
+    ADMIN_DB_PASSWORD
 
-Uses an embedded replica (a local file that syncs with the remote
-Turso database) — this is the standard, recommended pattern: reads
-are fast (local file), writes go to the cloud and sync back. Call
-conn.sync() after any write if you need to guarantee the read-back
-reflects it immediately (not required for most uses here, since this
-process holds the connection continuously).
+Note: this is genuinely untested against a live MSSQL server — I
+cannot run pyodbc against a real SQL Server instance from this
+sandbox. Real verification is needed on the actual server, the same
+way every other piece this session was tested there.
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import libsql
+import pyodbc
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "")
-_TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-_LOCAL_REPLICA_PATH = "licenses_replica.db"
+_ADMIN_DB_SERVER = os.environ.get("ADMIN_DB_SERVER", "")
+_ADMIN_DB_PORT = os.environ.get("ADMIN_DB_PORT", "1433")
+_ADMIN_DB_NAME = os.environ.get("ADMIN_DB_NAME", "")
+_ADMIN_DB_USER = os.environ.get("ADMIN_DB_USER", "")
+_ADMIN_DB_PASSWORD = os.environ.get("ADMIN_DB_PASSWORD", "")
 
 
+# ---------------------------------------------------------------------------
+# Dict-style row access — every existing caller across the codebase does
+# row["column_name"], not row.column_name or positional indexing. pyodbc's
+# native Row object supports attribute access but not dict-style bracket
+# access, so this wrapper bridges that gap without touching every call site.
+# ---------------------------------------------------------------------------
 class DictRow:
-    """Wraps a raw libsql tuple row + column names, mimicking
-    sqlite3.Row so existing row["column_name"] access keeps working
-    unchanged everywhere else in the codebase."""
     def __init__(self, row, columns):
         self._data = dict(zip(columns, row))
 
@@ -42,256 +51,204 @@ class DictRow:
     def get(self, key, default=None):
         return self._data.get(key, default)
 
-    def keys(self):
-        return self._data.keys()
-
     def items(self):
         return self._data.items()
 
-    def __iter__(self):
-        return iter(self._data.values())
-
-    def __repr__(self):
-        return f"DictRow({self._data})"
+    def keys(self):
+        return self._data.keys()
 
 
 class DictCursor:
-    """Wraps a raw libsql cursor so fetchone/fetchall return DictRow
-    objects instead of plain tuples — drop-in behavior match for the
-    sqlite3.Row-based code this replaces."""
-    def __init__(self, raw_cursor):
-        self._cursor = raw_cursor
+    def __init__(self, real_cursor):
+        self._cursor = real_cursor
+
+    def execute(self, sql, params=None):
+        if params:
+            self._cursor.execute(sql, params)
+        else:
+            self._cursor.execute(sql)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        columns = [d[0] for d in self._cursor.description]
+        return DictRow(row, columns)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if not rows:
+            return []
+        columns = [d[0] for d in self._cursor.description]
+        return [DictRow(r, columns) for r in rows]
 
     @property
     def rowcount(self):
         return self._cursor.rowcount
 
     @property
+    def description(self):
+        return self._cursor.description
+
+    @property
     def lastrowid(self):
-        return self._cursor.lastrowid
-
-    def execute(self, sql, params=()):
-        self._cursor.execute(sql, params)
-        return self
-
-    def executemany(self, sql, params_list):
-        self._cursor.executemany(sql, params_list)
-        return self
-
-    def _columns(self):
-        return [d[0] for d in self._cursor.description] if self._cursor.description else []
-
-    def fetchone(self):
+        # pyodbc has no native lastrowid (that's a SQLite-ism) — MSSQL's
+        # real equivalent is SCOPE_IDENTITY(), queried immediately after
+        # an INSERT on an IDENTITY column, in the same connection/scope.
+        self._cursor.execute("SELECT SCOPE_IDENTITY() AS id")
         row = self._cursor.fetchone()
-        if row is None:
-            return None
-        return DictRow(row, self._columns())
-
-    def fetchall(self):
-        columns = self._columns()
-        return [DictRow(r, columns) for r in self._cursor.fetchall()]
+        return int(row[0]) if row and row[0] is not None else None
 
 
 class DictConn:
-    """Wraps a raw libsql connection so .cursor() returns a DictCursor,
-    and adds a real .close() (libsql connections don't strictly need
-    closing, but existing code calls conn.close() everywhere — keep
-    that working as a harmless no-op-if-unsupported call)."""
-    def __init__(self, raw_conn):
-        self._conn = raw_conn
+    def __init__(self, real_conn):
+        self._conn = real_conn
 
     def cursor(self):
         return DictCursor(self._conn.cursor())
 
-    def execute(self, sql, params=()):
-        # Some existing code calls conn.execute(...) directly (not via
-        # a separate cursor) — support that pattern too.
-        raw_cursor = self._conn.cursor()
-        raw_cursor.execute(sql, params)
-        return DictCursor(raw_cursor)
-
-    def executemany(self, sql, params_list):
-        raw_cursor = self._conn.cursor()
-        raw_cursor.executemany(sql, params_list)
-        return DictCursor(raw_cursor)
+    def execute(self, sql, params=None):
+        # Convenience for the common "conn.execute(...).fetchall()" pattern
+        # used throughout the codebase (mirrors sqlite3.Connection's
+        # execute shortcut, which pyodbc's raw connection doesn't have).
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
 
     def commit(self):
         self._conn.commit()
 
-    def sync(self):
-        self._conn.sync()
-
     def close(self):
-        try:
-            self._conn.close()
-        except Exception:
-            pass  # harmless if libsql doesn't require/support explicit close
+        self._conn.close()
 
 
-def get_conn():
-    raw_conn = libsql.connect(
-        _LOCAL_REPLICA_PATH,
-        sync_url=_TURSO_URL,
-        auth_token=_TURSO_TOKEN,
+def get_conn() -> DictConn:
+    conn_str = (
+        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        f"SERVER={_ADMIN_DB_SERVER},{_ADMIN_DB_PORT};"
+        f"DATABASE={_ADMIN_DB_NAME};"
+        f"UID={_ADMIN_DB_USER};"
+        f"PWD={_ADMIN_DB_PASSWORD};"
+        f"TrustServerCertificate=yes;"
     )
-    raw_conn.sync()
+    raw_conn = pyodbc.connect(conn_str, timeout=10)
     return DictConn(raw_conn)
 
 
+def _table_exists(cur, table_name: str) -> bool:
+    cur.execute(
+        "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?",
+        (table_name,)
+    )
+    return cur.fetchone() is not None
+
+
+def _column_exists(cur, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?",
+        (table_name, column_name)
+    )
+    return cur.fetchone() is not None
+
+
 def init_license_db():
+    """
+    Creates every table if it doesn't already exist, and adds any
+    columns that were introduced after the original schema (email,
+    two_factor_method, totp_secret, institution_type) — same
+    "ALTER TABLE if missing" safety net as the SQLite version had, so
+    this is safe to call on every startup without wiping real data.
+    """
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS institutions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        client_prefix TEXT NOT NULL UNIQUE,
-        type TEXT,
-        city TEXT,
-        db_name TEXT NOT NULL,
-        db_server TEXT,
-        db_user TEXT,
-        db_password TEXT,
-        status TEXT DEFAULT 'Active',
-        created_at TEXT,
-        institution_type TEXT DEFAULT 'diagnostic'
-    )
-    """)
-
-    existing = {row["name"] for row in cur.execute("PRAGMA table_info(institutions)").fetchall()}
-    if "db_server" not in existing:
-        cur.execute("ALTER TABLE institutions ADD COLUMN db_server TEXT")
-    if "db_user" not in existing:
-        cur.execute("ALTER TABLE institutions ADD COLUMN db_user TEXT")
-    if "db_password" not in existing:
-        cur.execute("ALTER TABLE institutions ADD COLUMN db_password TEXT")
-    if "institution_type" not in existing:
-        cur.execute("ALTER TABLE institutions ADD COLUMN institution_type TEXT DEFAULT 'diagnostic'")
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS role_permissions (
-    role TEXT PRIMARY KEY,
-    tables_csv TEXT NOT NULL
-    )
-    """)
-    defaults = {
-    "admin": "patients,admissions,labs,pharmacy,wards,prescriptions,billing",
-    "doctor": "patients,admissions,labs,wards",
-    "nurse": "patients,admissions,wards,labs",
-    "lab_tech": "patients,labs",
-    "pharmacist": "patients,pharmacy,prescriptions",
-    "reception": "patients,admissions",
-    "viewer": "patients,admissions"
-    }
-    for role, tables in defaults.items():
-        cur.execute(
-            "INSERT OR IGNORE INTO role_permissions(role, tables_csv) VALUES (?, ?)",
-            (role, tables)
+    if not _table_exists(cur, "institutions"):
+        cur.execute("""
+        CREATE TABLE institutions (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            name NVARCHAR(255) NOT NULL,
+            code NVARCHAR(50) NOT NULL UNIQUE,
+            client_prefix NVARCHAR(50) NOT NULL,
+            db_name NVARCHAR(255),
+            db_server NVARCHAR(255),
+            db_user NVARCHAR(255),
+            db_password NVARCHAR(500),
+            type NVARCHAR(50) DEFAULT 'Diagnostic',
+            city NVARCHAR(100),
+            status NVARCHAR(50) DEFAULT 'Active',
+            created_at NVARCHAR(50)
         )
+        """)
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS licenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT NOT NULL UNIQUE,
-        institution_id INTEGER NOT NULL,
-        client_prefix TEXT NOT NULL,
-        role TEXT NOT NULL,
-        plan TEXT DEFAULT 'Standard',
-        phone TEXT,
-        dob_year TEXT,
-        user_ref TEXT,
-        email TEXT,
-        db_name TEXT NOT NULL,
-        hospital_name TEXT NOT NULL,
-        status TEXT DEFAULT 'Active',
-        expiry_date TEXT,
-        created_by TEXT DEFAULT 'admin',
-        created_at TEXT,
-        FOREIGN KEY(institution_id) REFERENCES institutions(id)
-    )
-    """)
-
-    existing_license_cols = {row["name"] for row in cur.execute("PRAGMA table_info(licenses)").fetchall()}
-    if "email" not in existing_license_cols:
-        cur.execute("ALTER TABLE licenses ADD COLUMN email TEXT")
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-    """)
-    default_settings = {
-        "license_validity_days": "90",
-        "normal_mode_enabled": "true",
-        "rate_limit_per_minute": "300",
-        "extra_blocked_patterns": "",
-        "output_redaction_enabled": "true",
-        "email_alerts_enabled": "false",
-        "webhook_url": "",
-        "smtp_host": "",
-        "smtp_port": "587",
-        "smtp_user": "",
-        "smtp_password": "",
-        "alert_email_to": "",
-    }
-    for key, value in default_settings.items():
-        cur.execute(
-            "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
-            (key, value)
+    if not _table_exists(cur, "licenses"):
+        cur.execute("""
+        CREATE TABLE licenses (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            code NVARCHAR(100) NOT NULL UNIQUE,
+            institution_id INT NOT NULL,
+            client_prefix NVARCHAR(50) NOT NULL,
+            role NVARCHAR(50) NOT NULL,
+            plan NVARCHAR(50) DEFAULT 'Standard',
+            phone NVARCHAR(50),
+            dob_year NVARCHAR(10),
+            user_ref NVARCHAR(100),
+            email NVARCHAR(255),
+            two_factor_method NVARCHAR(20) DEFAULT 'email',
+            totp_secret NVARCHAR(100),
+            db_name NVARCHAR(255) NOT NULL,
+            hospital_name NVARCHAR(255) NOT NULL,
+            status NVARCHAR(50) DEFAULT 'Active',
+            expiry_date NVARCHAR(50),
+            created_by NVARCHAR(100) DEFAULT 'admin',
+            created_at NVARCHAR(50),
+            FOREIGN KEY(institution_id) REFERENCES institutions(id)
         )
+        """)
+    else:
+        for col, coltype in [
+            ("email", "NVARCHAR(255)"),
+            ("two_factor_method", "NVARCHAR(20) DEFAULT 'email'"),
+            ("totp_secret", "NVARCHAR(100)"),
+        ]:
+            if not _column_exists(cur, "licenses", col):
+                cur.execute(f"ALTER TABLE licenses ADD {col} {coltype}")
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        display_name TEXT,
-        status TEXT DEFAULT 'Active',
-        created_at TEXT,
-        last_login_at TEXT
-    )
-    """)
+    if not _table_exists(cur, "admins"):
+        cur.execute("""
+        CREATE TABLE admins (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            username NVARCHAR(100) NOT NULL UNIQUE,
+            password_hash NVARCHAR(255) NOT NULL,
+            display_name NVARCHAR(255),
+            status NVARCHAR(50) DEFAULT 'Active',
+            last_login_at NVARCHAR(50),
+            created_at NVARCHAR(50)
+        )
+        """)
+
+    if not _table_exists(cur, "settings"):
+        cur.execute("""
+        CREATE TABLE settings (
+            [key] NVARCHAR(100) PRIMARY KEY,
+            value NVARCHAR(MAX)
+        )
+        """)
+
+    if not _table_exists(cur, "audit_logs"):
+        cur.execute("""
+        CREATE TABLE audit_logs (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            ts NVARCHAR(50) NOT NULL,
+            event NVARCHAR(100) NOT NULL,
+            role NVARCHAR(50),
+            code NVARCHAR(100),
+            question NVARCHAR(MAX),
+            answer NVARCHAR(MAX),
+            tokens_used INT,
+            meta NVARCHAR(MAX)
+        )
+        """)
 
     conn.commit()
-    conn.sync()
-    conn.close()
-
-
-def seed_bootstrap_admin():
-    from config import settings as app_settings
-
-    conn = get_conn()
-    cur = conn.cursor()
-    count = cur.execute("SELECT COUNT(*) AS c FROM admins").fetchone()["c"]
-
-    if count == 0 and app_settings.admin_username and app_settings.admin_password_hash:
-        now = datetime.utcnow().isoformat()
-        cur.execute(
-            "INSERT OR IGNORE INTO admins(username, password_hash, display_name, status, created_at) "
-            "VALUES (?, ?, ?, 'Active', ?)",
-            (app_settings.admin_username, app_settings.admin_password_hash, "Admin", now)
-        )
-        conn.commit()
-        conn.sync()
-
-    conn.close()
-
-
-def seed_demo_institutions():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) AS c FROM institutions")
-    if cur.fetchone()["c"] == 0:
-        now = datetime.utcnow().isoformat()
-        cur.executemany("""
-            INSERT INTO institutions (name, client_prefix, type, city, db_name, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, [
-            ("City Care Hospital", "CCARE", "Hospital", "Hyderabad", "hospital_demo", "Active", now),
-            ("Apollo Demo Hospital", "APOLV", "Hospital", "Vizag", "hospital_apollo", "Active", now),
-        ])
-        conn.commit()
-        conn.sync()
     conn.close()

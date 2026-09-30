@@ -1,17 +1,13 @@
 """
-Audit log — migrated from a flat JSON-lines file (audit/audit.log) to
-the same Turso database used for institutions/licenses/admins. Real
-reasons for the migration, not just consistency:
-  - Flat file had no real unique ID (only insertion order) — the admin
-    panel wants a real sequential ID per event.
-  - Flat file couldn't be filtered/date-ranged efficiently — every
-    request re-read and re-parsed the whole file.
-  - Never captured the actual answer or token count — both needed now
-    for the audit detail expansion.
+Audit log — MSSQL-backed (migrated from Turso, same as
+database/license_db.py). Table creation now lives entirely in
+init_license_db() — this file's own init_audit_table() was a
+duplicate table-creation step and has been removed to avoid two
+different places defining the same table with potentially drifting
+schemas.
 
-Same public function names (audit, read_audit_log) so call sites don't
-need to change beyond passing the two new optional fields (answer,
-tokens_used).
+Same public function names (audit, read_audit_log) so call sites
+don't need to change.
 """
 
 from datetime import datetime
@@ -19,36 +15,11 @@ from datetime import datetime
 from database.license_db import get_conn
 
 
-def init_audit_table():
-    """Call once alongside init_license_db() at startup."""
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT NOT NULL,
-        event TEXT NOT NULL,
-        role TEXT,
-        code TEXT,
-        question TEXT,
-        answer TEXT,
-        tokens_used INTEGER,
-        meta TEXT
-    )
-    """)
-    conn.commit()
-    conn.close()
-
-
 def audit(event: str, role: str = None, code: str = None, question: str = None,
           answer: str = None, tokens_used: int = None, meta: dict = None):
     """
-    Same signature as before, plus two new optional fields: answer and
-    tokens_used. Existing call sites that don't pass these still work
-    unchanged — they'll just show as empty in the audit detail view.
-
     Question/answer are trimmed generously (not to 120 chars like the
-    old file-based version) since the new detail-expansion view is
+    old file-based version) since the audit detail expansion view is
     meant to show real content, not just a title-length preview — but
     still capped to keep any one row from being unreasonably large.
     """
@@ -88,8 +59,8 @@ def read_audit_log(limit: int = 500, search: str = None, event_type: str = None,
                     date_from: str = None, date_to: str = None, institution_id: int = None) -> list:
     """
     Returns the most recent `limit` audit events, newest first, with
-    real filtering pushed down to the query instead of the old
-    approach of loading everything and filtering in Python/JS.
+    real filtering pushed down to the query instead of loading
+    everything and filtering in Python/JS.
 
     date_from / date_to: ISO date strings (YYYY-MM-DD), inclusive.
     """
@@ -129,10 +100,12 @@ def read_audit_log(limit: int = 500, search: str = None, event_type: str = None,
 
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
+        # MSSQL has no LIMIT — TOP (N) goes right after SELECT instead,
+        # and needs a literal/parameter there, not a trailing clause.
         cur.execute(
-            f"SELECT id, ts, event, role, code, question, answer, tokens_used, meta "
-            f"FROM audit_logs {where_sql} ORDER BY id DESC LIMIT ?",
-            (*params, limit)
+            f"SELECT TOP (?) id, ts, event, role, code, question, answer, tokens_used, meta "
+            f"FROM audit_logs {where_sql} ORDER BY id DESC",
+            (limit, *params)
         )
         rows = cur.fetchall()
 
