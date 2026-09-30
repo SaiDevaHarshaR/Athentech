@@ -3038,6 +3038,14 @@ async function loadChatbotSettings() {
     $('cbBgColor').value = s.widget_bg_color || '#ffffff';
     $('cbWidth').value = s.widget_width_px || 420;
     $('cbHeight').value = s.widget_height_px || 700;
+    $('cbMaxHistory').value = s.widget_max_history || 50;
+    $('cbSessionTimeout').value = s.widget_session_timeout_min || 0;
+    $('cbPreviewToast').checked = !!s.widget_preview_toast_enabled;
+    $('cbEscalatePhone').value = s.widget_escalate_phone || '';
+    $('cbEscalateMsg').value = s.widget_escalate_message || '';
+    $('cbIdleNudgeEnabled').checked = !!s.widget_idle_nudge_enabled;
+    $('cbIdleMinutes').value = s.widget_idle_nudge_minutes || 3;
+    $('cbIdleMsg').value = s.widget_idle_nudge_message || '';
 }
 
 $('saveChatbotSettings').onclick = async () => {
@@ -3057,6 +3065,14 @@ $('saveChatbotSettings').onclick = async () => {
                 widget_bg_color: $('cbBgColor').value,
                 widget_width_px: Number($('cbWidth').value) || 420,
                 widget_height_px: Number($('cbHeight').value) || 700,
+                widget_max_history: Number($('cbMaxHistory').value) || 50,
+                widget_session_timeout_min: Number($('cbSessionTimeout').value) || 0,
+                widget_preview_toast_enabled: $('cbPreviewToast').checked,
+                widget_escalate_phone: $('cbEscalatePhone').value,
+                widget_escalate_message: $('cbEscalateMsg').value,
+                widget_idle_nudge_enabled: $('cbIdleNudgeEnabled').checked,
+                widget_idle_nudge_minutes: Number($('cbIdleMinutes').value) || 3,
+                widget_idle_nudge_message: $('cbIdleMsg').value,
             }),
         });
         const result = await res.json();
@@ -3081,7 +3097,65 @@ $('auditDateRange').addEventListener('change', () => {
     renderAudit();
 });
 $('auditInstitutionFilter').addEventListener('change', renderAudit);
+let roleSuggestionsCache = {};
 
+async function openRoleSuggestionsModal() {
+    const res = await authFetch(`${API_BASE}/admin/settings`);
+    const data = await res.json();
+    roleSuggestionsCache = data.settings.widget_role_suggestions || {};
+    renderRoleSuggestionsForm('diagnostic', null);
+}
+
+function renderRoleSuggestionsForm(instType, role) {
+    const key = instType === 'hospital' ? `hospital_${role}` : 'diagnostic';
+    const current = roleSuggestionsCache[key] || [{ label: '', query: '' }, { label: '', query: '' }];
+
+    openModal('CHATBOT', 'Role-Based Quick Prompts', `
+        <div class="form-group">
+            <label>Institution Type</label>
+            <select id="rsInstType" onchange="renderRoleSuggestionsForm(this.value, $('rsRole') ? $('rsRole').value : 'admin')">
+                <option value="diagnostic" ${instType === 'diagnostic' ? 'selected' : ''}>Diagnostic / LIS</option>
+                <option value="hospital" ${instType === 'hospital' ? 'selected' : ''}>Hospital / HIS</option>
+            </select>
+        </div>
+        ${instType === 'hospital' ? `
+        <div class="form-group">
+            <label>Role</label>
+            <select id="rsRole" onchange="renderRoleSuggestionsForm('hospital', this.value)">
+                <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
+                <option value="doctor" ${role === 'doctor' ? 'selected' : ''}>Doctor</option>
+                <option value="reception" ${role === 'reception' ? 'selected' : ''}>Reception</option>
+            </select>
+        </div>
+        ` : ''}
+        <div class="form-group"><label>Prompt 1 Label</label><input id="rsLabel1" value="${current[0]?.label || ''}"></div>
+        <div class="form-group"><label>Prompt 1 Query</label><input id="rsQuery1" value="${current[0]?.query || ''}"></div>
+        <div class="form-group"><label>Prompt 2 Label</label><input id="rsLabel2" value="${current[1]?.label || ''}"></div>
+        <div class="form-group"><label>Prompt 2 Query</label><input id="rsQuery2" value="${current[1]?.query || ''}"></div>
+        <button type="button" class="secondary-btn" onclick="saveRoleSuggestion('${key}')">Save This Combination</button>
+    `, null);
+}
+
+async function saveRoleSuggestion(key) {
+    roleSuggestionsCache[key] = [
+        { label: $('rsLabel1').value, query: $('rsQuery1').value },
+        { label: $('rsLabel2').value, query: $('rsQuery2').value },
+    ];
+
+    try {
+        const res = await authFetch(`${API_BASE}/admin/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ widget_role_suggestions: roleSuggestionsCache }),
+        });
+        const result = await res.json();
+        if (result.status !== 'success') { toast(result.message || 'Failed to save'); return; }
+        toast(`Saved prompts for ${key}`);
+    } catch (err) {
+        console.error(err);
+        toast('Could not reach the server');
+    }
+}
 function toggleAuditDetail(id) {
     const row = document.getElementById(`audit-detail-${id}`);
     const chevron = document.getElementById(`audit-chevron-${id}`);
