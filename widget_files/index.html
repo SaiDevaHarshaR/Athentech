@@ -548,24 +548,65 @@ async function loadWidgetConfig() {
 
 function applyWidgetConfig() {
   if (!widgetConfig || Object.keys(widgetConfig).length === 0) return;
+    console.log('[DEBUG] widgetConfig:', widgetConfig);
+  resetIdleNudge();
 
   document.querySelector('.header-info h1').textContent = widgetConfig.title || 'Sahasra AI Assistant';
   document.querySelector('.header').style.background =
     `linear-gradient(135deg, ${widgetConfig.primary_color}, ${widgetConfig.secondary_color})`;
   document.querySelector('.container').style.width = widgetConfig.width_px ? widgetConfig.width_px + 'px' : '100%';
   document.querySelector('.chat').style.backgroundColor = widgetConfig.bg_color || '#fafbfd';
-
   const footerEl = document.querySelector('[onclick*="disclaimerModal"]')?.parentElement?.querySelector('span:last-child');
   if (footerEl) footerEl.textContent = widgetConfig.footer_text || 'Powered by AthenTech';
-
   const disclaimerBody = document.querySelector('#disclaimerModal div div:last-child');
   if (disclaimerBody) disclaimerBody.textContent = '⚠️ ' + (widgetConfig.disclaimer_text || '');
-
   if (widgetConfig.icon_url) {
     const logoImg = document.querySelector('.logo img');
     if (logoImg) logoImg.src = widgetConfig.icon_url;
   }
 }
+
+function getRoleSuggestions() {
+  const key = state.institutionType === 'hospital' ? `hospital_${state.role}` : 'diagnostic';
+  const configured = widgetConfig.role_suggestions?.[key];
+  if (configured && configured.length && configured[0].label) {
+    return configured.map(s => ({ label: s.label, send: s.query }));
+  }
+  return state.institutionType === 'hospital'
+    ? [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+      ]
+    : [
+        { label: 'Show all patients', send: 'Show me all patients' },
+        { label: "Today's collection", send: "Today's collection data" },
+      ];
+}
+
+let sessionTimeoutTimer = null;
+function resetSessionTimeout() {
+  if (sessionTimeoutTimer) clearTimeout(sessionTimeoutTimer);
+  const timeoutMin = widgetConfig.session_timeout_min || 0;
+  if (timeoutMin > 0 && state.mode === 'premium') {
+    sessionTimeoutTimer = setTimeout(() => {
+      addMessage('Your session timed out due to inactivity. You have been logged out of Premium mode.', 'bot');
+      processMessage('exit');
+    }, timeoutMin * 60 * 1000);
+  }
+}
+
+let idleNudgeTimer = null;
+function resetIdleNudge() {
+  if (idleNudgeTimer) clearTimeout(idleNudgeTimer);
+  if (widgetConfig.idle_nudge_enabled) {
+    const minutes = widgetConfig.idle_nudge_minutes || 3;
+    idleNudgeTimer = setTimeout(() => {
+      addMessage(widgetConfig.idle_nudge_message || 'Still there? Ask me anything.', 'bot');
+    }, minutes * 60 * 1000);
+  }
+}
+
+
 let state = {
   mode: 'normal',
   activationCode: null,
@@ -589,7 +630,7 @@ function escapeHtml(str) {
 }
 
 function addMessage(text, type) {
-  if (type === 'bot' && window.parent !== window) {
+  if (type === 'bot' && window.parent !== window && widgetConfig.preview_toast_enabled !== false) {
     const preview = (text || '').replace(/```[\s\S]*?```/g, '').replace(/[*_#]/g, '').trim().slice(0, 80);
     window.parent.postMessage({ type: 'sahasra-new-message', preview: preview || 'New message' }, '*');
   }
@@ -994,6 +1035,7 @@ function handleSend() {
   addMessage(text, 'user');
   input.value = '';
   processMessage(text);
+  resetSessionTimeout();
 }
 
 async function downloadCollectionExcel(period, reportType, location) {
@@ -1265,29 +1307,7 @@ async function processMessage(text) {
           'bot'
         );
 
-        if (state.institutionType === 'hospital') {
-          const rolesButtons = {
-            doctor: [
-              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-              { label: 'Currently admitted', send: 'who is admitted currently' },
-            ],
-            reception: [
-              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-              { label: 'Currently admitted', send: 'who is admitted currently' },
-            ],
-            admin: [
-              { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-              { label: 'Currently admitted', send: 'who is admitted currently' },
-            ],
-          };
-          const buttons = rolesButtons[state.role] || rolesButtons.admin;
-          showSuggestions(buttons);
-        } else {
-          showSuggestions([
-            { label: 'Show all patients', send: 'Show me all patients' },
-            { label: "Today's collection", send: "Today's collection data" }
-          ]);
-        }
+        showSuggestions(getRoleSuggestions());
       }else {
        // state.waitingForCode = false;
         addMessage(data.answer || `❌ Invalid or expired activation code. Try again, or type "cancel" to stop.`, 'bot');
@@ -1363,6 +1383,12 @@ async function processMessage(text) {
     return;
   }
 
+    if (q.includes('talk to human') || q.includes('speak to someone') || q.includes('escalate') || q.includes('call support')) {
+    const phone = widgetConfig.escalate_phone;
+    const msg = widgetConfig.escalate_message || 'For urgent matters, please contact us directly.';
+    addMessage(phone ? `${msg}\n\n📞 **${phone}**` : msg, 'bot');
+    return;
+  }
   // Call backend
   await callBackend(text);
 }
@@ -1370,6 +1396,10 @@ async function processMessage(text) {
 async function callBackend(question) {
   statusEl.textContent = 'Thinking...';
   state.history.push({ role: 'user', content: question });
+  const maxHistory = widgetConfig.max_history || 50;
+  if (state.history.length > maxHistory) {
+    state.history = state.history.slice(-maxHistory);
+  }
 
   const typingEl = document.createElement('div');
   typingEl.className = 'message bot typing-indicator';
@@ -1393,6 +1423,7 @@ async function callBackend(question) {
     console.log("Backend response:", data);
 
     typingEl.remove();
+    resetIdleNudge();
     if (data.usage_warning) {
       document.getElementById('usageBannerText').textContent = data.usage_warning;
       document.getElementById('usageBanner').style.display = 'flex';
@@ -1419,39 +1450,8 @@ async function callBackend(question) {
   }
 
   // Suggestions
-if (state.mode === 'premium' && state.institutionType === 'hospital') {
-    const rolesButtons = {
-      doctor: [
-        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-        { label: 'Currently admitted', send: 'who is admitted currently' },
-        { label: "Today's OPD list (soon)", send: null },
-        { label: 'Pending lab reports (soon)', send: null },
-      ],
-      reception: [
-        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-        { label: 'Currently admitted', send: 'who is admitted currently' },
-        { label: 'Book appointment (soon)', send: null },
-        { label: 'Patient registration (soon)', send: null },
-      ],
-      admin: [
-        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
-        { label: 'Currently admitted', send: 'who is admitted currently' },
-        { label: 'Revenue dashboard (soon)', send: null },
-        { label: 'Outstanding bills (soon)', send: null },
-      ],
-    };
-    const buttons = rolesButtons[state.role] || rolesButtons.admin;
-    showSuggestions(buttons.map(b => ({
-      label: b.label,
-      action: b.send ? null : () => addMessage("This feature isn't built yet — coming soon.", 'bot'),
-      send: b.send,
-    })));
-} else if (state.mode === 'premium') {
-    showSuggestions([
-      { label: 'Show all patients', send: 'Show me all patients' },
-      { label: "Today's collection", send: "Today's collection data" },
-      { label: 'TAT dashboard', send: 'TAT dashboard today' }
-    ]);
+if (state.mode === 'premium') {
+    showSuggestions(getRoleSuggestions());
 } else {
     showSuggestions([
       { label: 'Doctors at Apollo Kukatpally', send: 'What doctors work at Apollo Kukatpally?' },
