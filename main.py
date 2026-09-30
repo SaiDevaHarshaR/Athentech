@@ -244,6 +244,15 @@ class SettingsUpdateRequest(BaseModel):
     widget_icon_url: Optional[str] = None
     widget_disclaimer_text: Optional[str] = None
     widget_footer_text: Optional[str] = None
+    widget_role_suggestions: Optional[dict] = None
+    widget_max_history: Optional[int] = None
+    widget_session_timeout_min: Optional[int] = None
+    widget_preview_toast_enabled: Optional[bool] = None
+    widget_escalate_phone: Optional[str] = None
+    widget_escalate_message: Optional[str] = None
+    widget_idle_nudge_enabled: Optional[bool] = None
+    widget_idle_nudge_minutes: Optional[int] = None
+    widget_idle_nudge_message: Optional[str] = None
 
 # ---------- Public ----------
 
@@ -647,6 +656,15 @@ def get_widget_config():
         "icon_url": settings["widget_icon_url"],
         "disclaimer_text": settings["widget_disclaimer_text"],
         "footer_text": settings["widget_footer_text"],
+        "role_suggestions": settings["widget_role_suggestions"],
+        "max_history": settings["widget_max_history"],
+        "session_timeout_min": settings["widget_session_timeout_min"],
+        "preview_toast_enabled": settings["widget_preview_toast_enabled"],
+        "escalate_phone": settings["widget_escalate_phone"],
+        "escalate_message": settings["widget_escalate_message"],
+        "idle_nudge_enabled": settings["widget_idle_nudge_enabled"],
+        "idle_nudge_minutes": settings["widget_idle_nudge_minutes"],
+        "idle_nudge_message": settings["widget_idle_nudge_message"],
     }
 
 @app.get("/admin/audit")
