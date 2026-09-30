@@ -212,6 +212,15 @@
         <div class="filter-bar"><span class="filter-title">Date Range</span><select id="analyticsRange"><option value="30">Last 30 Days</option><option value="7">Last 7 Days</option><option value="90">Last 90 Days</option></select><select id="analyticsInstitution"><option value="all">Institution</option></select><select id="analyticsRole"><option value="all">Role</option></select><select id="analyticsPlan"><option value="all">Plan</option></select></div>
         <div class="metric-grid analytics-metrics"><div class="metric-card"><div class="metric-top"><span>Total Queries</span><b class="metric-icon blue">⌁</b></div><strong id="analyticsQueries">28,430</strong></div><div class="metric-card"><div class="metric-top"><span>Unique Codes</span><b class="metric-icon purple">◇</b></div><strong id="analyticsCodes">112</strong></div><div class="metric-card"><div class="metric-top"><span>Avg per License</span><b class="metric-icon green">↗</b></div><strong id="analyticsAverage">18.4</strong></div><div class="metric-card"><div class="metric-top"><span>Peak Hour</span><b class="metric-icon red">◷</b></div><strong id="analyticsPeak">11 AM</strong></div></div>
         <div class="analytics-grid"><div class="panel wide-panel"><div class="panel-heading"><div><h3>Queries Over Time</h3><p>Daily query volume</p></div></div><canvas id="queryChart" height="220"></canvas></div><div class="panel"><div class="panel-heading"><div><h3>Usage by Role</h3><p>Distribution of queries</p></div></div><div id="roleBars" class="bar-chart"></div></div><div class="panel"><div class="panel-heading"><div><h3>Top Institutions</h3><p>Highest query volume</p></div></div><div id="topInstitutions" class="mini-table"></div></div><div class="panel"><div class="panel-heading"><div><h3>Failure Reasons</h3><p>Validation failures</p></div></div><div class="failure-chart"><div class="pie-chart" id="failurePie"></div><div id="failureLegend" class="chart-legend"></div></div></div></div>
+      <div class="table-panel" style="margin-top:20px;">
+  <div class="table-header"><div><strong>Token Usage by Institution</strong><span id="usageTableCount">0 institutions</span></div></div>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Institution</th><th>Code</th><th>Used</th><th>Limit</th><th>Remaining</th><th>Usage</th></tr></thead>
+      <tbody id="institutionsUsageTable"></tbody>
+    </table>
+  </div>
+</div>
       </div>
 
       <!-- ROLES -->
