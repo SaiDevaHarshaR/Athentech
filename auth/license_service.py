@@ -1,0 +1,555 @@
+from datetime import datetime, timedelta
+from database.license_db import get_conn
+from auth.code_generator import generate_activation_code
+from auth.secrets_crypto import encrypt_secret, decrypt_secret
+import json
+
+def create_license(
+    institution_id: int,
+    role: str,
+    phone: str,
+    dob_year: str,
+    email: str = None,
+    plan: str = "Standard",
+    valid_days: int = 90,
+    created_by: str = "admin"
+):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    inst = cur.execute(
+        "SELECT * FROM institutions WHERE id = ?",
+        (institution_id,)
+    ).fetchone()
+
+    if not inst:
+        conn.close()
+        raise ValueError("Institution not found")
+
+    if inst["status"] != "Active":
+        conn.close()
+        raise ValueError("Institution is not active")
+
+    code = generate_activation_code(
+        client_prefix=inst["client_prefix"],
+        role=role,
+        phone=phone,
+        dob_year=dob_year
+    )
+
+    existing = cur.execute(
+        "SELECT id FROM licenses WHERE code = ?",
+        (code,)
+    ).fetchone()
+    if existing:
+        conn.close()
+        raise ValueError(f"Code already exists: {code}")
+
+    expiry = (datetime.utcnow() + timedelta(days=valid_days)).date().isoformat()
+    now = datetime.utcnow().isoformat()
+
+    cur.execute("""
+        INSERT INTO licenses (
+            code, institution_id, client_prefix, role, [plan], phone, dob_year,
+            user_ref, email, db_name, hospital_name, status, expiry_date, created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?)
+    """, (
+        code,
+        institution_id,
+        inst["client_prefix"],
+        role.lower(),
+        plan,
+        phone,
+        str(dob_year),
+        phone,
+        email,
+        inst["db_name"],
+        inst["name"],
+        expiry,
+        created_by,
+        now
+    ))
+
+    license_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    return {
+        "id": license_id,
+        "code": code,
+        "role": role.lower(),
+        "plan": plan,
+        "db_name": inst["db_name"],
+        "hospital_name": inst["name"],
+        "status": "Active",
+        "expiry_date": expiry
+    }
+
+
+def validate_license(code: str):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM licenses WHERE code = ?",
+        (code.upper(),)
+    ).fetchone()
+
+    if not row:
+        conn.close()
+        return {"valid": False, "reason": "invalid_code"}
+
+    if row["status"] not in ("Active", "Trial"):
+        conn.close()
+        return {"valid": False, "reason": "inactive"}
+
+    if row["expiry_date"] < datetime.utcnow().date().isoformat():
+        conn.close()
+        return {"valid": False, "reason": "expired"}
+
+    # Load institution connection settings
+    inst = conn.execute(
+        "SELECT * FROM institutions WHERE id = ?",
+        (row["institution_id"],)
+    ).fetchone()
+    conn.close()
+
+    db_name = row["db_name"]
+    db_server = None
+    db_user = None
+    db_password = None
+    hospital_name = row["hospital_name"]
+
+    if inst:
+        db_name = inst["db_name"] or db_name
+        hospital_name = inst["name"] or hospital_name
+        db_server = inst["db_server"]
+        db_user = inst["db_user"]
+        # decrypt_secret() transparently handles legacy plaintext too —
+        # safe to call even before the migration script has run.
+        db_password = decrypt_secret(inst["db_password"])
+
+    return {
+        "valid": True,
+        "code": row["code"],
+        "email": row["email"],
+        "two_factor_method": row["two_factor_method"] or "email",
+        "totp_secret": row["totp_secret"],
+        "institution_code": inst["client_prefix"] if inst else None,
+        "institution_type": (dict(inst.items()).get("type", "Diagnostic") if inst else "Diagnostic").strip().lower(),
+        "role": row["role"],
+        "db_name": db_name,
+        "hospital_name": hospital_name,
+        "plan": row["plan"],
+        "status": row["status"],
+        "expiry_date": row["expiry_date"],
+        "db_server": db_server,       # None → use .env fallback later
+        "db_user": db_user,
+        "db_password": db_password,
+    }
+
+def list_licenses():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM licenses ORDER BY id DESC").fetchall()
+    conn.close()
+    return [dict(r.items()) for r in rows]
+
+
+def revoke_license(code: str):
+    return set_license_status(code, "Revoked")
+
+
+def set_license_status(code: str, status: str):
+    allowed = {"Active", "Trial", "Suspended", "Revoked"}
+    if status not in allowed:
+        raise ValueError("Invalid status")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE licenses SET status = ? WHERE code = ?",
+        (status, code.upper())
+    )
+    conn.commit()
+    changed = cur.rowcount
+    conn.close()
+    return changed > 0
+
+
+def update_license(code: str, **fields):
+    """
+    Real partial update for an existing license — previously the admin
+    panel's "Edit License" only updated local browser state and never
+    touched the database at all, silently losing every edit on refresh.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT * FROM licenses WHERE code = ?", (code.upper(),)).fetchone()
+    if not existing:
+        conn.close()
+        raise ValueError("License not found")
+
+    allowed_fields = {"role", "plan", "phone", "dob_year", "email", "two_factor_method", "totp_secret"}
+    updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
+
+    if "role" in updates:
+        updates["role"] = updates["role"].lower()
+
+    if not updates:
+        conn.close()
+        return dict(existing.items())
+
+    set_clause = ", ".join(f"[{k}] = ?" if k == "plan" else f"{k} = ?" for k in updates)
+    cur.execute(
+        f"UPDATE licenses SET {set_clause} WHERE code = ?",
+        (*updates.values(), code.upper())
+    )
+    conn.commit()
+
+    updated = cur.execute("SELECT * FROM licenses WHERE code = ?", (code.upper(),)).fetchone()
+    conn.close()
+    return dict(updated.items())
+
+
+def delete_license(code: str) -> bool:
+    """
+    Permanently removes a license. Unlike revoke_license (which just
+    marks it Revoked so the code stops working but the record stays for
+    audit history), this actually deletes the row — for cleaning up
+    real junk (test codes, typos) rather than a license you might need
+    to reference later.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM licenses WHERE code = ?", (code.upper(),))
+    conn.commit()
+    changed = cur.rowcount
+    conn.close()
+    return changed > 0
+
+
+def _sanitize_institution(row_dict: dict) -> dict:
+    """Never let the raw db_password leave this module — same pattern
+    list_institutions() already used, now shared so create/update can't
+    accidentally leak it back to the browser in the API response."""
+    d = dict(row_dict)
+    d["has_db_password"] = bool(d.get("db_password"))
+    d.pop("db_password", None)
+    return d
+
+
+def list_institutions():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM institutions ORDER BY id ASC").fetchall()
+    conn.close()
+    return [_sanitize_institution(dict(r.items())) for r in rows]
+
+def create_institution(
+    name: str,
+    client_prefix: str,
+    db_name: str,
+    type_: str = "Hospital",
+    city: str = "",
+    status: str = "Active",
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cur.execute(
+        """
+        INSERT INTO institutions
+        (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            name,
+            client_prefix.upper(),
+            type_,
+            city,
+            db_name,
+            db_server,
+            db_user,
+            encrypt_secret(db_password),
+            status,
+            now,
+        ),
+    )
+    conn.commit()
+    inst_id = cur.lastrowid
+    row = cur.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,)).fetchone()
+    conn.close()
+    return _sanitize_institution(dict(row.items()))
+
+
+def update_institution(institution_id: int, **fields):
+    """
+    Partial update — only fields explicitly passed are changed.
+    allowed_fields = {
+    "name",
+    "client_prefix",
+    "db_name",
+    "type",
+    "city",
+    "status",
+    "db_server",
+    "db_user",
+    "db_password",
+}
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise ValueError("Institution not found")
+
+    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password"}
+    updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
+
+    if "client_prefix" in updates:
+        updates["client_prefix"] = updates["client_prefix"].upper()
+
+    if "db_password" in updates:
+        updates["db_password"] = encrypt_secret(updates["db_password"])
+
+    if not updates:
+        conn.close()
+        return _sanitize_institution(dict(existing.items()))
+
+    set_clause = ", ".join(f"[{k}] = ?" if k == "plan" else f"{k} = ?" for k in updates)
+    cur.execute(
+        f"UPDATE institutions SET {set_clause} WHERE id = ?",
+        (*updates.values(), institution_id)
+    )
+    conn.commit()
+
+    updated = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    conn.close()
+    return _sanitize_institution(dict(updated.items()))
+
+
+def delete_institution(institution_id: int) -> dict:
+    """
+    Permanently removes an institution AND every license tied to it —
+    otherwise deleting an institution would leave orphaned licenses
+    pointing at an institution_id that no longer exists, which would
+    break validate_license() the next time one of those codes is used.
+    Returns how many licenses were removed alongside it, so the caller
+    can tell the admin what actually happened.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise ValueError("Institution not found")
+
+    cur.execute("DELETE FROM licenses WHERE institution_id = ?", (institution_id,))
+    licenses_removed = cur.rowcount
+
+    cur.execute("DELETE FROM institutions WHERE id = ?", (institution_id,))
+    conn.commit()
+    conn.close()
+
+    return {"institution_name": existing["name"], "licenses_removed": licenses_removed}
+
+
+def get_role_permissions():
+    conn = get_conn()
+    rows = conn.execute("SELECT role, tables_csv FROM role_permissions").fetchall()
+    conn.close()
+    return {r["role"]: r["tables_csv"].split(",") for r in rows}
+
+
+def update_role_permissions(role: str, tables: list):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO role_permissions(role, tables_csv) VALUES (?, ?) "
+        "ON CONFLICT(role) DO UPDATE SET tables_csv = excluded.tables_csv",
+        (role.lower(), ",".join(tables))
+    )
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Settings — runtime-configurable values previously hardcoded in main.py /
+# guardrails.py. Stored as plain key-value text; caller is responsible for
+# interpreting types (see get_settings() below, which does that conversion).
+# ---------------------------------------------------------------------------
+
+def get_settings() -> dict:
+    conn = get_conn()
+    rows = conn.execute("SELECT [key], value FROM settings").fetchall()
+    conn.close()
+    raw = {r["key"]: r["value"] for r in rows}
+
+    return {
+        "license_validity_days": int(raw.get("license_validity_days", 90) or 90),
+        "normal_mode_enabled": raw.get("normal_mode_enabled", "true") == "true",
+        "rate_limit_per_minute": int(raw.get("rate_limit_per_minute", 300) or 300),
+        "extra_blocked_patterns": [
+            p.strip() for p in (raw.get("extra_blocked_patterns", "") or "").split(",") if p.strip()
+        ],
+        "output_redaction_enabled": raw.get("output_redaction_enabled", "true") == "true",
+        "email_alerts_enabled": raw.get("email_alerts_enabled", "false") == "true",
+        "webhook_url": raw.get("webhook_url", ""),
+        "otp_smtp_host": raw.get("otp_smtp_host", ""),
+        "otp_smtp_port": int(raw.get("otp_smtp_port", 587) or 587),
+        "otp_smtp_user": raw.get("otp_smtp_user", ""),
+        "otp_smtp_password": decrypt_secret(raw.get("otp_smtp_password", "")),
+        "alert_smtp_host": raw.get("alert_smtp_host", ""),
+        "alert_smtp_port": int(raw.get("alert_smtp_port", 587) or 587),
+        "alert_smtp_user": raw.get("alert_smtp_user", ""),
+        "alert_smtp_password": decrypt_secret(raw.get("alert_smtp_password", "")),
+        "alert_email_to": raw.get("alert_email_to", ""),
+        "llm_provider_order": json.loads(raw.get("llm_provider_order") or '["groq","gemini","mistral","cohere","openrouter","openai"]'),
+        "llm_groq_key_override": decrypt_secret(raw.get("llm_groq_key_override", "")),
+        "llm_gemini_key_override": decrypt_secret(raw.get("llm_gemini_key_override", "")),
+        "llm_mistral_key_override": decrypt_secret(raw.get("llm_mistral_key_override", "")),
+        "llm_cohere_key_override": decrypt_secret(raw.get("llm_cohere_key_override", "")),
+        "llm_openrouter_key_override": decrypt_secret(raw.get("llm_openrouter_key_override", "")),
+        "llm_openai_key_override": decrypt_secret(raw.get("llm_openai_key_override", "")),
+        "llm_custom_providers": json.loads(raw.get("llm_custom_providers") or "[]"),
+                "openai_token_budget": int(raw.get("openai_token_budget", 0) or 0),
+        "widget_title": raw.get("widget_title", "Sahasra AI Assistant"),
+        "widget_subtitle": raw.get("widget_subtitle", "General Mode"),
+        "widget_welcome_message": raw.get("widget_welcome_message", "Hello! 👋 I'm Sahasra AI Assistant."),
+        "widget_primary_color": raw.get("widget_primary_color", "#8B008B"),
+        "widget_secondary_color": raw.get("widget_secondary_color", "#1e293b"),
+        "widget_bg_color": raw.get("widget_bg_color", "#ffffff"),
+        "widget_width_px": int(raw.get("widget_width_px", 420) or 420),
+        "widget_height_px": int(raw.get("widget_height_px", 700) or 700),
+        "widget_icon_url": raw.get("widget_icon_url", ""),
+        "widget_disclaimer_text": raw.get(
+            "widget_disclaimer_text",
+            "This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited."
+        ),
+        "widget_footer_text": raw.get("widget_footer_text", "Powered by AthenTech"),
+        "widget_role_suggestions": json.loads(raw.get("widget_role_suggestions") or "{}"),
+        "widget_max_history": int(raw.get("widget_max_history", 50) or 50),
+        "widget_session_timeout_min": int(raw.get("widget_session_timeout_min", 0) or 0),
+        "widget_preview_toast_enabled": raw.get("widget_preview_toast_enabled", "true") == "true",
+        "widget_escalate_phone": raw.get("widget_escalate_phone", ""),
+        "widget_escalate_message": raw.get("widget_escalate_message", "For urgent matters, please call us directly."),
+        "widget_idle_nudge_enabled": raw.get("widget_idle_nudge_enabled", "false") == "true",
+        "widget_idle_nudge_minutes": int(raw.get("widget_idle_nudge_minutes", 3) or 3),
+        "widget_idle_nudge_message": raw.get("widget_idle_nudge_message", "Still there? Ask me anything about your hospital data."),
+    
+    
+        "openai_token_baseline": int(raw.get("openai_token_baseline", 0) or 0),
+    }
+
+def set_role_permissions(role: str, tables: list) -> dict:
+    conn = get_conn()
+    cur = conn.cursor()
+    tables_csv = ",".join(tables)
+
+    cur.execute(
+        "MERGE role_permissions AS target "
+        "USING (SELECT ? AS role, ? AS tables_csv) AS source "
+        "ON target.role = source.role "
+        "WHEN MATCHED THEN UPDATE SET tables_csv = source.tables_csv "
+        "WHEN NOT MATCHED THEN INSERT (role, tables_csv) VALUES (source.role, source.tables_csv);",
+        (role, tables_csv)
+    )
+    conn.commit()
+    conn.close()
+    return {"role": role, "tables": tables}
+
+
+def delete_role_permissions(role: str) -> bool:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM role_permissions WHERE role = ?", (role,))
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+    return deleted > 0
+
+def update_settings(**fields) -> dict:
+    print(f"[DEBUG update_settings] fields received: {fields}")
+    conn = get_conn()
+    cur = conn.cursor()
+
+    serializers = {
+        "license_validity_days": lambda v: str(int(v)),
+        "normal_mode_enabled": lambda v: "true" if v else "false",
+        "rate_limit_per_minute": lambda v: str(int(v)),
+        "extra_blocked_patterns": lambda v: ",".join(v) if isinstance(v, list) else str(v),
+        "output_redaction_enabled": lambda v: "true" if v else "false",
+        "email_alerts_enabled": lambda v: "true" if v else "false",
+        "webhook_url": lambda v: str(v),
+        "otp_smtp_host": lambda v: str(v),
+        "otp_smtp_port": lambda v: str(int(v)),
+        "otp_smtp_user": lambda v: str(v),
+        "otp_smtp_password": lambda v: encrypt_secret(str(v)),
+        "alert_smtp_host": lambda v: str(v),
+        "alert_smtp_port": lambda v: str(int(v)),
+        "alert_smtp_user": lambda v: str(v),
+        "alert_smtp_password": lambda v: encrypt_secret(str(v)),
+        "alert_email_to": lambda v: str(v),
+        "llm_provider_order": lambda v: json.dumps(v) if isinstance(v, list) else str(v),
+        "llm_groq_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_gemini_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_mistral_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_cohere_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_openrouter_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_openai_key_override": lambda v: encrypt_secret(str(v)),
+        "llm_custom_providers": lambda v: json.dumps(v) if isinstance(v, list) else str(v),
+    
+                "openai_token_budget": lambda v: str(int(v)),
+        "widget_title": lambda v: str(v),
+        "widget_subtitle": lambda v: str(v),
+        "widget_welcome_message": lambda v: str(v),
+        "widget_primary_color": lambda v: str(v),
+        "widget_secondary_color": lambda v: str(v),
+        "widget_bg_color": lambda v: str(v),
+        "widget_width_px": lambda v: str(int(v)),
+        "widget_height_px": lambda v: str(int(v)),
+        "widget_icon_url": lambda v: str(v),
+        "widget_disclaimer_text": lambda v: str(v),
+        "widget_footer_text": lambda v: str(v),
+        "widget_role_suggestions": lambda v: json.dumps(v) if isinstance(v, dict) else str(v),
+        "widget_max_history": lambda v: str(int(v)),
+        "widget_session_timeout_min": lambda v: str(int(v)),
+        "widget_preview_toast_enabled": lambda v: "true" if v else "false",
+        "widget_escalate_phone": lambda v: str(v),
+        "widget_escalate_message": lambda v: str(v),
+        "widget_idle_nudge_enabled": lambda v: "true" if v else "false",
+        "widget_idle_nudge_minutes": lambda v: str(int(v)),
+        "widget_idle_nudge_message": lambda v: str(v),
+        "openai_token_baseline": lambda v: str(int(v)),
+    }
+    for key, value in fields.items():
+        if key not in serializers or value is None:
+            continue
+        key_override_fields = {
+            "otp_smtp_password", "alert_smtp_password",
+            "llm_groq_key_override", "llm_gemini_key_override", "llm_mistral_key_override",
+            "llm_cohere_key_override", "llm_openrouter_key_override", "llm_openai_key_override",
+        }
+        if key in key_override_fields and value == "":
+            # An empty string here means "the admin left this blank",
+            # not "clear the password" — the GET endpoint never sends
+            # the real value back, so the form always starts blank.
+            # Wiping the real saved password on every unrelated settings
+            # save would be a serious, easy-to-trigger regression.
+            continue
+        cur.execute(
+            "MERGE settings AS target "
+            "USING (SELECT ? AS [key], ? AS value) AS source "
+            "ON target.[key] = source.[key] "
+            "WHEN MATCHED THEN UPDATE SET value = source.value "
+            "WHEN NOT MATCHED THEN INSERT ([key], value) VALUES (source.[key], source.value);",
+            (key, serializers[key](value))
+        )
+
+    conn.commit()
+    conn.close()
+    return get_settings()
