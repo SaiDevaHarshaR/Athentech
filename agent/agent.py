@@ -554,6 +554,10 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
 """
         tools = [his_search_schema, his_describe_table, his_run_sql_query]
         tools_by_name = {t.name: t for t in tools}
+        current_chain = _get_provider_chain()
+        if not current_chain:
+            return "No LLM provider is currently configured. Please check API keys in Settings.", 0
+        primary_provider_name, llm = current_chain[0]
         llm_with_tools = llm.bind_tools(tools)
         messages = [
             SystemMessage(content=his_prompt),
@@ -821,6 +825,10 @@ refusal — nothing else fits A or C.
 
         tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard, check_zero_collection_alert,check_tat_alert]
         tools_by_name = {t.name: t for t in tools}
+        current_chain = _get_provider_chain()
+        if not current_chain:
+            return "No LLM provider is currently configured. Please check API keys in Settings.", 0
+        primary_provider_name, llm = current_chain[0]
         llm_with_tools = llm.bind_tools(tools)
 
         #messages = [SystemMessage(content=system_prompt)]
@@ -1043,6 +1051,10 @@ For a single-fact answer (not a list), respond in plain text instead — one emo
 """
         tools = [web_search]
         tools_by_name = {t.name: t for t in tools}
+        current_chain = _get_provider_chain()
+        if not current_chain:
+            return "No LLM provider is currently configured. Please check API keys in Settings.", 0
+        primary_provider_name, llm = current_chain[0]
         llm_with_tools = llm.bind_tools(tools)
 
         messages = [SystemMessage(content=normal_prompt)]
