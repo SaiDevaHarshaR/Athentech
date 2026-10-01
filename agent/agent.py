@@ -817,7 +817,15 @@ refusal — nothing else fits A or C.
 - TOTAL/SUM/COUNT/AVERAGE questions → never TOP 10 (returns raw rows, not
   an aggregate — gives a near-zero wrong answer). Use SUM/COUNT/AVG with
   the right WHERE/date filter over the full matching range.
-
+- Comparison questions ("X vs Y") → call the same tool twice, once per
+  location/department, present both together.
+- When a question combines a date qualifier and a location in one
+  phrase (e.g. "today's attapur", "yesterday's suryapet collection"),
+  the date word ("today's", "yesterday's") is NEVER part of the
+  location name — always split it into separate date and location
+  arguments. "today's attapur vs suryapet" means: date="today",
+  locations=["attapur", "suryapet"] — never search for a location
+  literally named "today's attapur".
 - Broad/ambiguous question with no clear list-vs-total intent → ask for a
   filter, or return TOP 10 recent rows.
 """
