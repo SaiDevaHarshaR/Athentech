@@ -817,8 +817,7 @@ refusal — nothing else fits A or C.
 - TOTAL/SUM/COUNT/AVERAGE questions → never TOP 10 (returns raw rows, not
   an aggregate — gives a near-zero wrong answer). Use SUM/COUNT/AVG with
   the right WHERE/date filter over the full matching range.
-- Comparison questions ("X vs Y") → call the same tool twice, once per
-  location/department, present both together.
+
 - Broad/ambiguous question with no clear list-vs-total intent → ask for a
   filter, or return TOP 10 recent rows.
 """
