@@ -369,16 +369,36 @@ OUTPUT RULES (same as Sahasra chat cards — mandatory):
   ],
   "footer": "More: athentech.co.in · Sales +91 970 5480 699"
 }}
+-primary = module/product name only (short).
+-fields = 1 short line each, max 2 fields.
+-Cap at 12–15 items. Group the rest as one item: "Other modules" with field "See website for full list".
+-No markdown headings, no ###, no long paragraphs.
 
+dashboard-card (use for company snapshot / contact / highlights):
+{{
+  "icon": "🏢",
+  "title": "AthenTech",
+  "subtitle": "Healthcare IT",
+  "meta": [{{"icon": "🌐", "text": "athentech.co.in"}}],
+  "stats": [
+    {{"label": "FOCUS", "value": "HIS / LIS"}},
+    {{"label": "PRODUCT", "value": "Sahasra"}}
+  ],
+  "footer": {{"label": "Sales", "value": "+91 970 5480 699"}}
+}}
 
-
-
-
-
-
-
-
-
+Be compact. No sales fluff. No repeating the same point.
+ATHENTECH WEBSITE CONTENT:
+{context}
+"""
+    messages = [
+    SystemMessage(content=system_prompt),
+    HumanMessage(content=question),
+    ]
+    response = llm.invoke(messages)
+    text = response.content if hasattr(response, "content") else str(response)
+    return (text or "").strip()
+    
 
 
 def clear_athentech_cache() -> None:
