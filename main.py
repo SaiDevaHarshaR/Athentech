@@ -859,7 +859,7 @@ async def generate_patient_report(req: PatientReportRequest):
     db_user = validation.get("db_user")
     db_password = validation.get("db_password")
 
-    from agent.agent import llm as agent_llm
+
 
     import asyncio
     loop = asyncio.get_event_loop()
