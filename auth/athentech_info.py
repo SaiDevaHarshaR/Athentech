@@ -342,29 +342,43 @@ def get_athentech_context(question: str = "") -> str:
 def answer_athentech_question(question: str, llm) -> str:
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    context = get_athentech_context(question)
+    context = get_athentech_context()
     if not context:
         return (
-            "I couldn't load AthenTech's company information right now. "
-            "Please try again shortly, or visit https://www.athentech.co.in/"
+            "I couldn't load AthenTech company information right now. "
+            "Try again shortly, or visit https://www.athentech.co.in/"
         )
 
-    system_prompt = (
-        "You are Sahasra AI in AthenTech company mode. Answer ONLY about "
-        "ATHEN TECH India Pvt Ltd and Sahasra (HISGenX, LIS, RIS, EMR, ERP, "
-        "Campus 360, modules, industries, features, clients, support).\n"
-        "Use ONLY the website excerpts below. Do not invent facts.\n"
-        "If missing, say so and suggest https://www.athentech.co.in/ or "
-        "Sales +91 970 5480 699 / Support +91 8096 247 365 / support@athentech.co.in.\n"
-        "Clear bullets OK. No markdown tables. No hospital live-data answers.\n\n"
-        f"ATHENTECH WEBSITE CONTENT:\n{context}"
-    )
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=question),
-    ]
-    response = llm.invoke(messages)
-    return response.content if hasattr(response, "content") else str(response)
+    system_prompt = f"""You answer ONLY about AthenTech using the website content below.
+Never invent facts. If it is not in the content, say so in one short plain line.
+
+OUTPUT RULES (same as Sahasra chat cards — mandatory):
+- Lists (modules, products, features, industries, clients, solutions): output ONLY a list-card fenced block. Nothing outside it.
+- Overview / counts / highlights with a few key facts: output ONLY a dashboard-card fenced block.
+- Single short fact: one emoji + **bold title** + 1–2 lines. No padding.
+
+**list-card** (use for "modules", product lists, feature lists):
+```list-card
+{{
+  "icon": "🏥",
+  "title": "Sahasra Modules",
+  "intro": "Integrated modules on the Sahasra platform:",
+  "items": [
+    {{"primary": "Hospital Information System (HIS)", "fields": ["OPD, IPD, billing, wards, OT"]}},
+    {{"primary": "Laboratory Information System (LIS)", "fields": ["Sample tracking, TAT, analyzers"]}}
+  ],
+  "footer": "More: athentech.co.in · Sales +91 970 5480 699"
+}}
+
+
+
+
+
+
+
+
+
+
 
 
 def clear_athentech_cache() -> None:
