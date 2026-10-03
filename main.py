@@ -859,7 +859,11 @@ async def generate_patient_report(req: PatientReportRequest):
     db_user = validation.get("db_user")
     db_password = validation.get("db_password")
 
-
+    from agent.agent import _get_provider_chain
+    chain = _get_provider_chain()
+    if not chain:
+        raise HTTPException(status_code=503, detail="No LLM provider is currently configured.")
+    _, agent_llm = chain[0]
 
     import asyncio
     loop = asyncio.get_event_loop()
