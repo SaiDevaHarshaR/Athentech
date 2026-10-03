@@ -1205,9 +1205,7 @@ async function processMessage(text) {
 
 
   // ===== EXIT PREMIUM =====
-  if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
-    if (state.activationCode) {
-      fetch(API_URL.replace('/ask', '/release-device'), {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activation_code: state.activationCode })
