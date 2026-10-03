@@ -1377,29 +1377,7 @@ async function processMessage(text) {
   }
 
   // AthenTech-Mode
-  if (state.athentechMode) {
-    if (q === 'exit') {
-      state.athentechMode = false;
-      addMessage('Exited AthenTech Info mode.', 'bot');
-      showSuggestions([
-        { label: 'Enter Activation Code', send: 'Enter activation code' },
-        { label: 'About AthenTech', send: 'athentech mode' }
-      ]);
-      return;
-    }
-    try {
-      const response = await fetch(API_URL.replace('/ask', '/athentech-info'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text }),
-      });
-      const data = await response.json();
-      addMessage(data.answer, 'bot');
-    } catch (err) {
-      addMessage('Could not reach the server.', 'bot');
-    }
-    return;
-  }
+
 
   if (q === 'athentech mode' || q.includes('about athentech')) {
     state.athentechMode = true;
