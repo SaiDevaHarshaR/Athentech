@@ -1155,6 +1155,19 @@ async def ask_question(req: QueryRequest, request: Request):
             f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
         raise
 
+@app.on_event("startup")
+async def warm_athentech_cache():
+    import asyncio
+    from auth.athentech_info import refresh_athentech_cache
+
+    def _warm():
+        try:
+            refresh_athentech_cache(force=True)
+            print("[startup] AthenTech info cache warmed successfully.")
+        except Exception as e:
+            print(f"[startup] AthenTech cache warm failed (non-fatal): {e}")
+
+    asyncio.get_event_loop().run_in_executor(None, _warm)
 
 @app.post("/athentech-info")
 def athentech_info_endpoint(req: dict):
