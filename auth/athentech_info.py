@@ -24,6 +24,7 @@ _PAGES_FALLBACK = [
     f"{_BASE}/about/",
     f"{_BASE}/about/vision-mission/",
     f"{_BASE}/management/",
+    f"{_BASE}/abdm-integrated-his/",
     f"{_BASE}/about/why-choose-us/",
     f"{_BASE}/about/careers/",
     f"{_BASE}/solutions/",
