@@ -28,3 +28,4 @@ pydantic-settings
 tavily-python
 pyotp
 qrcode[pil]
+beautifulsoup4
