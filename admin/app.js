@@ -2637,8 +2637,8 @@ function renderFailureChart() {
 // =========================================================
 async function manageLimit(institutionId, hospitalCode) {
   const [planRes, usageRes] = await Promise.all([
-    fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/limit`),
-    fetch(`http://127.0.0.1:8000/admin/institutions/${hospitalCode}/usage`),
+authFetch(`${API_BASE}/admin/institutions/${hospitalCode}/limit`),
+authFetch(`${API_BASE}/admin/institutions/${hospitalCode}/usage`),
   ]);
   const current = await planRes.json();
   const usage = await usageRes.json();
