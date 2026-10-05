@@ -259,18 +259,35 @@ def gather_patient_data(patient_id, db_name: str, role: Role, db_server: str = N
                 try:
                     cursor = conn.cursor()
                     placeholders = ", ".join("?" for _ in billnos)
+                    # Same source the lab's own report print uses (LabReportPrint / GetRptDtls1):
+                    # trnParamResult + trnParameter (name, method) + mstUNITS (unit TEXT),
+                    # and only tests whose trnInvStatus.STATUS is 'Authenticated' are released.
                     query = (
-                        f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} p.*, m.PARAMNAME "
-                        f"FROM trnparamresult p "
-                        f"LEFT JOIN mstoltestparamsmapping m ON p.PARAMID = m.PARAMID "
-                        f"WHERE p.BILLNO IN ({placeholders})"
+                        f"SELECT TOP {MAX_ROWS_PER_RELATED_TABLE} A.BILLNO, A.INVCODE, A.PARAMID, B.PARAMNAME, B.METHOD, "
+                        f"A.PARAMHEADNAME, A.PVALUE, C.UNITDESC, A.MINVALUE, A.MAXVALUE, A.DESCRIPTION, A.ISBOLD, "
+                        f"S.STATUS AS RESULT_STATUS "
+                        f"FROM trnParamResult A "
+                        f"LEFT JOIN trnParameter B ON A.PARAMID = B.PARAMID "
+                        f"LEFT JOIN mstUNITS C ON A.UNITID = C.UNITID "
+                        f"LEFT JOIN trnInvStatus S ON S.BILLNO = A.BILLNO AND S.TCODE = A.INVCODE "
+                        f"WHERE A.BILLNO IN ({placeholders}) AND A.PVALUE IS NOT NULL AND A.PVALUE <> '' "
+                        f"ORDER BY A.BILLNO, A.HEADERID, A.mstPTID"
                     )
                     cursor.execute(query, billnos)
                     col_names = [d[0] for d in cursor.description]
-                    rows = cursor.fetchall()
-                    print(f"[gather_patient_data] (2-hop via trninvlabdet.BILLNO) trnparamresult: {len(rows)} row(s)")
+                    all_rows = [dict(zip(col_names, r)) for r in cursor.fetchall()]
+                    rows = [r for r in all_rows if str(r.get("RESULT_STATUS") or "").strip().lower() == "authenticated"]
+                    print(f"[gather_patient_data] (2-hop via trninvlabdet.BILLNO) trnParamResult: {len(all_rows)} row(s), "
+                          f"{len(rows)} authenticated, {len(all_rows) - len(rows)} not yet authenticated (excluded)")
                     if rows:
-                        gathered["trnparamresult"] = [dict(zip(col_names, r)) for r in rows]
+                        gathered["trnparamresult"] = rows
+                    else:
+                        # Descriptive (text) reports live in trnDescResult, not trnParamResult — say so in the log.
+                        try:
+                            cursor.execute(f"SELECT COUNT(*) FROM trnDescResult WHERE BILLNO IN ({placeholders})", billnos)
+                            print(f"[gather_patient_data] trnDescResult rows for these bills: {cursor.fetchone()[0]}")
+                        except Exception as de:
+                            print(f"[gather_patient_data] trnDescResult check failed: {de}")
                 except Exception as e:
                     print(f"[gather_patient_data] (2-hop) trnparamresult query FAILED: {e}")
     finally:
@@ -289,6 +306,20 @@ def _parse_llm_json(text: str) -> dict:
     return json.loads(cleaned)
 
 
+def _bind_for_report(llm):
+    """
+    Raise the output limit for the long JSON report. `reasoning_effort` is
+    only valid on reasoning models (Groq gpt-oss, OpenAI o-series) — sending
+    it to Mistral/Gemini/Cohere makes the API reject the call with a 400.
+    """
+    kwargs = {"max_tokens": 5000}
+    cls = type(llm).__name__
+    model = str(getattr(llm, "model_name", None) or getattr(llm, "model", "") or "").lower()
+    if (cls == "ChatGroq" and "gpt-oss" in model) or (cls == "ChatOpenAI" and model.startswith(("o1", "o3", "o4", "gpt-5"))):
+        kwargs["reasoning_effort"] = "low"
+    return llm.bind(**kwargs)
+
+
 def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name: str, llm) -> dict:
     """
     Has the LLM turn real gathered data into the structured JSON
@@ -297,6 +328,13 @@ def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name
     raw_data, never to invent findings, scores, or doctor names.
     """
     has_clinical_data = bool(raw_data)
+    if not raw_data.get("trnparamresult"):
+        print("[generate_structured_report] No authenticated lab results found for this patient — skipping the LLM.")
+        return {
+            "patient_name": patient_info.get("name"),
+            "patient_age": patient_info.get("age"),
+            "patient_gender": patient_info.get("gender"),
+        }
 
     # Strip verbose/irrelevant columns before sending to the LLM — a
     # patient with many real results (e.g. 42 rows) can easily exceed
@@ -311,7 +349,7 @@ def generate_structured_report(patient_info: dict, raw_data: dict, hospital_name
             "value": r.get("PVALUE"),
             "min": r.get("MINVALUE"),
             "max": r.get("MAXVALUE"),
-            "unit": r.get("UNITID"),
+            "unit": r.get("UNITDESC") or r.get("UNITID"),
         }
         for r in raw_data.get("trnparamresult", [])
     ][:20]
@@ -366,7 +404,7 @@ demographic information was available for this patient.
     from agent.agent import _invoke_with_retry
     from langchain_core.messages import HumanMessage
     print(f"[generate_structured_report] Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
-    llm_with_more_tokens = llm.bind(max_tokens=5000, reasoning_effort="low")
+    llm_with_more_tokens = _bind_for_report(llm)
     response = _invoke_with_retry(llm_with_more_tokens, [HumanMessage(content=prompt)], retries=1)
     print(f"[generate_structured_report] response.tool_calls: {getattr(response, 'tool_calls', 'NO TOOL_CALLS ATTR')}")
 
