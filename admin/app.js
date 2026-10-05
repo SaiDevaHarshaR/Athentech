@@ -2673,7 +2673,7 @@ authFetch(`${API_BASE}/admin/institutions/${hospitalCode}/usage`),
     const period_type = $('limitPeriodType').value;
     const token_limit = parseInt($('limitValue').value, 10);
 
-    
+    const saveRes = await authFetch(`${API_BASE}/admin/institutions/${hospitalCode}/limit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ period_type, token_limit }),
