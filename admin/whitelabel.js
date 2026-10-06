@@ -318,6 +318,7 @@
       render();
     }
   }
+  
   function onClick(e) {
     var t = e.target;
     var tog = t.closest && t.closest('[data-wl-toggle]');

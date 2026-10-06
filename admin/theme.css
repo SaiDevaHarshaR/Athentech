@@ -326,3 +326,28 @@ html #adminLoginOverlay * { font-family: inherit; }
 [id^="audit-chevron-"] { background: var(--surface-2) !important; color: var(--muted) !important; }
 tr[id^="audit-detail-"] td { background: var(--surface-2) !important; color: var(--text) !important; }
 tr.audit-row:hover td { background: var(--surface-2); }
+
+/* extra motion + polish (additive) */
+@media (prefers-reduced-motion: no-preference) {
+  .metric-card, .table-panel, .panel, .wl-card, .nav-item {
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .metric-card:hover, .table-panel:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .08);
+  }
+  .nav-item:hover { transform: translateX(3px); }
+  .primary-btn:active, .secondary-btn:active, .icon-btn:active { transform: scale(.97); }
+  #cmdk.open { animation: cmdkFade .15s ease; }
+  #cmdk.open .cmdk-box { animation: cmdkUp .18s ease; }
+  .page-enter { animation: pageIn .22s ease; }
+}
+@keyframes cmdkFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cmdkUp { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+[data-theme="dark"] .metric-card:hover,
+[data-theme="dark"] .table-panel:hover {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+}
+.shell main > section { transition: opacity .2s ease; }
