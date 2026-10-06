@@ -990,6 +990,8 @@ async def ask_question(req: QueryRequest, request: Request):
             validation = validate_license(req.activation_code)
             if validation.get("valid"):
                 clear_failed_attempts(client_ip)
+                if req.client and str(validation.get("institution_code") or "").upper() != req.client.strip().upper():
+                    return {"status": "error", "answer": "This activation code is not valid for this chatbot."}
 
                 from auth.device_lock import check_and_bind_device, release_device
                 fingerprint = req.device_fingerprint or "unknown"
