@@ -340,15 +340,7 @@ def get_athentech_context(question: str = "") -> str:
     return _cache.get("content") or ""
 
 
-_OFFLINE_FALLBACK = """
-AthenTech is a healthcare IT company in India (Hyderabad and other cities).
-Products: Sahasra HIS GenX, Sahasra LIS, Sahasra RIS, Sahasra ERP, Campus 360, mobile apps.
-Industries served: multi-specialty hospitals, diagnostic centers, medical colleges, clinics, IVF centers, corporate hospitals, government hospitals, telemedicine centers.
-Core modules: OPD, IPD, billing and insurance, pharmacy, laboratory, radiology, wards, OT, EMR, blood bank, CSSD, nursing, admin/masters, WhatsApp/SMS messaging, ABDM-integrated HIS.
-Website: https://www.athentech.co.in/
-Sales: +91 970 5480 699 / sales@athentech.co.in
-Support: +91 8096 247 365 / support@athentech.co.in
-"""
+
 
 def answer_athentech_question(question: str, llm) -> str:
     from langchain_core.messages import HumanMessage, SystemMessage
