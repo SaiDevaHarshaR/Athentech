@@ -340,7 +340,72 @@ def get_athentech_context(question: str = "") -> str:
     return _cache.get("content") or ""
 
 
+_OFFLINE_FALLBACK = """
+COMPANY
+ATHEN TECH India Pvt Ltd (brand: Athentech / Sahasra). Healthcare IT company headquartered in Hyderabad.
+Offices: Hyderabad, Bangalore, Vijayawada, Vizag.
+Address: Flat No. 102, Shiva Sai Sannidhi, Opp. Sai Baba Temple, Dwarakapuri, Punjagutta, Hyderabad, Telangana 500082.
+Sales: +91 970 5480 699 / sales@athentech.co.in
+Support / IVR: +91 8096 247 365 / support@athentech.co.in
+Website: https://www.athentech.co.in/
+Also operates in banking and insurance technology; primary focus is healthcare software.
+20+ years experience. 592+ healthcare clients. 18+ districts. 43 integrated modules. 950+ diagnostic report formats. 24x7 support.
 
+MISSION
+Provide smart business solutions so customers become more competitive and move to the next level of operational excellence.
+VISION
+Transform healthcare through technology with strong customer care — innovative process frameworks and reusable knowledge that keep clients ahead.
+
+SCALE / CREDENTIALS
+592+ clients | 20+ years | 43 modules | 950+ diagnostic reports | 18+ districts | ABDM (V3) integrated HIS & LIS | Supports NABH, NABL, CAP | HL7, FHIR, DICOM/PACS | ISO 27001 oriented security | Tally ERP, WhatsApp Business API, payment gateways, lab analyzer interfacing.
+
+PRODUCTS (Sahasra suite)
+1) Sahasra HISGenX — 43-module web HIMS for nursing homes to super-specialty hospitals. One patient record across front desk, doctors, lab, pharmacy, accounts.
+2) Sahasra LIS GenX — Laboratory automation for pathology labs, radiology centres, hospital labs, multi-branch networks. Barcode samples, bi-directional analyzers, auto-validation, TAT monitoring, NABL-ready reports, portal/WhatsApp/SMS delivery.
+3) Sahasra RIS — Radiology Information System with PACS, DICOM, tele-radiology.
+4) Sahasra ERP — Finance, HR, payroll, procurement, inventory, assets; 250+ MIS reports; Tally integration; multi-location roll-ups.
+5) Campus 360 — Medical College & Hospital Information Management (MCHIMS): academics + clinical care.
+6) Sahasra Mobile Apps — Doctors, patients, management on Android, iOS, tablets; MD dashboard for branch ops/finance.
+Deployment: cloud or on-premise; single site or multi-location.
+
+INDUSTRIES
+- Multi-specialty hospitals: full department unification on one platform.
+- Diagnostic centers / chains: LIS + RIS + home collection, multi-branch.
+- Medical colleges: teaching hospital + academic administration (Campus 360).
+- Clinics & polyclinics: lighter affordable HIMS, online or offline.
+- IVF & fertility centers: cycle tracking, embryology, fertility EMR.
+- Corporate hospital chains: multi-location, central governance.
+- Government hospitals: scheme-ready (e.g. Aarogya Sri), audit and compliance.
+- Telemedicine centers: teleconsultation, e-prescription, remote diagnostics.
+
+CORE HIS MODULES (examples of the 43)
+Masters; Admin Management; OPD (registration, appointments, consult, Rx, billing); IPD (admission, beds, nursing, investigations, billing, discharge); Insurance & Credit / TPA; Pharmacy; Laboratory reporting; Radiology reporting; General Stores; Wards; ER/Emergency; Doctor Workstation / EMR.
+
+NON-CORE MODULES
+CSSD; OT management; Payroll; Asset management; Complaints (CMS); Canteen & Diet; Transportation; Day-care; Patient self-service portal; Linen & Laundry; Housekeeping; Manager on Duty (MOD); e-Appointments; Procurement; Log & Audit; Discharge summary; MIS & analytics; MRD; EMR document store; Employee self-service (ESSP); Blood bank.
+
+INTEGRATION MODULES
+WhatsApp / SMS / Email messaging; Android MD dashboard; Touch-screen kiosk; TV dashboards (doctor tokens, nursing, lab/radiology); Tally ERP link; Lab machine interfacing; Payment gateways / UPI / POS / printers / barcode / biometric; Patient online reports via Web Access Code (WAC).
+
+PLATFORM THEMES
+One patient record end-to-end (registration → consultation → lab → radiology → pharmacy → billing → EMR → discharge).
+Practical AI inside existing screens (drafts, alerts, insights).
+Live management numbers (volumes, revenue, collections, TAT, occupancy).
+Role-based access, encryption, audit trails, backups.
+ABDM: ABHA registration/verification, link records, consent-based sharing (HISGenX & LIS GenX V3).
+
+LIS HIGHLIGHTS
+Sample-to-signed-report tracking; bi-directional analyzers; rule-based auto-validation; real-time TAT; multi-branch and collection centres; report delivery portal/WhatsApp/SMS/email.
+
+EMR / DOCTOR WORKSTATION
+Clinical notes, e-prescriptions, lab/radiology orders, allergies & vitals, results at point of care, ABHA-linked records.
+
+SUPPORT & ENGAGEMENT
+Demo on request; WhatsApp Business signup available on site; resources include brochures, FAQs, training, remote support, raise ticket.
+
+DISTRICTS / REGIONS MENTIONED
+Hyderabad, Rangareddy, Guntur, Warangal, Mahbubnagar, Nalgonda, Vijayawada, Secunderabad, Chittoor, Anantapur, Krishna, Prakasam, Kurnool, Visakhapatnam, West Godavari, Rajahmundry and more across Andhra Pradesh / Telangana footprint.
+"""
 
 def answer_athentech_question(question: str, llm) -> str:
     from langchain_core.messages import HumanMessage, SystemMessage
