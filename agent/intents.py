@@ -1230,7 +1230,45 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
         },
     )
 
+def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
 
+    # Dept / specialty filters this intent cannot apply → LLM
+    _dept_words = (
+        "biochemistry", "haematology", "hematology", "microbiology",
+        "pathology", "serology", "hormones", "radiology", "laboratory",
+    )
+    if any(w in q for w in _dept_words):
+        return None
+
+    # Only periods the TAT tools actually support
+    if "yesterday" in q:
+        period = "yesterday"
+    elif "this week" in q:
+        period = "this_week"
+    elif "today" in q or (
+        "last month" not in q and "this month" not in q and "last week" not in q
+        and "this year" not in q and "last year" not in q
+        and not re.search(r"\b20\d{2}\b", q)
+    ):
+        # bare "average tat" / "tat compliance" with no period → today
+        period = "today"
+    else:
+        # last month / this month / year / etc. → LLM
+        return None
+
+    from agent.tools import check_tat_alert, get_tat_compliance_dashboard
+    import re as _re
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
+
+    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
+                         "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
+                         "warangal", "ecil", "kphb", "bengaluru", "siricilla"]
+    loc_m = _re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, _re.IGNORECASE)
+    location_keyword = loc_m.group(1) if loc_m else None
+
+    if m or "compliance" in q or "alert" in q:
         raw = check_tat_alert.invoke({
             "threshold_pct": float(m.group(1)) if m else 80.0, "period": period,
             "location_keyword": location_keyword,
