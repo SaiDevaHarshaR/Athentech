@@ -1711,14 +1711,7 @@ _INTENTS = [
       "payment breakup bill", "status of bill"],
      _handle_bill_detail),
 
-    (["list departments", "list all departments", "which departments",
-      "department list"],
-     _handle_departments_list),
-      
-]
 
-
-def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
     q = (question or "").strip().lower()
 
     # Comparison questions are checked FIRST and are TERMINAL — if this
