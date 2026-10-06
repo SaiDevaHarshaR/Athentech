@@ -48,78 +48,7 @@
     }).join('');
   }
 
-  function whiteSection() {
-    var opts = '<option value="">— choose a client —</option>' + S.clients.map(function (c) {
-      return '<option value="' + esc(c.id) + '"' + (String(c.id) === String(S.clientId) ? ' selected' : '') + '>' +
-        esc(c.name) + ' (' + esc(c.client_prefix) + ')</option>';
-    }).join('');
-    var h = '<div class="setting"><div><strong>LIS / HIS Client</strong><small>Institutions already in the registry.</small></div>' +
-      '<select id="wlClient" class="setting-input">' + opts + '</select></div>';
-    if (!S.cfg) return h + '<p style="font-size:11px;color:#94a3b8;margin:8px 0;">Choose a client to configure its chatbot.</p>';
 
-    var c = S.cfg;
-    var modeOpts = MODES.filter(function (m) { return c[m[0] + '_enabled']; }).map(function (m) {
-      return '<option value="' + m[0] + '"' + (c.default_mode === m[0] ? ' selected' : '') + '>' + m[1] + '</option>';
-    }).join('');
-    return h +
-      '<div class="setting"><div><strong>White label active</strong><small>Off = the embed stops working for this client.</small></div>' +
-      '<label class="switch"><input type="checkbox" id="wlEnabled"' + (c.enabled ? ' checked' : '') + '><span></span></label></div>' +
-      modeRows() +
-      '<div class="setting"><div><strong>Default mode</strong><small>Mode the embed opens in.</small></div>' +
-      '<select id="wlDefaultMode" class="setting-input">' + modeOpts + '</select></div>' +
-      '<div class="setting"><div><strong>Brand name</strong><small>Shown in the chat header. Blank = client name.</small></div>' +
-      '<input id="wlBrand" class="setting-input" maxlength="100" value="' + esc(c.brand_name) + '"></div>' +
-      '<div class="setting"><div><strong>Logo URL</strong><small>https:// image link.</small></div>' +
-      '<input id="wlLogo" class="setting-input" value="' + esc(c.brand_logo_url) + '" placeholder="https://..."></div>' +
-      '<div class="setting"><div><strong>Primary colour</strong><small>e.g. #1a73e8</small></div>' +
-      '<input id="wlColor" class="setting-input" maxlength="7" value="' + esc(c.primary_color) + '" placeholder="#1a73e8"></div>' +
-      '<div class="setting"><div><strong>Welcome message</strong></div>' +
-      '<input id="wlWelcome" class="setting-input" maxlength="500" value="' + esc(c.welcome_message) + '"></div>' +
-      '<div class="setting"><div><strong>B2C knowledge</strong><small>Hours, services, FAQs the public bot may use. Up to 6000 characters.</small></div>' +
-      '<textarea id="wlKnowledge" class="setting-input" rows="4" maxlength="6000">' + esc(c.b2c_knowledge) + '</textarea></div>' +
-      '<div class="setting"><div><strong>B2B notice</strong><small>Shown to visitors in B2B mode until access is set up.</small></div>' +
-      '<input id="wlB2bNotice" class="setting-input" maxlength="500" value="' + esc(c.b2b_notice) + '"></div>' +
-      '<div class="setting"><div><strong>Allow Smart Report PDF</strong><small>Off by default for white-label Admin mode.</small></div>' +
-      '<label class="switch"><input type="checkbox" id="wlSmart"' + (c.smart_report_enabled ? ' checked' : '') + '><span></span></label></div>' +
-            '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
-      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Appearance</div>' +
-      '<div class="setting"><div><strong>Subtitle</strong></div>' +
-      '<input id="wlSubtitle" class="setting-input" maxlength="200" value="' + esc(c.subtitle || '') + '"></div>' +
-      '<div class="setting"><div><strong>Secondary colour</strong></div>' +
-      '<input id="wlSecondary" class="setting-input" maxlength="7" value="' + esc(c.secondary_color || '') + '" placeholder="#1e293b"></div>' +
-      '<div class="setting"><div><strong>Background colour</strong></div>' +
-      '<input id="wlBg" class="setting-input" maxlength="7" value="' + esc(c.bg_color || '') + '" placeholder="#ffffff"></div>' +
-      '<div class="setting"><div><strong>Footer text</strong></div>' +
-      '<input id="wlFooter" class="setting-input" maxlength="300" value="' + esc(c.footer_text || '') + '"></div>' +
-      '<div class="setting"><div><strong>Disclaimer</strong></div>' +
-      '<input id="wlDisclaimer" class="setting-input" maxlength="500" value="' + esc(c.disclaimer_text || '') + '"></div>' +
-      '<div class="setting"><div><strong>Width (px)</strong></div>' +
-      '<input id="wlWidth" class="setting-input" type="number" value="' + esc(c.width_px || 420) + '"></div>' +
-      '<div class="setting"><div><strong>Height (px)</strong></div>' +
-      '<input id="wlHeight" class="setting-input" type="number" value="' + esc(c.height_px || 700) + '"></div>' +
-      '<div class="setting"><div><strong>Max history messages</strong></div>' +
-      '<input id="wlMaxHistory" class="setting-input" type="number" value="' + esc(c.max_history || 50) + '"></div>' +
-      '<div class="setting"><div><strong>Session timeout (min)</strong><small>0 = off</small></div>' +
-      '<input id="wlSessionTimeout" class="setting-input" type="number" value="' + esc(c.session_timeout_min || 0) + '"></div>' +
-      '<div class="setting"><div><strong>Preview toast</strong></div>' +
-      '<label class="switch"><input type="checkbox" id="wlPreviewToast"' + (c.preview_toast_enabled ? ' checked' : '') + '><span></span></label></div>' +
-      '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
-      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Escalation</div>' +
-      '<div class="setting"><div><strong>Escalate phone</strong></div>' +
-      '<input id="wlEscalatePhone" class="setting-input" maxlength="40" value="' + esc(c.escalate_phone || '') + '"></div>' +
-      '<div class="setting"><div><strong>Escalate message</strong></div>' +
-      '<input id="wlEscalateMsg" class="setting-input" maxlength="500" value="' + esc(c.escalate_message || '') + '"></div>' +
-      '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
-      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Idle nudge</div>' +
-      '<div class="setting"><div><strong>Idle nudge enabled</strong></div>' +
-      '<label class="switch"><input type="checkbox" id="wlIdleEnabled"' + (c.idle_nudge_enabled ? ' checked' : '') + '><span></span></label></div>' +
-      '<div class="setting"><div><strong>Idle minutes</strong></div>' +
-      '<input id="wlIdleMinutes" class="setting-input" type="number" value="' + esc(c.idle_nudge_minutes || 3) + '"></div>' +
-      '<div class="setting"><div><strong>Idle message</strong></div>' +
-      '<input id="wlIdleMsg" class="setting-input" maxlength="500" value="' + esc(c.idle_nudge_message || '') + '"></div>' +
-      
-      '<div style="margin-top:10px;"><button class="primary-btn" id="wlSave">Save white-label settings</button></div>';
-  }
 
   function embedSection() {
     var langOpts = PLATFORMS.map(function (p) {
