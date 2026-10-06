@@ -181,12 +181,34 @@
     var modes = {};
     document.querySelectorAll('[data-wl-mode]').forEach(function (el) { modes[el.getAttribute('data-wl-mode') + '_enabled'] = el.checked; });
     var v = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
+    var chk = function (id) { var el = document.getElementById(id); return !!(el && el.checked); };
+    var num = function (id, d) { var n = Number(v(id)); return isFinite(n) ? n : d; };
     return Object.assign({
-      enabled: document.getElementById('wlEnabled').checked,
-      default_mode: v('wlDefaultMode'), brand_name: v('wlBrand'), brand_logo_url: v('wlLogo'),
-      primary_color: v('wlColor'), welcome_message: v('wlWelcome'), b2c_knowledge: v('wlKnowledge'),
-      b2b_notice: v('wlB2bNotice'), smart_report_enabled: document.getElementById('wlSmart').checked,
-      site_url: v('wlUrl')
+      enabled: chk('wlEnabled'),
+      default_mode: v('wlDefaultMode'),
+      brand_name: v('wlBrand'),
+      brand_logo_url: v('wlLogo'),
+      primary_color: v('wlColor'),
+      welcome_message: v('wlWelcome'),
+      b2c_knowledge: v('wlKnowledge'),
+      b2b_notice: v('wlB2bNotice'),
+      smart_report_enabled: chk('wlSmart'),
+      site_url: v('wlUrl'),
+      subtitle: v('wlSubtitle'),
+      secondary_color: v('wlSecondary'),
+      bg_color: v('wlBg'),
+      footer_text: v('wlFooter'),
+      disclaimer_text: v('wlDisclaimer'),
+      width_px: num('wlWidth', 420),
+      height_px: num('wlHeight', 700),
+      max_history: num('wlMaxHistory', 50),
+      session_timeout_min: num('wlSessionTimeout', 0),
+      preview_toast_enabled: chk('wlPreviewToast'),
+      escalate_phone: v('wlEscalatePhone'),
+      escalate_message: v('wlEscalateMsg'),
+      idle_nudge_enabled: chk('wlIdleEnabled'),
+      idle_nudge_minutes: num('wlIdleMinutes', 3),
+      idle_nudge_message: v('wlIdleMsg'),
     }, modes);
   }
 
