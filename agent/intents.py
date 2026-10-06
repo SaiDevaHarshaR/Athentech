@@ -628,14 +628,7 @@ def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, mat
 def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    try:
-        date_from, date_to, label = _period_dates(q)
-    except _UnrecognizedPeriod:
-        return None
-    if "today" not in q and "yesterday" not in q:
-        today = date.today()
-        date_from, date_to, label = today.replace(day=1).isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
-    by_revenue = "revenue" in q
+
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
