@@ -806,6 +806,10 @@ async def generate_excel(req: ExcelExportRequest):
     )
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
+    if req.client:
+        from auth.whitelabel import smart_report_allowed
+        if not smart_report_allowed(req.client):
+            raise HTTPException(status_code=403, detail="PDF reports are not available in this chatbot.")
     data = {
         "report_title": req.title,
         "hospital_name": req.hospital_name,
