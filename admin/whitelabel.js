@@ -318,11 +318,7 @@
       render();
     }
   }
-  function onClick(e) {
-    var t = e.target;
-    if (t.id === 'wlSave') return saveWhite();
-    if (t.id === 'wlGenerate') return generate();
-    var copy = t.getAttribute && t.getAttribute('data-wl-copy');
+
     if (copy) {
       var el = document.getElementById(copy);
       if (el) { el.select(); (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).then(
