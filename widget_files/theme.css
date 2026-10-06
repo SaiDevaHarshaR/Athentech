@@ -154,3 +154,14 @@ button, input { font-family: var(--w-font); }
 /* ---------- small screens: the loader makes the frame full-screen */
 @media (max-width: 480px) { .message { max-width: 92% !important; } .header { padding: 10px 12px !important; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .message { animation: msgIn .2s ease; }
+  .bubble-btn { transition: transform .15s ease, box-shadow .15s ease; }
+  .bubble-btn:hover { transform: scale(1.05); }
+  #chat .message.bot { animation: msgIn .22s ease; }
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
