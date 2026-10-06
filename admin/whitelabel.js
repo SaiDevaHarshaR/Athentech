@@ -48,7 +48,99 @@
     }).join('');
   }
 
+  function whiteSection() {
+    var opts = '<option value="">— choose a client —</option>' + S.clients.map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (String(c.id) === String(S.clientId) ? ' selected' : '') + '>' +
+        esc(c.name) + ' (' + esc(c.client_prefix) + ')</option>';
+    }).join('');
 
+    var top = '<div class="setting"><div><strong>LIS / HIS Client</strong><small>Institutions already in the registry.</small></div>' +
+      '<select id="wlClient" class="setting-input">' + opts + '</select></div>';
+
+    if (!S.cfg) {
+      return top + '<p style="font-size:11px;color:#94a3b8;margin:8px 0;">Choose a client to configure its chatbot.</p>';
+    }
+
+    var c = S.cfg;
+    var modeOpts = MODES.filter(function (m) { return c[m[0] + '_enabled']; }).map(function (m) {
+      return '<option value="' + m[0] + '"' + (c.default_mode === m[0] ? ' selected' : '') + '>' + m[1] + '</option>';
+    }).join('');
+
+    var modesBody =
+      '<div class="setting"><div><strong>White label active</strong><small>Off = embed stops working for this client.</small></div>' +
+      '<label class="switch"><input type="checkbox" id="wlEnabled"' + (c.enabled ? ' checked' : '') + '><span></span></label></div>' +
+      modeRows() +
+      '<div class="setting"><div><strong>Default mode</strong><small>Mode the embed opens in.</small></div>' +
+      '<select id="wlDefaultMode" class="setting-input">' + modeOpts + '</select></div>' +
+      '<div class="setting"><div><strong>Allow Smart Report PDF</strong><small>Off by default for white-label Admin mode.</small></div>' +
+      '<label class="switch"><input type="checkbox" id="wlSmart"' + (c.smart_report_enabled ? ' checked' : '') + '><span></span></label></div>';
+
+    var brandBody =
+      '<div class="wl-grid">' +
+      '<div class="setting"><div><strong>Brand name</strong><small>Header title. Blank = client name.</small></div>' +
+      '<input id="wlBrand" class="setting-input" maxlength="100" value="' + esc(c.brand_name) + '"></div>' +
+      '<div class="setting"><div><strong>Subtitle</strong></div>' +
+      '<input id="wlSubtitle" class="setting-input" maxlength="200" value="' + esc(c.subtitle || '') + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>Logo URL</strong><small>https:// image link</small></div>' +
+      '<input id="wlLogo" class="setting-input" value="' + esc(c.brand_logo_url) + '" placeholder="https://..."></div>' +
+      '<div class="setting wl-span2"><div><strong>Welcome message</strong></div>' +
+      '<input id="wlWelcome" class="setting-input" maxlength="500" value="' + esc(c.welcome_message) + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>B2C knowledge</strong><small>Hours, services, FAQs. Max 6000 chars.</small></div>' +
+      '<textarea id="wlKnowledge" class="setting-input" rows="3" maxlength="6000">' + esc(c.b2c_knowledge) + '</textarea></div>' +
+      '<div class="setting wl-span2"><div><strong>B2B notice</strong></div>' +
+      '<input id="wlB2bNotice" class="setting-input" maxlength="500" value="' + esc(c.b2b_notice) + '"></div>' +
+      '</div>';
+
+    var appearBody =
+      '<div class="wl-grid">' +
+      '<div class="setting"><div><strong>Primary colour</strong></div>' +
+      '<input id="wlColor" class="setting-input" maxlength="7" value="' + esc(c.primary_color) + '" placeholder="#1a73e8"></div>' +
+      '<div class="setting"><div><strong>Secondary colour</strong></div>' +
+      '<input id="wlSecondary" class="setting-input" maxlength="7" value="' + esc(c.secondary_color || '') + '" placeholder="#1e293b"></div>' +
+      '<div class="setting"><div><strong>Background</strong></div>' +
+      '<input id="wlBg" class="setting-input" maxlength="7" value="' + esc(c.bg_color || '') + '" placeholder="#ffffff"></div>' +
+      '<div class="setting"><div><strong>Preview toast</strong></div>' +
+      '<label class="switch"><input type="checkbox" id="wlPreviewToast"' + (c.preview_toast_enabled ? ' checked' : '') + '><span></span></label></div>' +
+      '<div class="setting"><div><strong>Width (px)</strong></div>' +
+      '<input id="wlWidth" class="setting-input" type="number" value="' + esc(c.width_px || 420) + '"></div>' +
+      '<div class="setting"><div><strong>Height (px)</strong></div>' +
+      '<input id="wlHeight" class="setting-input" type="number" value="' + esc(c.height_px || 700) + '"></div>' +
+      '<div class="setting"><div><strong>Max history</strong></div>' +
+      '<input id="wlMaxHistory" class="setting-input" type="number" value="' + esc(c.max_history || 50) + '"></div>' +
+      '<div class="setting"><div><strong>Session timeout (min)</strong><small>0 = off</small></div>' +
+      '<input id="wlSessionTimeout" class="setting-input" type="number" value="' + esc(c.session_timeout_min || 0) + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>Footer text</strong></div>' +
+      '<input id="wlFooter" class="setting-input" maxlength="300" value="' + esc(c.footer_text || '') + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>Disclaimer</strong></div>' +
+      '<input id="wlDisclaimer" class="setting-input" maxlength="500" value="' + esc(c.disclaimer_text || '') + '"></div>' +
+      '</div>';
+
+    var escalateBody =
+      '<div class="wl-grid">' +
+      '<div class="setting"><div><strong>Phone</strong></div>' +
+      '<input id="wlEscalatePhone" class="setting-input" maxlength="40" value="' + esc(c.escalate_phone || '') + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>Message</strong></div>' +
+      '<input id="wlEscalateMsg" class="setting-input" maxlength="500" value="' + esc(c.escalate_message || '') + '"></div>' +
+      '</div>';
+
+    var idleBody =
+      '<div class="wl-grid">' +
+      '<div class="setting"><div><strong>Enabled</strong></div>' +
+      '<label class="switch"><input type="checkbox" id="wlIdleEnabled"' + (c.idle_nudge_enabled ? ' checked' : '') + '><span></span></label></div>' +
+      '<div class="setting"><div><strong>Minutes</strong></div>' +
+      '<input id="wlIdleMinutes" class="setting-input" type="number" value="' + esc(c.idle_nudge_minutes || 3) + '"></div>' +
+      '<div class="setting wl-span2"><div><strong>Message</strong></div>' +
+      '<input id="wlIdleMsg" class="setting-input" maxlength="500" value="' + esc(c.idle_nudge_message || '') + '"></div>' +
+      '</div>';
+
+    return top +
+      wlCard('modes', 'Modes & access', 'B2C / B2B / Admin toggles', modesBody, true) +
+      wlCard('brand', 'Brand & copy', 'Name, logo, welcome, knowledge', brandBody, true) +
+      wlCard('appear', 'Appearance', 'Colours, size, footer', appearBody, false) +
+      wlCard('esc', 'Escalation', 'Phone + message for handoff', escalateBody, false) +
+      wlCard('idle', 'Idle nudge', 'Message after inactivity', idleBody, false) +
+      '<div class="wl-save-bar"><button class="primary-btn" id="wlSave">Save white-label settings</button></div>';
+  }
 
   function embedSection() {
     var langOpts = PLATFORMS.map(function (p) {
