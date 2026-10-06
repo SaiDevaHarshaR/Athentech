@@ -255,7 +255,20 @@
   var queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { run(); } catch (e) { console.warn('[polish]', e); } }); }
   function init() {
-    initTheme(); initLogin(); initCmdk(); run();
+    initTheme(); 
+      // accent hairline on main on route change
+  try {
+    var main = document.querySelector('main') || document.querySelector('.shell main');
+    if (main && !main.dataset.t1) {
+      main.dataset.t1 = '1';
+      new MutationObserver(function () {
+        main.classList.remove('page-enter');
+        void main.offsetWidth;
+        main.classList.add('page-enter');
+      }).observe(main, { childList: true });
+    }
+  } catch (e) {}
+  initLogin(); initCmdk(); run();
     new MutationObserver(function (m) { if (!animating) schedule(); }).observe(document.body, { childList: true, subtree: true, characterData: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
