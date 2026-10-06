@@ -249,3 +249,63 @@ button, input { font-family: var(--w-font); }
 @media (prefers-reduced-motion: reduce) {
   .message { animation: none; }
 }
+
+/* ===== FIX: header text on blue ===== */
+.header {
+  color: #fff !important;
+}
+.header-info h1 {
+  color: #fff !important;
+}
+.header-info p,
+#status {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+.status-dot {
+  background: #4ade80 !important;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.35) !important;
+}
+.badge {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+.badge.premium {
+  background: rgba(255, 255, 255, 0.28) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* ===== FIX: cards — no harsh white boxes / lines ===== */
+.message.bot.dash-card,
+.message.bot.search-card,
+.dash-card,
+.search-card,
+.list-card {
+  background: var(--w-surface-2) !important;
+  border: none !important;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06) !important;
+}
+.dash-card-header,
+.search-card-header,
+.dash-divider {
+  border: none !important;
+  border-bottom: none !important;
+}
+.dash-stat-box {
+  background: color-mix(in srgb, var(--w-accent) 10%, var(--w-surface)) !important;
+  border-left: 3px solid var(--w-accent) !important;
+  border-radius: 10px !important;
+}
+.dash-stat-label { color: var(--w-muted) !important; }
+.dash-stat-value { color: var(--w-ink) !important; }
+.search-card-item {
+  border-bottom: 1px solid color-mix(in srgb, var(--w-border) 50%, transparent) !important;
+}
+.search-card-item:last-child { border-bottom: none !important; }
+
+/* soft bot bubbles */
+.message.bot:not(.dash-card):not(.search-card) {
+  border: none !important;
+  background: var(--w-surface-2) !important;
+}
