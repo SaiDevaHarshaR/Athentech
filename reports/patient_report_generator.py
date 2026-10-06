@@ -312,7 +312,8 @@ def _bind_for_report(llm):
     only valid on reasoning models (Groq gpt-oss, OpenAI o-series) — sending
     it to Mistral/Gemini/Cohere makes the API reject the call with a 400.
     """
-
+    cls = type(llm).__name__
+    kwargs = {"max_tokens": 8000 if cls == "ChatCohere" else 12000}
     model = str(getattr(llm, "model_name", None) or getattr(llm, "model", "") or "").lower()
     if (cls == "ChatGroq" and "gpt-oss" in model) or (cls == "ChatOpenAI" and model.startswith(("o1", "o3", "o4", "gpt-5"))):
         kwargs["reasoning_effort"] = "low"
