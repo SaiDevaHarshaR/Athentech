@@ -219,7 +219,8 @@ class PDFRequest(BaseModel):
 
 
 class PatientReportRequest(BaseModel):
-    patient_identifier: str  # UHID or name
+    patient_identifier: str 
+    client: Optional[str] = None # UHID or name
     activation_code: str
 
 
