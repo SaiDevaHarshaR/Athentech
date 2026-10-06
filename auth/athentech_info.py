@@ -404,7 +404,71 @@ SUPPORT & ENGAGEMENT
 Demo on request; WhatsApp Business signup available on site; resources include brochures, FAQs, training, remote support, raise ticket.
 
 DISTRICTS / REGIONS MENTIONED
-Hyderabad, Rangareddy, Guntur, Warangal, Mahbubnagar, Nalgonda, Vijayawada, Secunderabad, Chittoor, Anantapur, Krishna, Prakasam, Kurnool, Visakhapatnam, West Godavari, Rajahmundry and more across Andhra Pradesh / Telangana footprint.
+Hyderabad, Rangareddy, Guntur, Warangal, Mahbubnagar, Nalgonda, Vijayawada, Secunderabad, Chittoor, Anantapur, Krishna, Prakasam, Kurnool, Visakhapatnam (Vizag), West Godavari, Rajahmundry, and broader Andhra Pradesh / Telangana coverage. Offices also in Bangalore and Vijayawada.
+
+SOLUTIONS (solution lines, not only modules)
+- Hospital Information System (HIS/HIMS): registration, billing, clinical workflows, pharmacy, lab, radiology, inventory, finance on one platform.
+- Laboratory Information System (LIS): sample collection, analyzer integration, QC, reporting, billing, NABL traceability.
+- Radiology Information System (RIS): scheduling, reporting, PACS/DICOM imaging workflows.
+- Pharmacy management: OPD/IPD/OT/ward pharmacy, procurement, batch/expiry, dispensing, billing.
+- Electronic Medical Records (EMR/EHR): history, orders, results at point of care.
+- Blood bank: donor, screening, components, storage, cross-match, issue, traceability.
+- Nursing station: ward rounds, vitals, medication admin, care plans, shift handover.
+- OT management: scheduling, pre-op checklists, consumables, surgical notes, CSSD link.
+- Housekeeping: bed turnaround, laundry, sanitation tasks, SLA tracking.
+- HR & payroll: staff lifecycle, attendance, biometric, statutory payroll, rosters.
+- Inventory & procurement: medical/general stores, indents, PO, GRN, vendors, stock valuation.
+- Finance & accounts: credit billing, taxation, MIS, Tally-ready.
+- Mobile applications: doctor, patient, management apps (Android & iOS).
+- Patient portal: appointments, online reports, e-Rx, payments, teleconsultation.
+
+PLATFORM FEATURES
+- NABH / NABL / CAP accreditation support in daily workflows and quality boards.
+- HL7 clinical data exchange; FHIR support.
+- PACS / DICOM imaging to clinician interface.
+- Open APIs (Tally, NMC, biometric, devices, third-party apps).
+- Cloud hosting or on-premises (same product).
+- Multi-location: hospitals, branches, labs from one console.
+- Mobile access and native apps.
+- Security: role-based access, encryption, tamper-evident audit trails, backups, DR.
+
+AI HEALTHCARE PLATFORM (Sahasra HISGenX)
+Positioned as “Digital Brain of Modern Healthcare.” Unifies HIS, ERP, LIS, RIS, EMR/EHR, pharmacy, finance, analytics, patient engagement and AI on one patient record.
+Six platform pillars: (1) one patient record (2) AI inside existing screens (3) cloud or own servers (4) clinical workflows OPD/wards/OT/ER (5) live management numbers (6) security & standards (ABDM, HL7, FHIR, DICOM).
+AI capabilities: clinical report auto-drafts; ICD/CPT coding suggestions; revenue intelligence; predictive dashboards (footfall, beds, inventory); voice documentation; clinical decision support (allergies, interactions, protocols).
+Architecture layers: Experience (portal, WhatsApp, doctor/nurse apps, kiosks, TV) → Intelligence (AI, predictive analytics, BI) → Clinical/ops core (HIS, LIS, RIS/PACS, EMR, pharmacy, OT, blood bank, ERP) → Data/security foundation (single record, RBAC, ABDM/NABH/NABL, HL7/FHIR/DICOM, cloud/on-prem).
+Implementation stance: configuration, training and go-live support done by Athentech (not handed off to random third parties); software alone is not enough without workflow setup.
+
+ABDM (Ayushman Bharat Digital Mission) — V3
+Sahasra HISGenX and Sahasra LIS GenX support documentation-based ABDM V3 integration.
+Covers: ABHA-enabled registration; ABHA identification & verification; linking hospital/lab records to ABHA; consent-based digital sharing; connected hospital and lab processes.
+Front-desk flow: patient provides/creates ABHA → staff verify → demographics auto-fill → consults/labs/discharge linked when finalized → share with other providers on consent.
+ABDM is in the core product, not a separate gateway bolt-on. Minimal workflow change. May relate to Digital Health Incentive Scheme eligibility (check official ABDM terms).
+
+WHY ORGANIZATIONS CHOOSE SAHASRA
+20+ years healthcare systems; 592+ orgs; 43+ modules; AI-enabled platform; cloud & on-prem; real-time BI; multi-location scale; secure & interoperable; implementation and training in-house.
+
+PATIENT JOURNEY (CONNECTED)
+Patient → Registration → Consultation → Lab → Radiology → Pharmacy → Billing → EMR → Discharge — one shared record, no retyping.
+
+ANALYTICS / COMMAND CENTER
+Advanced Analytics & BI (revenue, collections, department & payer mix); Ward Command Center (live vitals, overdue alerts); Smart TV dashboards (tokens, nursing, diagnostics); Executive MIS via WhatsApp for management/CXOs.
+
+SUPPORT CHANNELS
+Sales demo and pricing; support ticket / remote support / training / documentation; WhatsApp Business signup for healthcare messaging; resources: brochures, videos, blog, FAQs, downloads, news, events.
+Hours: Mon–Sat 9:30 AM – 6:30 PM IST; 24×7 critical support.
+Contact pages: /contact/, /contact/request-demo/, /contact/sales/, /contact/support/, /contact/locations/.
+
+FAQS (PLATFORM)
+What is Sahasra HISGenX? Hospital platform combining HIS, ERP, LIS, RIS, EMR, pharmacy, finance, dashboards and patient apps on one patient record.
+Cloud or on-prem? Both, plus hybrid; scales from clinic to multi-campus college/diagnostic chain.
+ABDM and NABH? Yes — ABHA/HFR/HPR/consent records; designed for NABH, NABL, CAP with HL7/FHIR/DICOM.
+How does AI help staff? Less paperwork via assisted reporting, coding, CDS, voice notes, predictive and executive dashboards.
+
+LEGAL / SITE
+Privacy policy, terms and conditions, cookies policy published on athentech.co.in.
+Brand names: ATHEN TECH / Athentech; product family Sahasra / Sahasra-Infini.
+
 """
 
 def answer_athentech_question(question: str, llm) -> str:
