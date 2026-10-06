@@ -318,7 +318,17 @@
       render();
     }
   }
-
+  function onClick(e) {
+    var t = e.target;
+    var tog = t.closest && t.closest('[data-wl-toggle]');
+    if (tog) {
+      var card = document.querySelector('[data-wl-card="' + tog.getAttribute('data-wl-toggle') + '"]');
+      if (card) card.classList.toggle('open');
+      return;
+    }
+    if (t.id === 'wlSave') return saveWhite();
+    if (t.id === 'wlGenerate') return generate();
+    var copy = t.getAttribute && t.getAttribute('data-wl-copy');
     if (copy) {
       var el = document.getElementById(copy);
       if (el) { el.select(); (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).then(
