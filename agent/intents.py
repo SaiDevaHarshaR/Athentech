@@ -1230,21 +1230,7 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
         },
     )
 
-def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
-    if role not in _ALLOWED_ROLES:
-        return "Error: your role does not have access to this data."
-    from agent.tools import check_tat_alert, get_tat_compliance_dashboard
-    import re as _re
-    m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
-    period = "yesterday" if "yesterday" in q else ("this_week" if "this week" in q else "today")
 
-    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-                         "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
-                         "warangal", "ecil", "kphb", "bengaluru", "siricilla"]
-    loc_m = _re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, _re.IGNORECASE)
-    location_keyword = loc_m.group(1) if loc_m else None
-
-    if m or "compliance" in q or "alert" in q:
         raw = check_tat_alert.invoke({
             "threshold_pct": float(m.group(1)) if m else 80.0, "period": period,
             "location_keyword": location_keyword,

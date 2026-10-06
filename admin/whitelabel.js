@@ -274,7 +274,7 @@
       Object.assign(S.cfg, f);
     }
   }
-
+  
   function saveWhite() {
     if (!S.clientId) return say('Choose a client first');
     api('/admin/whitelabel/' + encodeURIComponent(S.clientId), jsonOpts('PUT', readCfgFromForm()))
