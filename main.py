@@ -777,6 +777,10 @@ def usage_status(req: dict):
     return {**usage, "pct": pct, "institution_code": institution_code}
 @app.post("/generate-excel")
 async def generate_excel(req: ExcelExportRequest):
+    if req.client:
+        from auth.whitelabel import smart_report_allowed
+        if not smart_report_allowed(req.client):
+            raise HTTPException(status_code=403, detail="PDF reports are not available in this chatbot.")
     validation = validate_license(req.activation_code)
     if not validation.get("valid"):
         raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
@@ -852,6 +856,10 @@ async def generate_patient_report(req: PatientReportRequest):
     builds their report from freshly-queried real data, instead of
     just re-wrapping whatever the last chat answer happened to say.
     """
+    if req.client:
+        from auth.whitelabel import smart_report_allowed
+        if not smart_report_allowed(req.client):
+            raise HTTPException(status_code=403, detail="PDF reports are not available in this chatbot.")
     validation = validate_license(req.activation_code)
     if not validation.get("valid"):
         raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
