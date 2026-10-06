@@ -517,10 +517,7 @@ const statusEl = document.getElementById('status');
 const modeBadge = document.getElementById('modeBadge');
 const input = document.getElementById('msg');
 
-let API_URL = "http://127.0.0.1:8000/ask"; // fallback until real config loads
-fetch("http://127.0.0.1:8000/public-config").then(r => r.json()).then(cfg => {
-  API_URL = cfg.api_url + "/ask";
-}).catch(() => {});
+const API_URL = "https://api.athentech.in/ask"; // <- the ONE per-server edit: your API address
 function getDeviceFingerprint() {
   const raw = [
     navigator.userAgent,
@@ -1619,7 +1616,191 @@ function clearSession() {
   localStorage.removeItem('sahasra_session');
 }
 
-start();
+/* ============================================================================
+   WHITE-LABEL LAYER — does nothing unless the URL has ?label=white&client=...
+   (the loader / admin "Generate Embed URL" produce that URL).
+   Modes:  b2c   public chat, no code, no database
+           b2b   locked until an activation code is entered (access rules: product decision pending)
+           admin same activation-code flow as Premium today; no PDF unless the client was granted it
+   ========================================================================== */
+const WL_API = API_URL.replace(/\/ask$/, '');
+
+const WL = (function () {
+  const p = new URLSearchParams(location.search);
+  const ok = (v, re) => (v && re.test(v)) ? v : '';
+  const langs = (p.get('langs') || '').split(',').map(x => x.trim().toLowerCase()).filter(x => /^[a-z]{2,3}$/.test(x));
+  const lang = ok((p.get('lang') || '').toLowerCase(), /^[a-z]{2,3}$/) || langs[0] || 'en';
+  return {
+    isWhite: p.get('label') === 'white',
+    client: ok(p.get('client'), /^[A-Za-z0-9_-]{1,50}$/),
+    mode: ok((p.get('mode') || '').toLowerCase(), /^(b2c|b2b|admin)$/),
+    lang: lang, langs: langs.length > 1 ? langs : [lang],
+    embedder: p.get('embedder') || '', cfg: null, activeMode: '', locked: false, brand: ''
+  };
+})();
+
+// UI labels translated for Hindi + Telugu only; every other language falls back to English labels
+// (the AI's replies are in the chosen language regardless). Have a native speaker review.
+const WL_I18N = {
+  en: { placeholder: 'Ask anything...', enterCode: 'Enter Activation Code', needCode: 'Please enter your activation code to continue.',
+        language: 'Language', unavailable: 'This chatbot is not available.', wrongSite: 'This chatbot is not enabled for this website.',
+        noPdf: 'PDF reports are not available in this chat.', error: 'Something went wrong. Please try again.',
+        invalid: 'This chatbot link is not valid.', b2bDefault: 'This service is available to subscribed business customers. Enter your activation code to continue.',
+        b2cTail: 'Ask me about our services, timings and general health information.', notThis: 'I can only help with this chat\'s services.' },
+  hi: { placeholder: 'कुछ भी पूछें...', enterCode: 'एक्टिवेशन कोड दर्ज करें', needCode: 'जारी रखने के लिए कृपया अपना एक्टिवेशन कोड दर्ज करें।', language: 'भाषा' },
+  te: { placeholder: 'ఏదైనా అడగండి...', enterCode: 'యాక్టివేషన్ కోడ్ నమోదు చేయండి', needCode: 'కొనసాగించడానికి దయచేసి మీ యాక్టివేషన్ కోడ్ నమోదు చేయండి.', language: 'భాష' }
+};
+function wlT(key) { return (WL_I18N[WL.lang] && WL_I18N[WL.lang][key]) || WL_I18N.en[key]; }
+
+function wlShade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + pct))));
+  return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function wlReveal() { document.body.style.visibility = ''; }
+function wlLock(message) {
+  WL.locked = true; chatEl.innerHTML = ''; addMessage(message, 'bot');
+  input.disabled = true; suggestionsEl.innerHTML = ''; wlReveal();
+}
+function wlEmbedderOrigin() {
+  if (WL.embedder) return WL.embedder;
+  try { if (location.ancestorOrigins && location.ancestorOrigins.length) return location.ancestorOrigins[0]; } catch (e) {}
+  try { return new URL(document.referrer).origin; } catch (e) { return ''; }
+}
+
+(function installWhiteLabel() {
+  if (!WL.isWhite) return;
+  document.body.style.visibility = 'hidden';            // no Athentech flash while the client's brand loads
+
+  // 1) tell the backend which client this chat belongs to (activation-code ownership + PDF rule are checked there)
+  const baseFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    try {
+      if (typeof url === 'string' && url.indexOf(WL_API) === 0 && opts && typeof opts.body === 'string'
+          && /\/(ask|generate-patient-report|generate-pdf)$/.test(new URL(url).pathname)) {
+        const body = JSON.parse(opts.body); body.client = WL.client;
+        opts = Object.assign({}, opts, { body: JSON.stringify(body) });
+      }
+    } catch (e) {}
+    return baseFetch(url, opts);
+  };
+
+  // 2) no Athentech buttons, no "continue in normal mode" (white label has no general-knowledge chat)
+  const baseSuggest = showSuggestions;
+  showSuggestions = function (list) {
+    const kept = (list || []).filter(s => s.send !== 'athentech mode' && s.send !== 'hi')
+      .map(s => s.send === 'Enter activation code' ? Object.assign({}, s, { label: wlT('enterCode') }) : s);
+    return baseSuggest(kept);
+  };
+
+  // 3) route every message by mode
+  const baseProcess = processMessage;
+  processMessage = async function (text) {
+    const q = text.toLowerCase().trim();
+    if (WL.locked) return;
+    if (q.indexOf('athentech') >= 0 && /(mode|about|info)/.test(q)) { addMessage(wlT('notThis'), 'bot'); return; }
+    if (WL.activeMode === 'b2c') return wlAskB2C(text);
+
+    const inFlow = state.mode === 'premium' || state.waitingForCode || state.waitingForOtp ||
+                   q.indexOf('activation code') >= 0 || q === 'cancel';
+    if (!inFlow) {
+      addMessage(WL.activeMode === 'b2b' ? (WL.cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'), 'bot');
+      showSuggestions([{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+      return;
+    }
+    if (q.indexOf('pdf') >= 0 && !(WL.cfg.features && WL.cfg.features.smart_report)) { addMessage(wlT('noPdf'), 'bot'); return; }
+    return baseProcess(text);
+  };
+})();
+
+async function wlAskB2C(text) {
+  statusEl.textContent = 'Thinking...';
+  state.history.push({ role: 'user', content: text });
+  const typing = document.createElement('div');
+  typing.className = 'message bot typing-indicator';
+  typing.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  chatEl.appendChild(typing); chatEl.scrollTop = chatEl.scrollHeight;
+  try {
+    const res = await fetch(WL_API + '/public/whitelabel-ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client: WL.client, question: text, lang: WL.lang, chat_history: state.history.slice(-7, -1) })
+    });
+    const d = await res.json();
+    typing.remove();
+    const answer = d.answer || wlT('error');
+    addMessage(answer, 'bot');
+    if (d.status === 'success') state.history.push({ role: 'assistant', content: answer });
+  } catch (err) {
+    typing.remove(); addMessage(wlT('error'), 'bot');
+  } finally {
+    statusEl.textContent = 'Online';
+  }
+}
+
+async function wlStart() {
+  if (!WL.client) { wlLock(wlT('invalid')); return; }
+  let cfg;
+  try {
+    const r = await fetch(WL_API + '/public/whitelabel-config?client=' + encodeURIComponent(WL.client));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cfg = await r.json();
+  } catch (e) { wlLock(wlT('unavailable')); return; }
+  WL.cfg = cfg;
+
+  // soft check: is this page the website the admin said the chatbot is for?
+  const emb = wlEmbedderOrigin();
+  if (cfg.site_url && emb && emb !== cfg.site_url && emb !== location.origin) { wlLock(wlT('wrongSite')); return; }
+
+  // mode: the one asked for in the embed if the client has it on, else the client's default
+  const on = cfg.modes || {};
+  let mode = (WL.mode && on[WL.mode]) ? WL.mode : (on[cfg.default_mode] ? cfg.default_mode : ['b2c', 'b2b', 'admin'].find(m => on[m]));
+  if (!mode) { wlLock(wlT('unavailable')); return; }
+  WL.activeMode = mode;
+
+  // Athentech's generic settings (timeouts, escalation...) first, then the client's brand on top
+  await loadWidgetConfig();
+  const b = cfg.brand || {};
+  WL.brand = String(b.name || '').replace(/[<>]/g, '');
+  const primary = /^#[0-9a-fA-F]{6}$/.test(b.primary_color || '') ? b.primary_color : '#334155';
+  widgetConfig = Object.assign({}, widgetConfig, {
+    title: WL.brand, primary_color: primary, secondary_color: wlShade(primary, -0.3),
+    icon_url: b.logo_url || '', footer_text: '\u00A0'
+  });
+  applyWidgetConfig();
+  document.title = WL.brand || document.title;
+
+  chatEl.innerHTML = '';
+  state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
+  input.placeholder = wlT('placeholder');
+  statusEl.textContent = 'Online';
+  modeBadge.textContent = { b2c: 'Chat', b2b: 'B2B', admin: 'Admin' }[mode];
+  modeBadge.classList.remove('premium');
+
+  if (WL.langs.length > 1) {
+    const names = { en: 'English', hi: 'Hindi', te: 'Telugu', ta: 'Tamil', kn: 'Kannada', ml: 'Malayalam', mr: 'Marathi',
+                    bn: 'Bengali', gu: 'Gujarati', pa: 'Punjabi', ur: 'Urdu', or: 'Odia' };
+    const sel = document.createElement('select');
+    sel.id = 'wlLang'; sel.title = wlT('language'); sel.setAttribute('aria-label', wlT('language'));
+    sel.style.cssText = 'margin-right:8px;border-radius:6px;border:none;padding:3px 4px;font-size:11px;max-width:92px;';
+    WL.langs.forEach(code => { const o = document.createElement('option'); o.value = code; o.textContent = names[code] || code; sel.appendChild(o); });
+    sel.value = WL.lang;
+    sel.onchange = () => { WL.lang = sel.value; input.placeholder = wlT('placeholder'); sel.title = wlT('language'); };
+    modeBadge.parentNode.insertBefore(sel, modeBadge);
+  }
+
+  const hello = (b.welcome_message || '').trim() || `Hello! 👋\n\nI'm the virtual assistant for **${WL.brand || 'us'}**.`;
+  const tail = mode === 'b2c' ? wlT('b2cTail') : (mode === 'b2b' ? (cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'));
+  setTimeout(() => addMessage(hello + '\n\n' + tail, 'bot'), 100);
+  showSuggestions(mode === 'b2c' ? [] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+
+  wlReveal();
+  if (window.parent && window.parent !== window) {      // let the loader recolour the floating bubble
+    window.parent.postMessage({ type: 'sahasra-brand', name: WL.brand, primary_color: /^#[0-9a-fA-F]{6}$/.test(b.primary_color || '') ? b.primary_color : '' }, '*');
+  }
+}
+
+if (WL.isWhite) { wlStart(); } else { start(); }
+
 </script>
 </body>
 </html>

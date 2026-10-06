@@ -188,6 +188,7 @@ class QueryRequest(BaseModel):
     activation_code: Optional[str] = None
     chat_history: Optional[List[Message]] = []
     device_fingerprint: Optional[str] = None
+    client: Optional[str] = None
 
 
 class GenerateLicenseRequest(BaseModel):
