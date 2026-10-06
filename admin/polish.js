@@ -177,13 +177,7 @@
   function buildItems(q) {
     var out = [], s = getState();
     var nav = $$('.nav-item[data-page]').map(function (b) { return { g: 'Go to', ic: b.dataset.page, t: b.textContent.trim(), run: function () { go(b.dataset.page); } }; });
-    var acts = [
-      { g: 'Actions', ic: 'plus', t: 'Generate license', run: function () { go('licenses'); setTimeout(function () { if (typeof openLicense === 'function') openLicense(); }, 80); } },
-      { g: 'Actions', ic: 'plus', t: 'Add institution', run: function () { go('institutions'); setTimeout(function () { if (typeof openInstitution === 'function') openInstitution(); }, 80); } },
-      { g: 'Actions', ic: 'zap', t: 'Manage token limits', run: function () { if (typeof openTokensModal === 'function') openTokensModal(); } },
-      { g: 'Actions', ic: currentTheme() === 'dark' ? 'sun' : 'moon', t: 'Switch to ' + (currentTheme() === 'dark' ? 'light' : 'dark') + ' theme', run: function () { setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); } },
-      { g: 'Actions', ic: 'logout', t: 'Log out', run: function () { var b = $('#adminLogoutBtn'); if (b) b.click(); } }
-    ];
+
     nav.concat(acts).forEach(function (it) { var sc = score(q, it.t); if (sc) { it.sc = sc + (it.g === 'Go to' ? 1 : 0); out.push(it); } });
     if (s && q) {
       (s.institutions || []).forEach(function (i) { var sc = Math.max(score(q, i.name), score(q, i.code), score(q, i.city)); if (sc) out.push({ g: 'Institutions', ic: 'institutions', t: i.name, sub: [i.code, i.city].filter(Boolean).join(' · '), sc: sc, run: function () { go('institutions', i.name); } }); });
