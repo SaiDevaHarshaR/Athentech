@@ -89,7 +89,18 @@ def _period_dates(q: str):
     if "today" in q:
         return today.isoformat(), (today + timedelta(days=1)).isoformat(), "Today"
 
-    raise _UnrecognizedPeriod(q)  # genuinely unrecognized — caller must fall through to LLM, never silently default
+    raise _UnrecognizedPeriod(q)
+def _require_period(q: str):
+    """Returns (date_from, date_to, label) or raises _UnrecognizedPeriod."""
+    return _period_dates(q)
+
+def _dept_filter_in_question(q: str) -> bool:
+    """True if user asked for a department this generic handler cannot filter."""
+    return any(w in q for w in (
+        "biochemistry", "haematology", "hematology", "microbiology",
+        "pathology", "serology", "hormones", "radiology", "laboratory",
+        "cardiology",
+    ))  # genuinely unrecognized — caller must fall through to LLM, never silently default
 def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
 
@@ -1234,43 +1245,41 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
 
-    # Dept / specialty filters this intent cannot apply → LLM
-    _dept_words = (
-        "biochemistry", "haematology", "hematology", "microbiology",
-        "pathology", "serology", "hormones", "radiology", "laboratory",
-    )
-    if any(w in q for w in _dept_words):
+    # Department-specific TAT → LLM (this intent has no dept filter)
+    if _dept_filter_in_question(q):
         return None
 
-    # Only periods the TAT tools actually support
+    # Only periods the TAT tools support
     if "yesterday" in q:
         period = "yesterday"
     elif "this week" in q:
         period = "this_week"
-    elif "today" in q or (
-        "last month" not in q and "this month" not in q and "last week" not in q
-        and "this year" not in q and "last year" not in q
-        and not re.search(r"\b20\d{2}\b", q)
-    ):
-        # bare "average tat" / "tat compliance" with no period → today
+    elif "today" in q:
         period = "today"
+    elif any(x in q for x in (
+        "last month", "this month", "last week", "this year", "last year",
+        "last 7", "last 30",
+    )) or re.search(r"\b20\d{2}\b", q):
+        return None  # period beyond tool → LLM
     else:
-        # last month / this month / year / etc. → LLM
-        return None
+        period = "today"  # bare "tat compliance" / "average tat"
 
     from agent.tools import check_tat_alert, get_tat_compliance_dashboard
     import re as _re
     m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
 
-    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-                         "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
-                         "warangal", "ecil", "kphb", "bengaluru", "siricilla"]
+    _known_locations = [
+        "jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
+        "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
+        "warangal", "ecil", "kphb", "bengaluru", "siricilla",
+    ]
     loc_m = _re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, _re.IGNORECASE)
     location_keyword = loc_m.group(1) if loc_m else None
 
     if m or "compliance" in q or "alert" in q:
         raw = check_tat_alert.invoke({
-            "threshold_pct": float(m.group(1)) if m else 80.0, "period": period,
+            "threshold_pct": float(m.group(1)) if m else 80.0,
+            "period": period,
             "location_keyword": location_keyword,
             "role": role, "db_name": db_name, "db_server": db_server,
             "db_user": db_user, "db_password": db_password,
@@ -1286,14 +1295,13 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
         return text
     if text.startswith("Error"):
         return text
-    m = re.search(r"(\d+(?:\.\d+)?)%", text)
+    m2 = re.search(r"(\d+(?:\.\d+)?)%", text)
     icon = "🚨" if "🚨" in text or "below" in text else "⏱️"
     return _dashboard_card(
         icon=icon, title="TAT Compliance",
-        stats=[{"label": "COMPLIANCE", "value": f"{m.group(1)}%" if m else text}],
+        stats=[{"label": "COMPLIANCE", "value": f"{m2.group(1)}%" if m2 else text}],
         footer={"label": "Details", "value": text},
     )
-
 # ---------- stuck_samples (Sample Collected still open) ----------
 def _handle_stuck_samples(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
