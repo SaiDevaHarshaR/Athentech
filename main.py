@@ -215,6 +215,7 @@ class PDFRequest(BaseModel):
     role: str = "Staff"
     activation_code: str = ""
     content_lines: list[str] = []
+    client: Optional[str] = None
 
 
 class PatientReportRequest(BaseModel):
