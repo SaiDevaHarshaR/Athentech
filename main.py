@@ -1196,3 +1196,6 @@ def athentech_info_endpoint(req: dict):
     _, llm = chain[0]
     answer = answer_athentech_question(question, llm)
     return {"status": "success", "answer": answer}
+
+from auth.whitelabel import build_router as build_whitelabel_router
+app.include_router(build_whitelabel_router(require_admin, _log_admin_action))
