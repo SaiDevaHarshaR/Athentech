@@ -243,7 +243,7 @@
     var side = document.createElement('div'); side.className = 'login-side'; ov.appendChild(side); side.appendChild(card);
     var hero = document.createElement('div'); hero.className = 'login-hero';
     hero.innerHTML = '<div class="lh-brand"><i>' + icon('spark', 18) + '</i>Sahasra AI</div>' +
-      '<div><h2>One console for every hospital’s AI assistant.</h2><p>Issue activation codes, set usage limits, control who sees which data, and audit every question — across all your institutions.</p>' +
+      '<div><h2>One console for every hospital’s AI assistant.</h2><p>Issue activation codes, set usage limits, control who sees which data, and audit every question - across all your institutions.</p>' +
       '<ul><li>' + icon('check') + 'Per-institution licenses, limits and audit trail</li><li>' + icon('check') + 'Role-based access to live hospital data</li><li>' + icon('check') + 'White-label chatbots for your clients</li></ul></div>' +
       '<div class="lh-foot">© ' + new Date().getFullYear() + ' AthenTech · Secured admin access</div>';
     ov.insertBefore(hero, side);
