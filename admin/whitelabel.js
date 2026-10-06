@@ -34,12 +34,7 @@
       });
     });
   }
-  function jsonOpts(method, body) {
-    return { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-  }
 
-  // ---------------------------------------------------------------- render
-  function modeRows() {
     var c = S.cfg;
     return MODES.map(function (m) {
       return '<div class="setting"><div><strong>' + m[1] + ' mode</strong><small>' + m[2] + '</small></div>' +
@@ -309,6 +304,7 @@
            document.getElementById('chatbotSettingsPage');
   }
   function mount() {
+    ensureWlStyles();
     var h = host();
     if (!h || document.getElementById('wlPanel')) return;
     var panel = document.createElement('div');
