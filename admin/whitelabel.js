@@ -353,7 +353,8 @@
     var panel = document.createElement('div');
     panel.id = 'wlPanel';
     panel.className = 'settings-section';
-    h.insertBefore(panel, h.firstChild);
+    var heading = h.querySelector ? h.querySelector('.page-heading') : null;
+    if (heading && heading.parentNode === h) h.insertBefore(panel, heading.nextSibling); else h.insertBefore(panel, h.firstChild);
     panel.addEventListener('change', onChange);
     panel.addEventListener('click', onClick);
     render();
