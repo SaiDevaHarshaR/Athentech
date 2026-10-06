@@ -1,5 +1,5 @@
 const KEY = 'sahasraAdminState';
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://api.athentech.in";
 
 // ---------- Admin auth ----------
 const TOKEN_KEY = 'sahasraAdminToken';
@@ -3491,37 +3491,19 @@ $('modalForm')
 // BUTTONS
 // =========================================================
 
-$('addInstitution')
-    .onclick =
-    () => openInstitution();
+const _on = (id, fn) => {
+    const el = $(id);
+    if (el) el.onclick = fn;
+};
 
-
-$('dashboardAdd')
-    .onclick =
-    () => openInstitution();
-
-
-$('generateLicense')
-    .onclick =
-    () => openLicense();
-
-
-$('editPermissions')
-    .onclick =
-    () => editRole('Admin');
-
-
-$('refreshDashboard')
-    .onclick =
-    () => {
-
-        renderDashboard();
-
-        toast(
-            'Dashboard refreshed'
-        );
-
-    };
+_on('addInstitution', () => openInstitution());
+_on('dashboardAdd', () => openInstitution());
+_on('generateLicense', () => openLicense());
+_on('editPermissions', () => editRole('Admin'));
+_on('refreshDashboard', () => {
+    renderDashboard();
+    toast('Dashboard refreshed');
+});
 
 
 // =========================================================
@@ -3864,24 +3846,22 @@ $('globalSearch')
 // =========================================================
 
 async function checkSystemStatus() {
-    const dot = $('systemStatusDot');
-    const text = $('systemStatusText');
-    const sub = $('systemStatusSub');
-
+    const dot = $('systemStatusDot'), text = $('systemStatusText'), sub = $('systemStatusSub');
+    if (!dot || !text || !sub) return;
+    const set = (color, t, s) => { dot.style.background = color; text.textContent = t; sub.textContent = s; };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     try {
-        const res = await fetch(`${API_BASE}/`, { method: 'GET' });
-        if (res.ok) {
-            dot.style.background = '#4ade80';
-            text.textContent = 'System Online';
-            sub.textContent = 'All services operational';
-        } else {
-            throw new Error('Non-OK response');
-        }
+        const res = await fetch(`${API_BASE}/health`, { cache: 'no-store', signal: ctrl.signal });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.status === 'ok') set('#4ade80', 'System Online', 'All services operational');
+        else if (res.ok) set('#f59e0b', 'Degraded', 'Some checks failing');
+        else throw new Error('HTTP ' + res.status);
     } catch (err) {
-        dot.style.background = '#dc2626';
         dot.style.animation = 'none';
-        text.textContent = 'System Offline';
-        sub.textContent = 'Backend unreachable';
+        set('#dc2626', 'System Offline', err.name === 'AbortError' ? 'Backend not responding' : 'Backend unreachable');
+    } finally {
+        clearTimeout(timer);
     }
 }
 
