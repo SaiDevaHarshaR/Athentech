@@ -1549,68 +1549,6 @@ def _handle_branch_compare(q, role, db_name, db_server, db_user, db_password, ma
         ],
     )
 
-def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
-    if role not in _ALLOWED_ROLES:
-        return "Error: your role does not have access to this data."
-
-    from agent.tools import get_lab_day_collection
-    # ... rest unchanged
-
-    noise = [
-        "cash in hand", "reconciliation", "day collection reconciliation", "reconcil",
-        "today", "yesterday", "this month", "for", "report", "detailed",
-    ]
-    loc = q
-    for w in sorted(noise, key=len, reverse=True):
-        loc = re.sub(rf"\b{re.escape(w)}\b", " ", loc)
-    loc = loc.strip()
-    if not loc or len(loc) < 3:
-        return None
-
-    try:
-        date_from, _, label = _period_dates(q)
-    except _UnrecognizedPeriod:
-        return None
-    raw = get_lab_day_collection.invoke({
-        "location_keyword": loc,
-        "bill_date": date_from,
-        "role": role,
-        "db_name": db_name,
-        "db_server": db_server,
-        "db_user": db_user,
-        "db_password": db_password,
-    })
-    text = raw if isinstance(raw, str) else str(raw)
-    if "```dashboard-card" in text or "```list-card" in text:
-        return text  # tool already returned a card
-    if text.startswith("Error"):
-        return text
-
-    stats = []
-    for line in text.split("\n")[1:]:  # skip the "Real reconciliation..." header line
-        line = line.strip()
-        if not line or ":" not in line:
-            continue
-        label, _, value = line.partition(":")
-        value = value.strip()
-        m = re.search(r"Decimal\('([\d.\-]+)'\)", value)
-        if m:
-            amt = float(m.group(1))
-            if amt == 0:
-                continue  # skip zero/empty lines, keeps the card clean
-            value = f"₹{amt:,.0f}"
-        elif "None" in value:
-            continue  # skip genuinely empty fields
-        stats.append({"label": label.strip().upper(), "value": value})
-
-    if not stats:
-        return "No reconciliation data with real values found."
-
-    header = text.split("\n")[0]
-    subtitle = header.split(" for ")[-1] if " for " in header else ""
-    subtitle = re.sub(r"\s*\(from.*?\):?\s*$", "", subtitle).strip()  # strip "(from dbo.LabDayCollection):"
-    return _dashboard_card(icon="💰", title="Cash Reconciliation", subtitle=subtitle, stats=stats)
-
 def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
