@@ -177,7 +177,22 @@
   function buildItems(q) {
     var out = [], s = getState();
     var nav = $$('.nav-item[data-page]').map(function (b) { return { g: 'Go to', ic: b.dataset.page, t: b.textContent.trim(), run: function () { go(b.dataset.page); } }; });
-
+    var acts = [
+      { g: 'Actions', ic: 'plus', t: 'Generate license', run: function () { go('licenses'); setTimeout(function () { if (typeof openLicense === 'function') openLicense(); }, 80); } },
+      { g: 'Actions', ic: 'plus', t: 'Add institution', run: function () { go('institutions'); setTimeout(function () { if (typeof openInstitution === 'function') openInstitution(); }, 80); } },
+      { g: 'Actions', ic: 'zap', t: 'Manage token limits', run: function () { if (typeof openTokensModal === 'function') openTokensModal(); } },
+      { g: 'Actions', ic: 'refresh', t: 'Refresh dashboard', run: function () { go('dashboard'); setTimeout(function () { var b = $('#refreshDashboard'); if (b) b.click(); }, 80); } },
+      { g: 'Actions', ic: 'download', t: 'Export current table CSV', run: function () { var p = $('.table-panel:not([hidden])') || $('.table-panel'); if (p) exportCsv(p); } },
+      { g: 'Actions', ic: 'audit', t: 'Open audit log', run: function () { go('audit'); } },
+      { g: 'Actions', ic: 'roles', t: 'Open roles & permissions', run: function () { go('roles'); } },
+      { g: 'Actions', ic: 'settings', t: 'Open settings', run: function () { go('settings'); } },
+      { g: 'Actions', ic: 'chatbotSettings', t: 'Open chatbot / white-label', run: function () { go('chatbotSettings'); } },
+      { g: 'Actions', ic: 'analytics', t: 'Open analytics', run: function () { go('analytics'); } },
+      { g: 'Actions', ic: 'licenses', t: 'Filter active licenses', run: function () { go('licenses'); setTimeout(function () { var inp = $('#licensesPage .registry-search input'); if (inp) { inp.value = 'Active'; inp.dispatchEvent(new Event('input', { bubbles: true })); } }, 80); } },
+      { g: 'Actions', ic: 'card', t: 'Copy API base URL', run: function () { var u = (window.API_BASE || location.origin); if (navigator.clipboard) navigator.clipboard.writeText(u); if (typeof toast === 'function') toast('Copied: ' + u); } },
+      { g: 'Actions', ic: currentTheme() === 'dark' ? 'sun' : 'moon', t: 'Switch to ' + (currentTheme() === 'dark' ? 'light' : 'dark') + ' theme', run: function () { setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); } },
+      { g: 'Actions', ic: 'logout', t: 'Log out', run: function () { var b = $('#adminLogoutBtn'); if (b) b.click(); } }
+    ];
     nav.concat(acts).forEach(function (it) { var sc = score(q, it.t); if (sc) { it.sc = sc + (it.g === 'Go to' ? 1 : 0); out.push(it); } });
     if (s && q) {
       (s.institutions || []).forEach(function (i) { var sc = Math.max(score(q, i.name), score(q, i.code), score(q, i.city)); if (sc) out.push({ g: 'Institutions', ic: 'institutions', t: i.name, sub: [i.code, i.city].filter(Boolean).join(' · '), sc: sc, run: function () { go('institutions', i.name); } }); });
