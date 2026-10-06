@@ -34,7 +34,44 @@
       });
     });
   }
+  function jsonOpts(method, body) {
+    return { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  }
 
+  function ensureWlStyles() {
+    if (document.getElementById('wlStyles')) return;
+    var s = document.createElement('style');
+    s.id = 'wlStyles';
+    s.textContent = [
+      '#wlPanel .wl-card{border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin:10px 0;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04)}',
+      '#wlPanel .wl-card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;background:linear-gradient(180deg,#fafbfc,#f8fafc)}',
+      '#wlPanel .wl-card-h:hover{background:#f1f5f9}',
+      '#wlPanel .wl-card-h strong{font-size:12px;color:#0f172a;letter-spacing:.02em}',
+      '#wlPanel .wl-card-h small{display:block;font-size:10px;color:#94a3b8;margin-top:2px;font-weight:400}',
+      '#wlPanel .wl-chev{width:22px;height:22px;border-radius:6px;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-size:11px;transition:transform .2s ease;flex-shrink:0}',
+      '#wlPanel .wl-card.open .wl-chev{transform:rotate(180deg);background:#c7d2fe;color:#3730a3}',
+      '#wlPanel .wl-card-b{display:none;padding:4px 14px 14px;border-top:1px solid #eef2f7}',
+      '#wlPanel .wl-card.open .wl-card-b{display:block}',
+      '#wlPanel .wl-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}',
+      '#wlPanel .wl-grid .setting{align-items:flex-start}',
+      '#wlPanel .wl-span2{grid-column:1 / -1}',
+      '@media (max-width:720px){#wlPanel .wl-grid{grid-template-columns:1fr}}',
+      '#wlPanel .wl-save-bar{display:flex;justify-content:flex-end;margin-top:12px;padding-top:4px}',
+      '#wlPanel h3{margin:0 0 4px;font-size:14px}',
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  function wlCard(id, title, hint, bodyHtml, open) {
+    return '<div class="wl-card' + (open ? ' open' : '') + '" data-wl-card="' + id + '">' +
+      '<div class="wl-card-h" data-wl-toggle="' + id + '">' +
+      '<div><strong>' + title + '</strong>' + (hint ? '<small>' + hint + '</small>' : '') + '</div>' +
+      '<div class="wl-chev">▼</div></div>' +
+      '<div class="wl-card-b">' + bodyHtml + '</div></div>';
+  }
+
+  // ---------------------------------------------------------------- render
+  function modeRows() {
     var c = S.cfg;
     return MODES.map(function (m) {
       return '<div class="setting"><div><strong>' + m[1] + ' mode</strong><small>' + m[2] + '</small></div>' +
