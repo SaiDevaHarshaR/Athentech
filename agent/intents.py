@@ -1210,7 +1210,18 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
     if not loc or len(loc) < 3:
         return None  # fall through to LLM
 
-
+    if "yesterday" in q:
+        d0, d1 = "yesterday", "yesterday"
+        label = "Yesterday"
+    elif "this month" in q:
+        d0, d1 = "this_month_start", date.today().isoformat()
+        label = "This Month"
+    elif "today" in q:
+        d0, d1 = "today", "today"
+        label = "Today"
+    else:
+        # last week / last month / this week / no period → LLM
+        return None
 
     result = get_day_collection(loc, d0, d1, db_name, db_server, db_user, db_password)
     if result.get("error"):
