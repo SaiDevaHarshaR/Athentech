@@ -261,6 +261,25 @@ def _validate(payload: dict, current: dict) -> dict:
         raise ValueError("Primary colour must look like #1a73e8.")
     cfg["primary_color"] = color
 
+    for ckey in ("secondary_color", "bg_color"):
+        cval = str(cfg.get(ckey) or "").strip()
+        if cval and not _COLOR_RE.match(cval):
+            raise ValueError(f"{ckey} must look like #1a73e8.")
+        cfg[ckey] = cval
+
+    for num_key, default in (
+        ("width_px", 420),
+        ("height_px", 700),
+        ("max_history", 50),
+        ("session_timeout_min", 0),
+        ("idle_nudge_minutes", 3),
+    ):
+        try:
+            raw = cfg.get(num_key)
+            cfg[num_key] = int(default if raw in (None, "") else raw)
+        except (TypeError, ValueError):
+            cfg[num_key] = default
+
     cfg["site_url"] = normalize_site_url(cfg.get("site_url") or "")
     cfg["languages"] = _clean_languages(cfg.get("languages"))
 
