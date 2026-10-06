@@ -81,6 +81,43 @@
       '<input id="wlB2bNotice" class="setting-input" maxlength="500" value="' + esc(c.b2b_notice) + '"></div>' +
       '<div class="setting"><div><strong>Allow Smart Report PDF</strong><small>Off by default for white-label Admin mode.</small></div>' +
       '<label class="switch"><input type="checkbox" id="wlSmart"' + (c.smart_report_enabled ? ' checked' : '') + '><span></span></label></div>' +
+            '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
+      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Appearance</div>' +
+      '<div class="setting"><div><strong>Subtitle</strong></div>' +
+      '<input id="wlSubtitle" class="setting-input" maxlength="200" value="' + esc(c.subtitle || '') + '"></div>' +
+      '<div class="setting"><div><strong>Secondary colour</strong></div>' +
+      '<input id="wlSecondary" class="setting-input" maxlength="7" value="' + esc(c.secondary_color || '') + '" placeholder="#1e293b"></div>' +
+      '<div class="setting"><div><strong>Background colour</strong></div>' +
+      '<input id="wlBg" class="setting-input" maxlength="7" value="' + esc(c.bg_color || '') + '" placeholder="#ffffff"></div>' +
+      '<div class="setting"><div><strong>Footer text</strong></div>' +
+      '<input id="wlFooter" class="setting-input" maxlength="300" value="' + esc(c.footer_text || '') + '"></div>' +
+      '<div class="setting"><div><strong>Disclaimer</strong></div>' +
+      '<input id="wlDisclaimer" class="setting-input" maxlength="500" value="' + esc(c.disclaimer_text || '') + '"></div>' +
+      '<div class="setting"><div><strong>Width (px)</strong></div>' +
+      '<input id="wlWidth" class="setting-input" type="number" value="' + esc(c.width_px || 420) + '"></div>' +
+      '<div class="setting"><div><strong>Height (px)</strong></div>' +
+      '<input id="wlHeight" class="setting-input" type="number" value="' + esc(c.height_px || 700) + '"></div>' +
+      '<div class="setting"><div><strong>Max history messages</strong></div>' +
+      '<input id="wlMaxHistory" class="setting-input" type="number" value="' + esc(c.max_history || 50) + '"></div>' +
+      '<div class="setting"><div><strong>Session timeout (min)</strong><small>0 = off</small></div>' +
+      '<input id="wlSessionTimeout" class="setting-input" type="number" value="' + esc(c.session_timeout_min || 0) + '"></div>' +
+      '<div class="setting"><div><strong>Preview toast</strong></div>' +
+      '<label class="switch"><input type="checkbox" id="wlPreviewToast"' + (c.preview_toast_enabled ? ' checked' : '') + '><span></span></label></div>' +
+      '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
+      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Escalation</div>' +
+      '<div class="setting"><div><strong>Escalate phone</strong></div>' +
+      '<input id="wlEscalatePhone" class="setting-input" maxlength="40" value="' + esc(c.escalate_phone || '') + '"></div>' +
+      '<div class="setting"><div><strong>Escalate message</strong></div>' +
+      '<input id="wlEscalateMsg" class="setting-input" maxlength="500" value="' + esc(c.escalate_message || '') + '"></div>' +
+      '<div style="border-top:1px solid #e2e8f0;margin:12px 0 8px;"></div>' +
+      '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Idle nudge</div>' +
+      '<div class="setting"><div><strong>Idle nudge enabled</strong></div>' +
+      '<label class="switch"><input type="checkbox" id="wlIdleEnabled"' + (c.idle_nudge_enabled ? ' checked' : '') + '><span></span></label></div>' +
+      '<div class="setting"><div><strong>Idle minutes</strong></div>' +
+      '<input id="wlIdleMinutes" class="setting-input" type="number" value="' + esc(c.idle_nudge_minutes || 3) + '"></div>' +
+      '<div class="setting"><div><strong>Idle message</strong></div>' +
+      '<input id="wlIdleMsg" class="setting-input" maxlength="500" value="' + esc(c.idle_nudge_message || '') + '"></div>' +
+      
       '<div style="margin-top:10px;"><button class="primary-btn" id="wlSave">Save white-label settings</button></div>';
   }
 

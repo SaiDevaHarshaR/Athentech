@@ -164,6 +164,7 @@ def _ensure_table(cur, conn):
     conn.commit()
     _table_ready = True
 
+
 def _bools(cfg: dict) -> dict:
     for f in _BOOL_FIELDS:
         cfg[f] = bool(int(cfg.get(f) or 0))
