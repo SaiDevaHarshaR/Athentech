@@ -1732,11 +1732,3 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
 
     for keywords, handler in _INTENTS:
         matched = next((kw for kw in keywords if kw in q), None)
-        if matched:
-            try:
-                result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
-            except _UnrecognizedPeriod:
-                return None  # matched this intent but period unknown → LLM, do NOT try another handler
-            if result is not None:
-                return result
-    return None
