@@ -117,10 +117,10 @@ def _list_card(**kwargs) -> str:
 def _handle_all_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -159,10 +159,10 @@ def _handle_all_collection(q, role, db_name, db_server, db_user, db_password, ma
 def _handle_patients_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -332,10 +332,10 @@ def _handle_ref_doctor_lookup(q, role, db_name, db_server, db_user, db_password,
 def _handle_bills_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -358,10 +358,10 @@ def _handle_bills_count(q, role, db_name, db_server, db_user, db_password, match
 def _handle_concession_total(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -384,10 +384,10 @@ def _handle_concession_total(q, role, db_name, db_server, db_user, db_password, 
 def _handle_sample_collected_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -411,10 +411,10 @@ def _handle_sample_collected_count(q, role, db_name, db_server, db_user, db_pass
 def _handle_authenticated_count(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -473,10 +473,10 @@ def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched
     mode = next((v for k, v in mode_map.items() if f"total {k}" in q), None)
     if not mode:
         return None
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -628,10 +628,10 @@ def _handle_packages_list(q, role, db_name, db_server, db_user, db_password, mat
 def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     if "today" not in q and "yesterday" not in q:
         today = date.today()
         date_from, date_to, label = today.replace(day=1).isoformat(), (today + timedelta(days=1)).isoformat(), "This Month"
@@ -772,10 +772,10 @@ def _handle_recent_patients(q, role, db_name, db_server, db_user, db_password, m
 def _handle_test_volume(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     term_map = {"cbp": "CBP", "cue": "Complete Urine Analysis", "rbs": "RBS", "hba1c": "HBA1C"}
     term = next((v for k, v in term_map.items() if k in q), None)
     if not term:
@@ -803,10 +803,10 @@ def _handle_test_volume(q, role, db_name, db_server, db_user, db_password, match
 def _handle_status_mix(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -834,10 +834,10 @@ def _handle_status_mix(q, role, db_name, db_server, db_user, db_password, matche
 def _handle_refunds(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -861,10 +861,10 @@ def _handle_refunds(q, role, db_name, db_server, db_user, db_password, matched_k
 def _handle_due_payments(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -888,10 +888,10 @@ def _handle_due_payments(q, role, db_name, db_server, db_user, db_password, matc
 def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -988,10 +988,10 @@ def _handle_phone_lookup(q, role, db_name, db_server, db_user, db_password, matc
 def _handle_top_tests(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -1020,10 +1020,10 @@ def _handle_top_tests(q, role, db_name, db_server, db_user, db_password, matched
 def _handle_cancelled_tests(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -1112,10 +1112,10 @@ def _handle_compare_collection(q, role, db_name, db_server, db_user, db_password
 def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     modality_map = {
         "mri": "MRI", "ct scan": "CT", "ultrasound": "Ultrasound",
         "x-ray": "X-Ray", "xray": "X-Ray", "mammography": "Mammography", "2d echo": "2D ECHO",
@@ -1144,10 +1144,10 @@ def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, m
 def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -1210,15 +1210,7 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
     if not loc or len(loc) < 3:
         return None  # fall through to LLM
 
-    if "yesterday" in q:
-        d0, d1 = "yesterday", "yesterday"
-        label = "Yesterday"
-    elif "this month" in q:
-        d0, d1 = "this_month_start", date.today().isoformat()
-        label = "This Month"
-    else:
-        d0, d1 = "today", "today"
-        label = "Today"
+
 
     result = get_day_collection(loc, d0, d1, db_name, db_server, db_user, db_password)
     if result.get("error"):
@@ -1336,10 +1328,10 @@ def _handle_stuck_samples(q, role, db_name, db_server, db_user, db_password, mat
 def _handle_top_tests_at_branch(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     _known = [
         "jagtial", "kompally", "kukatpally", "suryapet", "uppal", "attapur",
         "alwal", "warangal", "kphb", "medchal", "siricilla", "bengaluru",
@@ -1393,7 +1385,10 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
         format_reconciliation_card_fields,
     )
 
-    date_from, _, label = _period_dates(q)
+    try:
+        date_from, _, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     is_all_branches = any(kw in q for kw in ["all branches", "all locations", "every branch", "overall"])
 
     if is_all_branches:
@@ -1430,10 +1425,10 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
 def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -1475,10 +1470,10 @@ def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password,
 def _handle_package_orders(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    period_result = _period_dates(q)
-    if period_result is None:
-        return None  # unrecognized period — let the LLM handle it, never silently default to today
-    date_from, date_to, label = period_result
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
@@ -1564,7 +1559,10 @@ def _handle_cash_recon(q, role, db_name, db_server, db_user, db_password, matche
     if not loc or len(loc) < 3:
         return None
 
-    date_from, _, label = _period_dates(q)
+    try:
+        date_from, _, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        return None
     raw = get_lab_day_collection.invoke({
         "location_keyword": loc,
         "bill_date": date_from,
