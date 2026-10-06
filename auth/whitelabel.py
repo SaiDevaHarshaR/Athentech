@@ -45,16 +45,45 @@ LANGUAGES = {
 }
 
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-_BOOL_FIELDS = ("enabled", "b2c_enabled", "b2b_enabled", "admin_enabled", "smart_report_enabled")
+_BOOL_FIELDS = (
+    "enabled", "b2c_enabled", "b2b_enabled", "admin_enabled", "smart_report_enabled",
+    "idle_nudge_enabled", "preview_toast_enabled",
+)
 _TEXT_LIMITS = {
-    "brand_name": 100, "welcome_message": 500, "b2b_notice": 500, "b2c_knowledge": 6000,
+    "brand_name": 100,
+    "welcome_message": 500,
+    "b2b_notice": 500,
+    "b2c_knowledge": 6000,
+    "subtitle": 200,
+    "footer_text": 300,
+    "disclaimer_text": 500,
+    "escalate_phone": 40,
+    "escalate_message": 500,
+    "idle_nudge_message": 500,
 }
-
 _DEFAULTS = {
     "enabled": 1, "default_mode": "b2c",
     "b2c_enabled": 1, "b2b_enabled": 0, "admin_enabled": 1, "smart_report_enabled": 0,
     "brand_name": "", "brand_logo_url": "", "primary_color": "", "welcome_message": "",
     "b2c_knowledge": "", "b2b_notice": "", "site_url": "", "languages": "en",
+    # appearance (parity with normal chatbot settings)
+    "subtitle": "",
+    "secondary_color": "",
+    "bg_color": "",
+    "footer_text": "",
+    "disclaimer_text": "",
+    "width_px": 420,
+    "height_px": 700,
+    "max_history": 50,
+    "session_timeout_min": 0,
+    "preview_toast_enabled": 1,
+    # escalate
+    "escalate_phone": "",
+    "escalate_message": "",
+    # idle nudge
+    "idle_nudge_enabled": 0,
+    "idle_nudge_minutes": 3,
+    "idle_nudge_message": "",
 }
 
 _DDL = """
