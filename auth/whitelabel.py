@@ -125,14 +125,44 @@ def _row_to_dict(row) -> dict:
     return dict(row.items()) if hasattr(row, "items") else dict(row)
 
 
+
+
+_EXTRA_COLS = [
+    ("subtitle", "NVARCHAR(200) NULL"),
+    ("secondary_color", "NVARCHAR(20) NULL"),
+    ("bg_color", "NVARCHAR(20) NULL"),
+    ("footer_text", "NVARCHAR(300) NULL"),
+    ("disclaimer_text", "NVARCHAR(500) NULL"),
+    ("width_px", "INT NULL"),
+    ("height_px", "INT NULL"),
+    ("max_history", "INT NULL"),
+    ("session_timeout_min", "INT NULL"),
+    ("preview_toast_enabled", "INT NULL"),
+    ("escalate_phone", "NVARCHAR(40) NULL"),
+    ("escalate_message", "NVARCHAR(500) NULL"),
+    ("idle_nudge_enabled", "INT NULL"),
+    ("idle_nudge_minutes", "INT NULL"),
+    ("idle_nudge_message", "NVARCHAR(500) NULL"),
+]
+
 def _ensure_table(cur, conn):
     global _table_ready
     if _table_ready:
         return
     cur.execute(_DDL)
+    # SQLite-style: PRAGMA; MSSQL admin DB may be SQLite licenses.db — use your existing dialect
+    try:
+        existing = {r[1] for r in cur.execute("PRAGMA table_info(whitelabel_configs)").fetchall()}
+    except Exception:
+        existing = set()
+    for name, typ in _EXTRA_COLS:
+        if name not in existing:
+            try:
+                cur.execute(f"ALTER TABLE whitelabel_configs ADD COLUMN {name} {typ}")
+            except Exception:
+                pass
     conn.commit()
     _table_ready = True
-
 
 def _bools(cfg: dict) -> dict:
     for f in _BOOL_FIELDS:
