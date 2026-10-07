@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from agent.agent import ask_agent
 from agent.followups import suggest_followups
+from agent.chip_health import verified_chips, build_router as build_chip_router
 from langchain_core.messages import HumanMessage, AIMessage
 from database.connection import get_hospital_connection
 from auth.license_service import (
@@ -1104,6 +1105,8 @@ async def ask_question(req: QueryRequest, request: Request):
             }
 
         is_validate_ping = req.question.strip().lower() == "validate"
+        if is_premium and is_validate_ping:      # warm the chip check so the first real answer already has verified chips
+            verified_chips(role, institution_code, institution_type, db_name, db_server, db_user, db_password, hospital_name)
 
         # Fast-path: the widget sends question="validate" right after the
         # user enters an activation code, just to confirm it worked and
