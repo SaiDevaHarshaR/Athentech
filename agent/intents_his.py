@@ -1176,4 +1176,7 @@ def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_pas
             continue
         if result is not None:
             return result
+    fixed = _fix_typos(q)
+    if fixed != q:
+        return try_intent_his(fixed, role, db_name, db_server, db_user, db_password)
     return None
