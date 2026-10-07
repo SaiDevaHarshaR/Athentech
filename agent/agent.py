@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-
+from agent.style import STYLE_RULES
 #from agent.tools import run_sql_query, describe_table, get_verified_day_collection, search_schema
 from agent.search_tool import web_search
 from agent.guardrails import check_input, check_output
