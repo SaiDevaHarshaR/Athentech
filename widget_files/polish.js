@@ -135,6 +135,38 @@
   var apply0 = window.applyWidgetConfig;
   window.applyWidgetConfig = function () { var r = apply0.apply(this, arguments); try { restyle(); } catch (e) {} return r; };
 
+  /* Contextual follow-up chips: the server may add `suggestions` (short strings) to an /ask reply.
+     They replace the default chips once, right after that reply is shown. */
+  var fetch0 = window.fetch;
+  window.fetch = function (url) {
+    var p = fetch0.apply(this, arguments);
+    try {
+      if (/\/ask$/.test(new URL(typeof url === 'string' ? url : url.url, location.href).pathname)) {
+        window.__followups = [];
+        return p.then(function (res) {
+          var json0 = res.json.bind(res);
+          res.json = function () {
+            return json0().then(function (d) {
+              window.__followups = d && d.status === 'success' && Array.isArray(d.suggestions)
+                ? d.suggestions.filter(function (s) { return typeof s === 'string' && s.length < 80; }).slice(0, 3) : [];
+              return d;
+            });
+          };
+          return res;
+        });
+      }
+    } catch (e) {}
+    return p;
+  };
+  var showSuggestions0 = window.showSuggestions;
+  window.showSuggestions = function (list) {
+    if (window.__followups && window.__followups.length) {
+      list = window.__followups.map(function (s) { return { label: s, send: s }; });
+      window.__followups = [];
+    }
+    return showSuggestions0.call(this, list);
+  };
+
   buildChrome(); restyle();
   window.__widgetPolish = { renderMarkdown: renderMarkdown };
 })();
