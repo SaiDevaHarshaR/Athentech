@@ -1470,43 +1470,7 @@ async function callBackend(question) {
       document.getElementById('usageBannerText').textContent = data.usage_warning;
       document.getElementById('usageBanner').style.display = 'flex';
     }
-    if (data.status === 'success') {
-      addMessage(data.answer, 'bot');
-      state.history.push({ role: 'assistant', content: data.answer });
-      state.lastAnswer = data.answer;   // for PDF later
-      saveSession();
-    } else {
-      addMessage(data.answer || 'Something went wrong.', 'bot');
-    }
 
-  } catch (error) {
-    typingEl.remove();
-    addMessage('Could not connect to the AI server.', 'bot');
-    console.error(error);
-  }
-  // Restore status
-  if (state.mode === 'premium') {
-    statusEl.textContent = `Premium • ${state.role}`;
-  } else {
-    statusEl.textContent = 'General Mode';
-  }
-
-  // Suggestions
-if (state.mode === 'premium') {
-  if (Array.isArray(data.suggestions) && data.suggestions.length) {
-    showSuggestions(data.suggestions.map(s =>
-      typeof s === 'string' ? { label: s, send: s } : s
-    ));
-  } else {
-    showSuggestions(getRoleSuggestions()); // only while chip health still warming
-  }
-} else {
-  showSuggestions([
-    { label: 'Enter Activation Code', send: 'Enter activation code' },
-    { label: 'About AthenTech', send: 'athentech mode' }
-  ]);
-}
-}
 // ===== SESSION PERSISTENCE =====
 function saveSession() {
   localStorage.setItem('sahasra_session', JSON.stringify({
