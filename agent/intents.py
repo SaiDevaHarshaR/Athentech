@@ -1743,3 +1743,15 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
                 return None
             return result  # None → LLM; do not try another intent
     return None
+
+from agent.normalize import build_vocab, correct_typos
+
+_VOCAB = None
+
+
+def _fix_typos(q: str) -> str:
+    """Spelling-tolerant routing — only tried when NO intent matched the question as typed."""
+    global _VOCAB
+    if _VOCAB is None:
+        _VOCAB = build_vocab(kw for kws, _ in _INTENTS for kw in kws)
+    return correct_typos(q, _VOCAB)
