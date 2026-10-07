@@ -243,7 +243,67 @@ def list_institutions():
     conn.close()
     return [_sanitize_institution(dict(r.items())) for r in rows]
 
+def create_institution(
+    name: str,
+    client_prefix: str,
+    db_name: str,
+    type_: str = "Hospital",
+    city: str = "",
+    status: str = "Active",
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    try:
+        cur.execute(
+            """
+            INSERT INTO institutions
+            (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                client_prefix.upper().strip(),
+                type_,
+                city or "",
+                db_name,
+                db_server,
+                db_user,
+                encrypt_secret(db_password),
+                status or "Active",
+                now,
+            ),
+        )
+        # MSSQL: identity BEFORE commit (DictCursor.lastrowid uses SCOPE_IDENTITY)
+        inst_id = cur.lastrowid
+        if inst_id is None:
+            cur.execute("SELECT CAST(SCOPE_IDENTITY() AS INT) AS id")
+            id_row = cur.fetchone()
+            if id_row is None:
+                conn.rollback()
+                raise ValueError("Insert failed — no identity returned")
+            inst_id = id_row["id"] if hasattr(id_row, "get") else id_row[0]
 
+        conn.commit()
+
+        row = cur.execute(
+            "SELECT * FROM institutions WHERE id = ?",
+            (int(inst_id),),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Institution id={inst_id} inserted but SELECT returned nothing")
+        return _sanitize_institution(dict(row.items()))
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 
 def update_institution(institution_id: int, **fields):
