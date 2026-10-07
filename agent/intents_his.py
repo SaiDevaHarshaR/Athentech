@@ -1180,3 +1180,15 @@ def try_intent_his(question, role, db_name, db_server=None, db_user=None, db_pas
     if fixed != q:
         return try_intent_his(fixed, role, db_name, db_server, db_user, db_password)
     return None
+
+from agent.normalize import build_vocab, correct_typos
+
+_VOCAB = None
+
+
+def _fix_typos(q: str) -> str:
+    """Spelling-tolerant routing — only tried when NO intent matched the question as typed."""
+    global _VOCAB
+    if _VOCAB is None:
+        _VOCAB = build_vocab(kw for kws, _ in _INTENTS_HIS for kw in kws)
+    return correct_typos(q, _VOCAB)
