@@ -1160,7 +1160,6 @@ async def ask_question(req: QueryRequest, request: Request):
             "usage_warning": usage_warning,
             "suggestions": suggest_followups(req.question, answer, institution_type) if is_premium else [],
         }
-    #
 
     except Exception as e:
         import traceback
