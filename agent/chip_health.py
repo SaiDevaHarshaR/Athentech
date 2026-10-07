@@ -64,7 +64,9 @@ def _run(key, chips, ask_fn, max_seconds):
             _cache[key] = {"at": time.time(), "ok": ok, "bad": bad, "partial": any("time limit" in v for v in bad.values())}
             _running.discard(key)
         worst = "; ".join(f"{k} ({v})" for k, v in list(sorted(bad.items()))[:6])
-        print(f"[chip_health] {key}: {len(ok)} chips verified, {len(bad)} hidden" + (f" -> {worst}" if bad else ""), flush=True)
+        print(f"[chip_health] {key}: {len(ok)} chips verified, {len(bad)} hidden", flush=True)
+        for chip_name, why in sorted(bad.items()):
+            print(f"[chip_health]   hidden: {chip_name} -> {why}", flush=True)
 
 
 def get_verified(key):
