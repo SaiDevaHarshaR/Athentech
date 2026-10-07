@@ -1492,14 +1492,7 @@ async function callBackend(question) {
   }
 
   // Suggestions
-if (state.mode === 'premium') {
-    showSuggestions(getRoleSuggestions());
-} else {
-     showSuggestions([
-    { label: 'Enter Activation Code', send: 'Enter activation code' },
-    { label: 'About AthenTech', send: 'athentech mode' }
-  ]);
-  }
+
 }
 // ===== SESSION PERSISTENCE =====
 function saveSession() {
