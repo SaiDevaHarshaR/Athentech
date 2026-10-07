@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from agent.agent import ask_agent
+
 from langchain_core.messages import HumanMessage, AIMessage
 from database.connection import get_hospital_connection
 from auth.license_service import (
