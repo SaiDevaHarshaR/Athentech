@@ -51,6 +51,7 @@ def check_one(ask_fn, chip):
 
 def _run(key, chips, ask_fn, max_seconds):
     ok, bad, started = set(), {}, time.time()
+    print(f"[chip_health] {key}: checking {len(chips)} chips in the background...", flush=True)
     try:
         for chip in chips:
             if time.time() - started > max_seconds:
@@ -63,7 +64,7 @@ def _run(key, chips, ask_fn, max_seconds):
             _cache[key] = {"at": time.time(), "ok": ok, "bad": bad, "partial": any("time limit" in v for v in bad.values())}
             _running.discard(key)
         worst = "; ".join(f"{k} ({v})" for k, v in list(sorted(bad.items()))[:6])
-        print(f"[chip_health] {key}: {len(ok)} chips verified, {len(bad)} hidden" + (f" -> {worst}" if bad else ""))
+        print(f"[chip_health] {key}: {len(ok)} chips verified, {len(bad)} hidden" + (f" -> {worst}" if bad else ""), flush=True)
 
 
 def get_verified(key):
