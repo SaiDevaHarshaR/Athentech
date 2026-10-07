@@ -843,7 +843,7 @@ refusal — nothing else fits A or C.
 
 
         # Deterministic schema discovery BEFORE the LLM starts tool calling
-        messages = [SystemMessage(content=system_prompt)]
+        messages = [SystemMessage(content=system_prompt), SystemMessage(content=STYLE_RULES)]
         messages.extend(chat_history)
 
         schema_result = _preflight_schema_search(question, role)
