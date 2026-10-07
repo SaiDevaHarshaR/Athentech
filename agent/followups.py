@@ -116,8 +116,10 @@ def all_chips(institution_type: str = "diagnostic") -> list:
 def suggest_followups(question: str, answer: str, institution_type: str = "diagnostic", limit: int = 3, verified=_UNFILTERED) -> list:
     """Up to `limit` short follow-up questions, never repeating what was just asked. [] for errors/refusals."""
     answer = answer or ""
-    if verified is None:                       # chip health check for this institution is still running
-        return []
+    # None = health not ready yet → still show contextual chips (unfiltered)
+    # only skip filter when verified is a real set
+    if verified is None:
+        verified = _UNFILTERED
     if not answer.strip() or (not _CARD.search(answer) and _REFUSAL.search(answer[:140].lower())):
         return []
     pools, rules = (_HIS_POOLS, _HIS_RULES) if institution_type == "hospital" else (_LIS_POOLS, _LIS_RULES)
