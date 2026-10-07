@@ -1203,3 +1203,4 @@ def athentech_info_endpoint(req: dict):
 
 from auth.whitelabel import build_router as build_whitelabel_router
 app.include_router(build_whitelabel_router(require_admin, _log_admin_action))
+app.include_router(build_chip_router(require_admin))
