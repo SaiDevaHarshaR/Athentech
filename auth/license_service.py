@@ -261,25 +261,33 @@ def create_institution(
         """
         INSERT INTO institutions
         (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
+        OUTPUT INSERTED.id
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
-            client_prefix.upper(),
+            client_prefix.upper().strip(),
             type_,
-            city,
+            city or "",
             db_name,
             db_server,
             db_user,
             encrypt_secret(db_password),
-            status,
+            status or "Active",
             now,
         ),
     )
+    id_row = cur.fetchone()
+    if not id_row:
+        conn.rollback()
+        conn.close()
+        raise ValueError("Insert failed — no id returned")
+    inst_id = id_row[0] if not hasattr(id_row, "items") else id_row["id"]
     conn.commit()
-    inst_id = cur.lastrowid
     row = cur.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,)).fetchone()
     conn.close()
+    if not row:
+        raise ValueError("Institution inserted but could not be reloaded")
     return _sanitize_institution(dict(row.items()))
 
 
