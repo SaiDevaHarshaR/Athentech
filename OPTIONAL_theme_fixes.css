@@ -1,0 +1,7 @@
+/* OPTIONAL — append to the END of widget_files/theme.css. Does not edit any of your rules.
+   1) Your #msg border sits inside the composer's own border -> double outline.
+   2) Your [class*="card"] rule also hits inner parts of a card (title, subtitle, time...). */
+.composer #msg, .composer input { border: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+.composer #msg:focus, .composer input:focus { border: 0 !important; box-shadow: none !important; }
+.dash-card-header, .dash-card-title, .dash-card-subtitle, .dash-card-time, .dash-card-icon, .dash-meta-line,
+.search-card-header, .search-card-subtitle, .dash-footer, .dash-list-footer { border: 0 !important; }
