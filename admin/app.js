@@ -2417,7 +2417,7 @@ function drawLineChart(events, days) {
             ctx.lineTo(x, y);
         }
     });
-    ctx.strokeStyle = '#6756e8';
+    ctx.strokeStyle = '#6a5cf6';
     ctx.lineWidth = 3;
     ctx.stroke();
 
@@ -2596,7 +2596,7 @@ function renderFailureChart() {
         expired: 'Expired license',
     };
 
-    const colors = ['#6756e8', '#43a7e9', '#f0a44c', '#dc6269', '#8a8a8a'];
+   const colors = ['#6a5cf6', '#38bdf8', '#fbbf24', '#f87171', '#a1a1aa'];
 
     if (failureEvents.length === 0) {
         $('failurePie').style.background = '#e5e7eb';
