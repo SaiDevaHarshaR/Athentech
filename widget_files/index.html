@@ -1492,7 +1492,20 @@ async function callBackend(question) {
   }
 
   // Suggestions
-
+if (state.mode === 'premium') {
+  if (Array.isArray(data.suggestions) && data.suggestions.length) {
+    showSuggestions(data.suggestions.map(s =>
+      typeof s === 'string' ? { label: s, send: s } : s
+    ));
+  } else {
+    showSuggestions(getRoleSuggestions()); // only while chip health still warming
+  }
+} else {
+  showSuggestions([
+    { label: 'Enter Activation Code', send: 'Enter activation code' },
+    { label: 'About AthenTech', send: 'athentech mode' }
+  ]);
+}
 }
 // ===== SESSION PERSISTENCE =====
 function saveSession() {
