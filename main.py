@@ -1157,8 +1157,7 @@ async def ask_question(req: QueryRequest, request: Request):
             "mode": "premium" if is_premium else "normal",
             "role": role if is_premium else None,
             "hospital_name": hospital_name if is_premium else None,
-            "usage_warning": usage_warning,
-        }
+
     #
 
     except Exception as e:
