@@ -840,8 +840,7 @@ refusal — nothing else fits A or C.
         primary_provider_name, llm = current_chain[0]
         llm_with_tools = llm.bind_tools(tools)
 
-        #messages = [SystemMessage(content=system_prompt)]
-        #messages.extend(chat_history)
+
 
         # Deterministic schema discovery BEFORE the LLM starts tool calling
         messages = [SystemMessage(content=system_prompt)]
