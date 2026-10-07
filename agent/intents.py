@@ -1742,6 +1742,9 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
             except _UnrecognizedPeriod:
                 return None
             return result  # None → LLM; do not try another intent
+    fixed = _fix_typos(q)
+    if fixed != q:
+        return try_intent(fixed, role, db_name, db_server, db_user, db_password)
     return None
 
 from agent.normalize import build_vocab, correct_typos
