@@ -1161,7 +1161,7 @@ async def ask_question(req: QueryRequest, request: Request):
             "role": role if is_premium else None,
             "hospital_name": hospital_name if is_premium else None,
             "usage_warning": usage_warning,
-            
+            "suggestions": suggest_followups(req.question, answer, institution_type, verified=verified_chips(role, institution_code, institution_type, db_name, db_server, db_user, db_password, hospital_name)) if is_premium else [],
         }
 
     except Exception as e:
