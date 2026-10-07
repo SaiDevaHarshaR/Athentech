@@ -1689,8 +1689,7 @@ _INTENTS = [
     _handle_refunds),
     (["due payment", "previous due", "outstanding due"], 
     _handle_due_payments),
-    (["collection by branch", "collection by location", "top branches by collection"],
-     _handle_collection_by_location),
+
     (["bill finance", "money for bill", "finance for bill"],
     _handle_bill_finance),
     (["find by phone", "phone lookup", "mobile "], 
