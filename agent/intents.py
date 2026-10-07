@@ -895,10 +895,13 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT l.LOCATIONNAME, SUM(m.PAIDAMOUNT) AS Amt FROM trnmodeofcollectionsdet m "
-            "JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
+            "SELECT COALESCE(l.LOCATIONNAME, m.LOCATIONID, 'Unknown') AS LOCATIONNAME, "
+            "SUM(m.PAIDAMOUNT) AS Amt "
+            "FROM trnmodeofcollectionsdet m "
+            "LEFT JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
-            "GROUP BY l.LOCATIONNAME ORDER BY Amt DESC",
+            "GROUP BY COALESCE(l.LOCATIONNAME, m.LOCATIONID, 'Unknown') "
+            "ORDER BY Amt DESC",
             (date_from, date_to),
         )
         rows = cursor.fetchall()
