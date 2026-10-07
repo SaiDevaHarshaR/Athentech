@@ -221,8 +221,7 @@ def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> i
     return _PROVIDER_FALLBACK_TTL.get(provider_name, 26 * 60 * 60) # unknown — conservative fallback
 
 
-def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
-    for i in range(retries + 1):
+
         try:
             return runnable.invoke(messages)
         except Exception as e:
