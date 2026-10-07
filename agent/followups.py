@@ -16,19 +16,19 @@ _REFUSAL = re.compile(r"\b(error|could not|couldn't|cannot|can't|unable|not avai
 # ------------------------------------------------------------------ diagnostics / LIS
 _LIS_POOLS = {
     "collection": ["Collection by branch", "Collection by payment mode", "Collection growth", "Total collection yesterday",
-                   "Total collection this month", "Top branches by collection", "Cash in hand", "Total concession this month"],
-    "payment":    ["Total UPI this month", "Total cash collected", "Collection by payment mode", "Cash in hand", "Collection by branch"],
-    "refund":     ["List refunds", "Total refunds this month", "Total collection this month", "Outstanding due", "Cancelled tests"],
-    "due":        ["Credit bills", "Outstanding due", "Total collection this month", "Collection by branch", "How many bills today"],
-    "tat":        ["TAT compliance", "Overdue TAT", "Average TAT", "Pending tests", "Stuck samples", "Lab dashboard"],
-    "labops":     ["Pending tests", "Stuck samples", "Authenticated today", "Samples collected today", "Status breakdown", "TAT compliance", "Lab dashboard"],
-    "package":    ["Top packages", "List packages", "Top tests this month", "Total collection this month"],
-    "doctor":     ["Top referring doctors", "Area wise business", "Business by marketing executive", "Top tests this month", "Total collection this month"],
-    "patient":    ["Recent patients", "Registrations today", "How many patients today", "Total collection this month", "Top tests this month"],
-    "test":       ["Top tests this month", "Most ordered tests", "CBP volume", "RBS volume", "MRI count", "Ultrasound procedures", "Top packages", "Cancelled tests"],
-    "branch":     ["Collection by branch", "List all branches", "Top branches by collection", "Top tests this month", "Total collection yesterday"],
-    "dashboard":  ["Lab dashboard", "Radiology dashboard", "TAT compliance", "Pending tests", "List departments"],
-    "general":    ["Today's collection data", "Top tests this month", "Pending tests", "Recent patients", "TAT compliance", "Top referring doctors"],
+                   "Total collection this month", "Top branches by collection", "Cash in hand", "Total concession this month", "Total collection this week", "Total collection last month", "UPI total this month"],
+    "payment":    ["Total UPI this month", "Total cash collected", "Collection by payment mode", "Cash in hand", "Collection by branch", "Total cheque", "Total credit card", "UPI total this month", "Total collection this week"],
+    "refund":     ["List refunds", "Total refunds this month", "Total collection this month", "Outstanding due", "Cancelled tests", "Refunds today", "Recent refunds"],
+    "due":        ["Credit bills", "Outstanding due", "Total collection this month", "Collection by branch", "How many bills today", "Previous due", "Unpaid bills", "Zero paid bills"],
+    "tat":        ["TAT compliance", "Overdue TAT", "Average TAT", "Pending tests", "Stuck samples", "Lab dashboard", "Radiology TAT", "Tests exceeding TAT", "TAT alert"],
+    "labops":     ["Pending tests", "Stuck samples", "Authenticated today", "Samples collected today", "Status breakdown", "TAT compliance", "Lab dashboard", "Sample rejected", "Rejection count", "Acknowledged count", "Result entry count", "How many tests done", "Authenticated count"],
+    "package":    ["Top packages", "List packages", "Top tests this month", "Total collection this month", "Package orders", "Health packages", "Available packages"],
+    "doctor":     ["Top referring doctors", "Area wise business", "Business by marketing executive", "Top tests this month", "Total collection this month", "Top doctors", "Who referred most", "Top 10 referring", "Which areas"],
+    "patient":    ["Recent patients", "Registrations today", "How many patients today", "Total collection this month", "Top tests this month", "Latest patients", "Last 10 patients", "New patients today", "Latest registrations"],
+    "test":       ["Top tests this month", "Most ordered tests", "CBP volume", "RBS volume", "MRI count", "Ultrasound procedures", "Top packages", "Cancelled tests", "Top investigations", "X-ray count", "CT scan count", "Mammography volume", "Urine volume", "CUE volume", "CBP count", "Cancellation count"],
+    "branch":     ["Collection by branch", "List all branches", "Top branches by collection", "Top tests this month", "Total collection yesterday", "Active branches", "How many branches"],
+    "dashboard":  ["Lab dashboard", "Radiology dashboard", "TAT compliance", "Pending tests", "List departments", "Haematology dashboard", "Biochemistry dashboard", "Microbiology dashboard", "Which departments"],
+    "general":    ["Today's collection data", "Top tests this month", "Pending tests", "Recent patients", "TAT compliance", "Top referring doctors", "Top doctors", "Credit bills", "Total refunds this month", "Collection by branch"],
 }
 _LIS_RULES = [
     (r"refund", "refund"),
@@ -47,18 +47,18 @@ _LIS_RULES = [
 
 # ------------------------------------------------------------------ hospitals / HIS
 _HIS_POOLS = {
-    "revenue":      ["OP revenue", "IP revenue", "Compare OP and IP revenue", "Total hospital revenue", "Doctor wise revenue", "Collection yesterday", "Collection this month", "Day collection"],
+    "revenue":      ["OP revenue", "IP revenue", "Compare OP and IP revenue", "Total hospital revenue", "Doctor wise revenue", "Collection yesterday", "Collection this month", "Day collection", "Overall revenue", "Combined revenue", "Collection this year", "OP collection", "IP collection", "Outpatient revenue", "Inpatient revenue"],
     "op":           ["IP revenue", "Doctor wise revenue", "Today's appointments", "Collection this month", "Day collection"],
     "ip":           ["OP revenue", "Compare OP and IP revenue", "Bed occupancy", "Currently admitted", "Total hospital revenue"],
-    "beds":         ["Bed occupancy", "Beds available", "Ward census", "Room census", "Currently admitted"],
-    "appointments": ["Today's appointments", "Doctor appointments", "Doctor wise revenue", "Day collection", "Beds available"],
-    "pharmacy":     ["Low stock", "Reorder level", "Pharmacy purchases", "Pharmacy returns", "Pharmacy issues", "Goods received"],
-    "expense":      ["Expenses today", "Expenses yesterday", "Vouchers", "Day collection", "Total hospital revenue"],
+    "beds":         ["Bed occupancy", "Beds available", "Ward census", "Room census", "Currently admitted", "Occupied beds", "How many beds", "Bed status", "Rooms by floor", "Ward occupancy"],
+    "appointments": ["Today's appointments", "Doctor appointments", "Doctor wise revenue", "Day collection", "Beds available", "Appointment list"],
+    "pharmacy":     ["Low stock", "Reorder level", "Pharmacy purchases", "Pharmacy returns", "Pharmacy issues", "Goods received", "Stock report", "Pharmacy GRN", "Sales returns", "Department issues"],
+    "expense":      ["Expenses today", "Expenses yesterday", "Vouchers", "Day collection", "Total hospital revenue", "Expenses this month"],
     "doctor":       ["Doctor wise revenue", "Today's appointments", "Doctor appointments", "Day collection", "OP revenue"],
-    "patient":      ["Currently admitted", "Today's appointments", "Beds available", "Day collection"],
-    "test":         ["Investigations today", "Investigations this month", "Test catalog", "Day collection"],
-    "equipment":    ["Equipment usage", "Day collection", "Total hospital revenue"],
-    "general":      ["Day collection", "Bed occupancy", "Today's appointments", "OP revenue", "Low stock", "Expenses today"],
+    "patient":      ["Currently admitted", "Today's appointments", "Beds available", "Day collection", "Admitted patients", "Who is admitted"],
+    "test":         ["Investigations today", "Investigations this month", "Test catalog", "Day collection", "Lab tests today", "Tests ordered", "List investigations"],
+    "equipment":    ["Equipment usage", "Day collection", "Total hospital revenue", "Medical equipment"],
+    "general":      ["Day collection", "Bed occupancy", "Today's appointments", "OP revenue", "Low stock", "Expenses today", "Currently admitted", "Total hospital revenue", "Pharmacy purchases"],
 }
 _HIS_RULES = [
     (r"pharmacy|stock|medicine|reorder|grn|goods", "pharmacy"),
@@ -99,9 +99,25 @@ def _rotate(items: list, k: int) -> list:
     return items[k % len(items):] + items[:k % len(items)] if items else []
 
 
-def suggest_followups(question: str, answer: str, institution_type: str = "diagnostic", limit: int = 3) -> list:
+_UNFILTERED = object()
+
+
+def all_chips(institution_type: str = "diagnostic") -> list:
+    """Every chip we might ever show for this kind of institution (used by chip_health to test them)."""
+    pools = _HIS_POOLS if institution_type == "hospital" else _LIS_POOLS
+    out = []
+    for pool in pools.values():
+        for s in pool:
+            if s not in out:
+                out.append(s)
+    return out
+
+
+def suggest_followups(question: str, answer: str, institution_type: str = "diagnostic", limit: int = 3, verified=_UNFILTERED) -> list:
     """Up to `limit` short follow-up questions, never repeating what was just asked. [] for errors/refusals."""
     answer = answer or ""
+    if verified is None:                       # chip health check for this institution is still running
+        return []
     if not answer.strip() or (not _CARD.search(answer) and _REFUSAL.search(answer[:140].lower())):
         return []
     pools, rules = (_HIS_POOLS, _HIS_RULES) if institution_type == "hospital" else (_LIS_POOLS, _LIS_RULES)
@@ -116,6 +132,8 @@ def suggest_followups(question: str, answer: str, institution_type: str = "diagn
 
     def ok(s, taken):
         n = _norm(s)
+        if verified is not _UNFILTERED and s not in verified:
+            return False
         return n not in taken and not (asked and (n in asked or asked in n))
 
     out, taken = [], set()
