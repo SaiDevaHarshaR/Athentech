@@ -119,12 +119,20 @@
 
   /* ----------------------------------------------------- sortable tables + CSV */
   var sorting = false;
-  function cellVal(td) { var t = (td ? td.textContent : '').trim(); var n = parseFloat(t.replace(/[,₹%\s]/g, '')); var d = Date.parse(t); return (!isNaN(n) && /^[#₹\d.,%\s-]+$/.test(t)) ? n : (!isNaN(d) && /\d{4}/.test(t) ? d : t.toLowerCase()); }
+  function cellVal(td) {
+    var t = (td ? td.textContent : '').trim(), num = t.replace(/[,₹%#\s]/g, '');
+    if (num !== '' && /^-?\d+(\.\d+)?$/.test(num)) return parseFloat(num);                       // 12, #12, ₹1,200, 45%
+    if (/^\d{4}-\d{2}-\d{2}/.test(t) || /^\d{1,2} [A-Za-z]{3,9} \d{4}/.test(t)) { var d = Date.parse(t); if (!isNaN(d)) return d; }   // dates
+    return t.toLowerCase();
+  }
   function applySort(table) {
-    var tb = $('tbody', table), col = table.dataset.sortCol; if (!tb || col === undefined) return;
+    var tb = $('tbody', table), col = table.dataset.sortCol; if (!tb || col === undefined || sorting) return;
     var dir = table.dataset.sortDir === 'desc' ? -1 : 1, rows = $$('tr', tb); if (rows.length < 2 || $('.empty', tb)) return;
+    var sorted = rows.slice().sort(function (a, b) { var x = cellVal(a.children[col]), y = cellVal(b.children[col]); return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+    if (sorted.every(function (r, i) { return r === rows[i]; })) return;           // already in order: touch nothing
     sorting = true;
-    rows.sort(function (a, b) { var x = cellVal(a.children[col]), y = cellVal(b.children[col]); return (x > y ? 1 : x < y ? -1 : 0) * dir; }).forEach(function (r) { tb.appendChild(r); });
+    sorted.forEach(function (r) { tb.appendChild(r); });
+    if (table._sortObs) table._sortObs.takeRecords();                               // discard the mutations WE just caused
     sorting = false;
   }
   function decorateTables() {
@@ -141,7 +149,7 @@
         });
       });
       var tb = $('tbody', table);
-      if (tb && !tb.dataset.obs) { tb.dataset.obs = '1'; new MutationObserver(function () { if (!sorting) applySort(table); }).observe(tb, { childList: true }); }
+      if (tb && !tb.dataset.obs) { tb.dataset.obs = '1'; table._sortObs = new MutationObserver(function () { if (!sorting) applySort(table); }); table._sortObs.observe(tb, { childList: true }); }
     });
     $$('.table-panel .table-header').forEach(function (h) {
       if (h.dataset.export || h.closest('#institutionsPage')) return;
@@ -181,15 +189,6 @@
       { g: 'Actions', ic: 'plus', t: 'Generate license', run: function () { go('licenses'); setTimeout(function () { if (typeof openLicense === 'function') openLicense(); }, 80); } },
       { g: 'Actions', ic: 'plus', t: 'Add institution', run: function () { go('institutions'); setTimeout(function () { if (typeof openInstitution === 'function') openInstitution(); }, 80); } },
       { g: 'Actions', ic: 'zap', t: 'Manage token limits', run: function () { if (typeof openTokensModal === 'function') openTokensModal(); } },
-      { g: 'Actions', ic: 'refresh', t: 'Refresh dashboard', run: function () { go('dashboard'); setTimeout(function () { var b = $('#refreshDashboard'); if (b) b.click(); }, 80); } },
-      { g: 'Actions', ic: 'download', t: 'Export current table CSV', run: function () { var p = $('.table-panel:not([hidden])') || $('.table-panel'); if (p) exportCsv(p); } },
-      { g: 'Actions', ic: 'audit', t: 'Open audit log', run: function () { go('audit'); } },
-      { g: 'Actions', ic: 'roles', t: 'Open roles & permissions', run: function () { go('roles'); } },
-      { g: 'Actions', ic: 'settings', t: 'Open settings', run: function () { go('settings'); } },
-      { g: 'Actions', ic: 'chatbotSettings', t: 'Open chatbot / white-label', run: function () { go('chatbotSettings'); } },
-      { g: 'Actions', ic: 'analytics', t: 'Open analytics', run: function () { go('analytics'); } },
-      { g: 'Actions', ic: 'licenses', t: 'Filter active licenses', run: function () { go('licenses'); setTimeout(function () { var inp = $('#licensesPage .registry-search input'); if (inp) { inp.value = 'Active'; inp.dispatchEvent(new Event('input', { bubbles: true })); } }, 80); } },
-      { g: 'Actions', ic: 'card', t: 'Copy API base URL', run: function () { var u = (window.API_BASE || location.origin); if (navigator.clipboard) navigator.clipboard.writeText(u); if (typeof toast === 'function') toast('Copied: ' + u); } },
       { g: 'Actions', ic: currentTheme() === 'dark' ? 'sun' : 'moon', t: 'Switch to ' + (currentTheme() === 'dark' ? 'light' : 'dark') + ' theme', run: function () { setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); } },
       { g: 'Actions', ic: 'logout', t: 'Log out', run: function () { var b = $('#adminLogoutBtn'); if (b) b.click(); } }
     ];
@@ -243,7 +242,7 @@
     var side = document.createElement('div'); side.className = 'login-side'; ov.appendChild(side); side.appendChild(card);
     var hero = document.createElement('div'); hero.className = 'login-hero';
     hero.innerHTML = '<div class="lh-brand"><i>' + icon('spark', 18) + '</i>Sahasra AI</div>' +
-      '<div><h2>One console for every hospital’s AI assistant.</h2><p>Issue activation codes, set usage limits, control who sees which data, and audit every question - across all your institutions.</p>' +
+      '<div><h2>One console for every hospital’s AI assistant.</h2><p>Issue activation codes, set usage limits, control who sees which data, and audit every question — across all your institutions.</p>' +
       '<ul><li>' + icon('check') + 'Per-institution licenses, limits and audit trail</li><li>' + icon('check') + 'Role-based access to live hospital data</li><li>' + icon('check') + 'White-label chatbots for your clients</li></ul></div>' +
       '<div class="lh-foot">© ' + new Date().getFullYear() + ' AthenTech · Secured admin access</div>';
     ov.insertBefore(hero, side);
@@ -255,20 +254,7 @@
   var queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { run(); } catch (e) { console.warn('[polish]', e); } }); }
   function init() {
-    initTheme(); 
-      // accent hairline on main on route change
-  try {
-    var main = document.querySelector('main') || document.querySelector('.shell main');
-    if (main && !main.dataset.t1) {
-      main.dataset.t1 = '1';
-      new MutationObserver(function () {
-        main.classList.remove('page-enter');
-        void main.offsetWidth;
-        main.classList.add('page-enter');
-      }).observe(main, { childList: true });
-    }
-  } catch (e) {}
-  initLogin(); initCmdk(); run();
+    initTheme(); initLogin(); initCmdk(); run();
     new MutationObserver(function (m) { if (!animating) schedule(); }).observe(document.body, { childList: true, subtree: true, characterData: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

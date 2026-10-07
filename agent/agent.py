@@ -1074,5 +1074,3 @@ For a single-fact answer (not a list), respond in plain text instead — one emo
             answer = "I could not find an answer."
 
         return check_output(answer), tokens_used
-
-
