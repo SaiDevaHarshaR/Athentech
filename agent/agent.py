@@ -1065,7 +1065,7 @@ For a single-fact answer (not a list), respond in plain text instead — one emo
         primary_provider_name, llm = current_chain[0]
         llm_with_tools = llm.bind_tools(tools)
 
-        messages = [SystemMessage(content=normal_prompt)]
+        messages = [SystemMessage(content=normal_prompt), SystemMessage(content=STYLE_RULES)]
         messages.extend(chat_history)
         messages.append(HumanMessage(content=question))
 
