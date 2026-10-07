@@ -765,11 +765,14 @@ function renderDashboardChart() {
 
     const colors = [
 
-        '#6756e8',
-        '#43a7e9',
-        '#4bc39b',
-        '#f0a44c',
-        '#dc6269'
+    '#6a5cf6',
+    '#38bdf8',
+    '#34d399',
+    '#fbbf24',
+    '#f87171',
+    '#a78bfa',
+    '#2dd4bf',
+    '#fb923c'
 
     ];
 
