@@ -562,6 +562,7 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
         llm_with_tools = llm.bind_tools(tools)
         messages = [
             SystemMessage(content=his_prompt),
+            SystemMessage(content=STYLE_RULES),
             HumanMessage(content=question),
         ]
         answer, tokens_used = _run_tool_loop(
