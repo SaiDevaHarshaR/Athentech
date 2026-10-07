@@ -243,7 +243,57 @@ def list_institutions():
     conn.close()
     return [_sanitize_institution(dict(r.items())) for r in rows]
 
-
+def create_institution(
+    name: str,
+    client_prefix: str,
+    db_name: str,
+    type_: str = "Hospital",
+    city: str = "",
+    status: str = "Active",
+    db_server: str = None,
+    db_user: str = None,
+    db_password: str = None,
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    prefix = client_prefix.upper().strip()
+    try:
+        cur.execute(
+            """
+            INSERT INTO institutions
+            (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                prefix,
+                type_,
+                city or "",
+                db_name,
+                db_server,
+                db_user,
+                encrypt_secret(db_password),
+                status or "Active",
+                now,
+            ),
+        )
+        conn.commit()
+        row = cur.execute(
+            "SELECT * FROM institutions WHERE client_prefix = ?",
+            (prefix,),
+        ).fetchone()
+        if row is None:
+            raise ValueError("Insert ran but institution not found by client_prefix")
+        return _sanitize_institution(dict(row.items()))
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 
 def update_institution(institution_id: int, **fields):
