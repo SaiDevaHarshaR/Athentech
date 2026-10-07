@@ -243,52 +243,7 @@ def list_institutions():
     conn.close()
     return [_sanitize_institution(dict(r.items())) for r in rows]
 
-def create_institution(
-    name: str,
-    client_prefix: str,
-    db_name: str,
-    type_: str = "Hospital",
-    city: str = "",
-    status: str = "Active",
-    db_server: str = None,
-    db_user: str = None,
-    db_password: str = None,
-):
-    conn = get_conn()
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute(
-        """
-        INSERT INTO institutions
-        (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
-        OUTPUT INSERTED.id
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            name,
-            client_prefix.upper().strip(),
-            type_,
-            city or "",
-            db_name,
-            db_server,
-            db_user,
-            encrypt_secret(db_password),
-            status or "Active",
-            now,
-        ),
-    )
-    id_row = cur.fetchone()
-    if not id_row:
-        conn.rollback()
-        conn.close()
-        raise ValueError("Insert failed — no id returned")
-    inst_id = id_row[0] if not hasattr(id_row, "items") else id_row["id"]
-    conn.commit()
-    row = cur.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,)).fetchone()
-    conn.close()
-    if not row:
-        raise ValueError("Institution inserted but could not be reloaded")
-    return _sanitize_institution(dict(row.items()))
+
 
 
 def update_institution(institution_id: int, **fields):
