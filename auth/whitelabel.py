@@ -145,7 +145,28 @@ _EXTRA_COLS = [
     ("idle_nudge_message", "NVARCHAR(500) NULL"),
 ]
 
+def _ensure_table(cur, conn):
+    global _table_ready
+    if _table_ready:
+        return
 
+    cur.execute(_DDL)
+
+    cur.execute("""
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'whitelabel_configs'
+    """)
+    existing = {row[0] for row in cur.fetchall()}
+
+    for name, typ in _EXTRA_COLS:
+        if name not in existing:
+            cur.execute(
+                f"ALTER TABLE whitelabel_configs ADD {name} {typ}"
+            )
+
+    conn.commit()
+    _table_ready = True
 
 
 def _bools(cfg: dict) -> dict:
