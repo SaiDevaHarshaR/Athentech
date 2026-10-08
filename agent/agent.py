@@ -419,7 +419,14 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             tool_fn = tools_by_name.get(tool_call["name"])
             if not tool_fn:
                 result = f"Error: unknown tool '{tool_call['name']}'."
-
+            else:
+                args = dict(tool_call.get("args") or {})
+                args.update(tool_extra_kwargs.get(tool_call["name"], {}))
+                try:
+                    result = tool_fn.invoke(args)
+                except Exception as e:
+                    print(f"[_run_tool_loop] tool {tool_call['name']} failed: {e}")
+                    result = f"Tool error: {e}"
 
             result_text = str(result)
             if len(result_text) > 1200:
