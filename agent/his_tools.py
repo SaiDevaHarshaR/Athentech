@@ -81,13 +81,7 @@ def his_run_sql_query(query: str, role: str = "viewer", db_name: str = None,
     if any(b in qpad for b in banned):
         return "Error: Only read-only SELECT is allowed."
 
-    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
-    if not conn:
-        return "Error: Could not connect to the hospital database."
 
-    try:
-        cursor = conn.cursor()
-        cursor.execute(query)
 
         if not cursor.description:
             return "No data found for this query."
