@@ -448,7 +448,7 @@ def _handle_uhid_bills(q, role, db_name, db_server, db_user, db_password, matche
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 10 BILLNO, DATEOFBILL, PAIDAMOUNT FROM trnmodeofcollectionsdet "
+            "SELECT TOP 10 BILLNO, DATEOFBILL, TOTALAMOUNT FROM trnmodeofcollectionsdet "
             "WHERE UHID = ? ORDER BY DATEOFBILL DESC",
             (uhid,),
         )
@@ -640,7 +640,7 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password,
         cursor = conn.cursor()
         if by_revenue:
             cursor.execute(
-                "SELECT TOP 10 d.DOCNAME, SUM(p.PAIDAMOUNT) AS Amt FROM trninvlabpri p "
+                "SELECT TOP 10 d.DOCNAME, SUM(p.TOTALAMOUNT) AS Amt FROM trninvlabpri p "
                 "JOIN mstrefdoctor d ON p.REFDOCTCODE = d.DOCID "
                 "WHERE p.BILLDATE >= ? AND p.BILLDATE < ? GROUP BY d.DOCNAME ORDER BY Amt DESC",
                 (date_from, date_to),
