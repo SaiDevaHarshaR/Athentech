@@ -379,6 +379,7 @@ def _extract_text(content):
     """
     if isinstance(content, str):
         return content
+    
     if isinstance(content, list):
         parts = []
         for block in content:
@@ -461,8 +462,6 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     total_tokens += _extract_tokens(final)
     return (_extract_text(final.content) or None), total_tokens
 
-# BEFORE: nothing here
-
 # AFTER:
 def _preflight_schema_search(question: str, role: str) -> str:
     try:
@@ -523,7 +522,7 @@ You are Sahasra AI Assistant for {hospital_name} (Hospital/IMS module). Answer O
 
 TODAY'S REAL DATE: {real_today}.
 
-Table names are cryptic (tblXxx style); never guess a column from memory. If the user's question doesn't already name a specific table, call his_search_schema first to find real candidates. Then call describe_table on every table you'll reference before writing a query.
+Table names are cryptic (tblXxx style); never guess a column from memory. If the user's question doesn't already name a specific table, call his_search_schema first to find real candidates. Then call his_describe_table on every table you'll reference before writing a query with his_run_sql_query. you'll reference before writing a query.
 
 Rules: SELECT only, never INSERT/UPDATE/DELETE/DROP. Date filters as a real range, never a single '=' match on a datetime column. A genuine zero result: state it plainly, don't invent a reason. All monetary amounts are in Indian Rupees — always format as ₹, never $ or any other currency symbol.
 
@@ -1006,9 +1005,7 @@ refusal — nothing else fits A or C.
                                 "role": role, "db_name": db_name,
                                 "db_server": db_server, "db_user": db_user, "db_password": db_password,
                             },
-                "search_schema": {"role": role},
-            }
-        )
+                "search_schema": {"role": role},})
         if not answer:
             answer = "I could not find relevant data."
 
