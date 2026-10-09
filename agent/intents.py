@@ -1054,7 +1054,7 @@ def _handle_credit_bills(q, role, db_name, db_server, db_user, db_password, matc
         cursor = conn.cursor()
         cursor.execute(
             "SELECT TOP 20 BILLNO, TOTALCHARGES, BILLDATE FROM trnINVLABPRI "
-            "WHERE (TOTALAMOUNT IS NULL OR PAIDAMOUNT = 0) AND TOTALCHARGES > 0 "
+            "WHERE (TOTALAMOUNT IS NULL OR TOTALAMOUNT = 0) AND TOTALCHARGES > 0 "
             "ORDER BY BILLDATE DESC"
         )
         rows = cursor.fetchall()
