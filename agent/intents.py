@@ -127,7 +127,7 @@ def _handle_all_collection(q, role, db_name, db_server, db_user, db_password, ma
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM(PAIDAMOUNT) AS Amt "
+            "SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM(TOTALAMOUNT) AS Amt "
             "FROM trnmodeofcollectionsdet "
             "WHERE DATEOFBILL >= ? AND DATEOFBILL < ? GROUP BY UPPER(LTRIM(RTRIM(MODE)))",
             (date_from, date_to),
@@ -483,7 +483,7 @@ def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet "
+            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
             "WHERE UPPER(LTRIM(RTRIM(MODE))) = ? AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (mode, date_from, date_to),
         )
@@ -841,7 +841,7 @@ def _handle_refunds(q, role, db_name, db_server, db_user, db_password, matched_k
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet "
+            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (date_from, date_to),
         )
@@ -868,7 +868,7 @@ def _handle_due_payments(q, role, db_name, db_server, db_user, db_password, matc
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet "
+            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'DUE PAYMENT' AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (date_from, date_to),
         )
@@ -896,7 +896,7 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
         cursor = conn.cursor()
         cursor.execute(
             "SELECT COALESCE(l.LOCATIONNAME, m.LOCATIONID, 'Unknown') AS LOCATIONNAME, "
-            "SUM(m.PAIDAMOUNT) AS Amt "
+            "SUM(m.TOTALAMOUNT) AS Amt "
             "FROM trnmodeofcollectionsdet m "
             "LEFT JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
@@ -1054,7 +1054,7 @@ def _handle_credit_bills(q, role, db_name, db_server, db_user, db_password, matc
         cursor = conn.cursor()
         cursor.execute(
             "SELECT TOP 20 BILLNO, TOTALCHARGES, BILLDATE FROM trnINVLABPRI "
-            "WHERE (PAIDAMOUNT IS NULL OR PAIDAMOUNT = 0) AND TOTALCHARGES > 0 "
+            "WHERE (TOTALAMOUNT IS NULL OR PAIDAMOUNT = 0) AND TOTALCHARGES > 0 "
             "ORDER BY BILLDATE DESC"
         )
         rows = cursor.fetchall()
@@ -1083,12 +1083,12 @@ def _handle_compare_collection(q, role, db_name, db_server, db_user, db_password
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
+            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
             (this_start.isoformat(), (today + timedelta(days=1)).isoformat()),
         )
         this_total = float(cursor.fetchone()[0] or 0)
         cursor.execute(
-            "SELECT SUM(PAIDAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
+            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
             (last_start.isoformat(), this_start.isoformat()),
         )
         last_total = float(cursor.fetchone()[0] or 0)
