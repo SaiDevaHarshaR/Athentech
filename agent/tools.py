@@ -466,8 +466,8 @@ def get_department_dashboard(
     if department == "radiology":
         dept_sql = (
             "AND DEPTCODE IN ("
-            "SELECT SubDepartmentID FROM mstsubdepartment "
-            "WHERE SubDeptName LIKE '%Radiology%'"
+            "SELECT DEPARTMENTID FROM mstdepartment "
+            "WHERE DEPARTMENTNAME LIKE '%Radiology%'"
             ")"
         )
         title = "Radiology Dashboard"
