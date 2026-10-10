@@ -154,3 +154,101 @@ def collection_mode_data(date_from, date_to, db_name, db_server=None,
         return {"error": f"Institution collection query failed: {exc}"}
     finally:
         conn.close()
+
+
+# Detailed transaction rows, strictly for opted-in CentroMed databases.
+def collection_detailed_data(date_from, date_to, db_name, db_server=None,
+                             db_user=None, db_password=None, location_keyword=None):
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return {"error": "Could not connect to hospital database."}
+    try:
+        cur = conn.cursor()
+        cols = _columns(cur, "trnMODEOFCOLLECTIONSDET")
+        if not cols:
+            return {"error": "Collection details table not found."}
+        date_col = _pick(cols, "DATEOFBILL", "BILLDATE", "TRNDATE")
+        mode_col = _pick(cols, "MODE", "PAYMENTMODE", "PAYMODE")
+        paid_col = _pick(cols, "PAIDAMOUNT", "PAIDAMT", "PAID")
+        total_col = _pick(cols, "TOTALAMOUNT", "TOTALCHARGES", "GRANDTOTAL", "AMOUNT")
+        loc_col = _pick(cols, "LOCATIONID", "LOCID", "BRANCHID")
+        bill_col = _pick(cols, "BILLNO", "BILLNUMBER", "BILLID")
+        uhid_col = _pick(cols, "UHID", "PATIENTUHID")
+        patient_col = _pick(cols, "PATIENTNAME", "PATNAME", "NAME")
+        if not date_col or not mode_col or not (paid_col or total_col):
+            return {"error": "Collection details lacks date, mode or amount fields."}
+
+        # Unavailable source fields must remain blanks, not guessed via unsafe joins.
+        def txt(col):
+            return f"CONVERT(nvarchar(255), m.{col})" if col else "CAST(NULL AS nvarchar(255))"
+        def money(col):
+            return f"TRY_CONVERT(decimal(19,2), m.{col})" if col else "CAST(NULL AS decimal(19,2))"
+        paid = money(paid_col)
+        total = money(total_col)
+        selected = (f"CASE WHEN COALESCE({paid}, 0) <> 0 THEN {paid} "
+                    f"ELSE COALESCE({total}, 0) END")
+        source = (f"CASE WHEN COALESCE({paid}, 0) <> 0 THEN 'PAIDAMOUNT' "
+                  f"WHEN COALESCE({total}, 0) <> 0 THEN 'TOTALAMOUNT (fallback)' "
+                  f"ELSE 'ZERO' END")
+        branch = txt(loc_col) if loc_col else "'All locations'"
+        join = ""
+        if loc_col:
+            loccols = _columns(cur, "mstLocation")
+            loc_id = _pick(loccols, "LOCATIONID")
+            loc_name = _pick(loccols, "LOCATIONNAME")
+            if loc_id and loc_name:
+                join = (f" LEFT JOIN mstLocation l ON "
+                        f"CONVERT(nvarchar(100), m.{loc_col}) = CONVERT(nvarchar(100), l.{loc_id})")
+                branch = (f"COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), l.{loc_name}))), ''), "
+                          f"{branch})")
+        # Query each source record, preserving zero amounts and duplicate bills.
+        query = (
+            f"SELECT m.{date_col}, {branch}, {txt(bill_col)}, {txt(uhid_col)}, "
+            f"{txt(patient_col)}, {txt(mode_col)}, {paid}, {total}, "
+            f"{selected}, {source} "
+            f"FROM trnMODEOFCOLLECTIONSDET m{join} "
+            f"WHERE m.{date_col} >= ? AND m.{date_col} < ? "
+            f"ORDER BY m.{date_col} DESC"
+        )
+        # Monthly exports use daily SQL slices to avoid an expensive full-month
+        # result set and reduce ODBC communication-link failures.
+        from datetime import date as _date, timedelta as _timedelta
+        day_start = _date.fromisoformat(str(date_from)[:10])
+        final_day = _date.fromisoformat(str(date_to)[:10])
+        all_rows = []
+        while day_start < final_day:
+            day_end = min(day_start + _timedelta(days=1), final_day)
+            try:
+                cur.execute(query, (day_start.isoformat(), day_end.isoformat()))
+                while True:
+                    chunk = cur.fetchmany(500)
+                    if not chunk:
+                        break
+                    all_rows.extend(tuple(r) for r in chunk)
+            except Exception as day_exc:
+                # Do not silently export an incomplete month's collections.
+                raise RuntimeError(f"Collection query failed for {day_start}: {day_exc}") from day_exc
+            day_start = day_end
+        all_rows.sort(key=lambda row: row[0] or '', reverse=True)
+        if location_keyword:
+            keyword = location_keyword.strip().casefold()
+            names = sorted({str(r[1]) for r in all_rows if keyword in str(r[1]).casefold()})
+            exact = [name for name in names if name.casefold() == keyword]
+            if exact:
+                names = exact
+            if not names:
+                return {"error": f"No collections found for branch '{location_keyword}'."}
+            if len(names) != 1:
+                return {"error": "Multiple matching branches: " + ", ".join(names[:8])}
+            all_rows = [r for r in all_rows if str(r[1]) == names[0]]
+        if not all_rows:
+            return {"error": "No collection entries in selected period."}
+        return {"rows": all_rows, "columns_available": {
+            "bill": bool(bill_col), "uhid": bool(uhid_col),
+            "patient": bool(patient_col), "paid": bool(paid_col),
+            "total": bool(total_col)},
+            "warning": "TOTALAMOUNT fallback may represent billed value, not actual receipts. Verify finance records."}
+    except Exception as exc:
+        return {"error": f"CentroMed detailed collection query failed: {exc}"}
+    finally:
+        conn.close()

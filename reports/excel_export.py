@@ -598,6 +598,116 @@ def export_registrations_by_branch(
     ws.column_dimensions["A"].width = 28
     safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
     return _save(wb, f"registrations_{safe}_{date.today().isoformat()}.xlsx", label)
+def _export_centromed_detailed_collection(period, db_name, db_server,
+                                          db_user, db_password, hospital_name,
+                                          location_keyword):
+    """Only called for explicitly enabled CentroMed databases."""
+    from collections import defaultdict
+    from reports.collection_compat import collection_detailed_data
+    from openpyxl.styles import Border, Side
+    from datetime import datetime
+
+    start, end, label = _period_dates(period)
+    data = collection_detailed_data(start, end, db_name, db_server,
+                                    db_user, db_password, location_keyword)
+    if "error" in data:
+        return data
+
+    rows = data["rows"]
+    wb = Workbook()
+    detail = wb.active
+    detail.title = "Transactions"
+    columns = ["Date", "Branch", "Bill No.", "UHID", "Patient",
+               "Payment Mode", "Paid Amount", "Total Amount",
+               "Selected Amount", "Amount Source"]
+    hr = _title_row(detail, hospital_name, len(columns))
+    detail.cell(hr + 1, 1, f"CentroMed recorded collections — {label} ({start} to {end}, end exclusive)")
+    detail.merge_cells(start_row=hr + 1, start_column=1,
+                       end_row=hr + 1, end_column=len(columns))
+    header = hr + 2
+    _style_header(detail, header, columns)
+    by_branch = defaultdict(lambda: [0, 0, 0, 0])
+    by_mode = defaultdict(lambda: [0, 0, 0, 0])
+    by_day = defaultdict(lambda: [0, 0, 0, 0])
+    fallback_count = 0
+    for i, rec in enumerate(rows, header + 1):
+        dt, branch, bill, uhid, patient, mode, paid, total, chosen, source = rec
+        paid, total, chosen = float(paid or 0), float(total or 0), float(chosen or 0)
+        branch, mode = str(branch or "Unknown"), str(mode or "Unknown")
+        if source == "TOTALAMOUNT (fallback)":
+            fallback_count += 1
+        values = [dt, branch, bill, uhid, patient, mode, paid, total, chosen, source]
+        for c, value in enumerate(values, 1):
+            cell = detail.cell(i, c, value)
+            if c in (7, 8, 9):
+                cell.number_format = '#,##0.00;[Red](#,##0.00);-'
+            if c == 1 and isinstance(dt, (datetime, date)):
+                cell.number_format = 'dd mmm yyyy hh:mm'
+        if source == "TOTALAMOUNT (fallback)":
+            detail.cell(i, 10).font = Font(color="B45309", bold=True)
+        for key, bucket in [(branch, by_branch), (mode, by_mode),
+                            (str(dt)[:10], by_day)]:
+            v = bucket[key]
+            v[0] += 1
+            v[1] += paid
+            v[2] += total
+            v[3] += chosen
+    total_row = header + 1 + len(rows)
+    detail.cell(total_row, 1, "GRAND TOTAL").font = Font(bold=True)
+    for idx in (7, 8, 9):
+        letter = get_column_letter(idx)
+        detail.cell(total_row, idx, f"=SUM({letter}{header + 1}:{letter}{total_row - 1})")
+        detail.cell(total_row, idx).number_format = '#,##0.00;[Red](#,##0.00);-'
+        detail.cell(total_row, idx).font = Font(bold=True)
+    detail.freeze_panes = f"A{header+1}"
+    detail.auto_filter.ref = f"A{header}:J{total_row-1}"
+    for idx, width in enumerate((22, 25, 20, 19, 27, 20, 18, 18, 20, 27), 1):
+        detail.column_dimensions[get_column_letter(idx)].width = width
+    detail.sheet_view.showGridLines = False
+
+    def make_summary(title, grouped):
+        ws = wb.create_sheet(title)
+        _title_row(ws, hospital_name, 5)
+        _style_header(ws, 3, [title[:-8] if title.endswith(" Summary") else title,
+                              "Records", "Paid Amount", "Total Amount", "Selected Amount"])
+        for n, (key, v) in enumerate(sorted(grouped.items()), 4):
+            ws.cell(n, 1, key)
+            for j, value in enumerate(v, 2):
+                c = ws.cell(n, j, value)
+                if j > 2:
+                    c.number_format = '#,##0.00;[Red](#,##0.00);-'
+        nr = 4 + len(grouped)
+        ws.cell(nr, 1, "GRAND TOTAL").font = Font(bold=True)
+        for j in range(2, 6):
+            col = get_column_letter(j)
+            ws.cell(nr, j, f"=SUM({col}4:{col}{nr-1})").font = Font(bold=True)
+            if j > 2:
+                ws.cell(nr, j).number_format = '#,##0.00;[Red](#,##0.00);-'
+        for col, width in zip("ABCDE", (30, 15, 22, 22, 22)):
+            ws.column_dimensions[col].width = width
+        ws.freeze_panes = "B4"
+        ws.sheet_view.showGridLines = False
+        return ws
+
+    make_summary("Branch Summary", by_branch)
+    make_summary("Mode Summary", by_mode)
+    make_summary("Daily Summary", by_day)
+    notes = wb.create_sheet("Notes")
+    notes.append(["Report", "CentroMed recorded-value collections"])
+    notes.append(["Period", label])
+    notes.append(["Transactions", len(rows)])
+    notes.append(["TOTALAMOUNT fallback records", fallback_count])
+    notes.append(["Paid Amount", "Source value from PAIDAMOUNT"])
+    notes.append(["Total Amount", "Source value from TOTALAMOUNT"])
+    notes.append(["Selected Amount", "Nonzero PAIDAMOUNT; otherwise TOTALAMOUNT"])
+    notes.append(["WARNING", data["warning"]])
+    for col, width in (("A", 35), ("B", 100)):
+        notes.column_dimensions[col].width = width
+    notes.sheet_view.showGridLines = False
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    return _save(wb, f"centromed_detailed_collection_{safe}.xlsx", label)
+
+
 def run_excel_export(
     report_type: str,
     period: str,
@@ -617,36 +727,10 @@ def run_excel_export(
                    os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",")
                    if value.strip()}
         if (db_name or "").strip().casefold() in enabled:
-            from reports.collection_compat import collection_mode_data
-            from openpyxl import Workbook
-            start, end, label = _period_dates(period)
-            result = collection_mode_data(start, end, db_name, db_server,
-                                          db_user, db_password,
-                                          location_keyword=location_keyword)
-            if "error" in result:
-                return result
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Recorded Collections"
-            headers = ["Branch", "Payment Mode", "Selected Amount"]
-            header_row = _title_row(ws, hospital_name, len(headers))
-            _style_header(ws, header_row, headers)
-            for index, (branch, mode, amount) in enumerate(result["rows"], header_row + 1):
-                ws.cell(index, 1, branch)
-                ws.cell(index, 2, mode)
-                ws.cell(index, 3, amount).number_format = "#,##0.00"
-            last = header_row + 1 + len(result["rows"])
-            ws.cell(last, 1, "GRAND TOTAL")
-            ws.cell(last, 3, sum(row[2] for row in result["rows"])).number_format = "#,##0.00"
-            ws.cell(last + 2, 1, "Source")
-            ws.cell(last + 2, 2, result["amount_column"])
-            ws.cell(last + 3, 1, "WARNING")
-            ws.cell(last + 3, 2, result["warning"])
-            ws.column_dimensions["A"].width = 28
-            ws.column_dimensions["B"].width = 26
-            ws.column_dimensions["C"].width = 22
-            safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
-            return _save(wb, f"centromed_recorded_collection_{safe}.xlsx", label)
+            return _export_centromed_detailed_collection(
+                period, db_name, db_server, db_user, db_password,
+                hospital_name, location_keyword,
+            )
         p = (period or "today").lower().replace(" ", "_")
         multi = p in (
             "today", "yesterday", "day",
