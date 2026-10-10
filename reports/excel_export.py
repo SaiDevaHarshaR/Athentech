@@ -90,6 +90,78 @@ def _save(wb, filename: str, period_label: str) -> dict:
     bio.seek(0)
     return {"file": bio, "filename": filename, "period_label": period_label}
 
+def _export_compatible_collection(period, db_name, db_server=None, db_user=None,
+                                  db_password=None, hospital_name="Hospital",
+                                  location_keyword=None, fallback_reason=None):
+    """Cross-institution read-only mode pivot, labelled separately from SP reconciliation."""
+    from reports.collection_compat import collection_mode_data
+
+    date_from, date_to, label = _period_dates(period)
+    result = collection_mode_data(
+        date_from, date_to, db_name, db_server, db_user, db_password,
+        location_keyword=location_keyword,
+    )
+    if "error" in result:
+        if fallback_reason:
+            return {"error": f"Reconciliation unavailable ({fallback_reason}); " + result["error"]}
+        return result
+
+    branches = {}
+    modes = set()
+    for branch, mode, amount in result["rows"]:
+        branches.setdefault(branch, {})[mode] = amount
+        modes.add(mode)
+    modes = sorted(modes)
+    headers = ["Branch"] + modes + ["Total"]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Collection by Mode"
+    hr = _title_row(ws, hospital_name, len(headers))
+    ws.cell(row=hr, column=1, value=f"Collection by Mode · {label} ({date_from} to {date_to}, end exclusive)")
+    hr += 1
+    source = result["amount_column"]
+    note = (f"Source trnMODEOFCOLLECTIONSDET.{source}; "
+            f"{'includes TOTALAMOUNT fallbacks; NOT verified cash receipts' if result['metric'] != 'paid' else 'payment amounts'}")
+    ws.cell(row=hr, column=1, value=note).font = Font(bold=True, color="9C5700")
+    hr += 1
+    ws.cell(row=hr, column=1, value=result["warning"]).font = Font(italic=True, color="9C5700")
+    hr += 1
+    if fallback_reason:
+        ws.cell(row=hr, column=1, value="Reconciliation not available; displaying payment-mode summary instead.")
+        hr += 1
+    _style_header(ws, hr, headers)
+    row = hr + 1
+    sums = {m: 0.0 for m in modes}
+    for branch in sorted(branches):
+        ws.cell(row=row, column=1, value=branch)
+        total = 0.0
+        for j, mode in enumerate(modes, start=2):
+            amount = branches[branch].get(mode, 0.0)
+            sums[mode] += amount
+            total += amount
+            cell = ws.cell(row=row, column=j, value=amount)
+            cell.number_format = "#,##0.00"
+        cell = ws.cell(row=row, column=len(headers), value=total)
+        cell.font = Font(bold=True)
+        cell.number_format = "#,##0.00"
+        row += 1
+    ws.cell(row=row, column=1, value="GRAND TOTAL").font = Font(bold=True)
+    for j, mode in enumerate(modes, start=2):
+        cell = ws.cell(row=row, column=j, value=sums[mode])
+        cell.font = Font(bold=True)
+        cell.number_format = "#,##0.00"
+    cell = ws.cell(row=row, column=len(headers), value=sum(sums.values()))
+    cell.font = Font(bold=True)
+    cell.number_format = "#,##0.00"
+    ws.column_dimensions["A"].width = 34
+    for j in range(2, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(j)].width = 19
+    safe_period = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    safe_branch = re.sub(r"[^A-Za-z0-9_]", "_", location_keyword or "all_branches")
+    return _save(wb, f"collection_{safe_branch}_{safe_period}_{date.today().isoformat()}.xlsx", label)
+
+
 def export_all_branches_collection(
     period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
 ):
@@ -100,6 +172,18 @@ def export_all_branches_collection(
     p = (period or "today").lower().replace(" ", "_")
 
     if p in ("today", "yesterday", "day"):
+        # Use the exact reconciliation only on Konnect-style paid-amount schemas.
+        # CentroMed can have nearly-empty PAIDAMOUNT and meaningful TOTALAMOUNT.
+        from reports.collection_compat import collection_mode_data
+        d0, d1, _ = _period_dates(period)
+        probe = collection_mode_data(d0, d1, db_name, db_server, db_user, db_password)
+        if "error" not in probe and probe["metric"] in ("recorded_total", "mixed"):
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name)
+        if "error" in probe and "No collection entries" not in probe["error"]:
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name,
+                fallback_reason=probe["error"])
         from reports.day_collection_readonly import get_day_collection_all_branches_readonly as get_day_collection_all_branches
         from reports.day_collection_reconciliation import _REPORT_LABELS
         bill_date = "yesterday" if p == "yesterday" else "today"
@@ -107,10 +191,14 @@ def export_all_branches_collection(
             bill_date, db_name, db_server, db_user, db_password
         )
         if "error" in result:
-            return {"error": result["error"]}
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name,
+                fallback_reason=result["error"])
         branches = result["branches"]
         if not branches:
-            return {"error": f"No reconciliation data for {result['bill_date']}."}
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name,
+                fallback_reason="No active reconciliation locations")
 
         col_keys = list(_REPORT_LABELS.keys())
         headers = ["Branch"] + [_REPORT_LABELS[k] for k in col_keys]
@@ -163,10 +251,9 @@ def export_all_branches_collection(
         safe = re.sub(r"[^A-Za-z0-9_]", "_", result["bill_date"])
         return _save(wb, f"day_collection_all_{safe}.xlsx", result["bill_date"])
 
-    # week etc.
-    return _export_multi_branch_mode_pivot(
-        period, db_name, db_server, db_user, db_password, hospital_name
-    )
+    # Week/month/year use a schema-aware, read-only mode pivot.
+    return _export_compatible_collection(
+        period, db_name, db_server, db_user, db_password, hospital_name)
 def _export_multi_branch_mode_pivot(
     period, db_name, db_server=None, db_user=None, db_password=None, hospital_name="Hospital",
 ):
@@ -336,8 +423,16 @@ def export_single_branch_collection(
 
     p = (period or "today").lower().replace(" ", "_")
 
-    # ===== TODAY / YESTERDAY → real SP (LabDayCollection_All) =====
+    # ===== TODAY / YESTERDAY → official SP when available =====
     if p in ("today", "yesterday", "day"):
+        from reports.collection_compat import collection_mode_data
+        d0, d1, _ = _period_dates(period)
+        probe = collection_mode_data(d0, d1, db_name, db_server, db_user, db_password,
+                                     location_keyword=location_keyword)
+        if "error" not in probe and probe["metric"] in ("recorded_total", "mixed"):
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name,
+                location_keyword=location_keyword)
         from reports.day_collection_reconciliation import (
             get_day_collection_one_branch,
             _REPORT_LABELS,
@@ -347,7 +442,9 @@ def export_single_branch_collection(
             location_keyword, bill_date, db_name, db_server, db_user, db_password
         )
         if "error" in result:
-            return {"error": result["error"]}
+            return _export_compatible_collection(
+                period, db_name, db_server, db_user, db_password, hospital_name,
+                location_keyword=location_keyword, fallback_reason=result["error"])
         b = result["branch"]
 
         wb = Workbook()
@@ -376,7 +473,12 @@ def export_single_branch_collection(
         safe = re.sub(r"[^A-Za-z0-9_]", "_", f"{b.get('LOCATION')}_{result['bill_date']}")
         return _save(wb, f"day_collection_{safe}.xlsx", result["bill_date"])
 
-    # ===== MONTH / YEAR → MODE totals (SP is single-day only) =====
+    # ===== MONTH / YEAR → schema-aware payment-mode totals =====
+    return _export_compatible_collection(
+        period, db_name, db_server, db_user, db_password, hospital_name,
+        location_keyword=location_keyword)
+
+    # Legacy SQL kept below temporarily for reference; no longer used.
     date_from, date_to, label = _period_dates(period)
     conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
@@ -621,13 +723,9 @@ def run_excel_export(
             return export_single_branch_collection(
                 period, location_keyword, db_name, db_server, db_user, db_password, hospital_name
             )
-        # no location + day/week → all branches
-        if multi:
-            return export_all_branches_collection(
-                period, db_name, db_server, db_user, db_password, hospital_name
-            )
-        # month/year without location
-        return {"error": "Month/year export needs a branch. Example: export excel this month Uppal"}
+        # No location means all branches, including month and year.
+        return export_all_branches_collection(
+            period, db_name, db_server, db_user, db_password, hospital_name)
     if key == "top_tests":
         return export_top_tests(period, db_name, db_server, db_user, db_password, hospital_name)
     if key == "refunds":
