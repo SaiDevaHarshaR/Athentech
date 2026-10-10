@@ -1763,8 +1763,7 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
     # the loop below try other handlers — a comparison phrase overlapping
     # a single-location keyword (e.g. "uppal collection") was being
     # wrongly caught by a less-specific handler otherwise.
-    if "compare " in q or " vs " in q:
-        return _handle_branch_compare(q, role, db_name, db_server, db_user, db_password)
+
 
     for keywords, handler in _INTENTS:
         matched = next((kw for kw in keywords if kw in q), None)
