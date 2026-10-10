@@ -1126,7 +1126,15 @@ def _handle_compare_collection(q, role, db_name, db_server, db_user, db_password
     finally:
         conn.close()
 
-
+def _is_comparison_question(q: str) -> bool:
+    ql = (q or "").lower()
+    if any(x in ql for x in ("compar", " vs ", "versus", "growth", "compared to", "better than", "worse than")):
+        return True
+    if ("this month" in ql and "last month" in ql) or ("this week" in ql and "last week" in ql):
+        return True
+    if ("this year" in ql and "last year" in ql):
+        return True
+    return False
 # ---------- modality_volume ----------
 def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
