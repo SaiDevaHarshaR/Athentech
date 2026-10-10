@@ -60,8 +60,8 @@ def collection_mode_data(date_from, date_to, db_name, db_server=None,
         # Resolve the amount per record, NOT per day/institution.
         # A nonzero PAIDAMOUNT remains authoritative for that record;
         # when it is zero or null, use TOTALAMOUNT where available.
-        paid_numeric = (f"TRY_CONVERT(decimal(19,2), m.{paid_col})" if paid_col else "NULL")
-        total_numeric = (f"TRY_CONVERT(decimal(19,2), m.{total_col})" if total_col else "NULL")
+        paid_numeric = (f"CONVERT(decimal(19,2), m.{paid_col})" if paid_col else "NULL")
+        total_numeric = (f"CONVERT(decimal(19,2), m.{total_col})" if total_col else "NULL")
         amount_expr = (
             f"CASE WHEN COALESCE({paid_numeric}, 0) <> 0 THEN {paid_numeric} "
             f"ELSE COALESCE({total_numeric}, 0) END"
