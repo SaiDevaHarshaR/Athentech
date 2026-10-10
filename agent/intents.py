@@ -1193,6 +1193,49 @@ def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matche
     try:
         cursor = conn.cursor()
 
+        if "reject" in q:
+            cursor.execute(
+                "SELECT COUNT(*) FROM trninvlabdet "
+                "WHERE BILLDATE >= ? AND BILLDATE < ? "
+                "AND TESTSTATUS = 'Sample Rejected'",
+                (date_from, date_to),
+            )
+            n = cursor.fetchone()[0]
+            return _dashboard_card(
+                icon="🚨",
+                title="Sample Rejected",
+                subtitle=label,
+                stats=[{"label": "COUNT", "value": f"{n:,}"}],
+            )
+
+        if "pending" in q:
+            cursor.execute(
+                "SELECT COUNT(*) FROM trninvlabdet "
+                "WHERE BILLDATE >= ? AND BILLDATE < ? "
+                "AND TESTSTATUS = 'Pending'",
+                (date_from, date_to),
+            )
+            n = cursor.fetchone()[0]
+            return _dashboard_card(
+                icon="⏳",
+                title="Pending Tests",
+                subtitle=label,
+                stats=[{"label": "COUNT", "value": f"{n:,}"}],
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM trninvlabdet "
+            "WHERE BILLDATE >= ? AND BILLDATE < ?",
+            (date_from, date_to),
+        )
+        n = cursor.fetchone()[0]
+        return _dashboard_card(
+            icon="🧪",
+            title="Lab Procedures",
+            subtitle=label,
+            stats=[{"label": "PROCEDURES", "value": f"{n:,}"}],
+        )
+
     except Exception as e:
         return f"Error: {e}"
     finally:
