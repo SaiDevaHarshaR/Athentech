@@ -469,10 +469,16 @@ def _handle_uhid_bills(q, role, db_name, db_server, db_user, db_password, matche
 def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    mode_map = {"upi": "UPI", "cash": "CASH", "credit card": "CREDITCARD", "cheque": "CHEQUE"}
-    mode = next((v for k, v in mode_map.items() if f"total {k}" in q), None)
-    if not mode:
+    mode_map = {
+        "upi": ["UPI", "UPI PAYMENT", "PHONEPE", "GPAY", "GOOGLEPAY", "GOOGLE PAY", "PAYTM"],
+        "cash": ["CASH"],
+        "credit card": ["CREDITCARD", "CREDIT CARD", "CARD", "CC", "CREDIT_CARD", "DEBIT CARD", "DEBITCARD"],
+        "cheque": ["CHEQUE", "CHECK", "CHQ", "DD"],
+    }
+    mode_key = next((k for k in mode_map if f"total {k}" in q or k in q), None)
+    if not mode_key:
         return None
+    aliases = mode_map[mode_key]
     try:
         date_from, date_to, label = _period_dates(q)
     except _UnrecognizedPeriod:
@@ -895,12 +901,12 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COALESCE(l.LOCATIONNAME, m.LOCATIONID, 'Unknown') AS LOCATIONNAME, "
+            "SELECT COALESCE(l.LOCATIONNAME, CAST(m.LOCATIONID AS VARCHAR(50)), 'Unknown') AS LOCATIONNAME, "
             "SUM(m.TOTALAMOUNT) AS Amt "
             "FROM trnmodeofcollectionsdet m "
-            "LEFT JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
+            "LEFT JOIN mstlocation l ON CAST(m.LOCATIONID AS VARCHAR(50)) = CAST(l.LOCATIONID AS VARCHAR(50)) "
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
-            "GROUP BY COALESCE(l.LOCATIONNAME, m.LOCATIONID, 'Unknown') "
+            "GROUP BY COALESCE(l.LOCATIONNAME, CAST(m.LOCATIONID AS VARCHAR(50)), 'Unknown') "
             "ORDER BY Amt DESC",
             (date_from, date_to),
         )
