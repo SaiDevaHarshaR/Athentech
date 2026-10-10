@@ -892,11 +892,7 @@ def _handle_due_payments(q, role, db_name, db_server, db_user, db_password, matc
 
 
 # ---------- collection_by_location ----------
-def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
-    if role not in _ALLOWED_ROLES:
-        return "Error: your role does not have access to this data."
-    try:
-        date_from, date_to, label = _period_dates(q)
+
     except _UnrecognizedPeriod:
         return None
     conn = _conn(db_name, db_server, db_user, db_password)
