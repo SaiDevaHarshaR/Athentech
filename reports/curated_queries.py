@@ -152,7 +152,7 @@ def get_day_collection(
     try:
         cursor = conn.cursor()
         query = """
-            SELECT MODE, SUM(PAIDAMOUNT) AS TotalAmount
+            SELECT MODE, SUM(TOTALAMOUNT) AS TotalAmount
             FROM trnmodeofcollectionsdet
             WHERE LOCATIONID = ?
             AND DATEOFBILL >= ?
