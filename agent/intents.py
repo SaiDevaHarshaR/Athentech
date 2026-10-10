@@ -488,11 +488,7 @@ def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
-            "WHERE UPPER(LTRIM(RTRIM(MODE))) = ? AND DATEOFBILL >= ? AND DATEOFBILL < ?",
-            (mode, date_from, date_to),
-        )
+
         total = cursor.fetchone()[0] or 0
         return _dashboard_card(icon="💰", title=f"Total {mode.title()}", subtitle=label,
                                 stats=[{"label": "AMOUNT", "value": f"₹{float(total):,.0f}"}])
