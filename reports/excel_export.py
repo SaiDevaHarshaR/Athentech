@@ -632,7 +632,14 @@ def _export_centromed_detailed_collection(period, db_name, db_server,
     fallback_count = 0
     for i, rec in enumerate(rows, header + 1):
         dt, branch, bill, uhid, patient, mode, paid, total, chosen, source = rec
-        paid, total, chosen = float(paid or 0), float(total or 0), float(chosen or 0)
+        # CentroMed only: recompute from raw columns per transaction rather
+        # than trusting a calculated SQL column from older installations.
+        from decimal import Decimal
+        paid = Decimal(str(paid or 0))
+        total = Decimal(str(total or 0))
+        chosen = paid if paid != 0 else total
+        source = ("PAIDAMOUNT" if paid != 0 else
+                  "TOTALAMOUNT (fallback)" if total != 0 else "ZERO")
         branch, mode = str(branch or "Unknown"), str(mode or "Unknown")
         if source == "TOTALAMOUNT (fallback)":
             fallback_count += 1
