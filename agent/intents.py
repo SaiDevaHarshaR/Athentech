@@ -346,6 +346,8 @@ def _handle_bills_count(q, role, db_name, db_server, db_user, db_password, match
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="🧾", title="Bills", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -399,6 +401,8 @@ def _handle_sample_collected_count(q, role, db_name, db_server, db_user, db_pass
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="🧪", title="Samples Collected", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -426,6 +430,8 @@ def _handle_authenticated_count(q, role, db_name, db_server, db_user, db_passwor
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="👨‍⚕️", title="Authenticated (Doctor-Reviewed)", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -798,6 +804,8 @@ def _handle_test_volume(q, role, db_name, db_server, db_user, db_password, match
             (f"%{term}%", date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="🧪", title=f"{term} Volume", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -1054,6 +1062,8 @@ def _handle_cancelled_tests(q, role, db_name, db_server, db_user, db_password, m
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="🚫", title="Cancelled Tests", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -1161,6 +1171,8 @@ def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, m
             (f"%{term}%", date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(icon="🩻", title=f"{term} Volume", subtitle=label,
                                 stats=[{"label": "COUNT", "value": f"{n:,}"}])
     except Exception as e:
@@ -1187,6 +1199,8 @@ def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matche
                 (date_from, date_to),
             )
             n = cursor.fetchone()[0]
+        if not n:
+            return None
             return _dashboard_card(
                 icon="🚨", title="Sample Rejected", subtitle=label,
                 stats=[{"label": "COUNT", "value": f"{n:,}"}],
@@ -1198,6 +1212,8 @@ def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matche
                 (date_from, date_to),
             )
             n = cursor.fetchone()[0]
+        if not n:
+            return None
             return _dashboard_card(
                 icon="⏳", title="Pending Tests", subtitle=label,
                 stats=[{"label": "COUNT", "value": f"{n:,}"}],
@@ -1207,6 +1223,8 @@ def _handle_lab_volume(q, role, db_name, db_server, db_user, db_password, matche
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(
             icon="🧪", title="Lab Procedures", subtitle=label,
             stats=[{"label": "PROCEDURES", "value": f"{n:,}"}],
@@ -1351,6 +1369,8 @@ def _handle_stuck_samples(q, role, db_name, db_server, db_user, db_password, mat
             (date_from, date_to),
         )
         n = cursor.fetchone()[0]
+        if not n:
+            return None
         return _dashboard_card(
             icon="⏳", title="Stuck at Sample Collected",
             subtitle="Bills in last 7 days still Sample Collected",
