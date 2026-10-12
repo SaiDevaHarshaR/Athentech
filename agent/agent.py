@@ -860,6 +860,22 @@ refusal — nothing else fits A or C.
             "Use these real schema candidates. Do not invent tables or columns."
         )))
 
+        try:
+            if institution_type == "hospital":
+                raise RuntimeError("LIS data map not applicable to HIS")
+            from agent.schema_ctx import get_profile, data_map_text, location_names
+            from database.connection import get_hospital_connection as _ghc
+            _c = _ghc(db_name, db_server, db_user, db_password)
+            if _c:
+                try:
+                    _p = get_profile(_c, db_name, db_server)
+                finally:
+                    _c.close()
+                messages.append(SystemMessage(content=data_map_text(
+                    _p, location_names(db_name, db_server, db_user, db_password))))
+        except Exception as _e:
+            print(f"[agent] data map skipped: {_e}", flush=True)
+
         question_lower = question.lower()
         wants_dashboard_card = any(
             kw in question_lower for kw in [

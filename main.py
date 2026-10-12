@@ -967,7 +967,7 @@ def api_institutions_usage(admin: str = Depends(require_admin)):
     usage = get_all_institutions_usage(institutions)
     return {"status": "success", "usage": usage}
 @app.post("/ask")
-async def ask_question(req: QueryRequest, request: Request):
+def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs it in a worker thread; LLM/SQL waits can no longer freeze the server
     try:
         history = []
         for msg in req.chat_history or []:

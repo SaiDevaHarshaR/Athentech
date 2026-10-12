@@ -1784,24 +1784,47 @@ from agent.intents_lis_extra import build_extra_intents
 _INTENTS = build_extra_intents(sys.modules[__name__]) + _INTENTS
 
 
+_COLLECTION_WORDS = ("collection", "revenue", "sales", "income", "business")
+_OTHER_TOPICS = ("doctor", "refund", "radiology", "lab revenue", "test", "patient", "bill", "concession",
+                 "discount", "cancel", "sample", "tat", "package", "referr", "department", "ct ", "mri",
+                 "ultrasound", "x-ray", "xray")
+# Words that mean "analysis the fixed intents cannot do" -> go straight to the LLM.
+_ANALYTIC = re.compile(
+    r"\b(average|avg|per day|per branch|per doctor|each day|each branch|daily|trend|only one|only 1|"
+    r"more than|less than|greater than|fewer than|than last|lowest|highest|least|most|share of|percentage|"
+    r"breach(?:ed)?|older than|which day|which branch (?:does|has|have|is|had)|which doctor|which test|"
+    r"which tests|not at|but not|without|repeat|visited|per modality|by modality|modality|versus)\b"
+)
+# questions that deliberately use one of those words but ARE served by an instant intent
+_ANALYTIC_OK = ("top ", "most ordered", "highest collection", "best", "top-performing")
+
+
+def _needs_llm(q: str) -> bool:
+    if not _ANALYTIC.search(q):
+        return False
+    return not any(k in q for k in _ANALYTIC_OK)
+
+
 def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
     q = (question or "").strip().lower()
 
-    # Comparison questions are checked FIRST and are TERMINAL — if this
-    # matches "compare"/"vs" but the handler can't confidently answer
-    # (e.g. an unrecognized period), go straight to the LLM. Do NOT let
-    # the loop below try other handlers — a comparison phrase overlapping
-    # a single-location keyword (e.g. "uppal collection") was being
-    # wrongly caught by a less-specific handler otherwise.
+    # 1) Collection growth / branch-vs-branch ONLY when the question is purely about collection.
+    #    "doctors this month vs last month", "refunds by branch compared with last month",
+    #    "radiology vs lab revenue" etc. are NOT collection growth -> LLM.
     if _is_comparison_question(q):
-        # branch A vs B only if two location names; else LLM
+        pure_collection = any(w in q for w in _COLLECTION_WORDS) and not any(w in q for w in _OTHER_TOPICS)
         r = _handle_branch_compare(q, role, db_name, db_server, db_user, db_password)
         if r is not None:
             return r
-        r = _handle_compare_collection(q, role, db_name, db_server, db_user, db_password)
-        if r is not None:
-            return r
-        return None  # force LLM — do NOT fall into other intents
+        if pure_collection:
+            r = _handle_compare_collection(q, role, db_name, db_server, db_user, db_password)
+            if r is not None:
+                return r
+        return None  # LLM
+
+    # 2) Analytic wording the fixed intents cannot answer -> LLM
+    if _needs_llm(q):
+        return None
 
     for keywords, handler in _INTENTS:
         matched = next((kw for kw in keywords if kw in q), None)

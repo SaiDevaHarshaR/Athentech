@@ -183,3 +183,24 @@ def location_regex(names, prefix=""):
     if not names:
         return r"(?!x)x"
     return prefix + r"(" + "|".join(_re.escape(n) for n in names) + r")\b"
+
+
+
+def data_map_text(p, branch_names=None):
+    """Authoritative per-client data map for the LLM (built from the live profile, no client names)."""
+    phones = ", ".join(p.get("pat_phones") or ["PHONENO"])
+    rad = radiology_dept_sql(p, "Radiology", "d.DEPTCODE")
+    br = ""
+    if branch_names:
+        br = " Known branches: " + ", ".join(sorted({n for n in branch_names if "(" not in n})[:40]) + "."
+    return f"""CLIENT DATA MAP — AUTHORITATIVE. It overrides any older instruction above that conflicts with it.
+- COLLECTION / REVENUE / PAYMENT MODES: table trnMODEOFCOLLECTIONSDET m. Date m.DATEOFBILL, mode m.MODE, bill m.BILLNO,
+  branch m.LOCATIONID -> mstLocation.LOCATIONID / LOCATIONNAME. Amount expression for THIS client (use exactly): {coll_amt(p, 'm')}
+  Refunds: m.TYPE = 'LabRefund'. Daily trend: GROUP BY CAST(m.DATEOFBILL AS date). NEVER use msttally*, msttemp* or trntemp* tables for collections.
+- BILLS (header): trnINVLABPRI pr: BILLNO, BILLDATE, TOTALCHARGES, CONCESSIONAMT, CREDITAMOUNT, RefundAmt, STATUS, REFDOCTCODE -> mstrefdoctor.DOCID / DOCNAME. Bill amount for THIS client: {pri_amt(p, 'pr')}
+- TESTS ON A BILL: trnINVLABDET d: BILLNO, BILLDATE, TCODE -> mstInvestigations.INVCODE / INVNAME, DEPTCODE, TESTSTATUS, LOCATIONID.
+  Before filtering on TESTSTATUS run SELECT DISTINCT TESTSTATUS to see this client's real values (e.g. cancelled).
+- RADIOLOGY / MODALITY: trnINVLABDET d with {rad}; modality by mstInvestigations.INVNAME LIKE '%CT%', '%MRI%', '%X-RAY%', '%ULTRASOUND%'. Branch = d.LOCATIONID -> mstLocation.
+- TAT / TURNAROUND: ALWAYS call get_tat_compliance_dashboard or check_tat_alert (period accepts today, yesterday, this_week, last_week, this_month, last_month, this_year, month:YYYY-MM, year:YYYY). Do NOT hand-write TAT SQL; trnparamresult.CREATEDATE rules above do not apply.
+- PATIENTS: mstPatientRegistration: UHID, {p['pat_name']} (name), {p['pat_date']} (registered on), phone: {phones}. Visits/repeat patients come from BILLS (trnINVLABPRI grouped by UHID), not registrations.
+- Aggregate in SQL (COUNT/SUM/GROUP BY), never SELECT thousands of rows. Add TOP when listing. If a query errors, read the error, fix the column from describe_table, and retry once before giving up.{br}"""

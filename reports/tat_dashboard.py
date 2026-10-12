@@ -50,34 +50,41 @@ def get_tat_compliance_dashboard(
     location_id: a real LOC0X code (resolved one layer up, same pattern
     as get_lab_day_collection), or None for all locations combined.
     """
-    if period == "day":
+    from datetime import date as _d, timedelta as _td
+    today = _d.today()
+    p = (period or "today").strip().lower().replace(" ", "_")
+    if p == "day":
         if not specific_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", specific_date):
             return {"error": f"period='day' requires a real specific_date (YYYY-MM-DD), got '{specific_date}'."}
-        date_sql = f"s.RESULTENTRYDATE >= '{specific_date}' AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST('{specific_date}' AS DATE))"
-        period_label = specific_date
-    elif period == "today":
-        date_sql = "s.RESULTENTRYDATE >= CAST(GETDATE() AS DATE) AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
-        period_label = "Today"
-    elif period == "yesterday":
-        date_sql = (
-            "s.RESULTENTRYDATE >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE) "
-            "AND s.RESULTENTRYDATE < CAST(GETDATE() AS DATE)"
-        )
-        period_label = "Yesterday"
-    elif period == "this_week":
-        date_sql = (
-            "s.RESULTENTRYDATE >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETDATE()), CAST(GETDATE() AS DATE)) "
-            "AND s.RESULTENTRYDATE < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))"
-        )
-        period_label = "This Week"
-    elif period == "this_month":
-        date_sql = (
-            "s.RESULTENTRYDATE >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0) "
-            "AND s.RESULTENTRYDATE < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)"
-        )
-        period_label = "This Month"
+        d0 = _d.fromisoformat(specific_date); d1 = d0 + _td(days=1); period_label = specific_date
+    elif p == "today":
+        d0, d1, period_label = today, today + _td(days=1), "Today"
+    elif p == "yesterday":
+        d0, d1, period_label = today - _td(days=1), today, "Yesterday"
+    elif p == "this_week":
+        d0 = today - _td(days=today.weekday()); d1, period_label = today + _td(days=1), "This Week"
+    elif p == "last_week":
+        d0 = today - _td(days=today.weekday() + 7); d1, period_label = d0 + _td(days=7), "Last Week"
+    elif p == "this_month":
+        d0 = today.replace(day=1); d1, period_label = today + _td(days=1), "This Month"
+    elif p == "last_month":
+        d1 = today.replace(day=1); d0 = (d1 - _td(days=1)).replace(day=1); period_label = "Last Month"
+    elif p == "this_year":
+        d0 = today.replace(month=1, day=1); d1, period_label = today + _td(days=1), "This Year"
+    elif p in ("last_7_days", "last_7", "last7days"):
+        d0, d1, period_label = today - _td(days=6), today + _td(days=1), "Last 7 Days"
+    elif p in ("last_30_days", "last_30", "last30days"):
+        d0, d1, period_label = today - _td(days=29), today + _td(days=1), "Last 30 Days"
+    elif p.startswith("month:") and re.match(r"^month:\d{4}-\d{2}$", p):
+        y, m = map(int, p[6:].split("-"))
+        if not 1 <= m <= 12:
+            return {"error": f"Unsupported period '{period}'."}
+        d0 = _d(y, m, 1); d1 = _d(y + (m == 12), m % 12 + 1, 1); period_label = d0.strftime("%B %Y")
+    elif p.startswith("year:") and re.match(r"^year:\d{4}$", p):
+        y = int(p[5:]); d0, d1, period_label = _d(y, 1, 1), _d(y + 1, 1, 1), str(y)
     else:
-        return {"error": f"Unsupported period '{period}'."}
+        return {"error": f"Unsupported period '{period}'. Use today, yesterday, this_week, last_week, this_month, last_month, this_year, last_7_days, last_30_days, month:YYYY-MM, year:YYYY, or day with specific_date."}
+    date_sql = f"s.RESULTENTRYDATE >= '{d0.isoformat()}' AND s.RESULTENTRYDATE < '{d1.isoformat()}'"
 
     loc_sql = ""
     dept_sql = ""

@@ -290,6 +290,10 @@ def run_sql_query(
 
     try:
         cursor = conn.cursor()
+        try:
+            cursor.timeout = 45          # a runaway LLM query must not hang the worker
+        except Exception:
+            pass
 
         # Validate referenced columns against the REAL MSSQL schema
         # before executing the generated SQL. Reuses the per-request
@@ -785,8 +789,10 @@ def get_tat_compliance_dashboard(
 
     department: a department/sub-department name (e.g. "Radiology",
     "Microbiology") to filter to, or omit for all departments combined.
-    period: "today" | "yesterday" | "this_week" | "this_month" | "day"
-    (use period="day" with specific_date set for one exact date).
+    period: "today" | "yesterday" | "this_week" | "last_week" | "this_month" |
+    "last_month" | "this_year" | "last_7_days" | "last_30_days" |
+    "month:YYYY-MM" (e.g. "month:2026-01" for January 2026) | "year:YYYY" |
+    "day" (with specific_date set for one exact date).
     location_keyword: a location NAME (e.g. "Jagtial") to filter to,
     resolved automatically via mstlocation — omit for all locations.
     specific_date: "YYYY-MM-DD" — only used when period="day".
