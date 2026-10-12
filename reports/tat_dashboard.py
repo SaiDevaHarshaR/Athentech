@@ -92,84 +92,61 @@ def get_tat_compliance_dashboard(
     if location_id:
         loc_sql = f"AND l.LOCATIONID = '{location_id}' "
 
-    expected_tat_expr = (
-        "CASE "
-        "WHEN inv.TATTYPE = 'Hours' THEN TRY_CAST(inv.TATTIME AS INT) * 60 "
-        "WHEN inv.TATTYPE = 'Days' THEN TRY_CAST(inv.TATTIME AS INT) * 1440 "
-        "ELSE NULL END"
-    )
-    actual_tat_expr = (
-        "CAST(CASE WHEN DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) BETWEEN 0 AND 10080 "
-        "THEN DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) END AS BIGINT)"
-    )
-
-    where_common = (
-        f"WHERE {date_sql} {loc_sql} {dept_sql} "
-        "AND s.SAMPLECOLLECTEDDATE IS NOT NULL AND s.RESULTENTRYDATE IS NOT NULL "
-        f"AND inv.TATTIME IS NOT NULL AND inv.TATTYPE IS NOT NULL "
-        f"AND {actual_tat_expr} IS NOT NULL"
-    )
-
+    # Light query: ONE pass over trnInvStatus grouped per test; location is an
+    # EXISTS (never a BILLNO join, which multiplied rows per test on a bill).
+    # Rolled up in Python. Expected TAT is computed once per test in the group.
+    loc_sql = ""
+    if location_id:
+        loc_sql = ("AND EXISTS (SELECT 1 FROM trninvlabdet l WHERE l.BILLNO = s.BILLNO "
+                   f"AND l.LOCATIONID = '{location_id}') ")
+    sql = f"""
+SELECT inv.INVNAME, inv.TATTYPE, inv.TATTIME,
+       COUNT(*) AS N,
+       SUM(CASE WHEN DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE)
+                <= CASE WHEN inv.TATTYPE = 'Hours' THEN TRY_CAST(inv.TATTIME AS INT) * 60
+                        ELSE TRY_CAST(inv.TATTIME AS INT) * 1440 END THEN 1 ELSE 0 END) AS Within,
+       SUM(CAST(DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) AS BIGINT)) AS SumMin
+FROM trnInvStatus s
+JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
+WHERE {date_sql} {loc_sql}
+  AND s.SAMPLECOLLECTEDDATE IS NOT NULL AND s.RESULTENTRYDATE IS NOT NULL
+  AND s.RESULTENTRYDATE >= s.SAMPLECOLLECTEDDATE
+  AND s.RESULTENTRYDATE < DATEADD(DAY, 7, s.SAMPLECOLLECTEDDATE)
+  AND inv.TATTYPE IN ('Hours','Days') AND TRY_CAST(inv.TATTIME AS INT) > 0
+GROUP BY inv.INVNAME, inv.TATTYPE, inv.TATTIME
+"""
     conn = get_hospital_connection(db_name, db_server, db_user, db_password)
     if not conn:
         return {"error": "Could not connect to the hospital database."}
-
     try:
         cursor = conn.cursor()
-
-        summary_sql = f"""
-SELECT
-    COUNT(*) AS Completed,
-    SUM(CASE WHEN {actual_tat_expr} <= {expected_tat_expr} THEN 1 ELSE 0 END) AS WithinTAT,
-    SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1 ELSE 0 END) AS OutsideTAT,
-    AVG({actual_tat_expr}) AS AvgTAT
-FROM trnInvStatus s
-JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
-JOIN trninvlabdet l ON s.BILLNO = l.BILLNO
-{where_common}
-"""
-        cursor.execute(summary_sql)
-        row = cursor.fetchone()
-        completed = int(row[0] or 0)
-        within = int(row[1] or 0)
-        outside = int(row[2] or 0)
-        avg_tat = float(row[3]) if row[3] is not None else None
-
+        try:
+            cursor.timeout = 60
+        except Exception:
+            pass
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        completed = sum(int(r[3] or 0) for r in rows)
+        within = sum(int(r[4] or 0) for r in rows)
+        outside = completed - within
         if completed == 0:
             return {
                 "period_label": period_label,
                 "completed": 0,
                 "message": "No completed tests with both a real sample-collection and result-entry timestamp, and a defined TAT/SLA, were found for this period/location.",
             }
-
-        compliance_pct = round((within / completed) * 100, 2) if completed else None
-
-        test_sql = f"""
-SELECT inv.INVNAME,
-    COUNT(*) AS Completed,
-    SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1 ELSE 0 END) AS OutsideCount
-FROM trnInvStatus s
-JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
-JOIN trninvlabdet l ON s.BILLNO = l.BILLNO
-{where_common}
-GROUP BY inv.INVNAME
-HAVING COUNT(*) >= 5
-ORDER BY (SUM(CASE WHEN {actual_tat_expr} > {expected_tat_expr} THEN 1.0 ELSE 0 END) / COUNT(*)) DESC
-"""
-        cursor.execute(test_sql)
-        test_rows = cursor.fetchall()[:5]
-        top_delayed = [
-            {"name": r[0], "outside_pct": round((r[2] / r[1]) * 100, 1) if r[1] else 0}
-            for r in test_rows
-        ]
-
+        avg_tat = sum(float(r[5] or 0) for r in rows) / completed
+        compliance_pct = round((within / completed) * 100, 2)
+        per_test = [(r[0], int(r[3]), int(r[3]) - int(r[4] or 0)) for r in rows if int(r[3]) >= 5]
+        per_test.sort(key=lambda x: x[2] / x[1], reverse=True)
+        top_delayed = [{"name": n, "outside_pct": round(o / c * 100, 1)} for n, c, o in per_test[:5]]
         return {
             "period_label": period_label,
             "completed": completed,
             "within_tat": within,
             "outside_tat": outside,
             "compliance_pct": compliance_pct,
-            "avg_tat_minutes": round(avg_tat, 1) if avg_tat is not None else None,
+            "avg_tat_minutes": round(avg_tat, 1),
             "top_delayed_tests": top_delayed,
         }
     except Exception as e:

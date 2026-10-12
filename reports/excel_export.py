@@ -15,6 +15,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 from database.connection import get_hospital_connection
+from agent.schema_ctx import get_profile, coll_amt
 
 
 def _period_dates(period_keyword: str):
@@ -257,7 +258,7 @@ def _export_multi_branch_mode_pivot(
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT l.LOCATIONNAME, UPPER(LTRIM(RTRIM(m.MODE))) AS MODE, SUM(m.PAIDAMOUNT) AS Amt "
+            f"SELECT l.LOCATIONNAME, UPPER(LTRIM(RTRIM(m.MODE))) AS MODE, SUM({coll_amt(get_profile(conn, db_name, db_server), 'm')}) AS Amt "
             "FROM trnmodeofcollectionsdet m "
             "JOIN mstlocation l ON m.LOCATIONID = l.LOCATIONID "
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
@@ -402,7 +403,7 @@ def export_single_branch_collection(
         loc_id, matched = locs[0][0], locs[0][1]
 
         cur.execute(
-            "SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM(PAIDAMOUNT) AS Amt "
+            f"SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM({coll_amt(get_profile(conn, db_name, db_server))}) AS Amt "
             "FROM trnmodeofcollectionsdet "
             "WHERE LOCATIONID = ? AND DATEOFBILL >= ? AND DATEOFBILL < ? "
             "GROUP BY UPPER(LTRIM(RTRIM(MODE)))",
@@ -531,7 +532,7 @@ def export_refunds_list(
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT TOP 500 BILLNO, MODE, PAIDAMOUNT, DATEOFBILL, LOCATIONID "
+            f"SELECT TOP 500 BILLNO, MODE, {coll_amt(get_profile(conn, db_name, db_server))}, DATEOFBILL, LOCATIONID "
             "FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ? "
             "ORDER BY DATEOFBILL DESC",
@@ -715,23 +716,25 @@ def _export_centromed_detailed_collection(period, db_name, db_server,
     return _save(wb, f"centromed_detailed_collection_{safe}.xlsx", label)
 
 
-def _is_centromed_export(db_name, hospital_name):
-    """Select only CentroMed, never the KonnectLIS collection exporter.
-
-    Accept the known CentroMed database aliases and explicit site config.
-    The hospital display name is a secondary match for deployments whose
-    physical SQL database name differs from the institution's name.
-    """
-    aliases = {"centromed", "centromedlis"}
-    configured = {
-        value.strip().casefold()
-        for value in os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",")
-        if value.strip()
-    }
-    database = (db_name or "").strip().casefold()
-    hospital = (hospital_name or "").strip().casefold()
-    return (database in aliases or database in configured or
-            hospital in aliases)
+def _is_centromed_export(db_name, hospital_name, db_server=None, db_user=None, db_password=None):
+    """Use the detailed 'paid, else total' exporter for any client whose profile says
+    collections are recorded in TOTALAMOUNT (auto-detected per database, no client list).
+    CENTROMED_EXCEL_FALLBACK_DATABASES force-enables; COLLECTION_METRIC_OVERRIDE can force either way."""
+    forced = {v.strip().casefold() for v in
+              os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",") if v.strip()}
+    if (db_name or "").strip().casefold() in forced:
+        return True
+    try:
+        from agent.schema_ctx import get_profile
+        conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+        if not conn:
+            return False
+        try:
+            return get_profile(conn, db_name, db_server)["coll_metric"] == "total"
+        finally:
+            conn.close()
+    except Exception:
+        return False
 
 
 def run_excel_export(
@@ -749,7 +752,7 @@ def run_excel_export(
     if key == "collection":
         # Opt-in by exact database identifier. Never infer institution type
         # from collection amounts. All other databases use unchanged legacy code.
-        if _is_centromed_export(db_name, hospital_name):
+        if _is_centromed_export(db_name, hospital_name, db_server, db_user, db_password):
             return _export_centromed_detailed_collection(
                 period, db_name, db_server, db_user, db_password,
                 hospital_name, location_keyword,

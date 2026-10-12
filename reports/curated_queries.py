@@ -151,8 +151,10 @@ def get_day_collection(
 
     try:
         cursor = conn.cursor()
-        query = """
-            SELECT MODE, SUM(TOTALAMOUNT) AS TotalAmount
+        from agent.schema_ctx import get_profile, coll_amt
+        _amt = coll_amt(get_profile(conn, db_name, db_server))
+        query = f"""
+            SELECT MODE, SUM({_amt}) AS TotalAmount
             FROM trnmodeofcollectionsdet
             WHERE LOCATIONID = ?
             AND DATEOFBILL >= ?
