@@ -767,8 +767,10 @@ def run_excel_export(
     key = (report_type or "collection").lower().strip()
 
     if key == "collection":
-        # Opt-in by exact database identifier. Never infer institution type
-        # from collection amounts. All other databases use unchanged legacy code.
+        # Which exporter runs is decided per database from how PAIDAMOUNT is filled
+        # (row evidence over 90 days, see agent.schema_ctx). Env settings
+        # CENTROMED_EXCEL_FALLBACK_DATABASES / COLLECTION_METRIC_OVERRIDE can force it.
+        # Databases that fill PAIDAMOUNT keep the original exporter unchanged.
         if _is_centromed_export(db_name, hospital_name, db_server, db_user, db_password):
             return _export_centromed_detailed_collection(
                 period, db_name, db_server, db_user, db_password,

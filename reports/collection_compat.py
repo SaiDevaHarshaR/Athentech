@@ -182,7 +182,7 @@ def collection_detailed_data(date_from, date_to, db_name, db_server=None,
         def txt(col):
             return f"CONVERT(nvarchar(255), m.{col})" if col else "CAST(NULL AS nvarchar(255))"
         def money(col):
-            return f"TRY_CONVERT(decimal(19,2), m.{col})" if col else "CAST(NULL AS decimal(19,2))"
+            return f"CONVERT(decimal(19,2), m.{col})" if col else "CAST(NULL AS decimal(19,2))"
         paid = money(paid_col)
         total = money(total_col)
         selected = (f"CASE WHEN COALESCE({paid}, 0) <> 0 THEN {paid} "
