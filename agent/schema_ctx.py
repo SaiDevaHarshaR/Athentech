@@ -128,9 +128,58 @@ def pri_amt(p, alias=""):
     return f"ISNULL({a}{col},0)" if col else "0"
 
 
-def radiology_dept_sql(p):
+def radiology_dept_sql(p, name="Radiology", col="DEPTCODE"):
+    name = "".join(ch for ch in str(name) if ch.isalnum() or ch in " -&")
     if p["dept_src"] == "mstsubdepartment":
-        return ("DEPTCODE IN (SELECT SubDepartmentID FROM mstsubdepartment "
-                "WHERE SubDeptName LIKE '%Radiology%')")
-    return ("DEPTCODE IN (SELECT DEPARTMENTID FROM mstdepartment "
-            "WHERE DEPARTMENTNAME LIKE '%Radiology%')")
+        return (f"{col} IN (SELECT SubDepartmentID FROM mstsubdepartment "
+                f"WHERE SubDeptName LIKE '%{name}%')")
+    return (f"{col} IN (SELECT DEPARTMENTID FROM mstdepartment "
+            f"WHERE DEPARTMENTNAME LIKE '%{name}%')")
+
+
+# ---- branch names come from each client's own mstLocation (never hardcoded) ----
+_loc_cache = {}
+
+
+def location_names(db_name, db_server=None, db_user=None, db_password=None):
+    """Lower-cased branch names for this client, longest first. Cached 6h; [] on any failure."""
+    key = f"{db_server or ''}|{db_name}"
+    now = time.time()
+    with _lock:
+        hit = _loc_cache.get(key)
+        if hit and now - hit[0] < _TTL:
+            return hit[1]
+    names = []
+    try:
+        from database.connection import get_hospital_connection
+        conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT DISTINCT LOCATIONNAME FROM mstlocation")
+                import re as _re
+                seen = set()
+                for (n,) in cur.fetchall():
+                    n = (n or "").strip().lower()
+                    if not n:
+                        continue
+                    seen.add(n)
+                    short = _re.sub(r"\s*\(.*?\)\s*", " ", n).strip()   # "central lab(hyd)" -> "central lab"
+                    if len(short) >= 3:
+                        seen.add(short)
+                names = sorted(seen, key=len, reverse=True)
+            finally:
+                conn.close()
+    except Exception as e:
+        print(f"[schema_ctx] location_names failed: {e}", flush=True)
+    with _lock:
+        _loc_cache[key] = (now, names)
+    return names
+
+
+def location_regex(names, prefix=""):
+    """Compiled-ready pattern matching any known branch name; never matches when names is empty."""
+    import re as _re
+    if not names:
+        return r"(?!x)x"
+    return prefix + r"(" + "|".join(_re.escape(n) for n in names) + r")\b"

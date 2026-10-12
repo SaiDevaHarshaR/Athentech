@@ -10,7 +10,7 @@ import re
 from datetime import date, timedelta
 
 from database.connection import get_hospital_connection
-from agent.schema_ctx import coll_amt, pri_amt, radiology_dept_sql
+from agent.schema_ctx import coll_amt, pri_amt, radiology_dept_sql, location_names, location_regex
 
 _ALLOWED_ROLES = ("admin", "doctor", "reception")
 
@@ -542,12 +542,9 @@ def _handle_locations_list(q, role, db_name, db_server, db_user, db_password, ma
 def _handle_package_detail(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-                         "uppal", "attapur", "alwal", "srikara-boduppal", "srikara-ecil",
-                         "srikara-kompally", "srikara", "boduppal", "medchal", "medak", 
-                         "warangal", "ecil", "kphb", "bengaluru fetal medicine", "bengaluru"]
+    _names = location_names(db_name, db_server, db_user, db_password)
     loc_m = re.search(
-        r"\b(?:at|in|for)\s+(" + "|".join(_known_locations) + r")\b",
+        r"\b(?:at|in|for)\s+" + location_regex(_names),
         q, re.IGNORECASE,
     )
     q_no_loc = (q[:loc_m.start()] + q[loc_m.end():]) if loc_m else q
@@ -1344,12 +1341,7 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
     import re as _re
     m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
 
-    _known_locations = [
-        "jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-        "uppal", "attapur", "alwal", "srikara", "boduppal", "medchal",
-        "warangal", "ecil", "kphb", "bengaluru", "siricilla",
-    ]
-    loc_m = _re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, _re.IGNORECASE)
+    loc_m = _re.search(r"\b" + location_regex(location_names(db_name, db_server, db_user, db_password)), q, _re.IGNORECASE)
     location_keyword = loc_m.group(1) if loc_m else None
 
     if m or "compliance" in q or "alert" in q:
@@ -1418,11 +1410,7 @@ def _handle_top_tests_at_branch(q, role, db_name, db_server, db_user, db_passwor
         date_from, date_to, label = _period_dates(q)
     except _UnrecognizedPeriod:
         return None
-    _known = [
-        "jagtial", "kompally", "kukatpally", "suryapet", "uppal", "attapur",
-        "alwal", "warangal", "kphb", "medchal", "siricilla", "bengaluru",
-    ]
-    loc_m = re.search(r"\b(" + "|".join(_known) + r")\b", q, re.IGNORECASE)
+    loc_m = re.search(r"\b" + location_regex(location_names(db_name, db_server, db_user, db_password)), q, re.IGNORECASE)
     if not loc_m:
         return None
     loc_kw = loc_m.group(1)
@@ -1655,11 +1643,7 @@ def _handle_dept_dashboard(q, role, db_name, db_server, db_user, db_password, ma
         return None  # can't confidently parse this period — let the LLM's real date logic handle it
     period = period_map[matched_period]
 
-    _known_locations = ["jagtial", "kompally", "kukatpally", "kokapet", "suryapet",
-                         "uppal", "attapur", "alwal", "srikara-boduppal", "srikara-ecil",
-                         "srikara-kompally", "srikara", "boduppal", "medchal",
-                         "warangal", "ecil", "kphb", "bengaluru fetal medicine", "bengaluru"]
-    loc_m = re.search(r"\b(" + "|".join(_known_locations) + r")\b", q, re.IGNORECASE)
+    loc_m = re.search(r"\b" + location_regex(location_names(db_name, db_server, db_user, db_password)), q, re.IGNORECASE)
     location_keyword = loc_m.group(1) if loc_m else None
 
     raw = get_department_dashboard.invoke({
@@ -1717,7 +1701,7 @@ _INTENTS = [
      _handle_all_collection),
     (["stuck samples", "sample collected pending", "still sample collected"],
      _handle_stuck_samples),
-    (["top tests at", "top investigations at", "tests at kompally", "tests at uppal"],
+    (["top tests at", "top investigations at", "tests at"],
      _handle_top_tests_at_branch),
     (["list refunds", "recent refunds", "refund bills"], _handle_refund_bills_list),
     (["top packages", "package orders", "packages ordered"], _handle_package_orders),
@@ -1725,9 +1709,7 @@ _INTENTS = [
 #    _handle_excel_export),
     # single branch — AFTER all_collection so "total collection" doesn't hit this
     (["collection at", "collection for", "day collection", "branch collection",
-      "kompally collection", "uppal collection", "kukatpally collection",
-      "suryapet collection", "jagtial collection", "alwal collection",
-      "attapur collection", "warangal collection"],
+      "branch day collection"],
      _handle_day_collection_branch),
 
     (["patients registered", "how many patients", "how many new patients",
