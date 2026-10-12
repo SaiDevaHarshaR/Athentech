@@ -21,6 +21,7 @@ _DEFAULTS = {
     "pat_name": "NAME",
     "dept_src": "mstdepartment",    # "mstdepartment" | "mstsubdepartment"
     "pat_phones": ["PHONENO"],
+    "pri_loc": None, "pri_doc": "REFDOCTCODE", "det_loc": "LOCATIONID", "pat_loc": None,
 }
 
 
@@ -49,6 +50,11 @@ def _scan(conn, db_name=None):
         p["pri_total"] = _pick(pc, "TOTALCHARGES", "TOTALAMOUNT", "GRANDTOTAL")
         p["pat_date"] = _pick(pt, "REGDATE", "REGISTRATIONDATE", "CREATEDATE", "ENTRYDATE") or p["pat_date"]
         p["pat_name"] = _pick(pt, "NAME", "PATIENTNAME", "PATNAME") or p["pat_name"]
+        dc = _cols(cur, "trnINVLABDET")
+        p["pri_loc"] = _pick(pc, "LOCATIONID", "LOCID")
+        p["pri_doc"] = _pick(pc, "REFDOCTCODE") or p["pri_doc"]
+        p["det_loc"] = _pick(dc, "LOCATIONID", "LOCID")
+        p["pat_loc"] = _pick(pt, "LOCATIONID", "LOCID")
         p["pat_phones"] = [pt[c] for c in ("PHONENO", "MOBILENO", "MOBILE", "PHONE", "CONTACTNO", "MOBILENUMBER") if c in pt] or ["PHONENO"]
 
         # Metric = a client-wide habit, decided on ROW evidence (not money sums):
@@ -241,6 +247,8 @@ def data_map_text(p, branch_names=None):
     if branch_names:
         br = " Known branches: " + ", ".join(sorted({n for n in branch_names if "(" not in n})[:40]) + "."
     return f"""CLIENT DATA MAP — AUTHORITATIVE. It overrides any older instruction above that conflicts with it.
+- FIRST CHOICE FOR ANY COUNT / TOTAL / RANKING / TREND QUESTION: call run_report (metric, group_by, period, filters). It already knows this client's tables and columns.
+  Only write SQL yourself if run_report answers "Unsupported". Never say "no data" before you have called run_report with the right metric/filters.
 - COLLECTION / REVENUE / PAYMENT MODES: table trnMODEOFCOLLECTIONSDET m. Date m.DATEOFBILL, mode m.MODE, bill m.BILLNO,
   branch m.LOCATIONID -> mstLocation.LOCATIONID / LOCATIONNAME. Amount expression for THIS client (use exactly): {coll_amt(p, 'm')}
   Refunds: m.TYPE = 'LabRefund'. Daily trend: GROUP BY CAST(m.DATEOFBILL AS date). NEVER use msttally*, msttemp* or trntemp* tables for collections.

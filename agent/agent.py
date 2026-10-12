@@ -10,6 +10,7 @@ from auth.schema_pack import schema_hint_for_prompt
 import time
 import re
 from datetime import date, timedelta
+from agent.report_tool import run_report
 from agent.tools import (
     run_sql_query,
     describe_table,
@@ -894,7 +895,7 @@ refusal — nothing else fits A or C.
   filter, or return TOP 10 recent rows.
 """
 
-        tools = [search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard, check_zero_collection_alert,check_tat_alert]
+        tools = [run_report, search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard, check_zero_collection_alert,check_tat_alert]
         tools_by_name = {t.name: t for t in tools}
         current_chain = _get_provider_chain()
         if not current_chain:
@@ -1056,6 +1057,10 @@ refusal — nothing else fits A or C.
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },
                 "describe_table": {
+                    "role": role, "db_name": db_name,
+                    "db_server": db_server, "db_user": db_user, "db_password": db_password,
+                },
+                "run_report": {
                     "role": role, "db_name": db_name,
                     "db_server": db_server, "db_user": db_user, "db_password": db_password,
                 },

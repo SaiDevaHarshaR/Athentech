@@ -1,0 +1,312 @@
+"""run_report — a metrics layer the LLM can call instead of hand-writing SQL.
+
+The model only has to map the question to (metric, group_by, period, filters).
+SQL is built here from the client's own schema profile, with bound parameters,
+so answers are consistent, fast and identical across all LIS clients.
+"""
+import json
+import re
+from datetime import date, timedelta
+from typing import Optional
+
+from langchain_core.tools import tool
+
+from database.connection import get_hospital_connection
+from agent.schema_ctx import get_profile, coll_amt, pri_amt
+
+_ALLOWED_ROLES = ("admin", "doctor", "reception")
+METRICS = ("revenue", "refunds", "bills", "bill_value", "avg_bill", "tests", "patients")
+DIMS = ("none", "branch", "day", "month", "mode", "doctor", "test", "department", "status", "modality")
+
+_MODALITY_CASE = (
+    "CASE WHEN i.INVNAME LIKE '%MRI%' THEN 'MRI' "
+    "WHEN i.INVNAME LIKE '%X-RAY%' OR i.INVNAME LIKE '%XRAY%' OR i.INVNAME LIKE '%X RAY%' THEN 'X-Ray' "
+    "WHEN i.INVNAME LIKE '%ULTRASOUND%' OR i.INVNAME LIKE '%USG%' OR i.INVNAME LIKE '%SONOGRAPHY%' THEN 'Ultrasound' "
+    "WHEN i.INVNAME LIKE '%MAMMO%' THEN 'Mammography' WHEN i.INVNAME LIKE '%DOPPLER%' THEN 'Doppler' "
+    "WHEN i.INVNAME LIKE '%ECHO%' THEN 'Echo' "
+    "WHEN i.INVNAME LIKE 'CT %' OR i.INVNAME LIKE '% CT %' OR i.INVNAME LIKE '% CT' OR i.INVNAME LIKE 'CT-%' "
+    "OR i.INVNAME LIKE '% CT-%' OR i.INVNAME LIKE '%(CT)%' OR i.INVNAME LIKE '%CT SCAN%' "
+    "OR i.INVNAME LIKE '%COMPUTED TOMO%' OR i.INVNAME = 'CT' THEN 'CT' "
+    "ELSE NULL END"
+)
+_MODALITY_NAMES = {"ct": "CT", "mri": "MRI", "xray": "X-Ray", "x-ray": "X-Ray", "x ray": "X-Ray",
+                   "ultrasound": "Ultrasound", "usg": "Ultrasound", "mammography": "Mammography",
+                   "doppler": "Doppler", "echo": "Echo"}
+
+
+def resolve_period(period: str):
+    today = date.today()
+    p = (period or "this_month").strip().lower().replace(" ", "_")
+    if p == "today":
+        return today, today + timedelta(days=1), "Today"
+    if p == "yesterday":
+        return today - timedelta(days=1), today, "Yesterday"
+    if p == "this_week":
+        return today - timedelta(days=today.weekday()), today + timedelta(days=1), "This Week"
+    if p == "last_week":
+        d0 = today - timedelta(days=today.weekday() + 7)
+        return d0, d0 + timedelta(days=7), "Last Week"
+    if p == "this_month":
+        return today.replace(day=1), today + timedelta(days=1), "This Month"
+    if p == "last_month":
+        d1 = today.replace(day=1)
+        d0 = (d1 - timedelta(days=1)).replace(day=1)
+        return d0, d1, d0.strftime("%B %Y")
+    if p == "this_year":
+        return today.replace(month=1, day=1), today + timedelta(days=1), "This Year"
+    if p == "last_year":
+        return date(today.year - 1, 1, 1), date(today.year, 1, 1), str(today.year - 1)
+    m = re.fullmatch(r"last_(\d{1,3})_days?", p)
+    if m:
+        n = int(m.group(1))
+        return today - timedelta(days=n - 1), today + timedelta(days=1), f"Last {n} Days"
+    m = re.fullmatch(r"month:(\d{4})-(\d{2})", p)
+    if m and 1 <= int(m.group(2)) <= 12:
+        y, mo = int(m.group(1)), int(m.group(2))
+        d0 = date(y, mo, 1)
+        return d0, date(y + (mo == 12), mo % 12 + 1, 1), d0.strftime("%B %Y")
+    m = re.fullmatch(r"year:(\d{4})", p)
+    if m:
+        y = int(m.group(1))
+        return date(y, 1, 1), date(y + 1, 1, 1), str(y)
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})(?:_to_(\d{4}-\d{2}-\d{2}))?", p)
+    if m:
+        d0 = date.fromisoformat(m.group(1))
+        d1 = date.fromisoformat(m.group(2) or m.group(1)) + timedelta(days=1)
+        return d0, d1, f"{d0} to {d1 - timedelta(days=1)}"
+    raise ValueError(f"Unsupported period '{period}'")
+
+
+def _like(v):
+    v = re.sub(r"[%_\[\]]", "", str(v or "")).strip()
+    return f"%{v}%"
+
+
+def build_sql(metric, group_by, d0, d1, f, p, top):
+    """Returns (sql, params, source_text, kind)  kind: money|count. Raises ValueError if unsupported."""
+    params = [d0.isoformat(), d1.isoformat()]
+    where, joins, wparams = [], [], []
+    loc_join = "LEFT JOIN mstLocation l ON CAST({c} AS VARCHAR(50)) = CAST(l.LOCATIONID AS VARCHAR(50))"
+
+    if metric in ("revenue", "refunds"):
+        if group_by in ("doctor", "test", "department", "status", "modality"):
+            raise ValueError(f"'{group_by}' is not available for {metric} (collection rows have no {group_by}); use metric bill_value/bills/tests.")
+        if f.get("doctor") or f.get("test") or f.get("department") or f.get("status") or f.get("modality"):
+            raise ValueError(f"Filters other than branch are not available for {metric}.")
+        base = "FROM trnMODEOFCOLLECTIONSDET m"
+        datec = "m.DATEOFBILL"
+        joins.append(loc_join.format(c="m.LOCATIONID"))
+        dim = {"branch": "COALESCE(l.LOCATIONNAME, CAST(m.LOCATIONID AS VARCHAR(50)), 'Unknown')",
+               "day": "CONVERT(varchar(10), m.DATEOFBILL, 23)", "month": "CONVERT(varchar(7), m.DATEOFBILL, 23)",
+               "mode": "UPPER(LTRIM(RTRIM(m.MODE)))"}.get(group_by)
+        val = f"SUM({coll_amt(p, 'm')})"
+        if metric == "refunds":
+            where.append("m.TYPE LIKE '%Refund%'")
+        src = f"trnMODEOFCOLLECTIONSDET (amount {coll_amt(p, 'm')}, date DATEOFBILL" + (", TYPE LIKE '%Refund%'" if metric == "refunds" else "") + ")"
+        kind = "money"
+        branch_col = "l.LOCATIONNAME"
+
+    elif metric in ("bills", "bill_value", "avg_bill"):
+        if group_by in ("test", "department", "status", "modality", "mode"):
+            raise ValueError(f"'{group_by}' is not available for {metric}; use metric tests (or revenue for mode).")
+        if f.get("test") or f.get("department") or f.get("status") or f.get("modality"):
+            raise ValueError(f"Only branch/doctor filters are available for {metric}; use metric tests for test/department/status.")
+        base = "FROM trnINVLABPRI pr"
+        datec = "pr.BILLDATE"
+        if group_by == "doctor" or f.get("doctor"):
+            joins.append(f"LEFT JOIN mstrefdoctor doc ON pr.{p['pri_doc']} = doc.DOCID")
+        if group_by == "branch" or f.get("branch"):
+            if not p.get("pri_loc"):
+                raise ValueError("Bills have no branch column in this database; use metric revenue or tests for branch splits.")
+            joins.append(loc_join.format(c=f"pr.{p['pri_loc']}"))
+        dim = {"branch": "COALESCE(l.LOCATIONNAME, 'Unknown')", "doctor": "COALESCE(doc.DOCNAME, 'Unknown')",
+               "day": "CONVERT(varchar(10), pr.BILLDATE, 23)", "month": "CONVERT(varchar(7), pr.BILLDATE, 23)"}.get(group_by)
+        cnt = "COUNT(DISTINCT pr.BILLNO)"
+        if metric == "bills":
+            val, kind = cnt, "count"
+        elif metric == "bill_value":
+            val, kind = f"SUM({pri_amt(p, 'pr')})", "money"
+        else:
+            val, kind = f"SUM({pri_amt(p, 'pr')}) / NULLIF({cnt}, 0)", "money"
+        src = "trnINVLABPRI (BILLDATE, " + ("distinct BILLNO" if metric == "bills" else pri_amt(p, 'pr')) + ")"
+        branch_col = "l.LOCATIONNAME"
+        if f.get("doctor"):
+            where.append("doc.DOCNAME LIKE ?"); wparams.append(_like(f["doctor"]))
+
+    elif metric == "tests":
+        if f.get("doctor") or group_by in ("doctor", "mode"):
+            raise ValueError("Doctor/mode splits are not available for tests; use metric bills (doctor) or revenue (mode).")
+        base = "FROM trninvlabdet d"
+        datec = "d.BILLDATE"
+        need_inv = group_by in ("test", "modality") or f.get("test") or f.get("modality")
+        if need_inv:
+            joins.append("LEFT JOIN mstInvestigations i ON d.TCODE = i.INVCODE")
+        if group_by in ("department",) or f.get("department"):
+            if p["dept_src"] == "mstsubdepartment":
+                joins.append("LEFT JOIN mstsubdepartment dep ON dep.SubDepartmentID = d.DEPTCODE"); depn = "dep.SubDeptName"
+            else:
+                joins.append("LEFT JOIN mstdepartment dep ON dep.DEPARTMENTID = d.DEPTCODE"); depn = "dep.DEPARTMENTNAME"
+        if group_by == "branch" or f.get("branch"):
+            if not p.get("det_loc"):
+                raise ValueError("Tests have no branch column in this database.")
+            joins.append(loc_join.format(c=f"d.{p['det_loc']}"))
+        dim = {"branch": "COALESCE(l.LOCATIONNAME, 'Unknown')", "day": "CONVERT(varchar(10), d.BILLDATE, 23)",
+               "month": "CONVERT(varchar(7), d.BILLDATE, 23)", "test": "COALESCE(i.INVNAME, d.TCODE)",
+               "department": "COALESCE(" + (depn if (group_by == 'department' or f.get('department')) else "''") + ", CAST(d.DEPTCODE AS VARCHAR(20)))",
+               "status": "COALESCE(d.TESTSTATUS, 'Unknown')", "modality": _MODALITY_CASE}.get(group_by)
+        val, kind = "COUNT(*)", "count"
+        src = "trninvlabdet (BILLDATE" + (", mstInvestigations.INVNAME" if need_inv else "") + ")"
+        branch_col = "l.LOCATIONNAME"
+        if group_by == "modality":
+            where.append(f"({_MODALITY_CASE}) IS NOT NULL")
+        if f.get("modality"):
+            name = _MODALITY_NAMES.get(re.sub(r"[^a-z\- ]", "", str(f["modality"]).lower()).strip())
+            if not name:
+                raise ValueError("Unknown modality. Use CT, MRI, X-Ray, Ultrasound, Mammography, Doppler or Echo.")
+            where.append(f"({_MODALITY_CASE}) = ?"); wparams.append(name)
+        if f.get("department"):
+            where.append(f"{depn} LIKE ?"); wparams.append(_like(f["department"]))
+        if f.get("status"):
+            where.append("d.TESTSTATUS = ?"); wparams.append(str(f["status"]).strip())
+        if f.get("test"):
+            where.append("i.INVNAME LIKE ?"); wparams.append(_like(f["test"]))
+
+    elif metric == "patients":
+        if f.get("doctor") or f.get("test") or f.get("department") or f.get("status") or f.get("modality") or group_by in ("doctor", "test", "department", "status", "modality", "mode"):
+            raise ValueError("Patients can only be split by day, month or branch.")
+        base = "FROM mstpatientregistration r"
+        datec = f"r.{p['pat_date']}"
+        if group_by == "branch" or f.get("branch"):
+            if not p.get("pat_loc"):
+                raise ValueError("Patient registrations have no branch column in this database.")
+            joins.append(loc_join.format(c=f"r.{p['pat_loc']}"))
+        dim = {"branch": "COALESCE(l.LOCATIONNAME, 'Unknown')", "day": f"CONVERT(varchar(10), {datec}, 23)",
+               "month": f"CONVERT(varchar(7), {datec}, 23)"}.get(group_by)
+        val, kind = "COUNT(*)", "count"
+        src = f"mstPatientRegistration ({p['pat_date']})"
+        branch_col = "l.LOCATIONNAME"
+    else:
+        raise ValueError(f"Unknown metric '{metric}'.")
+
+    if group_by != "none" and dim is None:
+        raise ValueError(f"group_by '{group_by}' is not supported for {metric}.")
+    if f.get("branch"):
+        where.append(f"{branch_col} LIKE ?"); wparams.append(_like(f["branch"]))
+    where.insert(0, f"{datec} >= ? AND {datec} < ?")
+    top = max(1, min(int(top or 15), 50))
+    if group_by in ('day', 'month'):
+        top = 100          # time series: never truncate
+
+    jtxt = " ".join(joins)
+    if group_by == "none":
+        sql = f"SELECT 'Total' AS label, {val} AS value {base} {jtxt} WHERE {' AND '.join(where)}"
+    else:
+        order = "label" if group_by in ("day", "month") else "value DESC"
+        sql = (f"SELECT TOP {top} {dim} AS label, {val} AS value {base} {jtxt} "
+               f"WHERE {' AND '.join(where)} GROUP BY {dim} ORDER BY {order}")
+    return sql, params + wparams, src, kind
+
+
+def _fmt(v, kind):
+    try:
+        v = float(v or 0)
+    except (TypeError, ValueError):
+        return str(v)
+    return f"₹{v:,.0f}" if kind == "money" else f"{v:,.0f}"
+
+
+@tool
+def run_report(
+    metric: str,
+    group_by: str = "none",
+    period: str = "this_month",
+    branch: Optional[str] = None,
+    department: Optional[str] = None,
+    status: Optional[str] = None,
+    test: Optional[str] = None,
+    modality: Optional[str] = None,
+    doctor: Optional[str] = None,
+    top_n: int = 15,
+    role: str = "viewer",
+    db_name: Optional[str] = None,
+    db_server: Optional[str] = None,
+    db_user: Optional[str] = None,
+    db_password: Optional[str] = None,
+) -> str:
+    """
+    PREFERRED tool for any count / total / ranking / trend question. It builds verified SQL for this
+    hospital's own schema — call it BEFORE writing any SQL yourself.
+
+    metric (what to measure):
+      revenue    – money collected (collection table)           refunds   – refund amount
+      bills      – number of bills                              bill_value – total billed value
+      avg_bill   – average bill value                           tests     – number of test orders
+      patients   – new patient registrations
+    group_by (how to split): none | branch | day | month | mode (payment mode, revenue/refunds only) |
+      doctor (referring doctor; bills/bill_value/avg_bill only) | test | department | status | modality (tests only)
+    period: today | yesterday | this_week | last_week | this_month | last_month | this_year | last_year |
+      last_7_days | last_30_days | month:YYYY-MM | year:YYYY | YYYY-MM-DD | YYYY-MM-DD_to_YYYY-MM-DD
+    Filters (optional): branch (name or part), department (e.g. Radiology), status (exact test status such as
+      'Sample Rejected'), test (part of test name), modality (CT, MRI, X-Ray, Ultrasound, Mammography, Doppler, Echo),
+      doctor (part of referring doctor name).
+    Examples: "CT scans per branch last month" -> metric=tests, group_by=branch, modality=CT, period=last_month.
+      "sample rejections last month" -> metric=tests, status='Sample Rejected', period=last_month.
+      "daily collection last 7 days" -> metric=revenue, group_by=day, period=last_7_days.
+      "top doctors by bills" -> metric=bills, group_by=doctor.
+    Returns "Unsupported: ..." if the combination is not possible — then fall back to run_sql_query.
+    """
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    metric, group_by = (metric or "").strip().lower(), (group_by or "none").strip().lower()
+    if metric not in METRICS:
+        return f"Unsupported: metric must be one of {', '.join(METRICS)}."
+    if group_by not in DIMS:
+        return f"Unsupported: group_by must be one of {', '.join(DIMS)}."
+    try:
+        d0, d1, label = resolve_period(period)
+    except ValueError as e:
+        return f"Unsupported: {e}"
+    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: Could not connect to the hospital database."
+    try:
+        p = get_profile(conn, db_name, db_server)
+        filters = {"branch": branch, "department": department, "status": status, "test": test,
+                   "modality": modality, "doctor": doctor}
+        filters = {k: v for k, v in filters.items() if v}
+        try:
+            sql, params, src, kind = build_sql(metric, group_by, d0, d1, filters, p, top_n)
+        except ValueError as e:
+            return f"Unsupported: {e}"
+        cur = conn.cursor()
+        try:
+            cur.timeout = 40
+        except Exception:
+            pass
+        print(f"[run_report] {metric}/{group_by} {label} filters={filters}\nSQL: {sql}", flush=True)
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        what = f"{metric.replace('_', ' ')}" + (f" by {group_by}" if group_by != "none" else "")
+        scope = ", ".join(f"{k}={v}" for k, v in filters.items()) or "all branches"
+        if not rows or all(r[1] in (None, 0) for r in rows):
+            return (f"No rows: {what} for {label} ({scope}). Checked {src}. "
+                    "This is the result of this one query; confirm in the standard report if unexpected.")
+        total = sum(float(r[1] or 0) for r in rows if r[1] is not None)
+        if group_by == "none":
+            card = {"icon": "📊", "title": what.title(), "subtitle": f"{label} · {scope}",
+                    "stats": [{"label": "TOTAL", "value": _fmt(rows[0][1], kind)}],
+                    "footer": {"label": "Source", "value": src}}
+            return "```dashboard-card\n" + json.dumps(card) + "\n```"
+        intro = f"{label} · {scope}" + (f" · total {_fmt(total, kind)}" if metric != "avg_bill" else "")
+        card = {"icon": "📊", "title": what.title(), "intro": intro,
+                "items": [{"primary": str(r[0]), "fields": [_fmt(r[1], kind)]} for r in rows],
+                "footer": {"label": "Source", "value": src}}
+        return "```list-card\n" + json.dumps(card) + "\n```"
+    except Exception as e:
+        print(f"[run_report] FAILED: {e}", flush=True)
+        return f"Query failed: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
