@@ -1314,3 +1314,28 @@ def athentech_info_endpoint(req: dict):
 from auth.whitelabel import build_router as build_whitelabel_router
 app.include_router(build_whitelabel_router(require_admin, _log_admin_action))
 app.include_router(build_chip_router(require_admin))
+# Guardian-specific API aliases: keep all console requests inside the IIS rewrite
+# prefix /admin/guardian/*, without changing the existing admin dashboard URLs.
+@app.post('/admin/guardian/api/login')
+def guardian_api_login(req: AdminLoginRequest):
+    return api_admin_login(req)
+
+@app.get('/admin/guardian/api/status')
+def guardian_api_status(admin: str = Depends(require_admin)):
+    return api_guardian_status(admin)
+
+@app.get('/admin/guardian/api/selfcheck/{code}')
+def guardian_api_selfcheck(code: str, admin: str = Depends(require_admin)):
+    return api_guardian_selfcheck(code, admin)
+
+@app.get('/admin/guardian/api/diagnostics/{code}')
+def guardian_api_diagnostics(code: str, refresh: bool = False, admin: str = Depends(require_admin)):
+    return api_client_diagnostics(code, refresh, admin)
+
+@app.get('/admin/guardian/api/schema-check/{code}')
+def guardian_api_schema_check(code: str, admin: str = Depends(require_admin)):
+    return guardian_schema_check(code, admin)
+
+@app.get('/admin/guardian/api/support-report')
+def guardian_api_support_report(admin: str = Depends(require_admin)):
+    return guardian_support_report(admin)
