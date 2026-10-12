@@ -10,6 +10,7 @@ import re
 from datetime import date, timedelta
 
 from database.connection import get_hospital_connection
+from agent.schema_ctx import coll_amt, pri_amt, radiology_dept_sql
 
 _ALLOWED_ROLES = ("admin", "doctor", "reception")
 
@@ -105,6 +106,11 @@ def _conn(db_name, db_server, db_user, db_password):
     return get_hospital_connection(db_name, db_server, db_user, db_password)
 
 
+def _prof(conn, db_name, db_server):
+    from agent.schema_ctx import get_profile
+    return get_profile(conn, db_name, db_server)
+
+
 def _dashboard_card(**kwargs) -> str:
     return "```dashboard-card\n" + json.dumps(kwargs) + "\n```"
 
@@ -127,7 +133,7 @@ def _handle_all_collection(q, role, db_name, db_server, db_user, db_password, ma
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM(TOTALAMOUNT) AS Amt "
+            f"SELECT UPPER(LTRIM(RTRIM(MODE))) AS MODE, SUM({coll_amt(_prof(conn, db_name, db_server))}) AS Amt "
             "FROM trnmodeofcollectionsdet "
             "WHERE DATEOFBILL >= ? AND DATEOFBILL < ? GROUP BY UPPER(LTRIM(RTRIM(MODE)))",
             (date_from, date_to),
@@ -168,8 +174,9 @@ def _handle_patients_count(q, role, db_name, db_server, db_user, db_password, ma
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
+        _dc = _prof(conn, db_name, db_server)["pat_date"]
         cursor.execute(
-            "SELECT COUNT(*) FROM mstpatientregistration WHERE REGDATE >= ? AND REGDATE < ?",
+            f"SELECT COUNT(*) FROM mstpatientregistration WHERE {_dc} >= ? AND {_dc} < ?",
             (date_from, date_to),
         )
         count = cursor.fetchone()[0]
@@ -454,7 +461,7 @@ def _handle_uhid_bills(q, role, db_name, db_server, db_user, db_password, matche
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 10 BILLNO, DATEOFBILL, TOTALAMOUNT FROM trnmodeofcollectionsdet "
+            f"SELECT TOP 10 BILLNO, DATEOFBILL, {coll_amt(_prof(conn, db_name, db_server))} FROM trnmodeofcollectionsdet "
             "WHERE UHID = ? ORDER BY DATEOFBILL DESC",
             (uhid,),
         )
@@ -496,7 +503,7 @@ def _handle_mode_only(q, role, db_name, db_server, db_user, db_password, matched
         cursor = conn.cursor()
         placeholders = ",".join("?" * len(aliases))
         cursor.execute(
-            f"SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
+            f"SELECT SUM({coll_amt(_prof(conn, db_name, db_server))}) FROM trnmodeofcollectionsdet "
             f"WHERE UPPER(LTRIM(RTRIM(MODE))) IN ({placeholders}) "
             f"AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (*[a.upper() for a in aliases], date_from, date_to),
@@ -656,7 +663,7 @@ def _handle_referring_doctors(q, role, db_name, db_server, db_user, db_password,
         cursor = conn.cursor()
         if by_revenue:
             cursor.execute(
-                "SELECT TOP 10 d.DOCNAME, SUM(p.TOTALAMOUNT) AS Amt FROM trninvlabpri p "
+                f"SELECT TOP 10 d.DOCNAME, SUM({pri_amt(_prof(conn, db_name, db_server), 'p')}) AS Amt FROM trninvlabpri p "
                 "JOIN mstrefdoctor d ON p.REFDOCTCODE = d.DOCID "
                 "WHERE p.BILLDATE >= ? AND p.BILLDATE < ? GROUP BY d.DOCNAME ORDER BY Amt DESC",
                 (date_from, date_to),
@@ -702,29 +709,51 @@ def _handle_bill_detail(q, role, db_name, db_server, db_user, db_password, match
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
+        # 1) header (any table that knows the bill)
         cursor.execute(
-            "SELECT b.Name, b.Phone, c.INVNAME, p.PARAMHEADNAME, p.PVALUE, p.MINVALUE, p.MAXVALUE "
-            "FROM trnINVLABDET a "
-            "JOIN trnINVLABPRI b ON a.BILLNO = b.BILLNO "
-            "JOIN mstInvestigations c ON a.TCODE = c.INVCODE "
-            "JOIN trnParamResult p ON a.BILLNO = p.BILLNO AND p.INVCODE = a.TCODE "
-            "WHERE a.BILLNO LIKE ?",
-            (billno + "%",),
+            "SELECT TOP 1 Name, Phone, TOTALCHARGES, STATUS FROM trnINVLABPRI WHERE BILLNO = ?",
+            (billno,),
+        )
+        hdr = cursor.fetchone()
+        # 2) tests, results optional (LEFT JOIN: bill may exist before results do)
+        cursor.execute(
+            "SELECT TOP 40 c.INVNAME, d.TESTSTATUS, p.PARAMHEADNAME, p.PVALUE, p.MINVALUE, p.MAXVALUE "
+            "FROM trnINVLABDET d "
+            "LEFT JOIN mstInvestigations c ON d.TCODE = c.INVCODE "
+            "LEFT JOIN trnParamResult p ON p.BILLNO = d.BILLNO AND p.INVCODE = d.TCODE "
+            "WHERE d.BILLNO = ?",
+            (billno,),
         )
         rows = cursor.fetchall()
-        if not rows:
+        # 3) collection-only bills
+        coll = None
+        if not hdr and not rows:
+            cursor.execute(
+                f"SELECT TOP 5 MODE, {coll_amt(_prof(conn, db_name, db_server))}, DATEOFBILL "
+                "FROM trnmodeofcollectionsdet WHERE BILLNO = ?",
+                (billno,),
+            )
+            coll = cursor.fetchall()
+        if not hdr and not rows and not coll:
             return f"No records found for bill {billno}."
-        name, phone = rows[0][0], rows[0][1]
+        if not hdr and not rows:
+            return _list_card(
+                icon="🧾", title=f"Bill {billno}", intro="Collection record only",
+                items=[{"primary": str(m), "fields": [f"₹{float(a or 0):,.0f}", str(d)]} for m, a, d in coll],
+            )
+        intro = f"{hdr[0]} · {hdr[1]}" if hdr else ""
         items = []
-        for _, _, inv, param, pval, minv, maxv in rows[:15]:
+        for inv, st, param, pval, minv, maxv in rows[:20]:
+            if pval is None:
+                items.append({"primary": inv or "Test", "fields": [f"Status: {st or 'Pending'}"]})
+                continue
             fields = [f"Value: {pval}"]
             if minv is not None and maxv is not None:
                 fields.append(f"Range: {minv}-{maxv}")
-            items.append({"primary": f"{inv} — {param}" if param else inv, "fields": fields})
-        return _list_card(
-            icon="🧾", title=f"Bill {billno}", intro=f"{name} · {phone}",
-            items=items,
-        )
+            items.append({"primary": f"{inv} — {param}" if param else (inv or "Test"), "fields": fields})
+        if not items:
+            items = [{"primary": "No tests on this bill", "fields": []}]
+        return _list_card(icon="🧾", title=f"Bill {billno}", intro=intro, items=items)
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -763,16 +792,26 @@ def _handle_recent_patients(q, role, db_name, db_server, db_user, db_password, m
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
+        pr = _prof(conn, db_name, db_server)
+        phone_expr = "COALESCE(" + ", ".join(f"NULLIF(LTRIM(RTRIM(CAST({c} AS VARCHAR(30)))), '')" for c in pr["pat_phones"]) + ", '')"
         cursor.execute(
-            "SELECT TOP 10 NAME, UHID, PHONENO, REGDATE FROM mstpatientregistration ORDER BY REGDATE DESC"
+            f"SELECT TOP 10 {pr['pat_name']}, UHID, {phone_expr}, {pr['pat_date']} "
+            f"FROM mstpatientregistration ORDER BY {pr['pat_date']} DESC"
         )
         rows = cursor.fetchall()
         if not rows:
             return "No patient records found."
+
+        def _d(v):
+            try:
+                return v.strftime("%d %b %Y, %I:%M %p")
+            except Exception:
+                return str(v)[:16]
+
         return _list_card(
             icon="🧑‍🤝‍🧑", title="Recent Patients", intro="10 most recently registered:",
             items=[
-                {"primary": name, "fields": [f"UHID: {uhid}", f"Phone: {phone}", f"Registered: {reg}"]}
+                {"primary": name, "fields": [f"UHID: {uhid}"] + ([f"Phone: {phone}"] if phone else []) + [f"Registered: {_d(reg)}"]}
                 for name, uhid, phone, reg in rows
             ],
         )
@@ -859,7 +898,7 @@ def _handle_refunds(q, role, db_name, db_server, db_user, db_password, matched_k
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
+            f"SELECT SUM({coll_amt(_prof(conn, db_name, db_server))}) FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (date_from, date_to),
         )
@@ -886,7 +925,7 @@ def _handle_due_payments(q, role, db_name, db_server, db_user, db_password, matc
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet "
+            f"SELECT SUM({coll_amt(_prof(conn, db_name, db_server))}) FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'DUE PAYMENT' AND DATEOFBILL >= ? AND DATEOFBILL < ?",
             (date_from, date_to),
         )
@@ -922,8 +961,8 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COALESCE(l.LOCATIONNAME, CAST(m.LOCATIONID AS VARCHAR(50)), 'Unknown') AS LOCATIONNAME, "
-            "SUM(m.TOTALAMOUNT) AS Amt "
+            f"SELECT COALESCE(l.LOCATIONNAME, CAST(m.LOCATIONID AS VARCHAR(50)), 'Unknown') AS LOCATIONNAME, "
+            f"SUM({coll_amt(_prof(conn, db_name, db_server), 'm')}) AS Amt "
             "FROM trnmodeofcollectionsdet m "
             "LEFT JOIN mstlocation l ON CAST(m.LOCATIONID AS VARCHAR(50)) = CAST(l.LOCATIONID AS VARCHAR(50)) "
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
@@ -1083,7 +1122,7 @@ def _handle_credit_bills(q, role, db_name, db_server, db_user, db_password, matc
         cursor = conn.cursor()
         cursor.execute(
             "SELECT TOP 20 BILLNO, TOTALCHARGES, BILLDATE FROM trnINVLABPRI "
-            "WHERE (TOTALAMOUNT IS NULL OR TOTALAMOUNT = 0) AND TOTALCHARGES > 0 "
+            "WHERE (ISNULL(CREDITAMOUNT,0) > 0 OR ISNULL(PAIDAMOUNT,0) = 0) AND TOTALCHARGES > 0 "
             "ORDER BY BILLDATE DESC"
         )
         rows = cursor.fetchall()
@@ -1111,13 +1150,14 @@ def _handle_compare_collection(q, role, db_name, db_server, db_user, db_password
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
+        _amt = coll_amt(_prof(conn, db_name, db_server))
         cursor.execute(
-            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
+            f"SELECT SUM({_amt}) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
             (this_start.isoformat(), (today + timedelta(days=1)).isoformat()),
         )
         this_total = float(cursor.fetchone()[0] or 0)
         cursor.execute(
-            "SELECT SUM(TOTALAMOUNT) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
+            f"SELECT SUM({_amt}) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
             (last_start.isoformat(), this_start.isoformat()),
         )
         last_total = float(cursor.fetchone()[0] or 0)
@@ -1481,7 +1521,7 @@ def _handle_refund_bills_list(q, role, db_name, db_server, db_user, db_password,
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT TOP 15 BILLNO, MODE, PAIDAMOUNT, DATEOFBILL "
+            f"SELECT TOP 15 BILLNO, MODE, {coll_amt(_prof(conn, db_name, db_server))}, DATEOFBILL "
             "FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ? "
             "ORDER BY DATEOFBILL DESC",

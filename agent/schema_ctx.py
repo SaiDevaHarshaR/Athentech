@@ -1,0 +1,136 @@
+"""Per-institution schema profile, read straight from the client DB (no license DB).
+
+Cached in-process per (server, db). Used by intents/tools so one codebase serves
+Konnect (PAIDAMOUNT filled) and CentroMed (PAIDAMOUNT = 0, TOTALAMOUNT filled).
+"""
+import os
+import time
+import threading
+
+_TTL = 6 * 3600
+_cache = {}
+_lock = threading.Lock()
+
+_DEFAULTS = {
+    "coll_metric": "paid",          # "paid" | "total"
+    "coll_paid": "PAIDAMOUNT",
+    "coll_total": "TOTALAMOUNT",
+    "pri_paid": "PAIDAMOUNT",
+    "pri_total": "TOTALCHARGES",
+    "pat_date": "REGDATE",
+    "pat_name": "NAME",
+    "dept_src": "mstdepartment",    # "mstdepartment" | "mstsubdepartment"
+    "pat_phones": ["PHONENO"],
+}
+
+
+def _cols(cur, table):
+    cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", (table,))
+    return {str(r[0]).upper(): str(r[0]) for r in cur.fetchall()}
+
+
+def _pick(cols, *names):
+    for n in names:
+        if n.upper() in cols:
+            return cols[n.upper()]
+    return None
+
+
+def _scan(conn, db_name=None):
+    p = dict(_DEFAULTS)
+    cur = conn.cursor()
+    try:
+        cc = _cols(cur, "trnMODEOFCOLLECTIONSDET")
+        pc = _cols(cur, "trnINVLABPRI")
+        pt = _cols(cur, "mstPatientRegistration")
+        p["coll_paid"] = _pick(cc, "PAIDAMOUNT", "PAIDAMT", "PAID")
+        p["coll_total"] = _pick(cc, "TOTALAMOUNT", "TOTALCHARGES", "GRANDTOTAL", "AMOUNT")
+        p["pri_paid"] = _pick(pc, "PAIDAMOUNT", "PAIDAMT")
+        p["pri_total"] = _pick(pc, "TOTALCHARGES", "TOTALAMOUNT", "GRANDTOTAL")
+        p["pat_date"] = _pick(pt, "REGDATE", "REGISTRATIONDATE", "CREATEDATE", "ENTRYDATE") or p["pat_date"]
+        p["pat_name"] = _pick(pt, "NAME", "PATIENTNAME", "PATNAME") or p["pat_name"]
+        p["pat_phones"] = [pt[c] for c in ("PHONENO", "MOBILENO", "MOBILE", "PHONE", "CONTACTNO", "MOBILENUMBER") if c in pt] or ["PHONENO"]
+
+        # Metric = a client-wide habit, decided on ROW evidence (not money sums):
+        # "total" only if PAIDAMOUNT is essentially never filled (<5% of rows that have a
+        # total) over 90 days AND there are enough rows to trust it. Mixed clients
+        # (walk-in + credit/corporate billing) and anything uncertain stay on "paid".
+        dcol = _pick(cc, "DATEOFBILL", "BILLDATE")
+        p["coll_metric"] = "paid"
+        if p["coll_paid"] and p["coll_total"] and dcol:
+            cur.execute(
+                f"SELECT SUM(CASE WHEN ISNULL({p['coll_total']},0) <> 0 THEN 1 ELSE 0 END), "
+                f"SUM(CASE WHEN ISNULL({p['coll_total']},0) <> 0 AND ISNULL({p['coll_paid']},0) <> 0 THEN 1 ELSE 0 END) "
+                f"FROM trnMODEOFCOLLECTIONSDET WHERE {dcol} >= DATEADD(day,-90,GETDATE())")
+            r = cur.fetchone()
+            with_total, with_paid = int(r[0] or 0), int(r[1] or 0)
+            p["rows_with_total_90d"], p["rows_with_paid_90d"] = with_total, with_paid
+            if with_total >= 20 and with_paid < with_total * 0.05:
+                p["coll_metric"] = "total"
+        elif not p["coll_paid"] and p["coll_total"]:
+            p["coll_metric"] = "total"
+
+        # radiology department source: whichever table actually matches trninvlabdet.DEPTCODE
+        for src, idc, namec in (("mstdepartment", "DEPARTMENTID", "DEPARTMENTNAME"),
+                                ("mstsubdepartment", "SubDepartmentID", "SubDeptName")):
+            try:
+                cur.execute(
+                    f"SELECT TOP 1 1 FROM trninvlabdet WHERE DEPTCODE IN "
+                    f"(SELECT {idc} FROM {src} WHERE {namec} LIKE '%Radiology%')")
+                if cur.fetchone():
+                    p["dept_src"] = src
+                    break
+            except Exception:
+                continue
+        # explicit override wins (ops escape hatch): COLLECTION_METRIC_OVERRIDE="H023-CentromedLIS=total,H022-KonnectLIS=paid"
+        ov = {k.strip().casefold(): v.strip().lower() for k, _, v in
+              (x.partition("=") for x in os.environ.get("COLLECTION_METRIC_OVERRIDE", "").split(",")) if k.strip()}
+        o = ov.get((db_name or "").casefold())
+        if o in ("paid", "total"):
+            p["coll_metric"] = o
+    except Exception as e:
+        print(f"[schema_ctx] scan failed, using defaults: {e}", flush=True)
+    return p
+
+
+def get_profile(conn, db_name, db_server=None):
+    key = f"{db_server or ''}|{db_name}"
+    now = time.time()
+    with _lock:
+        hit = _cache.get(key)
+        if hit and now - hit[0] < _TTL:
+            return hit[1]
+    p = _scan(conn, db_name)
+    with _lock:
+        _cache[key] = (now, p)
+    print(f"[schema_ctx] {db_name}: {p}", flush=True)
+    return p
+
+
+def coll_amt(p, alias=""):
+    """SQL expression for 'collection amount' on trnMODEOFCOLLECTIONSDET (never references a missing column)."""
+    a = f"{alias}." if alias else ""
+    paid = f"{a}{p['coll_paid']}" if p.get("coll_paid") else None
+    total = f"{a}{p['coll_total']}" if p.get("coll_total") else None
+    if not paid and not total:
+        return "0"
+    if not paid:
+        return f"ISNULL({total},0)"
+    if not total or p["coll_metric"] == "paid":
+        return f"ISNULL({paid},0)"
+    return f"(CASE WHEN ISNULL({paid},0) <> 0 THEN {paid} ELSE ISNULL({total},0) END)"
+
+
+def pri_amt(p, alias=""):
+    """SQL expression for per-bill amount on trnINVLABPRI."""
+    a = f"{alias}." if alias else ""
+    col = (p.get("pri_total") if p["coll_metric"] == "total" else p.get("pri_paid")) or p.get("pri_paid") or p.get("pri_total")
+    return f"ISNULL({a}{col},0)" if col else "0"
+
+
+def radiology_dept_sql(p):
+    if p["dept_src"] == "mstsubdepartment":
+        return ("DEPTCODE IN (SELECT SubDepartmentID FROM mstsubdepartment "
+                "WHERE SubDeptName LIKE '%Radiology%')")
+    return ("DEPTCODE IN (SELECT DEPARTMENTID FROM mstdepartment "
+            "WHERE DEPARTMENTNAME LIKE '%Radiology%')")

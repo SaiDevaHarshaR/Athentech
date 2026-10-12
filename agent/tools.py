@@ -464,12 +464,14 @@ def get_department_dashboard(
     # laboratory / all → no DEPTCODE filter (trninvlabdet is lab work; "Laboratory" name often missing)
     # radiology → resolve via mstdepartment
     if department == "radiology":
-        dept_sql = (
-            "AND DEPTCODE IN ("
-            "SELECT DEPARTMENTID FROM mstdepartment "
-            "WHERE DEPARTMENTNAME LIKE '%Radiology%'"
-            ")"
-        )
+        from agent.schema_ctx import get_profile, radiology_dept_sql
+        _c = get_hospital_connection(db_name, db_server, db_user, db_password)
+        if not _c:
+            return "Error: Could not connect to the hospital database."
+        try:
+            dept_sql = "AND " + radiology_dept_sql(get_profile(_c, db_name, db_server))
+        finally:
+            _c.close()
         title = "Radiology Dashboard"
         icon = "🩻"
     elif department == "laboratory":
