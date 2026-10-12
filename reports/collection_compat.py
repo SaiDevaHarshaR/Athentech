@@ -201,10 +201,25 @@ def collection_detailed_data(date_from, date_to, db_name, db_server=None,
                         f"CONVERT(nvarchar(100), m.{loc_col}) = CONVERT(nvarchar(100), l.{loc_id})")
                 branch = (f"COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), l.{loc_name}))), ''), "
                           f"{branch})")
+        # UHID / patient usually live on the bill header, not the collection row.
+        pri = _columns(cur, "trnINVLABPRI")
+        pri_bill = _pick(pri, "BILLNO")
+        pri_uhid = _pick(pri, "UHID", "PATIENTUHID")
+        pri_name = _pick(pri, "NAME", "PATIENTNAME", "PATNAME")
+        uhid_sql, patient_sql = txt(uhid_col), txt(patient_col)
+        if bill_col and pri_bill and (pri_uhid or pri_name):
+            join += (f" OUTER APPLY (SELECT TOP 1 "
+                     f"{'x.' + pri_uhid if pri_uhid else 'NULL'} AS U, "
+                     f"{'x.' + pri_name if pri_name else 'NULL'} AS N "
+                     f"FROM trnINVLABPRI x WHERE x.{pri_bill} = m.{bill_col}) pr")
+            uhid_sql = f"COALESCE(NULLIF(LTRIM(RTRIM({uhid_sql})), ''), CONVERT(nvarchar(255), pr.U))"
+            patient_sql = f"COALESCE(NULLIF(LTRIM(RTRIM({patient_sql})), ''), CONVERT(nvarchar(255), pr.N))"
+            uhid_col = uhid_col or pri_uhid
+            patient_col = patient_col or pri_name
         # Query each source record, preserving zero amounts and duplicate bills.
         query = (
-            f"SELECT m.{date_col}, {branch}, {txt(bill_col)}, {txt(uhid_col)}, "
-            f"{txt(patient_col)}, {txt(mode_col)}, {paid}, {total}, "
+            f"SELECT m.{date_col}, {branch}, {txt(bill_col)}, {uhid_sql}, "
+            f"{patient_sql}, {txt(mode_col)}, {paid}, {total}, "
             f"{selected}, {source} "
             f"FROM trnMODEOFCOLLECTIONSDET m{join} "
             f"WHERE m.{date_col} >= ? AND m.{date_col} < ? "

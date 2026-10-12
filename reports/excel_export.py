@@ -602,10 +602,10 @@ def export_registrations_by_branch(
 def _export_centromed_detailed_collection(period, db_name, db_server,
                                           db_user, db_password, hospital_name,
                                           location_keyword):
-    """Only called for explicitly enabled CentroMed databases."""
+    """Recorded-value collections for clients whose PAIDAMOUNT is not used (profile = 'total')."""
     from collections import defaultdict
+    from decimal import Decimal
     from reports.collection_compat import collection_detailed_data
-    from openpyxl.styles import Border, Side
     from datetime import datetime
 
     start, end, label = _period_dates(period)
@@ -614,106 +614,123 @@ def _export_centromed_detailed_collection(period, db_name, db_server,
     if "error" in data:
         return data
 
+    MONEY = '#,##0.00;[Red](#,##0.00);-'
     rows = data["rows"]
-    wb = Workbook()
-    detail = wb.active
-    detail.title = "Transactions"
-    columns = ["Date", "Branch", "Bill No.", "UHID", "Patient",
-               "Payment Mode", "Paid Amount", "Total Amount",
-               "Selected Amount", "Amount Source"]
-    hr = _title_row(detail, hospital_name, len(columns))
-    detail.cell(hr + 1, 1, f"CentroMed recorded collections — {label} ({start} to {end}, end exclusive)")
-    detail.merge_cells(start_row=hr + 1, start_column=1,
-                       end_row=hr + 1, end_column=len(columns))
-    header = hr + 2
-    _style_header(detail, header, columns)
-    by_branch = defaultdict(lambda: [0, 0, 0, 0])
-    by_mode = defaultdict(lambda: [0, 0, 0, 0])
-    by_day = defaultdict(lambda: [0, 0, 0, 0])
+    last_day = (date.fromisoformat(end) - timedelta(days=1)).isoformat()
+    span = start if start == last_day else f"{start} to {last_day}"
+    scope = f" · {location_keyword.title()}" if location_keyword else ""
+
+    clean = []
+    matrix = defaultdict(lambda: defaultdict(Decimal))     # branch -> mode -> amount
+    by_branch = defaultdict(lambda: [0, Decimal(0), Decimal(0), Decimal(0)])
+    by_mode = defaultdict(lambda: [0, Decimal(0), Decimal(0), Decimal(0)])
+    by_day = defaultdict(lambda: [0, Decimal(0), Decimal(0), Decimal(0)])
     fallback_count = 0
-    for i, rec in enumerate(rows, header + 1):
-        dt, branch, bill, uhid, patient, mode, paid, total, chosen, source = rec
-        # CentroMed only: recompute from raw columns per transaction rather
-        # than trusting a calculated SQL column from older installations.
-        from decimal import Decimal
-        paid = Decimal(str(paid or 0))
-        total = Decimal(str(total or 0))
+    for dt, branch, bill, uhid, patient, mode, paid, total, _chosen, _src in rows:
+        paid, total = Decimal(str(paid or 0)), Decimal(str(total or 0))
         chosen = paid if paid != 0 else total
-        source = ("PAIDAMOUNT" if paid != 0 else
-                  "TOTALAMOUNT (fallback)" if total != 0 else "ZERO")
-        branch, mode = str(branch or "Unknown"), str(mode or "Unknown")
-        if source == "TOTALAMOUNT (fallback)":
-            fallback_count += 1
-        values = [dt, branch, bill, uhid, patient, mode, paid, total, chosen, source]
-        for c, value in enumerate(values, 1):
+        source = "PAIDAMOUNT" if paid != 0 else ("TOTALAMOUNT (fallback)" if total != 0 else "ZERO")
+        fallback_count += source == "TOTALAMOUNT (fallback)"
+        branch = str(branch or "Unknown").strip()
+        mode = str(mode or "Unknown").strip().title()          # CASH / Cash -> Cash
+        clean.append((dt, branch, bill, uhid, patient, mode, paid, total, chosen, source))
+        matrix[branch][mode] += chosen
+        for key, bucket in ((branch, by_branch), (mode, by_mode), (str(dt)[:10], by_day)):
+            v = bucket[key]
+            v[0] += 1; v[1] += paid; v[2] += total; v[3] += chosen
+    grand = sum((v[3] for v in by_branch.values()), Decimal(0))
+    modes = sorted(by_mode)
+
+    wb = Workbook()
+    ov = wb.active
+    ov.title = "Overview"
+    _title_row(ov, hospital_name, max(len(modes) + 2, 4))
+    ov.cell(2, 1, f"Collections · {label}{scope} · {span}").font = Font(italic=True, name="Arial", size=10)
+    kpis = [("Total collection", float(grand)), ("Bills / records", len(clean)),
+            ("Average per bill", float(grand / len(clean)) if clean else 0)]
+    for i, (k, v) in enumerate(kpis, 4):
+        ov.cell(i, 1, k).font = Font(bold=True, name="Arial")
+        c = ov.cell(i, 2, v)
+        c.font = Font(bold=True, size=12, name="Arial")
+        c.number_format = '#,##0' if k.startswith("Bills") else '#,##0.00'
+    r0 = 8
+    ov.cell(r0 - 1, 1, "By branch and payment mode").font = Font(bold=True, size=12, name="Arial")
+    _style_header(ov, r0, ["Branch"] + modes + ["Total"])
+    r = r0 + 1
+    col_tot = {m: Decimal(0) for m in modes}
+    for br in sorted(matrix):
+        ov.cell(r, 1, br)
+        rt = Decimal(0)
+        for j, m in enumerate(modes, 2):
+            v = matrix[br].get(m, Decimal(0)); rt += v; col_tot[m] += v
+            ov.cell(r, j, float(v)).number_format = MONEY
+        c = ov.cell(r, len(modes) + 2, float(rt)); c.font = Font(bold=True, name="Arial"); c.number_format = MONEY
+        r += 1
+    ov.cell(r, 1, "GRAND TOTAL").font = Font(bold=True, name="Arial")
+    for j, m in enumerate(modes, 2):
+        c = ov.cell(r, j, float(col_tot[m])); c.font = Font(bold=True, name="Arial"); c.number_format = MONEY
+    c = ov.cell(r, len(modes) + 2, float(grand)); c.font = Font(bold=True, name="Arial"); c.number_format = MONEY
+    ov.column_dimensions["A"].width = 30
+    for j in range(2, len(modes) + 3):
+        ov.column_dimensions[get_column_letter(j)].width = 18
+    ov.sheet_view.showGridLines = False
+    if fallback_count:
+        ov.cell(r + 2, 1, "Amounts are the recorded bill value (this system does not fill PAID AMOUNT). "
+                          "Confirm against finance records before using as cash received.").font = Font(
+                              italic=True, color="B45309", name="Arial", size=9)
+
+    def make_summary(title, first_col, grouped):
+        ws = wb.create_sheet(title)
+        _title_row(ws, hospital_name, 5)
+        _style_header(ws, 3, [first_col, "Bills", "Amount"])
+        n = 4
+        for key, v in sorted(grouped.items()):
+            ws.cell(n, 1, key); ws.cell(n, 2, v[0]).number_format = '#,##0'
+            ws.cell(n, 3, float(v[3])).number_format = MONEY
+            n += 1
+        ws.cell(n, 1, "GRAND TOTAL").font = Font(bold=True, name="Arial")
+        ws.cell(n, 2, sum(v[0] for v in grouped.values())).number_format = '#,##0'
+        c = ws.cell(n, 3, float(sum((v[3] for v in grouped.values()), Decimal(0))))
+        c.number_format = MONEY; c.font = Font(bold=True, name="Arial")
+        for col, w in zip("ABC", (30, 12, 20)):
+            ws.column_dimensions[col].width = w
+        ws.freeze_panes = "A4"; ws.sheet_view.showGridLines = False
+
+    make_summary("Branch Summary", "Branch", by_branch)
+    make_summary("Mode Summary", "Payment Mode", by_mode)
+    if len(by_day) > 1:
+        make_summary("Daily Summary", "Date", by_day)
+
+    detail = wb.create_sheet("Transactions")
+    columns = ["Date", "Branch", "Bill No.", "UHID", "Patient", "Payment Mode", "Amount"]
+    hr = _title_row(detail, hospital_name, len(columns))
+    _style_header(detail, hr + 1, columns)
+    for i, rec in enumerate(clean, hr + 2):
+        dt, branch, bill, uhid, patient, mode, _p, _t, chosen, _s = rec
+        for c, value in enumerate([dt, branch, bill, uhid, patient, mode, float(chosen)], 1):
             cell = detail.cell(i, c, value)
-            if c in (7, 8, 9):
-                cell.number_format = '#,##0.00;[Red](#,##0.00);-'
+            if c == 7:
+                cell.number_format = MONEY
             if c == 1 and isinstance(dt, (datetime, date)):
                 cell.number_format = 'dd mmm yyyy hh:mm'
-        if source == "TOTALAMOUNT (fallback)":
-            detail.cell(i, 10).font = Font(color="B45309", bold=True)
-        for key, bucket in [(branch, by_branch), (mode, by_mode),
-                            (str(dt)[:10], by_day)]:
-            v = bucket[key]
-            v[0] += 1
-            v[1] += paid
-            v[2] += total
-            v[3] += chosen
-    total_row = header + 1 + len(rows)
-    detail.cell(total_row, 1, "GRAND TOTAL").font = Font(bold=True)
-    for idx in (7, 8, 9):
-        letter = get_column_letter(idx)
-        detail.cell(total_row, idx, f"=SUM({letter}{header + 1}:{letter}{total_row - 1})")
-        detail.cell(total_row, idx).number_format = '#,##0.00;[Red](#,##0.00);-'
-        detail.cell(total_row, idx).font = Font(bold=True)
-    detail.freeze_panes = f"A{header+1}"
-    detail.auto_filter.ref = f"A{header}:J{total_row-1}"
-    for idx, width in enumerate((22, 25, 20, 19, 27, 20, 18, 18, 20, 27), 1):
+    last = hr + 1 + len(clean)
+    detail.cell(last + 1, 1, "GRAND TOTAL").font = Font(bold=True, name="Arial")
+    c = detail.cell(last + 1, 7, float(grand)); c.number_format = MONEY; c.font = Font(bold=True, name="Arial")
+    detail.freeze_panes = f"A{hr + 2}"
+    detail.auto_filter.ref = f"A{hr + 1}:G{max(last, hr + 2)}"
+    for idx, width in enumerate((22, 24, 18, 18, 28, 16, 16), 1):
         detail.column_dimensions[get_column_letter(idx)].width = width
     detail.sheet_view.showGridLines = False
 
-    def make_summary(title, grouped):
-        ws = wb.create_sheet(title)
-        _title_row(ws, hospital_name, 5)
-        _style_header(ws, 3, [title[:-8] if title.endswith(" Summary") else title,
-                              "Records", "Paid Amount", "Total Amount", "Selected Amount"])
-        for n, (key, v) in enumerate(sorted(grouped.items()), 4):
-            ws.cell(n, 1, key)
-            for j, value in enumerate(v, 2):
-                c = ws.cell(n, j, value)
-                if j > 2:
-                    c.number_format = '#,##0.00;[Red](#,##0.00);-'
-        nr = 4 + len(grouped)
-        ws.cell(nr, 1, "GRAND TOTAL").font = Font(bold=True)
-        for j in range(2, 6):
-            col = get_column_letter(j)
-            ws.cell(nr, j, f"=SUM({col}4:{col}{nr-1})").font = Font(bold=True)
-            if j > 2:
-                ws.cell(nr, j).number_format = '#,##0.00;[Red](#,##0.00);-'
-        for col, width in zip("ABCDE", (30, 15, 22, 22, 22)):
-            ws.column_dimensions[col].width = width
-        ws.freeze_panes = "B4"
-        ws.sheet_view.showGridLines = False
-        return ws
-
-    make_summary("Branch Summary", by_branch)
-    make_summary("Mode Summary", by_mode)
-    make_summary("Daily Summary", by_day)
     notes = wb.create_sheet("Notes")
-    notes.append(["Report", "CentroMed recorded-value collections"])
-    notes.append(["Period", label])
-    notes.append(["Transactions", len(rows)])
-    notes.append(["TOTALAMOUNT fallback records", fallback_count])
-    notes.append(["Paid Amount", "Source value from PAIDAMOUNT"])
-    notes.append(["Total Amount", "Source value from TOTALAMOUNT"])
-    notes.append(["Selected Amount", "Nonzero PAIDAMOUNT; otherwise TOTALAMOUNT"])
-    notes.append(["WARNING", data["warning"]])
-    for col, width in (("A", 35), ("B", 100)):
-        notes.column_dimensions[col].width = width
-    notes.sheet_view.showGridLines = False
+    for row in (["Period", f"{label} ({span})"], ["Records", len(clean)],
+                ["Records using bill value (TOTALAMOUNT)", fallback_count],
+                ["Amount", "PAIDAMOUNT where filled, otherwise TOTALAMOUNT (per record)"],
+                ["WARNING", data["warning"]]):
+        notes.append(row)
+    notes.column_dimensions["A"].width = 40; notes.column_dimensions["B"].width = 100
     safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
-    return _save(wb, f"centromed_detailed_collection_{safe}.xlsx", label)
+    return _save(wb, f"collection_{safe}_{date.today().isoformat()}.xlsx", label)
 
 
 def _is_centromed_export(db_name, hospital_name, db_server=None, db_user=None, db_password=None):
