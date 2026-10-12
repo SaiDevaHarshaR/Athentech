@@ -1,4 +1,7 @@
 import time
+import database.connection as _dbconn
+from agent import guardian
+guardian.install(_dbconn)   # must run before other modules import get_hospital_connection
 #from reports.excel_export import export_all_branches_collection
 from reports.excel_export import run_excel_export
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -367,6 +370,87 @@ def api_change_admin_password(username: str, req: AdminPasswordRequest, admin: s
 @app.get("/admin/institutions")
 def api_list_institutions(admin: str = Depends(require_admin)):
     return {"status": "success", "institutions": list_institutions()}
+
+
+# Guardian support console is hosted by the existing API, not a separate service.
+@app.get("/admin/guardian/console", include_in_schema=False)
+def guardian_console():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "guardian_console.html"), media_type="text/html", headers={"Cache-Control": "no-store"})
+
+@app.get("/admin/guardian/support-report")
+def guardian_support_report(admin: str = Depends(require_admin)):
+    from agent.guardian_support import diagnostic_report
+    return diagnostic_report(guardian.status())
+
+@app.get("/admin/guardian/schema-check/{code}")
+def guardian_schema_check(code: str, admin: str = Depends(require_admin)):
+    """Metadata-only inspection; first successful inspection stores a comparison baseline."""
+    from agent.guardian_support import inspect_columns, compare_snapshot
+    v = validate_license(code)
+    if not v.get("valid"):
+        raise HTTPException(status_code=404, detail="Unknown or invalid activation code")
+    db = v.get("db_name")
+    conn = None
+    try:
+        conn = get_hospital_connection(db, v.get("db_server"), v.get("db_user"), v.get("db_password"))
+        if conn is None:
+            raise HTTPException(status_code=502, detail="Database unavailable")
+        changes = compare_snapshot(db, inspect_columns(conn), save=False)
+        if not changes["baseline_exists"]:
+            changes = compare_snapshot(db, inspect_columns(conn), save=True)
+        return {"status":"success","database":db,"schema":changes,
+                "message":"Schema changes need DBA review; no client database objects were modified."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        ev=guardian.record_event(db,"selfcheck",str(e))
+        raise HTTPException(status_code=502,detail=ev["message"])
+    finally:
+        if conn is not None:
+            try: conn.close()
+            except Exception: pass
+
+
+@app.get("/admin/guardian/status")
+def api_guardian_status(admin: str = Depends(require_admin)):
+    """Clients with recent errors, plain-language cause and safe action; open circuit breakers."""
+    return {"status": "success", **guardian.status()}
+
+
+@app.get("/admin/guardian/selfcheck/{code}")
+def api_guardian_selfcheck(code: str, admin: str = Depends(require_admin)):
+    """Read-only health check of ONE client: connect, schema profile, sample query. Plain-language result."""
+    from agent import schema_ctx
+    v = validate_license(code)
+    if not v.get("valid"):
+        raise HTTPException(status_code=404, detail="Unknown or invalid activation code.")
+    db = v.get("db_name")
+    checks = []
+    def add(name, ok, detail=""):
+        checks.append({"check": name, "ok": bool(ok), "detail": guardian._clean(detail, 200)})
+    conn = None
+    try:
+        conn = get_hospital_connection(db, v.get("db_server"), v.get("db_user"), v.get("db_password"))
+        add("Database connection", conn is not None, "" if conn else "Could not connect")
+        if conn:
+            p = schema_ctx.get_profile(conn, db, v.get("db_server"))
+            caps = schema_ctx.capabilities(p)
+            add("Schema profile", True, f"metric={p.get('coll_metric')} ({caps.get('collection_metric_source')})")
+            add("Collections table readable", caps["collections"])
+            add("Config pins valid", not caps["config_rejected"], str(caps["config_rejected"]))
+            cur = conn.cursor()
+            cur.execute("SELECT TOP 1 1 FROM trnINVLABPRI")
+            add("Bills table readable", cur.fetchone() is not None)
+    except Exception as e:
+        ev = guardian.record_event(db, "selfcheck", str(e))
+        add("Self-check", False, ev["message"] + " " + ev["safe_action"])
+    finally:
+        try:
+            if conn: conn.close()
+        except Exception: pass
+    return {"status": "success", "database": db, "healthy": all(c["ok"] for c in checks),
+            "circuit_open": guardian.circuit_open(db), "checks": checks}
 
 
 @app.get("/admin/client-diagnostics/{code}")
@@ -820,6 +904,7 @@ async def generate_excel(req: ExcelExportRequest):
         ),
     )
     if "error" in result:
+        guardian.record_event(validation.get("db_name"), "excel", result["error"])
         raise HTTPException(status_code=404, detail=result["error"])
 
     return StreamingResponse(
@@ -1189,6 +1274,10 @@ def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs 
         import traceback
         error_text = traceback.format_exc()
         print(error_text)
+        try:
+            guardian.record_event(locals().get("db_name"), "ask", str(e))
+        except Exception:
+            pass
         with open("crash_log.txt", "a", encoding="utf-8") as f:
             from datetime import datetime
             f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
