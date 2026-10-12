@@ -702,23 +702,23 @@ def _export_centromed_detailed_collection(period, db_name, db_server,
         make_summary("Daily Summary", "Date", by_day)
 
     detail = wb.create_sheet("Transactions")
-    columns = ["Date", "Branch", "Bill No.", "UHID", "Patient", "Payment Mode", "Amount"]
+    columns = ["Date", "Branch", "Bill No.", "UHID", "Patient", "Payment Mode", "PAIDAMOUNT", "TOTALAMOUNT", "Selected Amount", "Amount Source"]
     hr = _title_row(detail, hospital_name, len(columns))
     _style_header(detail, hr + 1, columns)
     for i, rec in enumerate(clean, hr + 2):
-        dt, branch, bill, uhid, patient, mode, _p, _t, chosen, _s = rec
-        for c, value in enumerate([dt, branch, bill, uhid, patient, mode, float(chosen)], 1):
+        dt, branch, bill, uhid, patient, mode, paid, total, chosen, source = rec
+        for c, value in enumerate([dt, branch, bill, uhid, patient, mode, float(paid), float(total), float(chosen), source], 1):
             cell = detail.cell(i, c, value)
-            if c == 7:
+            if c in (7, 8, 9):
                 cell.number_format = MONEY
             if c == 1 and isinstance(dt, (datetime, date)):
                 cell.number_format = 'dd mmm yyyy hh:mm'
     last = hr + 1 + len(clean)
     detail.cell(last + 1, 1, "GRAND TOTAL").font = Font(bold=True, name="Arial")
-    c = detail.cell(last + 1, 7, float(grand)); c.number_format = MONEY; c.font = Font(bold=True, name="Arial")
+    c = detail.cell(last + 1, 9, float(grand)); c.number_format = MONEY; c.font = Font(bold=True, name="Arial")
     detail.freeze_panes = f"A{hr + 2}"
-    detail.auto_filter.ref = f"A{hr + 1}:G{max(last, hr + 2)}"
-    for idx, width in enumerate((22, 24, 18, 18, 28, 16, 16), 1):
+    detail.auto_filter.ref = f"A{hr + 1}:J{max(last, hr + 2)}"
+    for idx, width in enumerate((22, 24, 18, 18, 28, 16, 17, 17, 18, 25), 1):
         detail.column_dimensions[get_column_letter(idx)].width = width
     detail.sheet_view.showGridLines = False
 
@@ -741,17 +741,19 @@ def _is_centromed_export(db_name, hospital_name, db_server=None, db_user=None, d
               os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",") if v.strip()}
     if (db_name or "").strip().casefold() in forced:
         return True
+    from agent.schema_ctx import get_profile, pinned_metric
+    pin = pinned_metric(db_name)
     try:
-        from agent.schema_ctx import get_profile
         conn = get_hospital_connection(db_name, db_server, db_user, db_password)
         if not conn:
-            return False
+            return pin == "total"
         try:
             return get_profile(conn, db_name, db_server)["coll_metric"] == "total"
         finally:
             conn.close()
     except Exception:
-        return False
+        # profile unreadable: honour the client's pin rather than silently using the wrong exporter
+        return pin == "total"
 
 
 def run_excel_export(
