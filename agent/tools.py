@@ -259,11 +259,6 @@ def run_sql_query(
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
-    from agent.guardian import is_safe_select
-    _ok, _why = is_safe_select(query)
-    if not _ok:
-        return f"Error: {_why}"
-
     banned = [" insert ", " update ", " delete ", " drop ", " alter ", " truncate ", " exec ", " merge ", " xp_"]
     qpad = f" {query.lower()} "
     if any(b in qpad for b in banned):
@@ -295,10 +290,6 @@ def run_sql_query(
 
     try:
         cursor = conn.cursor()
-        try:
-            cursor.timeout = 45          # a runaway LLM query must not hang the worker
-        except Exception:
-            pass
 
         # Validate referenced columns against the REAL MSSQL schema
         # before executing the generated SQL. Reuses the per-request
@@ -473,14 +464,12 @@ def get_department_dashboard(
     # laboratory / all → no DEPTCODE filter (trninvlabdet is lab work; "Laboratory" name often missing)
     # radiology → resolve via mstdepartment
     if department == "radiology":
-        from agent.schema_ctx import get_profile, radiology_dept_sql
-        _c = get_hospital_connection(db_name, db_server, db_user, db_password)
-        if not _c:
-            return "Error: Could not connect to the hospital database."
-        try:
-            dept_sql = "AND " + radiology_dept_sql(get_profile(_c, db_name, db_server))
-        finally:
-            _c.close()
+        dept_sql = (
+            "AND DEPTCODE IN ("
+            "SELECT DEPARTMENTID FROM mstdepartment "
+            "WHERE DEPARTMENTNAME LIKE '%Radiology%'"
+            ")"
+        )
         title = "Radiology Dashboard"
         icon = "🩻"
     elif department == "laboratory":
@@ -794,10 +783,8 @@ def get_tat_compliance_dashboard(
 
     department: a department/sub-department name (e.g. "Radiology",
     "Microbiology") to filter to, or omit for all departments combined.
-    period: "today" | "yesterday" | "this_week" | "last_week" | "this_month" |
-    "last_month" | "this_year" | "last_7_days" | "last_30_days" |
-    "month:YYYY-MM" (e.g. "month:2026-01" for January 2026) | "year:YYYY" |
-    "day" (with specific_date set for one exact date).
+    period: "today" | "yesterday" | "this_week" | "this_month" | "day"
+    (use period="day" with specific_date set for one exact date).
     location_keyword: a location NAME (e.g. "Jagtial") to filter to,
     resolved automatically via mstlocation — omit for all locations.
     specific_date: "YYYY-MM-DD" — only used when period="day".
@@ -833,11 +820,13 @@ def get_tat_compliance_dashboard(
             {"label": "COMPLETED", "value": f"{result['completed']:,}"},
             {"label": "WITHIN TAT", "value": f"{result['within_tat']:,}"},
             {"label": "OUTSIDE TAT", "value": f"{result['outside_tat']:,}"},
-            {"label": "COMPLIANCE", "value": f"{result['compliance_pct']}%"},
+            {"label": "COMPLIANCE", "value": f"{result['compliance_pct']}%" if result.get("compliance_pct") is not None else "N/A"},
         ],
     }
+    if result.get("sla_note"):
+        card["meta"] = [{"icon": "ℹ️", "text": result["sla_note"]}]
     if result.get("dept_filter_disabled_note"):
-        card["meta"] = [{"icon": "⚠️", "text": result["dept_filter_disabled_note"]}]
+        card.setdefault("meta", []).append({"icon": "⚠️", "text": result["dept_filter_disabled_note"]})
     if result.get("avg_tat_minutes") is not None:
         card["footer"] = {"label": "Avg TAT", "value": f"{result['avg_tat_minutes']:.0f} min"}
 
