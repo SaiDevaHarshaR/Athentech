@@ -82,13 +82,15 @@ def get_tat_compliance_dashboard(
     loc_sql = ""
     dept_sql = ""
     if department:
-        dept_map = {
-            "radiology": [9, 40, 26, 39, 1, 20, 12],  # CT, X-Ray, MRI, Ultrasound, 2D Echo, Mammography, Doppler
-        }
-        dept_ids = dept_map.get(department.lower())
-        if dept_ids:
-            ids_str = ",".join(str(i) for i in dept_ids)
-            dept_sql = f"AND inv.DEPARTMENTID IN ({ids_str})"
+        from agent.schema_ctx import get_profile, radiology_dept_sql
+        _c = get_hospital_connection(db_name, db_server, db_user, db_password)
+        if _c:
+            try:
+                _d = radiology_dept_sql(get_profile(_c, db_name, db_server), department, "dd.DEPTCODE")
+                dept_sql = (f"AND EXISTS (SELECT 1 FROM trninvlabdet dd WHERE dd.BILLNO = s.BILLNO "
+                            f"AND dd.TCODE = s.TCODE AND {_d}) ")
+            finally:
+                _c.close()
     if location_id:
         loc_sql = f"AND l.LOCATIONID = '{location_id}' "
 
@@ -108,7 +110,7 @@ SELECT inv.INVNAME, inv.TATTYPE, inv.TATTIME,
        SUM(CAST(DATEDIFF(MINUTE, s.SAMPLECOLLECTEDDATE, s.RESULTENTRYDATE) AS BIGINT)) AS SumMin
 FROM trnInvStatus s
 JOIN mstInvestigations inv ON s.TCODE = inv.INVCODE
-WHERE {date_sql} {loc_sql}
+WHERE {date_sql} {loc_sql} {dept_sql}
   AND s.SAMPLECOLLECTEDDATE IS NOT NULL AND s.RESULTENTRYDATE IS NOT NULL
   AND s.RESULTENTRYDATE >= s.SAMPLECOLLECTEDDATE
   AND s.RESULTENTRYDATE < DATEADD(DAY, 7, s.SAMPLECOLLECTEDDATE)
