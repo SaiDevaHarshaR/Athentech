@@ -259,6 +259,11 @@ def run_sql_query(
     if not query.lower().startswith("select"):
         return "Error: Only SELECT queries are allowed."
 
+    from agent.guardian import is_safe_select
+    _ok, _why = is_safe_select(query)
+    if not _ok:
+        return f"Error: {_why}"
+
     banned = [" insert ", " update ", " delete ", " drop ", " alter ", " truncate ", " exec ", " merge ", " xp_"]
     qpad = f" {query.lower()} "
     if any(b in qpad for b in banned):
