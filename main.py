@@ -369,6 +369,27 @@ def api_list_institutions(admin: str = Depends(require_admin)):
     return {"status": "success", "institutions": list_institutions()}
 
 
+@app.get("/admin/client-diagnostics/{code}")
+def api_client_diagnostics(code: str, refresh: bool = False, admin: str = Depends(require_admin)):
+    """Per-client schema profile + capabilities (what the agent detected for this database)."""
+    from agent import schema_ctx
+    v = validate_license(code)
+    if not v.get("valid"):
+        raise HTTPException(status_code=404, detail="Unknown or invalid activation code.")
+    conn = get_hospital_connection(v.get("db_name"), v.get("db_server"), v.get("db_user"), v.get("db_password"))
+    if not conn:
+        raise HTTPException(status_code=502, detail="Cannot connect to client database.")
+    try:
+        if refresh:
+            schema_ctx.invalidate(v.get("db_name"), v.get("db_server"))
+        p = schema_ctx.get_profile(conn, v.get("db_name"), v.get("db_server"))
+        return {"status": "success", "database": v.get("db_name"),
+                "capabilities": schema_ctx.capabilities(p), "profile": p}
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+
 @app.post("/admin/institutions")
 def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
     try:
