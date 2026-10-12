@@ -715,6 +715,25 @@ def _export_centromed_detailed_collection(period, db_name, db_server,
     return _save(wb, f"centromed_detailed_collection_{safe}.xlsx", label)
 
 
+def _is_centromed_export(db_name, hospital_name):
+    """Select only CentroMed, never the KonnectLIS collection exporter.
+
+    Accept the known CentroMed database aliases and explicit site config.
+    The hospital display name is a secondary match for deployments whose
+    physical SQL database name differs from the institution's name.
+    """
+    aliases = {"centromed", "centromedlis"}
+    configured = {
+        value.strip().casefold()
+        for value in os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",")
+        if value.strip()
+    }
+    database = (db_name or "").strip().casefold()
+    hospital = (hospital_name or "").strip().casefold()
+    return (database in aliases or database in configured or
+            hospital in aliases)
+
+
 def run_excel_export(
     report_type: str,
     period: str,
@@ -730,10 +749,7 @@ def run_excel_export(
     if key == "collection":
         # Opt-in by exact database identifier. Never infer institution type
         # from collection amounts. All other databases use unchanged legacy code.
-        enabled = {value.strip().casefold() for value in
-                   os.environ.get("CENTROMED_EXCEL_FALLBACK_DATABASES", "").split(",")
-                   if value.strip()}
-        if (db_name or "").strip().casefold() in enabled:
+        if _is_centromed_export(db_name, hospital_name):
             return _export_centromed_detailed_collection(
                 period, db_name, db_server, db_user, db_password,
                 hospital_name, location_keyword,
