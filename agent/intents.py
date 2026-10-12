@@ -1192,7 +1192,7 @@ def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, m
         return None
     modality_map = {
         "mri": "MRI", "ct scan": "CT", "ultrasound": "Ultrasound",
-        "x-ray": "X-Ray", "xray": "X-Ray", "mammography": "Mammography", "2d echo": "2D ECHO",
+        "x-ray": "X-Ray", "xray": "X-Ray", "mammography": "Mammography", "2d echo": "Echo",
     }
     term = next((v for k, v in modality_map.items() if k in q), None)
     if not term:
@@ -1202,10 +1202,11 @@ def _handle_modality_volume(q, role, db_name, db_server, db_user, db_password, m
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
+        from agent.report_tool import _MODALITY_CASE   # word-bounded names: "CT" must not match "Direct Bilirubin"
         cursor.execute(
             "SELECT COUNT(*) FROM trninvlabdet d JOIN mstInvestigations i ON d.TCODE = i.INVCODE "
-            "WHERE i.INVNAME LIKE ? AND d.BILLDATE >= ? AND d.BILLDATE < ?",
-            (f"%{term}%", date_from, date_to),
+            f"WHERE ({_MODALITY_CASE}) = ? AND d.BILLDATE >= ? AND d.BILLDATE < ?",
+            (term, date_from, date_to),
         )
         n = cursor.fetchone()[0]
         if not n:

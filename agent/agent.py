@@ -414,7 +414,7 @@ _NEG_CLAIM = re.compile(
 _BAD_TOOL = re.compile(r"^(error|query failed|query rejected|tool error|unsupported|could not connect)", re.I)
 
 
-def _integrity_guard(text, ok_results, bad_results, tools_used):
+def _integrity_guard(text, ok_results, bad_results, tools_used, verified_empty=False):
     """Last line of defence against confident wrong answers."""
     if not text:
         return text
@@ -428,10 +428,9 @@ def _integrity_guard(text, ok_results, bad_results, tools_used):
         return ("I can't verify this from the hospital data, so I won't guess. "
                 "Please ask in terms of a specific report, branch and period.")
     # "None found" resting on thin evidence -> keep the answer but label it honestly.
-    if _NEG_CLAIM.search(text) and (len(ok_results) <= 1):
-        text += ("\n\n⚠ This is based on a single query that returned no rows"
-                 + (f" ({', '.join(sorted(set(tools_used)))})" if tools_used else "")
-                 + ". It is not proof that none exist — please confirm in the standard report.")
+    if _NEG_CLAIM.search(text) and (len(ok_results) <= 1) and not verified_empty:
+        text += ("\n\nℹ️ I found nothing in the place I looked. If you expected results, they may be stored "
+                 "somewhere I haven't checked — tell me what to look at and I'll check.")
     return text
 
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
@@ -448,10 +447,11 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
 
     last_tool_text = None
     ok_results, bad_results, tools_used = [], [], []
+    verified = []
     t_loop = time.time()
     for _round in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
-            return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used), total_tokens
+            return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
         if time.time() - t_loop > LLM_BUDGET_SECONDS:
             print(f"[llm] budget {LLM_BUDGET_SECONDS}s exceeded after {_round} rounds — forcing final answer", flush=True)
             break
@@ -474,6 +474,8 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             result_text = str(result)
             last_tool_text = result_text
             tools_used.append(tool_call["name"])
+            if "[verified-empty]" in result_text:
+                verified.append(True)
             _rt = result_text.strip()
             if _BAD_TOOL.match(_rt):
                 bad_results.append(_rt)
@@ -497,7 +499,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         total_tokens += _extract_tokens(response)
 
     if not getattr(response, "tool_calls", None):
-        return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used), total_tokens
+        return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
 
     messages.append(
         HumanMessage(
@@ -517,7 +519,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     if not text and last_tool_text:
         text = ("I couldn't finish this analysis automatically. The last result I got was:\n\n"
                 + last_tool_text[:800] + "\n\nTry rephrasing with one branch or one month.")
-    return _integrity_guard(text or None, ok_results, bad_results, tools_used), total_tokens
+    return _integrity_guard(text or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
 
 # AFTER:
 def _preflight_schema_search(question: str, role: str) -> str:

@@ -55,6 +55,7 @@ def _scan(conn, db_name=None):
         p["pri_doc"] = _pick(pc, "REFDOCTCODE") or p["pri_doc"]
         p["det_loc"] = _pick(dc, "LOCATIONID", "LOCID")
         p["pat_loc"] = _pick(pt, "LOCATIONID", "LOCID")
+        p["confirmed"] = [k for k in ("coll_paid", "coll_total", "pri_loc", "pri_doc", "det_loc", "pat_loc") if p.get(k)]
         p["pat_phones"] = [pt[c] for c in ("PHONENO", "MOBILENO", "MOBILE", "PHONE", "CONTACTNO", "MOBILENUMBER") if c in pt] or ["PHONENO"]
 
         # Metric = a client-wide habit, decided on ROW evidence (not money sums):
@@ -85,6 +86,7 @@ def _scan(conn, db_name=None):
                     f"(SELECT {idc} FROM {src} WHERE {namec} LIKE '%Radiology%')")
                 if cur.fetchone():
                     p["dept_src"] = src
+                    p["dept_src_confirmed"] = True
                     break
             except Exception:
                 continue
@@ -94,10 +96,101 @@ def _scan(conn, db_name=None):
         o = ov.get((db_name or "").casefold())
         if o in ("paid", "total"):
             p["coll_metric"] = o
+            p["coll_metric_source"] = "env-override"
+        _apply_client_config(p, db_name, {"cc": cc, "pc": pc, "pt": pt, "dc": dc})
         p["facts"] = _facts(cur, p)
     except Exception as e:
         print(f"[schema_ctx] scan failed, using defaults: {e}", flush=True)
+    if "client_config_version" not in p:
+        _apply_client_config(p, db_name, {})
     return p
+
+
+def pinned_metric(db_name):
+    """Collection metric pinned in config/clients/<db>.json (no DB access needed), or None."""
+    import json, re
+    if not db_name or not re.fullmatch(r"[A-Za-z0-9_.-]+", str(db_name)) or db_name in (".", ".."):
+        return None
+    fp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "clients", f"{db_name}.json")
+    try:
+        with open(fp, encoding="utf-8-sig") as fh:
+            v = json.load(fh).get("coll_metric")
+        return v if v in ("paid", "total") else None
+    except Exception:
+        return None
+
+
+def _apply_client_config(p, db_name, tables=None):
+    """Versioned per-client pin: config/clients/<db_name>.json, e.g. {"version":2,"coll_metric":"total","pat_name":"NAME"}.
+    Every column pin is validated against this client's real INFORMATION_SCHEMA; invalid pins are ignored and logged."""
+    import json
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "clients")
+    if not db_name or not __import__("re").fullmatch(r"[A-Za-z0-9_.-]+", str(db_name)) or db_name in (".", ".."):
+        return
+    fp = os.path.join(base, f"{db_name}.json")
+    if not os.path.isfile(fp):
+        return
+    tables = tables or {}
+    col_table = {"coll_paid": "cc", "coll_total": "cc", "pri_paid": "pc", "pri_total": "pc", "pri_loc": "pc",
+                 "pri_doc": "pc", "pat_date": "pt", "pat_name": "pt", "pat_loc": "pt", "det_loc": "dc"}
+    try:
+        with open(fp, encoding="utf-8-sig") as fh:
+            cfg = json.load(fh)
+        applied, rejected = {}, {}
+        for k, v in cfg.items():
+            if k in ("version", "facts") or k not in _DEFAULTS:
+                if k != "version":
+                    rejected[k] = "unknown key"
+                continue
+            if k == "coll_metric":
+                ok = v in ("paid", "total") and bool(p.get("coll_paid") if v == "paid" else p.get("coll_total"))
+            elif k == "dept_src":
+                ok = v in ("mstdepartment", "mstsubdepartment")
+            elif k == "pat_phones":
+                cols = tables.get("pt", {})
+                ok = isinstance(v, list) and v and all(isinstance(x, str) and x.upper() in cols for x in v)
+                if ok:
+                    v = [cols[x.upper()] for x in v]
+            elif k in col_table:
+                cols = tables.get(col_table[k], {})
+                ok = isinstance(v, str) and v.upper() in cols
+                if ok:
+                    v = cols[v.upper()]
+            else:
+                ok = False
+            if ok:
+                p[k] = v
+                applied[k] = v
+            else:
+                rejected[k] = f"{v!r} not valid for this database"
+        p["client_config_version"] = cfg.get("version", 1)
+        p["client_config_rejected"] = rejected
+        if "coll_metric" in applied:
+            p["coll_metric_source"] = f"client-config v{p['client_config_version']}"
+        print(f"[schema_ctx] client config {fp} applied={applied} rejected={rejected}", flush=True)
+    except Exception as e:
+        print(f"[schema_ctx] bad client config {fp}: {e}", flush=True)
+
+
+def invalidate(db_name, db_server=None):
+    """Drop cached profile for ONE client only."""
+    with _lock:
+        _cache.pop(f"{db_server or ''}|{db_name}", None)
+
+
+def capabilities(p):
+    """Only confirmed-in-schema features count (scan failure => nothing confirmed)."""
+    conf = set(p.get("confirmed") or [])
+    return {
+        "collections": "coll_paid" in conf or "coll_total" in conf,
+        "radiology_split": bool(p.get("dept_src_confirmed")),
+        "branches": "pri_loc" in conf or "det_loc" in conf,
+        "doctors": "pri_doc" in conf,
+        "config_rejected": p.get("client_config_rejected") or {},
+        "collection_metric": p.get("coll_metric"),
+        "collection_metric_source": p.get("coll_metric_source", "auto-detected from row evidence"),
+        "client_config_version": p.get("client_config_version"),
+    }
 
 
 def _q(cur, sql, n=40):

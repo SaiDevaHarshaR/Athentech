@@ -82,7 +82,7 @@ def _like(v):
     return f"%{v}%"
 
 
-def build_sql(metric, group_by, d0, d1, f, p, top):
+def build_sql(metric, group_by, d0, d1, f, p, top, self_mode=None):
     """Returns (sql, params, source_text, kind)  kind: money|count. Raises ValueError if unsupported."""
     params = [d0.isoformat(), d1.isoformat()]
     where, joins, wparams = [], [], []
@@ -113,7 +113,7 @@ def build_sql(metric, group_by, d0, d1, f, p, top):
             raise ValueError(f"Only branch/doctor filters are available for {metric}; use metric tests for test/department/status.")
         base = "FROM trnINVLABPRI pr"
         datec = "pr.BILLDATE"
-        if group_by == "doctor" or f.get("doctor"):
+        if group_by == "doctor" or f.get("doctor") or self_mode:
             joins.append(f"LEFT JOIN mstrefdoctor doc ON pr.{p['pri_doc']} = doc.DOCID")
         if group_by == "branch" or f.get("branch"):
             if not p.get("pri_loc"):
@@ -132,6 +132,10 @@ def build_sql(metric, group_by, d0, d1, f, p, top):
         branch_col = "l.LOCATIONNAME"
         if f.get("doctor"):
             where.append("doc.DOCNAME LIKE ?"); wparams.append(_like(f["doctor"]))
+        if self_mode == "exclude":
+            where.append("UPPER(COALESCE(doc.DOCNAME, '')) NOT LIKE '%SELF%'")
+        elif self_mode == "only":
+            where.append("UPPER(COALESCE(doc.DOCNAME, '')) LIKE '%SELF%'")
 
     elif metric == "tests":
         if f.get("doctor") or group_by in ("doctor", "mode"):
@@ -207,6 +211,31 @@ def build_sql(metric, group_by, d0, d1, f, p, top):
     return sql, params + wparams, src, kind
 
 
+def build_refund_fallback_sql(group_by, d0, d1, f, p, top):
+    """Refunds recorded on the bill header (RefundAmt) — used when the collection table has no refund rows."""
+    if group_by in ("doctor", "test", "department", "status", "modality", "mode"):
+        raise ValueError(f"'{group_by}' is not available for refunds.")
+    if group_by == "branch" and not p.get("pri_loc"):
+        raise ValueError("Bills have no branch column in this database.")
+    join = ""
+    if p.get("pri_loc") and (group_by == "branch" or f.get("branch")):
+        join = f"LEFT JOIN mstLocation l ON CAST(pr.{p['pri_loc']} AS VARCHAR(50)) = CAST(l.LOCATIONID AS VARCHAR(50))"
+    dim = {"branch": "COALESCE(l.LOCATIONNAME, 'Unknown')", "day": "CONVERT(varchar(10), pr.BILLDATE, 23)",
+           "month": "CONVERT(varchar(7), pr.BILLDATE, 23)"}.get(group_by)
+    where = ["pr.BILLDATE >= ? AND pr.BILLDATE < ?", "ISNULL(pr.RefundAmt, 0) > 0"]
+    params = [d0.isoformat(), d1.isoformat()]
+    if f.get("branch") and join:
+        where.append("l.LOCATIONNAME LIKE ?"); params.append(_like(f["branch"]))
+    top = 100 if group_by in ("day", "month") else max(1, min(int(top or 15), 50))
+    if group_by == "none":
+        sql = f"SELECT 'Total' AS label, SUM(pr.RefundAmt) AS value FROM trnINVLABPRI pr {join} WHERE {' AND '.join(where)}"
+    else:
+        order = "label" if group_by in ("day", "month") else "value DESC"
+        sql = (f"SELECT TOP {top} {dim} AS label, SUM(pr.RefundAmt) AS value FROM trnINVLABPRI pr {join} "
+               f"WHERE {' AND '.join(where)} GROUP BY {dim} ORDER BY {order}")
+    return sql, params, "trnINVLABPRI.RefundAmt on bills dated in the period (bill date, not refund date)", "money"
+
+
 def _fmt(v, kind):
     try:
         v = float(v or 0)
@@ -275,7 +304,8 @@ def run_report(
                    "modality": modality, "doctor": doctor}
         filters = {k: v for k, v in filters.items() if v}
         try:
-            sql, params, src, kind = build_sql(metric, group_by, d0, d1, filters, p, top_n)
+            sm = "exclude" if (group_by == "doctor" and metric in ("bills", "bill_value", "avg_bill") and not filters.get("doctor")) else None
+            sql, params, src, kind = build_sql(metric, group_by, d0, d1, filters, p, top_n, self_mode=sm)
         except ValueError as e:
             return f"Unsupported: {e}"
         cur = conn.cursor()
@@ -286,18 +316,33 @@ def run_report(
         print(f"[run_report] {metric}/{group_by} {label} filters={filters}\nSQL: {sql}", flush=True)
         cur.execute(sql, params)
         rows = cur.fetchall()
+        checked = [src]
+        if metric == "refunds" and (not rows or all(r[1] in (None, 0) for r in rows)):
+            fsql, fparams, fsrc, kind = build_refund_fallback_sql(group_by, d0, d1, filters, p, top_n)
+            print(f"[run_report] refunds fallback\nSQL: {fsql}", flush=True)
+            cur.execute(fsql, fparams)
+            rows = cur.fetchall()
+            checked.append(fsrc)
+            src = fsrc if rows and any(r[1] for r in rows) else " and ".join(checked)
         what = f"{metric.replace('_', ' ')}" + (f" by {group_by}" if group_by != "none" else "")
         scope = ", ".join(f"{k}={v}" for k, v in filters.items()) or "all branches"
         if not rows or all(r[1] in (None, 0) for r in rows):
-            return (f"No rows: {what} for {label} ({scope}). Checked {src}. "
-                    "This is the result of this one query; confirm in the standard report if unexpected.")
+            return (f"No rows: {what} for {label} ({scope}). Sources checked: {' and '.join(checked)}. "
+                    "[verified-empty] This is the complete answer for these sources: there are none.")
+        extra = ""
+        if group_by == "doctor" and metric in ("bills", "bill_value", "avg_bill") and not filters.get("doctor"):
+            ssql, sparams, _s, _k = build_sql(metric, "none", d0, d1, filters, p, 1, self_mode="only")
+            cur.execute(ssql, sparams)
+            srow = cur.fetchone()
+            if srow and srow[1]:
+                extra = f" · Self/walk-in excluded from list: {_fmt(srow[1], kind)}"
         total = sum(float(r[1] or 0) for r in rows if r[1] is not None)
         if group_by == "none":
             card = {"icon": "📊", "title": what.title(), "subtitle": f"{label} · {scope}",
                     "stats": [{"label": "TOTAL", "value": _fmt(rows[0][1], kind)}],
                     "footer": {"label": "Source", "value": src}}
             return "```dashboard-card\n" + json.dumps(card) + "\n```"
-        intro = f"{label} · {scope}" + (f" · total {_fmt(total, kind)}" if metric != "avg_bill" else "")
+        intro = f"{label} · {scope}" + (f" · total {_fmt(total, kind)}" if metric != "avg_bill" else "") + extra
         card = {"icon": "📊", "title": what.title(), "intro": intro,
                 "items": [{"primary": str(r[0]), "fields": [_fmt(r[1], kind)]} for r in rows],
                 "footer": {"label": "Source", "value": src}}
