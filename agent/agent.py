@@ -182,6 +182,7 @@ def _get_provider_chain() -> list:
         _provider_chain_cache["built_at"] = now
     return _provider_chain_cache["chain"]
 MAX_TOOL_ROUNDS = 6
+LLM_BUDGET_SECONDS = 70      # wall-clock cap for the whole tool loop; then answer with what we have
 # Was 2 — enough for one focused metric group (describe_table + run_sql_query
 # on a single table) but not for a broad multi-source dashboard question
 # needing several different tables (patients + billing + labs + radiology
@@ -243,7 +244,7 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
                 retry_seconds = _extract_retry_seconds(str(e), current_provider)
                 mark_exhausted(current_provider, ttl_seconds=retry_seconds)
                 break
-            time.sleep(20)
+            time.sleep(4)      # was 20s: try the next provider quickly instead of idling
 
     remaining = [(name, m) for name, m in _get_provider_chain() if name != current_provider]
     for name, model in remaining:
@@ -398,6 +399,40 @@ def _extract_tokens(response) -> int:
     return 0
 
 
+
+INTEGRITY_RULES = """ANSWER INTEGRITY — these rules beat every style or brevity rule:
+1. Every number, name and date you state must come from a tool result in THIS conversation. Never estimate, round up, or fill gaps from memory.
+2. Never conclude "no X exists / none recorded / zero" from one empty or failed query. First try the alternate source named in the CLIENT DATA MAP (e.g. both refund sources, other status values). If still empty, say exactly what you checked: table, column, filter and period — then say it is not proof that none exist.
+3. If a query errors or is rejected, fix it and retry. If it still fails, say plainly that you could not retrieve it. Do NOT answer from a different table that merely sounds related.
+4. Do not mix scopes: say whether the figure is one branch or all branches, and the exact period used.
+5. If the question is ambiguous (which period? which branch? which meaning of "visit"?), state the assumption in one short line before the answer.
+6. Prefer "I can't verify this from the available data" over a confident guess."""
+
+_NEG_CLAIM = re.compile(
+    r"\b(no|not any|zero|none|nothing|didn'?t find|could not find)\b.{0,60}\b(record|recorded|found|data|refund|cancell|reject|visit|bill|test|collection)", re.I | re.S)
+_BAD_TOOL = re.compile(r"^(error|query failed|query rejected|tool error|unsupported|could not connect)", re.I)
+
+
+def _integrity_guard(text, ok_results, bad_results, tools_used):
+    """Last line of defence against confident wrong answers."""
+    if not text:
+        return text
+    # Every data call failed, yet the model produced an answer anyway -> don't ship it.
+    if bad_results and not ok_results:
+        return ("I couldn't get a reliable answer to this: my database query failed "
+                f"({bad_results[-1][:160].strip()}). Please rephrase with one branch or one month, "
+                "or ask your administrator to check this report.")
+    # Answer contains figures but no tool ever returned data -> it is made up.
+    if not ok_results and re.search(r"\d{2,}", text) and tools_used is not None and not tools_used:
+        return ("I can't verify this from the hospital data, so I won't guess. "
+                "Please ask in terms of a specific report, branch and period.")
+    # "None found" resting on thin evidence -> keep the answer but label it honestly.
+    if _NEG_CLAIM.search(text) and (len(ok_results) <= 1):
+        text += ("\n\n⚠ This is based on a single query that returned no rows"
+                 + (f" ({', '.join(sorted(set(tools_used)))})" if tools_used else "")
+                 + ". It is not proof that none exist — please confirm in the standard report.")
+    return text
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
     total_tokens = 0
@@ -410,9 +445,15 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         ), total_tokens
     total_tokens += _extract_tokens(response)
 
-    for _ in range(MAX_TOOL_ROUNDS):
+    last_tool_text = None
+    ok_results, bad_results, tools_used = [], [], []
+    t_loop = time.time()
+    for _round in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
-            return (_extract_text(response.content) or None), total_tokens
+            return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used), total_tokens
+        if time.time() - t_loop > LLM_BUDGET_SECONDS:
+            print(f"[llm] budget {LLM_BUDGET_SECONDS}s exceeded after {_round} rounds — forcing final answer", flush=True)
+            break
 
         messages.append(response)
 
@@ -430,14 +471,23 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                     result = f"Tool error: {e}"
 
             result_text = str(result)
-            if len(result_text) > 1200:
-                result_text = result_text[:1200] + "\n...[truncated]"
+            last_tool_text = result_text
+            tools_used.append(tool_call["name"])
+            _rt = result_text.strip()
+            if _BAD_TOOL.match(_rt):
+                bad_results.append(_rt)
+            elif not _rt.lower().startswith(("no data found", "no records", "no ")):
+                ok_results.append(_rt)
+            if len(result_text) > 900:
+                result_text = result_text[:900] + "\n...[truncated]"
 
             messages.append(
                 ToolMessage(content=result_text, tool_call_id=tool_call["id"])
             )
 
+        _t = time.time()
         response = _invoke_with_retry(llm_with_tools, messages, fallback_tools=list(tools_by_name.values()))
+        print(f"[llm] round {_round + 1}: {time.time() - _t:.1f}s, ~{sum(len(str(getattr(m, 'content', ''))) for m in messages)} chars in context", flush=True)
         if response is None:
             return (
                 "AI rate limit reached while processing tools. "
@@ -446,7 +496,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
         total_tokens += _extract_tokens(response)
 
     if not getattr(response, "tool_calls", None):
-        return (_extract_text(response.content) or None), total_tokens
+        return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used), total_tokens
 
     messages.append(
         HumanMessage(
@@ -456,11 +506,17 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             )
         )
     )
-    final = _invoke_with_retry(llm_with_tools, messages, retries=0, fallback_tools=list(tools_by_name.values()))
+    # Final answer: use the model WITHOUT tools so it cannot answer with another (empty) tool call.
+    plain = getattr(llm_with_tools, "bound", llm_with_tools)
+    final = _invoke_with_retry(plain, messages, retries=0, fallback_tools=None)
     if final is None:
         return "AI rate limit reached. Wait 1 minute and try again.", total_tokens
     total_tokens += _extract_tokens(final)
-    return (_extract_text(final.content) or None), total_tokens
+    text = _extract_text(final.content)
+    if not text and last_tool_text:
+        text = ("I couldn't finish this analysis automatically. The last result I got was:\n\n"
+                + last_tool_text[:800] + "\n\nTry rephrasing with one branch or one month.")
+    return _integrity_guard(text or None, ok_results, bad_results, tools_used), total_tokens
 
 # AFTER:
 def _preflight_schema_search(question: str, role: str) -> str:
@@ -875,6 +931,7 @@ refusal — nothing else fits A or C.
                     _p, location_names(db_name, db_server, db_user, db_password))))
         except Exception as _e:
             print(f"[agent] data map skipped: {_e}", flush=True)
+        messages.append(SystemMessage(content=INTEGRITY_RULES))
 
         question_lower = question.lower()
         wants_dashboard_card = any(
