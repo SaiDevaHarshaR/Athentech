@@ -66,6 +66,23 @@ def _period_dates(q: str):
         d = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
         return d, (date.fromisoformat(d) + timedelta(days=1)).isoformat(), d
 
+    # Whole named month, e.g. "August 2026", or ISO month "2026-08".
+    # Deliberately placed after exact-day handling and before day-name parsing.
+    month_names = {name: idx for idx, name in enumerate(
+        ("january", "february", "march", "april", "may", "june",
+         "july", "august", "september", "october", "november", "december"), 1)}
+    named_month = re.search(
+        r"\b(" + "|".join(month_names) + r")\s+(20\d{2})\b", q)
+    iso_month = re.search(r"\b(20\d{2})-(0[1-9]|1[0-2])\b(?!-\d{2})", q)
+    if named_month or iso_month:
+        if named_month:
+            month, year = month_names[named_month.group(1)], int(named_month.group(2))
+        else:
+            year, month = int(iso_month.group(1)), int(iso_month.group(2))
+        start = date(year, month, 1)
+        end = date(year + (month == 12), month % 12 + 1, 1)
+        return start.isoformat(), end.isoformat(), start.strftime("%B %Y")
+
     # Specific named date, e.g. "april 20th 2025", "20 april 2025"
     months = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
               "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
@@ -1319,58 +1336,98 @@ def _handle_tat(q, role, db_name, db_server, db_user, db_password, matched_keywo
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
 
-    # Department-specific TAT → LLM (this intent has no dept filter)
+    # Avoid guessing unsupported department-specific TAT joins.
     if _dept_filter_in_question(q):
         return None
 
-    # Only periods the TAT tools support
-    if "yesterday" in q:
-        period = "yesterday"
-    elif "this week" in q:
-        period = "this_week"
-    elif "today" in q:
-        period = "today"
-    elif any(x in q for x in (
-        "last month", "this month", "last week", "this year", "last year",
-        "last 7", "last 30",
-    )) or re.search(r"\b20\d{2}\b", q):
-        return None  # period beyond tool → LLM
-    else:
-        period = "today"  # bare "tat compliance" / "average tat"
+    # TAT dashboard accepts historic month:YYYY-MM and day/specific_date.
+    # Parse concrete dates before relative periods; never silently use Today.
+    from datetime import date as _date
+    import calendar
+    specific_date = None
+    m_day = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", q)
+    month_names = {name.lower(): idx for idx, name in enumerate(calendar.month_name) if name}
+    m_named_day = re.search(r"\b(" + "|".join(month_names) + r")\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})\b", q)
+    m_named_day_reverse = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(" + "|".join(month_names) + r")\s+(20\d{2})\b", q)
+    m_month = re.search(r"\b(" + "|".join(month_names) + r")\s+(20\d{2})\b", q)
+    m_iso_month = re.search(r"\b(20\d{2})-(0[1-9]|1[0-2])\b(?!-\d{2})", q)
+    m_year = re.search(r"\b(20\d{2})\b", q)
+    try:
+        if m_day:
+            specific_date = _date.fromisoformat(m_day.group(1)).isoformat()
+            period = "day"
+        elif m_named_day:
+            specific_date = _date(int(m_named_day.group(3)), month_names[m_named_day.group(1)], int(m_named_day.group(2))).isoformat()
+            period = "day"
+        elif m_named_day_reverse:
+            specific_date = _date(int(m_named_day_reverse.group(3)), month_names[m_named_day_reverse.group(2)], int(m_named_day_reverse.group(1))).isoformat()
+            period = "day"
+        elif m_month:
+            period = f"month:{m_month.group(2)}-{month_names[m_month.group(1)]:02d}"
+        elif m_iso_month:
+            period = f"month:{m_iso_month.group(1)}-{m_iso_month.group(2)}"
+        elif "last month" in q:
+            period = "last_month"
+        elif "this month" in q:
+            period = "this_month"
+        elif "last week" in q:
+            period = "last_week"
+        elif "this week" in q:
+            period = "this_week"
+        elif "yesterday" in q:
+            period = "yesterday"
+        elif "today" in q:
+            period = "today"
+        elif "last 7" in q:
+            period = "last_7_days"
+        elif "last 30" in q:
+            period = "last_30_days"
+        elif "this year" in q:
+            period = "this_year"
+        elif "last year" in q:
+            period = f"year:{_date.today().year - 1}"
+        elif m_year:
+            period = f"year:{m_year.group(1)}"
+        else:
+            period = "today"
+    except ValueError:
+        return "Error: invalid TAT reporting date."
 
-    from agent.tools import check_tat_alert, get_tat_compliance_dashboard
-    import re as _re
-    m = _re.search(r"(\d+(?:\.\d+)?)\s*%", q)
-
-    loc_m = _re.search(r"\b" + location_regex(location_names(db_name, db_server, db_user, db_password)), q, _re.IGNORECASE)
+    from agent.tools import get_tat_compliance_dashboard
+    m_threshold = re.search(r"(\d+(?:\.\d+)?)\s*%", q)
+    loc_m = re.search(r"\b" + location_regex(location_names(db_name, db_server, db_user, db_password)), q, re.IGNORECASE)
     location_keyword = loc_m.group(1) if loc_m else None
 
-    if m or "compliance" in q or "alert" in q:
-        raw = check_tat_alert.invoke({
-            "threshold_pct": float(m.group(1)) if m else 80.0,
-            "period": period,
-            "location_keyword": location_keyword,
-            "role": role, "db_name": db_name, "db_server": db_server,
-            "db_user": db_user, "db_password": db_password,
-        })
-    else:
-        raw = get_tat_compliance_dashboard.invoke({
-            "period": period, "location_keyword": location_keyword,
-            "role": role, "db_name": db_name,
-            "db_server": db_server, "db_user": db_user, "db_password": db_password,
-        })
+    # Use the SAME completed-test window for TAT compliance and overdue
+    # summaries, rather than an alert tool with different date support.
+    raw = get_tat_compliance_dashboard.invoke({
+        "period": period,
+        "specific_date": specific_date,
+        "location_keyword": location_keyword,
+        "role": role,
+        "db_name": db_name,
+        "db_server": db_server,
+        "db_user": db_user,
+        "db_password": db_password,
+    })
     text = raw if isinstance(raw, str) else str(raw)
     if "```dashboard-card" in text or "```list-card" in text:
         return text
     if text.startswith("Error"):
         return text
-    m2 = re.search(r"(\d+(?:\.\d+)?)%", text)
-    icon = "🚨" if "🚨" in text or "below" in text else "⏱️"
+    # Make zero-data state readable, rather than showing a long sentence as
+    # the numeric COMPLIANCE metric. No duplicate text in the footer.
+    if "No completed tests" in text or "No data found" in text:
+        return _dashboard_card(icon="⏱️", title="TAT Compliance", subtitle=period,
+                               stats=[{"label": "COMPLETED", "value": "0"}],
+                               footer={"label": "Details", "value": text})
+    m_pct = re.search(r"(\d+(?:\.\d+)?)%", text)
     return _dashboard_card(
-        icon=icon, title="TAT Compliance",
-        stats=[{"label": "COMPLIANCE", "value": f"{m2.group(1)}%" if m2 else text}],
+        icon="⏱️", title="TAT Compliance", subtitle=period,
+        stats=[{"label": "COMPLIANCE", "value": f"{m_pct.group(1)}%" if m_pct else "N/A"}],
         footer={"label": "Details", "value": text},
     )
+
 # ---------- stuck_samples (Sample Collected still open) ----------
 def _handle_stuck_samples(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
@@ -1672,6 +1729,7 @@ _INTENTS = [
       "radiology summary", "lab ops snapshot", "radiology numbers"],
      _handle_dept_dashboard),
     (["tat compliance", "tat alert", "overdue tat", "tests exceeding tat",
+      "tat for", "tat report", "tat summary", "tat dashboard",
       "average tat", "radiology tat", "lab tat", "turnaround time"],
      _handle_tat),
     (["lab procedures", "how many lab procedures", "how many tests done",
@@ -1694,7 +1752,8 @@ _INTENTS = [
     (["authenticated count", "authenticated today"], _handle_authenticated_count),
     (["bills for uhid", "bills of patient"], _handle_uhid_bills),
 
-    (["all branches collection", "total collection", "total paidamount",
+    (["all branches collection", "total collection", "today\'s collection", "todays collection",
+      "yesterday\'s collection", "yesterdays collection", "total paidamount",
       "collection by payment mode", "upi total", "today's collection data",
       "todays collection data", "overall collection", "grand total collection",
       "all branches collection", "payment mode wise collection",
