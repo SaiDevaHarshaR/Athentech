@@ -1692,7 +1692,18 @@ function aiMessage(message, ok = null) {
     const el = aiEl('institutionAiResult');
     if (!el) return;
     el.textContent = message;
+    el.style.whiteSpace = 'pre-line';
     el.style.color = ok === true ? 'var(--green,#16803c)' : ok === false ? '#dc2626' : 'var(--muted,#64748b)';
+}
+function aiValidationMessage(data, fallback) {
+    if (!data || typeof data !== 'object') return fallback;
+    const parts = [data.message || fallback];
+    if (data.provider || data.model) {
+        parts.push('Provider: ' + (data.provider || '?') + ' · Model: ' + (data.model || 'default'));
+    }
+    if (data.http_status) parts.push('Provider HTTP status: ' + data.http_status);
+    if (data.detail) parts.push('Diagnostic: ' + data.detail);
+    return parts.filter(Boolean).join('\n');
 }
 function aiBusy(busy) {
     _institutionAiBusy = busy;
@@ -1754,6 +1765,7 @@ async function openInstitutionAiSettings(id) {
         for (const p of data.providers) {
             const option = document.createElement('option');
             option.value = p.id; option.textContent = p.label; option.dataset.model = p.default_model || '';
+            if (p.disabled) { option.disabled = true; option.textContent += ' — unavailable'; option.title = p.reason || ''; }
             if (p.id === institution.llm_provider) option.selected = true;
             select.appendChild(option);
         }
@@ -1795,7 +1807,7 @@ async function testInstitutionAiKey() {
             provider, api_key, model:aiEl('institutionAiModel').value.trim() || null,
             base_url:provider === 'custom' ? aiEl('institutionAiUrl').value.trim() : null
         });
-        aiMessage(data.message || (ok ? 'Key works.' : 'Key verification failed.'), ok);
+        aiMessage(aiValidationMessage(data, ok ? 'Key works.' : 'Key verification failed.'), ok);
         return ok;
     } catch (e) { aiMessage('Unable to contact the provider-validation endpoint.', false); return false; }
     finally { aiBusy(false); }
@@ -1818,7 +1830,7 @@ async function saveInstitutionAiKey(e) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data.status !== 'success') {
-            aiMessage(data.message || data.detail || 'The key could not be saved.', false); return;
+            aiMessage(aiValidationMessage(data, 'The key could not be saved.'), false); return;
         }
         const institutionName = inst(_institutionAiId)?.name || 'Institution';
         aiEl('institutionAiKey').value = '';
@@ -1842,7 +1854,7 @@ async function revalidateInstitutionAiKey() {
     aiBusy(true); aiMessage('Rechecking saved key with its provider…');
     try {
         const r = await aiRequest(`/admin/institutions/${_institutionAiId}/revalidate-llm-key`, {});
-        aiMessage(r.data.message || (r.ok ? 'Saved key is valid.' : 'The saved key could not be verified.'), r.ok);
+        aiMessage(aiValidationMessage(r.data, r.ok ? 'Saved key is valid.' : 'The saved key could not be verified.'), r.ok);
         await loadInstitutionsFromAPI(); renderInstitutions();
         const updated = inst(_institutionAiId);
         if (updated) aiEl('institutionAiStatus').textContent = `Saved provider: ${updated.llm_provider || 'Unknown'} · Status: ${updated.llm_key_status || 'Unknown'}`;

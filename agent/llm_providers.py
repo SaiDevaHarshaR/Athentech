@@ -38,47 +38,68 @@ _P = {
     "zhipu":       ("Zhipu GLM", "openai", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash", "open.bigmodel.cn"),
     "qwen":        ("Alibaba Qwen (DashScope)", "openai", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus", "bailian.console.alibabacloud.com"),
     "siliconflow": ("SiliconFlow", "openai", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-72B-Instruct", "cloud.siliconflow.cn"),
-    "github":      ("GitHub Models", "openai", "https://models.inference.ai.azure.com", "gpt-4o-mini", "github.com/settings/tokens"),
+    "github":      ("GitHub Models (retired)", "openai", "https://models.inference.ai.azure.com", "gpt-4o-mini", "github.com/settings/tokens"),
     "huggingface": ("Hugging Face", "openai", "https://router.huggingface.co/v1", "meta-llama/Llama-3.3-70B-Instruct", "huggingface.co/settings/tokens"),
     "ai21":        ("AI21 Jamba", "openai", "https://api.ai21.com/studio/v1", "jamba-large", "studio.ai21.com"),
     "custom":      ("Other (OpenAI-compatible URL)", "openai", "", "", ""),
 }
 
 CATALOG = [{"id": k, "label": v[0], "base_url": v[2], "default_model": v[3], "key_page": v[4],
-            "needs_base_url": k == "custom"} for k, v in _P.items()]
+            "needs_base_url": k == "custom", "disabled": k == "github",
+            "reason": "GitHub Models inference API was retired July 30, 2026." if k == "github" else ""}
+           for k, v in _P.items()]
 
-_CREDIT = re.compile(r"insufficient[_ ]?(quota|balance|funds|credit)|exceeded your current quota|credit balance|out of credit|no credits?|"
-                     r"billing|payment required|balance is too low|quota (exceeded|exhausted)|resource_exhausted|not enough (credit|balance)|"
-                     r"top.?up|add (a )?payment|exhausted", re.I)
-_BADKEY = re.compile(r"invalid[_ ]?(api)?[_ ]?key|incorrect api key|unauthorized|authentication|invalid x-api-key|api key not valid|"
-                     r"permission_denied|invalid token|bad credentials|unauthenticated|api_key_invalid", re.I)
-_BADMODEL = re.compile(r"model.{0,40}(not found|does not exist|not supported|unknown|decommission)|no such model|invalid model", re.I)
+# Validation must test INFERENCE. Some vendors do not support GET /models, and
+# a 1-token chat may be rejected by the selected model even with a good key.
+_CREDIT = re.compile(
+    r"insufficient[_ -]?(quota|balance|funds|credits?)|billing[_ -]?(hard[_ -]?)?limit|"
+    r"exceeded your current quota|credit balance|out of credits?|no credits?|"
+    r"payment required|balance is too low|quota (exceeded|exhausted)|"
+    r"resource_exhausted|not enough (credit|balance)|top.?up|add (a )?payment|"
+    r"exhausted (balance|credits?|quota)|insufficient funds", re.I)
+_BADKEY = re.compile(
+    r"invalid[_ -]?(api[_ -]?)?key|incorrect api key|invalid x-api-key|"
+    r"api key not valid|api_key_invalid|authentication[_ -]?(error|failed)|"
+    r"invalid (authentication|token|credential)|bad credentials|unauthenticated|"
+    r"invalid authorization|incorrect (token|key)", re.I)
+_BADMODEL = re.compile(
+    r"model.{0,80}(not found|does not exist|not supported|unknown|decommission|"
+    r"invalid|not available)|no such model|model_not_found|invalid_model", re.I)
+_ACCESS = re.compile(r"permission[_ -]?denied|not authorized to (use|access)|"
+                     r"access denied|model.{0,50}(permission|not allowed|not enabled)", re.I)
 
 MESSAGES = {
-    "ok": "API key verified.",
-    "invalid_key": "Incorrect API key. Please check the key and the selected provider.",
-    "no_credits": "The key is correct, but this account has no credits or tokens left. Please top up the provider account.",
-    "rate_limited": "The key is correct, but the provider is rate-limiting it right now. Please try again in a minute.",
-    "bad_model": "The key looks valid, but the selected model was not found for this account. Choose another model.",
-    "unreachable": "Could not reach the provider to verify the key. Please try again.",
-    "bad_request": "The provider rejected the verification request. Check the provider, model and URL.",
+    "ok": "API key validated successfully. Live model inference works.",
+    "invalid_key": "Authentication failed. Confirm the key belongs to the selected provider.",
+    "no_credits": "The provider reports insufficient credits or quota. Check the account billing and quotas.",
+    "rate_limited": "The provider is rate-limiting requests. Wait for its retry window, then test again.",
+    "bad_model": "The selected model is unavailable or not recognized. Try an available model ID for this account.",
+    "access_denied": "The provider denied this model or account access. Check project permissions, region and model access.",
+    "unreachable": "The Sahasra SERVER could not connect to the provider. Check outbound HTTPS, DNS, proxy and TLS.",
+    "timeout": "The provider verification request timed out. Check server connectivity and try again.",
+    "tls_error": "Secure HTTPS verification failed. Check the server's CA certificates, TLS and inspection proxy.",
+    "provider_error": "The AI provider returned a server error. Retry after checking its status page.",
+    "endpoint_missing": "The provider endpoint was not found. This integration may need an updated API URL.",
+    "invalid_response": "The provider replied, but did not return a valid chat completion. Check model and API compatibility.",
+    "bad_request": "The provider rejected the verification request. Check the model and request compatibility.",
 }
 
 
 def provider_info(pid):
     v = _P.get(pid)
-    return None if not v else {"id": pid, "label": v[0], "protocol": v[1], "base_url": v[2], "default_model": v[3]}
+    return None if not v else {"id": pid, "label": v[0], "protocol": v[1],
+                               "base_url": v[2], "default_model": v[3]}
 
 
 def check_base_url(url):
-    """SSRF guard for user-supplied URLs ('custom' provider): https only, no credentials in URL, and the host must
-    not resolve to loopback / private / link-local / reserved addresses (blocks internal services and cloud metadata)."""
+    """Existing fail-closed SSRF guard for disabled-by-default custom providers."""
     try:
         u = urlparse(url or "")
     except Exception:
         return False, "Invalid URL."
-    if u.scheme != "https" or not u.hostname or u.username or u.password:
-        return False, "Base URL must be a plain https:// address."
+    if (u.scheme != "https" or not u.hostname or u.username or u.password
+            or u.query or u.fragment):
+        return False, "Base URL must be a plain https:// address without credentials or query strings."
     host = u.hostname
     try:
         infos = socket.getaddrinfo(host, u.port or 443, proto=socket.IPPROTO_TCP)
@@ -86,108 +107,181 @@ def check_base_url(url):
         return False, "Base URL host could not be resolved."
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified):
             return False, "Base URL points to a private or internal address, which is not allowed."
     return True, ""
 
 
 def _effective_base(provider, info, base_url):
-    """Only the 'custom' provider may use a user-supplied URL; every other provider is pinned to its catalog URL."""
     return (base_url or "").rstrip("/") if provider == "custom" else info["base_url"].rstrip("/")
-
-
-def _classify(status, body):
-    text = str(body or "")[:1500]
-    if status == 200:
-        return "ok"
-    if _CREDIT.search(text) or status == 402:
-        return "no_credits"
-    if status in (401, 403) or _BADKEY.search(text):
-        return "invalid_key"
-    if status == 429:
-        return "rate_limited"
-    if _BADMODEL.search(text) or status == 404:
-        return "bad_model"
-    if status >= 500:
-        return "unreachable"
-    return "bad_request"
 
 
 def _headers(protocol, key):
     if protocol == "anthropic":
-        return {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    return {"Authorization": f"Bearer {key}", "content-type": "application/json"}
+        return {"x-api-key": key, "anthropic-version": "2023-06-01",
+                "content-type": "application/json", "accept": "application/json"}
+    return {"Authorization": f"Bearer {key}", "content-type": "application/json",
+            "accept": "application/json"}
 
 
-def validate_key(provider, api_key, model=None, base_url=None, timeout=20):
-    """Returns {ok, code, message}. Step 1 lists models (costs nothing) to catch wrong keys;
-    step 2 sends a 1-token chat so 'no credits' is detected too. Key is never logged or returned."""
+def _error_content(resp):
+    """Return only provider error category/message; never return entire payload or headers."""
+    try:
+        data = resp.json()
+    except (ValueError, TypeError):
+        return "", "", (resp.text or "")[:1000]
+    if not isinstance(data, dict):
+        return "", "", (resp.text or "")[:1000]
+    error = data.get("error")
+    if isinstance(error, dict):
+        return (str(error.get("code") or ""), str(error.get("type") or ""),
+                str(error.get("message") or "") or (resp.text or "")[:1000])
+    if isinstance(error, str):
+        return "", "", error
+    return "", "", str(data.get("message") or "") or (resp.text or "")[:1000]
+
+
+def _safe_hint(value, key):
+    """Bound and redact provider-owned text before it reaches the admin UI."""
+    hint = str(value or "")[:320]
+    if key:
+        hint = hint.replace(key, "[REDACTED]")
+    hint = re.sub(r"(?i)bearer\s+\S+", "Bearer [REDACTED]", hint)
+    hint = re.sub(r"(?i)(api[_ -]?key|token|authorization)\s*[:=]\s*[^ ,;\s]+",
+                  r"\1=[REDACTED]", hint)
+    hint = re.sub(r"\b(sk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{20,})\b", "[REDACTED]", hint)
+    return hint.strip()
+
+
+def _classify(status, body, provider_code="", provider_type=""):
+    """Never confuse lack of permission/model access with a wrong API key."""
+    text = " ".join((str(body or ""), str(provider_code or ""), str(provider_type or "")))
+    if status in (200, 201):
+        return "ok"
+    if status == 402 or _CREDIT.search(text):
+        return "no_credits"
+    if status == 429:
+        return "rate_limited"
+    if status == 401 or _BADKEY.search(text):
+        return "invalid_key"
+    if _BADMODEL.search(text):
+        return "bad_model"
+    if status == 403 or _ACCESS.search(text):
+        return "access_denied"
+    if status == 404:
+        return "endpoint_missing"
+    if status >= 500:
+        return "provider_error"
+    return "bad_request"
+
+
+def _outcome(code, provider, mdl, http_status=None, detail="", stage="inference"):
+    return {"ok": code == "ok", "code": code, "message": MESSAGES[code],
+            "provider": provider, "model": mdl, "stage": stage,
+            "http_status": http_status, "detail": detail}
+
+
+def validate_key(provider, api_key, model=None, base_url=None, timeout=25):
+    """Verify a REAL chat completion, not just /models. No key is persisted here.
+
+    The call is intentionally minimal but not 1-token (many models reject that).
+    POST only; /models availability is not a reliable test across 25 vendors.
+    """
     info = provider_info(provider)
     key = (api_key or "").strip()
+    mdl = (model or (info["default_model"] if info else "") or "").strip()
     if not info:
         return {"ok": False, "code": "bad_request", "message": "Unknown AI provider."}
+    if provider == "github":
+        return {"ok": False, "code": "bad_request",
+                "message": "GitHub Models was retired on July 30, 2026. Choose another AI provider."}
     if not key:
         return {"ok": False, "code": "invalid_key", "message": "Please enter the API key."}
     base = _effective_base(provider, info, base_url)
-    mdl = (model or info["default_model"] or "").strip()
-    if not base or not re.match(r"^https://", base):
-        return {"ok": False, "code": "bad_request", "message": "A valid https:// base URL is required."}
+    if not base or not base.startswith("https://"):
+        return {"ok": False, "code": "bad_request", "message": "A valid HTTPS provider URL is required."}
     if provider == "custom":
         if os.environ.get("BYOK_ALLOW_CUSTOM", "") != "1":
             return {"ok": False, "code": "bad_request",
-                    "message": "The 'Other (custom URL)' provider is disabled on this server (set BYOK_ALLOW_CUSTOM=1 to enable)."}
+                    "message": "Custom provider is disabled (BYOK_ALLOW_CUSTOM=1 is required)."}
         ok_url, why = check_base_url(base)
         if not ok_url:
             return {"ok": False, "code": "bad_request", "message": why}
     if not mdl:
-        return {"ok": False, "code": "bad_model", "message": "Please enter the model name."}
+        return {"ok": False, "code": "bad_model", "message": "Please enter a model name."}
+
+    url = base + ("/messages" if info["protocol"] == "anthropic" else "/chat/completions")
     hdr = _headers(info["protocol"], key)
+    body = {"model": mdl, "messages": [{"role": "user", "content": "Reply with OK."}],
+            "max_tokens": 64}
+    # Retry exactly once for models that reject the deprecated max_tokens field.
     try:
-        r = requests.get(base + "/models", headers=hdr, timeout=timeout, allow_redirects=False)
-        if r.status_code in (401, 403) or (r.status_code != 200 and _BADKEY.search(r.text or "")):
-            code = _classify(r.status_code, r.text)
-            if code == "invalid_key":
-                return {"ok": False, "code": code, "message": MESSAGES[code]}
-        if info["protocol"] == "anthropic":
-            url = base + "/messages"
-            body = {"model": mdl, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
-        else:
-            url = base + "/chat/completions"
-            body = {"model": mdl, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
-        r = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
-        if r.status_code == 400 and "max_tokens" in (r.text or "") and "max_completion_tokens" in (r.text or ""):
-            body.pop("max_tokens"); body["max_completion_tokens"] = 16
-            r = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
-        code = _classify(r.status_code, r.text)
-        if code == "ok" and not _is_real_completion(info["protocol"], r):
-            code = "bad_request"
-        return {"ok": code == "ok", "code": code, "message": MESSAGES[code]}
+        resp = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
+        if info["protocol"] != "anthropic" and resp.status_code == 400:
+            ec, et, em = _error_content(resp)
+            text = " ".join((ec, et, em)).lower()
+            if "max_tokens" in text and "max_completion_tokens" in text:
+                body.pop("max_tokens")
+                body["max_completion_tokens"] = 64
+                resp = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
+    except requests.exceptions.SSLError:
+        return _outcome("tls_error", provider, mdl, detail="HTTPS certificate validation failed")
+    except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout, requests.exceptions.Timeout):
+        return _outcome("timeout", provider, mdl, detail="Request timed out at the server")
+    except requests.exceptions.ProxyError:
+        return _outcome("unreachable", provider, mdl, detail="Server proxy connection failed")
+    except requests.exceptions.ConnectionError:
+        return _outcome("unreachable", provider, mdl, detail="Server DNS, firewall, or TCP connection failed")
     except requests.exceptions.RequestException:
-        return {"ok": False, "code": "unreachable", "message": MESSAGES["unreachable"]}
+        return _outcome("unreachable", provider, mdl, detail="Server outbound HTTPS request failed")
+
+    st = resp.status_code
+    if st in (200, 201):
+        if _is_real_completion(info["protocol"], resp):
+            return _outcome("ok", provider, mdl, http_status=st, detail="Model responded to live inference")
+        content_type = (resp.headers.get("content-type", "") if hasattr(resp, "headers") else "")
+        return _outcome("invalid_response", provider, mdl, http_status=st,
+                        detail="Expected chat JSON; received " + _safe_hint(content_type, key))
+
+    ec, et, em = _error_content(resp)
+    code = _classify(st, em, ec, et)
+    # Only safe fragments are shown. Do not log provider response bodies or keys.
+    hint_parts = [p for p in (ec, et, em) if p]
+    hint = _safe_hint(" | ".join(hint_parts), key)
+    if not hint:
+        hint = "No structured provider error detail"  # never invent an invalid-key verdict
+    return _outcome(code, provider, mdl, http_status=st, detail=hint)
 
 
 def _is_real_completion(protocol, resp):
-    """HTTP 200 alone is not proof: require a genuine model reply shape."""
     try:
         j = resp.json()
-    except Exception:
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(j, dict):
         return False
     if protocol == "anthropic":
-        return isinstance(j, dict) and isinstance(j.get("content"), list)
-    ch = j.get("choices") if isinstance(j, dict) else None
-    return isinstance(ch, list) and len(ch) > 0 and isinstance(ch[0], dict) and "message" in ch[0]
+        return isinstance(j.get("content"), list) and len(j["content"]) > 0
+    choices = j.get("choices")
+    return (isinstance(choices, list) and bool(choices) and
+            isinstance(choices[0], dict) and isinstance(choices[0].get("message"), dict))
 
 
 def classify_runtime_error(exc):
-    """Map an exception raised during a live chat call to a BYOK code, or None if unrelated."""
+    """Keep the existing BYOK runtime policy and avoid treating generic 403 as invalid keys."""
     text = f"{type(exc).__name__}: {exc}"
     st = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
     if _CREDIT.search(text):
         return "no_credits"
-    if st in (401, 403) or _BADKEY.search(text):
-        return "invalid_key"
-    if st == 429 or re.search(r"rate.?limit|too many requests|429", text, re.I):
+    if st == 429 or re.search(r"\b429\b|rate.?limit|too many requests", text, re.I):
         return "rate_limited"
+    if st == 401 or _BADKEY.search(text):
+        return "invalid_key"
+    if st == 403:
+        return "access_denied"
+    if _BADMODEL.search(text):
+        return "bad_model"
     return None
 
 
@@ -195,6 +289,8 @@ def build_chat_model(provider, api_key, model=None, base_url=None):
     info = provider_info(provider)
     if not info:
         raise ValueError("Unknown AI provider")
+    if provider == "github":
+        raise ValueError("GitHub Models has been retired; please select a supported provider")
     mdl = model or info["default_model"]
     if info["protocol"] == "anthropic":
         from langchain_anthropic import ChatAnthropic

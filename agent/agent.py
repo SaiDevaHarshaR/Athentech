@@ -555,6 +555,8 @@ _BYOK_USER_MESSAGES = {
     "invalid_key": "Your AI provider rejected the saved API key. Please ask your administrator to update the AI key in Institution settings.",
     "no_credits": "Your AI provider account has no credits or tokens left. Please top up the provider account (or ask your administrator to update the key).",
     "rate_limited": "Your AI provider is rate-limiting the key right now. Please try again in a minute.",
+    "access_denied": "Your institution's AI provider denied model access. Ask your administrator to check model permissions in AI Settings.",
+    "bad_model": "Your institution's configured AI model is unavailable. Ask your administrator to select a supported model.",
     "unavailable": "Your institution's AI key could not be loaded right now, so this question was not sent to any AI. Please try again shortly or contact your administrator.",
 }
 
