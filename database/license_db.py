@@ -181,6 +181,18 @@ def init_license_db():
         )
         """)
 
+    # BYOK columns (institution's own AI provider key) - added in place, safe on every startup
+    for col, coltype in [
+        ("llm_provider", "NVARCHAR(50)"),
+        ("llm_model", "NVARCHAR(150)"),
+        ("llm_api_key", "NVARCHAR(1000)"),
+        ("llm_base_url", "NVARCHAR(300)"),
+        ("llm_key_status", "NVARCHAR(30)"),
+        ("llm_key_checked_at", "NVARCHAR(50)"),
+    ]:
+        if not _column_exists(cur, "institutions", col):
+            cur.execute(f"ALTER TABLE institutions ADD {col} {coltype}")
+
     if not _table_exists(cur, "licenses"):
         cur.execute("""
         CREATE TABLE licenses (
