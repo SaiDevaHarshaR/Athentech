@@ -528,7 +528,52 @@ def _preflight_schema_search(question: str, role: str) -> str:
         return str(result) if result else "No matching schema candidates found."
     except Exception as e:
         return f"Schema discovery failed: {e}"
-def ask_agent(
+def _data_chain(institution_code, is_premium):
+    """Hospital-data questions use the institution's OWN AI key when it has one; otherwise AthenTech's shared chain.
+    (Normal / about-AthenTech questions always use AthenTech's chain.)"""
+    if is_premium and institution_code:
+        try:
+            from agent.llm_providers import institution_chain
+            own = institution_chain(institution_code)
+            if own:
+                return own
+        except Exception as e:
+            print(f"[byok] falling back to shared chain: {type(e).__name__}", flush=True)
+    return _get_provider_chain()
+
+
+_BYOK_USER_MESSAGES = {
+    "invalid_key": "Your AI provider rejected the saved API key. Please ask your administrator to update the AI key in Institution settings.",
+    "no_credits": "Your AI provider account has no credits or tokens left. Please top up the provider account (or ask your administrator to update the key).",
+    "rate_limited": "Your AI provider is rate-limiting the key right now. Please try again in a minute.",
+}
+
+
+def ask_agent(*args, **kwargs):
+    """Runs the agent. If the institution uses its OWN AI key and the provider rejects it (bad key / no credits /
+    rate limit), return a clear message instead of a crash, and log it for the Guardian."""
+    try:
+        return _ask_agent_impl(*args, **kwargs)
+    except Exception as e:
+        inst = kwargs.get("institution_code")
+        if kwargs.get("is_premium") and inst:
+            try:
+                from agent.llm_providers import classify_runtime_error, institution_chain
+                if institution_chain(inst):
+                    code = classify_runtime_error(e)
+                    if code:
+                        try:
+                            from agent import guardian
+                            guardian.record_event(kwargs.get("db_name"), "ask", f"client API key problem (rate limit / credits): {code}")
+                        except Exception:
+                            pass
+                        return _BYOK_USER_MESSAGES[code], 0
+            except Exception:
+                pass
+        raise
+
+
+def _ask_agent_impl(
     question: str,
     db_name: str = "hospital_demo",
     chat_history: list = None,
@@ -620,7 +665,7 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
 """
         tools = [his_search_schema, his_describe_table, his_run_sql_query]
         tools_by_name = {t.name: t for t in tools}
-        current_chain = _get_provider_chain()
+        current_chain = _data_chain(institution_code, is_premium)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
         primary_provider_name, llm = current_chain[0]
@@ -899,7 +944,7 @@ refusal — nothing else fits A or C.
 
         tools = [run_report, search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard, check_zero_collection_alert,check_tat_alert]
         tools_by_name = {t.name: t for t in tools}
-        current_chain = _get_provider_chain()
+        current_chain = _data_chain(institution_code, is_premium)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
         primary_provider_name, llm = current_chain[0]
