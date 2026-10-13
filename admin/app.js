@@ -1353,6 +1353,40 @@ function institutionFields(
 
             </div>
 
+            <div class="form-group" style="grid-column:1/-1;border-top:1px solid var(--line,#ddd);padding-top:10px">
+                <label><strong>AI provider (client's own key)</strong>
+                    <small style="display:block;font-weight:normal">Optional. Leave empty to use AthenTech's AI for this client's data questions. General and "About AthenTech" questions always use AthenTech's AI.
+                    ${institution.llm_provider ? `<br>Saved: <b>${institution.llm_provider}</b> &middot; status: <b>${institution.llm_key_status || 'unknown'}</b>` : ''}</small>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>AI Provider</label>
+                <select name="llm_provider" id="llmProviderSel" data-saved="${institution.llm_provider || ''}">
+                    <option value="">— use AthenTech's AI —</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Model (optional)</label>
+                <input name="llm_model" id="llmModelInp" placeholder="default for provider" value="${institution.llm_model || ''}">
+            </div>
+
+            <div class="form-group">
+                <label>Base URL (only for "Other")</label>
+                <input name="llm_base_url" id="llmBaseInp" placeholder="https://..." value="${institution.llm_base_url || ''}">
+            </div>
+
+            <div class="form-group">
+                <label>API Key</label>
+                <input name="llm_api_key" id="llmKeyInp" type="password" autocomplete="off"
+                       placeholder="${institution.has_llm_key ? '(saved — leave blank to keep)' : 'Paste the provider API key'}">
+                <button type="button" class="secondary-btn" onclick="testLlmKey()" style="margin-top:6px">Test key</button>
+                <span id="llmKeyResult" style="margin-left:8px"></span>
+            </div>
+
+            ${institution.has_llm_key ? `<div class="form-group"><label><input type="checkbox" name="remove_llm_key"> Remove saved key (go back to AthenTech's AI)</label></div>` : ''}
+
 
 
 
@@ -1534,10 +1568,69 @@ async function openTokensModal() {
   `, null);
 }
 
+// ---- Institution AI key helpers (BYOK) ----
+async function populateLlmProviders() {
+    const sel = document.getElementById('llmProviderSel');
+    if (!sel) return;
+    try {
+        const res = await authFetch(`${API_BASE}/admin/llm-providers`);
+        const data = await res.json();
+        const saved = sel.dataset.saved || '';
+        (data.providers || []).forEach(p => {
+            const o = document.createElement('option');
+            o.value = p.id; o.textContent = p.label; o.dataset.model = p.default_model || '';
+            if (p.id === saved) o.selected = true;
+            sel.appendChild(o);
+        });
+        sel.onchange = () => {
+            const m = document.getElementById('llmModelInp');
+            const opt = sel.options[sel.selectedIndex];
+            if (m && !m.value && opt && opt.dataset.model) m.placeholder = opt.dataset.model;
+        };
+    } catch (e) { console.error(e); }
+}
+
+async function testLlmKey() {
+    const out = document.getElementById('llmKeyResult');
+    const provider = document.getElementById('llmProviderSel')?.value;
+    const key = document.getElementById('llmKeyInp')?.value;
+    if (!provider) { out.textContent = 'Choose a provider first.'; return; }
+    if (!key) { out.textContent = 'Paste the API key to test.'; return; }
+    out.textContent = 'Testing…';
+    try {
+        const res = await authFetch(`${API_BASE}/admin/llm-providers/validate`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider, api_key: key,
+                model: document.getElementById('llmModelInp')?.value || null,
+                base_url: document.getElementById('llmBaseInp')?.value || null,
+            }),
+        });
+        const r = await res.json();
+        out.textContent = (r.ok ? '✅ ' : '❌ ') + r.message;
+    } catch (e) { out.textContent = '❌ Could not reach the server.'; }
+}
+window.testLlmKey = testLlmKey;
+
+function llmPayload(data) {
+    const out = {};
+    if (data.remove_llm_key) { out.remove_llm_key = true; return out; }
+    if (data.llm_api_key && data.llm_provider) {
+        out.llm_provider = data.llm_provider;
+        out.llm_api_key = data.llm_api_key;
+        out.llm_model = (data.llm_model || '').trim() || null;
+        out.llm_base_url = (data.llm_base_url || '').trim() || null;
+    } else if (data.llm_api_key && !data.llm_provider) {
+        out.llm_api_key = data.llm_api_key;   // server answers with a clear error
+    }
+    return out;
+}
+
 function openInstitution(
     institution = null
 ) {
 
+    setTimeout(populateLlmProviders, 0);
     openModal(
 
         'INSTITUTION',
@@ -1569,6 +1662,7 @@ function openInstitution(
                                 type: data.type,
                                 city: data.city.trim(),
                                 status: data.status,
+                                ...llmPayload(data),
                             }),
                         });
                         const result = await res.json();
@@ -1610,6 +1704,7 @@ function openInstitution(
                             type: data.type,
                             city: data.city.trim(),
                             status: data.status,
+                            ...llmPayload(data),
                         }),
                     });
                     const result = await res.json();
