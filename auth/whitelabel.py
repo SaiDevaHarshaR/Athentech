@@ -157,7 +157,7 @@ def _ensure_table(cur, conn):
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'whitelabel_configs'
     """)
-    existing = {row[0] for row in cur.fetchall()}
+    existing = {str(row["COLUMN_NAME"] if hasattr(row, "items") else row[0]) for row in cur.fetchall()}
 
     for name, typ in _EXTRA_COLS:
         if name not in existing:
