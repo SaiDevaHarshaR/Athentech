@@ -550,7 +550,7 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
             from agent import llm_providers
             chk = llm_providers.validate_key(req.llm_provider, req.llm_api_key, req.llm_model, req.llm_base_url)
             if not chk["ok"]:
-                return {"status": "error", "code": chk["code"], "message": chk["message"]}
+                return {"status": "error", **chk}
             key_status = "valid"
         data = create_institution(
             name=req.name,
@@ -589,7 +589,7 @@ def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, a
             chk = llm_providers.validate_key(changes.get("llm_provider"), changes["llm_api_key"],
                                              changes.get("llm_model"), changes.get("llm_base_url"))
             if not chk["ok"]:
-                return {"status": "error", "code": chk["code"], "message": chk["message"]}
+                return {"status": "error", **chk}
             changes["llm_key_status"] = "valid"
             changes["llm_key_checked_at"] = datetime.utcnow().isoformat()
         else:
