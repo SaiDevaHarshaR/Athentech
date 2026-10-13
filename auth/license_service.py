@@ -321,7 +321,31 @@ def remove_institution_llm_key(institution_id: int):
         conn.close()
 
 
+class _KeepOpen:
+    """Delegates to a real connection but ignores close(), so the wrapper below owns the single, guaranteed close."""
+    def __init__(self, conn): self._c = conn
+    def __getattr__(self, name): return getattr(self._c, name)
+    def close(self): pass
+
+
 def update_institution(institution_id: int, **fields):
+    conn = get_conn()
+    try:
+        return _update_institution_impl(_KeepOpen(conn), institution_id, **fields)
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _update_institution_impl(conn, institution_id: int, **fields):
     """
     Partial update — only fields explicitly passed are changed.
     allowed_fields = {
@@ -336,7 +360,6 @@ def update_institution(institution_id: int, **fields):
     "db_password",
 }
     """
-    conn = get_conn()
     cur = conn.cursor()
 
     existing = cur.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone()
@@ -346,14 +369,20 @@ def update_institution(institution_id: int, **fields):
 
     allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password",
                       "llm_provider", "llm_model", "llm_api_key", "llm_base_url", "llm_key_status", "llm_key_checked_at"}
+    clear_key = bool(fields.get("clear_llm_key"))     # applied in the SAME UPDATE as other changes (atomic)
     updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
+    if clear_key:
+        for k in ("llm_provider", "llm_model", "llm_api_key", "llm_base_url", "llm_key_status", "llm_key_checked_at"):
+            updates[k] = None
 
     if "client_prefix" in updates:
         updates["client_prefix"] = updates["client_prefix"].upper()
 
     if "db_password" in updates:
         updates["db_password"] = encrypt_secret(updates["db_password"])
-    if updates.get("llm_api_key"):
+    if clear_key:
+        pass
+    elif updates.get("llm_api_key"):
         updates["llm_api_key"] = encrypt_secret(updates["llm_api_key"])
     elif "llm_api_key" in updates:
         updates.pop("llm_api_key")      # blank = keep the saved key

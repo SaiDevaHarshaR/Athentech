@@ -780,7 +780,12 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
                     return {"status": "success", "answer": msg}
             except ImportError:
                 pass
-            chain = _get_provider_chain()
+            from agent.agent import _data_chain, _OWN_KEY, _BYOK_USER_MESSAGES
+            from agent.llm_providers import ByokUnavailable, classify_runtime_error
+            try:
+                chain = _data_chain(str(inst.get("client_prefix") or "").upper(), True)   # client's own AI key if it has one
+            except ByokUnavailable:
+                return {"status": "error", "answer": _BYOK_USER_MESSAGES["unavailable"]}
             if not chain:
                 return {"status": "error", "answer": "The assistant is temporarily unavailable."}
             name, llm = chain[0]
@@ -801,6 +806,14 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
             return {"status": "success", "answer": text}
         except Exception as e:
             print(f"[whitelabel] b2c answer failed: {type(e).__name__}: {e}")
+            try:
+                from agent.agent import _OWN_KEY, _BYOK_USER_MESSAGES
+                from agent.llm_providers import classify_runtime_error
+                code = classify_runtime_error(e) if _OWN_KEY.get() else None
+                if code:
+                    return {"status": "error", "answer": _BYOK_USER_MESSAGES[code]}
+            except Exception:
+                pass
             return {"status": "error", "answer": "Sorry, something went wrong. Please try again."}
 
     return router
