@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import database.connection as _dbconn
 from agent import guardian
 guardian.install(_dbconn)   # must run before other modules import get_hospital_connection
@@ -167,6 +168,10 @@ class InstitutionCreateRequest(BaseModel):
     type: str = "Hospital"
     city: str = ""
     status: str = "Active"
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None
+    llm_base_url: str | None = None
 
 
 
@@ -180,6 +185,11 @@ class InstitutionUpdateRequest(BaseModel):
     type: Optional[str] = None
     city: Optional[str] = None
     status: Optional[str] = None
+    llm_provider: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_base_url: Optional[str] = None
+    remove_llm_key: Optional[bool] = None
 
 
 
@@ -474,9 +484,52 @@ def api_client_diagnostics(code: str, refresh: bool = False, admin: str = Depend
         except Exception: pass
 
 
+@app.get("/admin/llm-providers")
+def api_llm_providers(admin: str = Depends(require_admin)):
+    from agent import llm_providers
+    return {"status": "success", "providers": llm_providers.CATALOG}
+
+
+@app.post("/admin/llm-providers/validate")
+def api_llm_validate(req: dict, admin: str = Depends(require_admin)):
+    """Test a key before saving. The key is not stored or logged."""
+    from agent import llm_providers
+    r = llm_providers.validate_key(req.get("provider"), req.get("api_key"), req.get("model"), req.get("base_url"))
+    return {"status": "success" if r["ok"] else "error", **r}
+
+
+@app.post("/admin/institutions/{institution_id}/revalidate-llm-key")
+def api_llm_revalidate(institution_id: int, admin: str = Depends(require_admin)):
+    """Re-test the institution's SAVED key (e.g. after they say 'AI stopped working')."""
+    from agent import llm_providers
+    from database.license_db import get_conn
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT client_prefix FROM institutions WHERE id = ?", (institution_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        s = llm_providers.institution_llm_settings(row["client_prefix"])
+        if not s:
+            return {"status": "error", "code": "no_key", "message": "This institution has no AI key saved (it uses AthenTech's AI)."}
+        r = llm_providers.validate_key(s["provider"], s["api_key"], s["model"], s["base_url"])
+        conn.execute("UPDATE institutions SET llm_key_status = ?, llm_key_checked_at = ? WHERE id = ?",
+                     ("valid" if r["ok"] else r["code"], datetime.utcnow().isoformat(), institution_id))
+        conn.commit()
+        return {"status": "success" if r["ok"] else "error", **r}
+    finally:
+        conn.close()
+
+
 @app.post("/admin/institutions")
 def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
     try:
+        key_status = None
+        if req.llm_api_key:
+            from agent import llm_providers
+            chk = llm_providers.validate_key(req.llm_provider, req.llm_api_key, req.llm_model, req.llm_base_url)
+            if not chk["ok"]:
+                return {"status": "error", "code": chk["code"], "message": chk["message"]}
+            key_status = "valid"
         data = create_institution(
             name=req.name,
             client_prefix=req.client_prefix,
@@ -486,7 +539,12 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
             db_password=req.db_password,            
             type_=req.type,
             city=req.city,
-            status=req.status
+            status=req.status,
+            llm_provider=req.llm_provider if req.llm_api_key else None,
+            llm_model=req.llm_model if req.llm_api_key else None,
+            llm_api_key=req.llm_api_key,
+            llm_base_url=req.llm_base_url if req.llm_api_key else None,
+            llm_key_status=key_status,
         )
         _log_admin_action(admin, "Created institution", req.name)
         return {"status": "success", "institution": data}
@@ -497,12 +555,33 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
 @app.patch("/admin/institutions/{institution_id}")
 def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, admin: str = Depends(require_admin)):
     try:
-        data = update_institution(institution_id, **req.model_dump(exclude_unset=True))
+        changes = req.model_dump(exclude_unset=True)
+        from agent import llm_providers
+        if changes.pop("remove_llm_key", None):
+            from auth.license_service import remove_institution_llm_key
+            remove_institution_llm_key(institution_id)
+            for k in ("llm_provider", "llm_model", "llm_api_key", "llm_base_url"):
+                changes.pop(k, None)
+        elif changes.get("llm_api_key"):
+            chk = llm_providers.validate_key(changes.get("llm_provider"), changes["llm_api_key"],
+                                             changes.get("llm_model"), changes.get("llm_base_url"))
+            if not chk["ok"]:
+                return {"status": "error", "code": chk["code"], "message": chk["message"]}
+            changes["llm_key_status"] = "valid"
+            changes["llm_key_checked_at"] = datetime.utcnow().isoformat()
+        else:
+            # provider/model edits without a new key are only allowed through re-validation of the saved key
+            for k in ("llm_provider", "llm_model", "llm_base_url"):
+                changes.pop(k, None)
+        data = update_institution(institution_id, **changes)
+        llm_providers.invalidate()
         # Don't log the raw db_password into the audit trail — same
         # reasoning as excluding smtp_password from the settings-update
         # audit log elsewhere: the audit log is meant to record WHAT
         # changed, not BE a place secrets end up in plaintext.
-        safe_changes = {k: v for k, v in req.model_dump(exclude_unset=True).items() if k != "db_password"}
+        safe_changes = {k: v for k, v in req.model_dump(exclude_unset=True).items() if k not in ("db_password", "llm_api_key")}
+        if req.llm_api_key:
+            safe_changes["llm_api_key"] = "[changed]"
         if "db_password" in req.model_dump(exclude_unset=True):
             safe_changes["db_password"] = "[changed]"
         _log_admin_action(admin, "Updated institution", data.get("name", str(institution_id)),
