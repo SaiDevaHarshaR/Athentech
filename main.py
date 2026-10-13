@@ -1497,6 +1497,19 @@ def athentech_info_endpoint(req: dict):
 
 from auth.whitelabel import build_router as build_whitelabel_router
 app.include_router(build_whitelabel_router(require_admin, _log_admin_action))
+
+# Corporate B2B OTP portal: organisation-scoped, read-only access.
+from auth.b2b_portal import build_router as build_b2b_router, initialize_b2b
+app.include_router(build_b2b_router(require_admin))
+
+@app.on_event("startup")
+def initialize_b2b_contacts():
+    try:
+        initialize_b2b()
+        print("[b2b] Admin-only corporate contact/session tables ready")
+    except Exception as exc:
+        print("[b2b] ERROR: B2B access unavailable; admin DB migration failed: " + str(type(exc).__name__))
+
 app.include_router(build_chip_router(require_admin))
 # Guardian-specific API aliases: keep all console requests inside the IIS rewrite
 # prefix /admin/guardian/*, without changing the existing admin dashboard URLs.
