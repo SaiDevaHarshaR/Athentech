@@ -1,24 +1,10 @@
-"""
-Real cash/day-collection reconciliation — calls dbo.LabDayCollection_All
-directly (the actual stored procedure, confirmed via its real source
-code). This REPLACES the old lab_day_collection.py approach, which
-called a different, less complete procedure (dbo.LabDayCollection) and
-required manual field-by-field guessing to match a real printed report.
+"""Cash/day-collection reconciliation through SELECT-only calculations.
 
-Confirmed from source: LabDayCollection_All, with @ACTIVITY='GetDetails',
-loops over EVERY active location (mstLocation WHERE ACTIVE=1) in one
-execution, computes the full real reconciliation formula for each, and
-returns them all as one result set (via SELECT * FROM trnTempDayCollAll
-WHERE USERID=? AND BILLDATE=?, the procedure's own final step). This
-naturally gives an all-branches view for free — no extra looping needed.
-
-Single-day only, same confirmed constraint as before — @BILLDATE is a
-single date parameter, no range support in the procedure itself.
-
-The USERID parameter scopes the procedure's internal DELETE+INSERT
-(trnTempDayCollAll rows for that USERID+BILLDATE get replaced each
-call) — using a fixed, dedicated ID for this agent's own calls avoids
-colliding with real staff usage of the same underlying report screen.
+The original dbo.LabDayCollection_All procedure is NOT called here: it writes
+trnTempDayCollAll. Read-only calculations live in day_collection_readonly.py.
+The public functions and formatting API remain compatible with the existing
+intent handlers and Excel exports. Verify amounts against a saved original LIS
+report using tools/verify_recon_parity.py (no procedure execution).
 """
 
 import re
@@ -26,10 +12,8 @@ from datetime import datetime, timedelta
 
 from database.connection import get_hospital_connection
 
-_AGENT_USERID = "sahasra_ai_agent"
-
-# Real column order from trnTempDayCollAll, confirmed from the actual
-# procedure's INSERT statement — used to label the raw row tuple.
+# Original trnTempDayCollAll column order, from supplied source procedure.
+# Used for strict financial parity comparison, excluding metadata.
 _COLUMNS = [
     "USERID", "LOCATION", "BILLDATE", "GTOTALCREDITS", "TOTALCASH", "TOTALCREDITS",
     "TOTALDUES", "TOTALCONCESSIONS", "TOTALCREDITCARDS", "TOTALCHEQUE", "TOTALUPI",
@@ -82,41 +66,12 @@ def get_day_collection_all_branches(
     db_name: str,
     db_server=None, db_user=None, db_password=None,
 ) -> dict:
-    """
-    Returns the real, complete reconciliation for EVERY active location
-    on one date, straight from LabDayCollection_All. bill_date:
-    'YYYY-MM-DD', 'today', or 'yesterday'.
-    """
-    bill_date = _resolve_relative_date(bill_date)
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", bill_date):
-        return {"error": f"'{bill_date}' is not a real single date (YYYY-MM-DD). This is single-day only."}
+    """Pure-SELECT reconciliation (reports/day_collection_readonly.py). The service NEVER executes dbo.LabDayCollection_All:
+    that procedure DELETEs+INSERTs into trnTempDayCollAll in the client's database. There is deliberately no switch to
+    re-enable it. Parity against the real procedure is checked by tools/verify_recon_parity.py (manual, rolled back)."""
+    from reports.day_collection_readonly import get_day_collection_all_branches_readonly
+    return get_day_collection_all_branches_readonly(bill_date, db_name, db_server, db_user, db_password)
 
-    conn = get_hospital_connection(db_name, db_server, db_user, db_password)
-    if not conn:
-        return {"error": "Could not connect to the hospital database."}
-
-    try:
-        cursor = conn.cursor()
-        # NOCOUNT stops rowcount messages that confuse pyodbc
-        cursor.execute("SET NOCOUNT ON")
-        cursor.execute(
-            "EXEC dbo.LabDayCollection_All @USERID=?, @BILLDATE=?, @ACTIVITY='GetDetails'",
-            (_AGENT_USERID, bill_date),
-        )
-        # Skip intermediate result sets until we get a real SELECT
-        rows = []
-        while True:
-            if cursor.description is not None:
-                rows = cursor.fetchall()
-                break
-            if not cursor.nextset():
-                break
-        branches = [dict(zip(_COLUMNS, row)) for row in rows]
-        return {"bill_date": bill_date, "branches": branches}
-    except Exception as e:
-        return {"error": f"Procedure call failed: {e}"}
-    finally:
-        conn.close()
 
 def get_day_collection_one_branch(
     location_keyword: str,

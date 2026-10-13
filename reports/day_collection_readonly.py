@@ -1,13 +1,13 @@
 """
-Read-only equivalent of dbo.LabDayCollection_All — same confirmed
-formula, computed via pure SELECT queries instead of EXEC'ing the real
-stored procedure (which performs a real DELETE+INSERT into
-trnTempDayCollAll). Use this for Excel export and any other read-only
-reporting need; use the real SP (day_collection_reconciliation.py) only
-when the live, cached report screen behavior is specifically required.
+Read-only reproduction of dbo.LabDayCollection_All's financial output.
+Never executes the source procedure (which writes client LIS tables).
+Source: previously provided SQL Server CREATE PROCEDURE text.
+These queries cannot prove live parity; verify against an existing LIS export
+using tools/verify_recon_parity.py (offline reference comparison only).
 
-Every formula fragment below is copied directly from the confirmed real
-procedure body — same WHERE clauses, same column names, same logic.
+Important source quirk retained: COMPADVCC filters the hard-coded date
+19 FEB 2022, rather than the requested bill date. This matches the source
+procedure but needs a separate, authorized business-rule correction upstream.
 """
 
 from datetime import datetime, timedelta
@@ -23,6 +23,10 @@ def _resolve_relative_date(value: str) -> str:
     if v == "yesterday":
         return (today - timedelta(days=1)).isoformat()
     return value
+
+
+class ReconUnavailable(Exception):
+    """The reconciliation cannot be computed exactly for this client; callers must show an error, never a partial number."""
 
 
 def _compute_one_location(cursor, location_id: str, bill_date: str) -> dict:
@@ -123,7 +127,7 @@ def _compute_one_location(cursor, location_id: str, bill_date: str) -> dict:
         FROM trnMODEOFCOLLECTIONSDET A, trnINVLABPRI B
         WHERE CONVERT(DATE, A.DATEOFBILL, 106) = ? AND A.TYPE IN ('LabRefund')
           AND A.LOCATIONID = ? AND A.PREVIOUSBILLNO = B.BILLNO
-          AND CONVERT(VARCHAR(10), B.BILLDATE, 101) < ? AND A.STATUS = 'R'
+          AND CONVERT(DATE, B.BILLDATE, 101) < CONVERT(DATE, ?, 23) AND A.STATUS = 'R'
         """,
         (bill_date, location_id, bill_date),
     )
@@ -162,6 +166,32 @@ def _compute_one_location(cursor, location_id: str, bill_date: str) -> dict:
         (bill_date, location_id, bill_date),
     )
 
+    prevdue_cheque = scalar(
+        """
+        SELECT SUM(ISNULL(A.PAIDAMOUNT,0))
+        FROM trnMODEOFCOLLECTIONSDET A, trnINVLABPRI B
+        WHERE CONVERT(DATETIME, CONVERT(VARCHAR, A.DATEOFBILL, 106)) = CONVERT(DATETIME, ?, 23)
+          AND A.TYPE IN ('DUE PAYMENT') AND A.LOCATIONID = ?
+          AND A.PREVIOUSBILLNO = B.BILLNO AND A.STATUS = 'P'
+          AND CONVERT(DATE, B.BILLDATE, 106) < CONVERT(DATE, ?, 23)
+          AND A.MODE IN ('CHEQUE')
+        """,
+        (bill_date, location_id, bill_date),
+    )
+
+    prevdue_dd = scalar(
+        """
+        SELECT SUM(ISNULL(A.PAIDAMOUNT,0))
+        FROM trnMODEOFCOLLECTIONSDET A, trnINVLABPRI B
+        WHERE CONVERT(DATETIME, CONVERT(VARCHAR, A.DATEOFBILL, 106)) = CONVERT(DATETIME, ?, 23)
+          AND A.TYPE IN ('DUE PAYMENT') AND A.LOCATIONID = ?
+          AND A.PREVIOUSBILLNO = B.BILLNO AND A.STATUS = 'P'
+          AND CONVERT(DATE, B.BILLDATE, 106) < CONVERT(DATE, ?, 23)
+          AND A.MODE IN ('DD')
+        """,
+        (bill_date, location_id, bill_date),
+    )
+
     prevdue_upi = scalar(
         """
         SELECT SUM(ISNULL(A.PAIDAMOUNT,0))
@@ -183,39 +213,109 @@ def _compute_one_location(cursor, location_id: str, bill_date: str) -> dict:
         (bill_date, location_id),
     )
 
+    # TOTALDUES - exactly the real procedure's expression (LabDayCollection step 3). dbo.DUEREC / SEC_CONC / CCDUEAMT are
+    # SQL Server scalar functions; SQL Server forbids scalar functions from modifying tables, so calling them is read-only.
+    # The procedure stores each function result in NUMERIC(12,0), hence the same CONVERT here.
+    try:
+        total_dues = scalar(
+            """
+            SELECT (SUM(ISNULL(A.DUEAMOUNT,0))
+                    - (ISNULL(CONVERT(NUMERIC(12,0), dbo.DUEREC(CONVERT(DATE, ?), ?)),0)
+                       + ISNULL(CONVERT(NUMERIC(12,0), dbo.SEC_CONC(CONVERT(DATE, ?), ?)),0)))
+                   - ISNULL(CONVERT(NUMERIC(12,0), dbo.CCDUEAMT(CONVERT(DATE, ?), ?)),0)
+            FROM trnMODEOFCOLLECTIONSDET A, trnINVLABPRI B
+            WHERE A.BILLNO = B.BILLNO AND CONVERT(DATE, A.DATEOFBILL, 106) = ?
+              AND A.TYPE IN ('OPLAB') AND A.STATUS = 'P' AND A.LOCATIONID = ?
+              AND B.CREDITBILL = 'False'
+            """,
+            (bill_date, location_id, bill_date, location_id, bill_date, location_id, bill_date, location_id),
+        )
+    except Exception as e:
+        # Never guess: without the due functions the cash-in-hand figure would be wrong. Fail the whole report visibly.
+        raise ReconUnavailable(f"Dues could not be calculated for {location_id} ({type(e).__name__}); "
+                               "this client's database may not have dbo.DUEREC / SEC_CONC / CCDUEAMT.") from e
+
+    def comp_advance(modes, pay_date):
+        # Query intentionally reproduces the source SP's organisation-type,
+        # payment header and mode filters. Date for credit card is hard-coded
+        # in the source SP; do not silently alter its accounting semantics.
+        placeholders = ','.join('?' for _ in modes)
+        try:
+            return scalar(
+                f"""
+                SELECT SUM(ISNULL(B.PaidAmt,0))
+                FROM mstOrganisation A, trnCompPayments B
+                WHERE A.ORGANISATIONCODE = B.ORGCODE
+                  AND A.COMPTYPE NOT IN ('CC') AND B.LocationID = ?
+                  AND B.PayTypeHeader IN ('Payment','Wrong Entry')
+                  AND B.MODE IN ({placeholders})
+                  AND CONVERT(DATE, B.PayDate, 106) = CONVERT(DATE, ?, 23)
+                """,
+                (location_id, *modes, pay_date),
+            )
+        except Exception as e:
+            raise ReconUnavailable(
+                f"Corporate advances could not be calculated for {location_id} "
+                f"({type(e).__name__}); cannot safely show a financial total."
+            ) from e
+
+    compadv_cash = comp_advance(('CASH',), bill_date)
+    compadv_cc = comp_advance(('Credit Card',), '2022-02-19')  # source SP hardcoded date
+    compadv_upi = comp_advance(('UPI',), bill_date)
+    compadv_chq = comp_advance(('Cheque',), bill_date)
+    compadv_rtgs = comp_advance(('RTGS', 'RTGS/NEFT'), bill_date)
+    compadv_app = comp_advance(('APP',), bill_date)
+
+    total_bills = scalar(
+        """
+        SELECT COUNT(*) FROM trnINVLABPRI A
+        WHERE A.STATUS IS NULL AND A.LOCATIONID = ? AND CONVERT(DATE, A.BILLDATE, 106) = ?
+        """,
+        (location_id, bill_date),
+    )
+
     total_online_upi = total_cheque + total_upi
     core_business_cash = (
-        total_cash - total_concessions - total_creditcards
+        total_cash - total_dues - total_concessions - total_creditcards
         - total_cheque - total_upi - total_refunds - total_refunds_prev - total_exp
     )
-    # NOTE: TOTALDUES omitted here — its real formula calls SQL scalar
-    # functions (dbo.DUEREC, dbo.SEC_CONC, dbo.CCDUEAMT) not reproduced
-    # in pure SELECT form. Confirm with AthenTech whether these functions
-    # are themselves read-only before adding this field — call them
-    # directly (SELECT dbo.DUEREC(...)) if so, same as any other scalar
-    # function, still no write involved either way.
-    cash_in_hand = core_business_cash + prevdue_cash
-    chq_online_upi_received = total_online_upi + prevdue_upi
+    cash_in_hand = core_business_cash + prevdue_cash + compadv_cash
+    # The source SP does not add PREVDUE_UPI to TOTALCHQONLINEUPI.
+    chq_online_upi_received = total_online_upi
 
     return {
         "GTOTALCREDITS": gtotalcredits,
         "TOTALCASH": total_cash,
         "TOTALCREDITS": total_credits,
+        "TOTALDUES": total_dues,
         "TOTALCONCESSIONS": total_concessions,
         "TOTALCREDITCARDS": total_creditcards,
+        "TOTALCHEQUE": total_cheque,
+        "TOTALUPI": total_upi,
         "TOTALONLINEUPI": total_online_upi,
         "TOTALREFUND": total_refunds,
         "TOTALREFUNDSPREV": total_refunds_prev,
         "EXPENDITURE": total_exp,
         "TOTALCOREBUSINESSCASH": core_business_cash,
+        "PREVDUE_CASH": prevdue_cash,
+        "PREVDUE_CREDITS": prevdue_credits,
+        "PREVDUE_CHEQUE": prevdue_cheque,
+        "PREVDUE_DD": prevdue_dd,
         "PREVDUE_UPI": prevdue_upi,
+        "COMPADVCASH": compadv_cash,
+        "COMPADVCC": compadv_cc,
+        "COMPADVUPI": compadv_upi,
+        "COMPADVCHQ": compadv_chq,
+        "COMPADVRTGS": compadv_rtgs,
+        "COMPADVAPP": compadv_app,
         "TOTALCASHRECEIVED": core_business_cash + prevdue_cash,
         "TOTALCCRECEIVED": total_creditcards + prevdue_credits,
         "TOTALCHQONLINEUPI": chq_online_upi_received,
         "TOTALCASHINHAND": cash_in_hand,
-        "TOTALCCINHAND": total_creditcards + prevdue_credits,
-        "TOTALCHQINHAND": total_cheque,
-        "TOTALONLINEUPIINHAND": total_upi + prevdue_upi,
+        "TOTALCCINHAND": total_creditcards + prevdue_credits + compadv_cc,
+        "TOTALCHQINHAND": total_cheque + prevdue_cheque + compadv_chq,
+        "TOTALONLINEUPIINHAND": total_upi + prevdue_dd + prevdue_upi + compadv_upi,
+        "TOTALBILLS": total_bills,
     }
 
 
@@ -251,6 +351,8 @@ def get_day_collection_all_branches_readonly(
             branches.append(values)
 
         return {"bill_date": bill_date, "branches": branches}
+    except ReconUnavailable as e:
+        return {"error": str(e)}
     except Exception as e:
         return {"error": f"Query failed: {e}"}
     finally:
