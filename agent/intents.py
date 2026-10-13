@@ -1865,8 +1865,80 @@ def _needs_llm(q: str) -> bool:
     return not any(k in q for k in _ANALYTIC_OK)
 
 
+# Custom Query List: conservative deterministic dispatch.  Exact phrases only.
+# This avoids capturing client-specific names/filters that need schema-aware logic.
+# Unsupported reports still follow the established LLM/report-tool route.
+_CUSTOM_EXACT = {
+    # Business / finance: re-use schema_ctx coll_amt (including per-client pins).
+    "today's collection": ("_handle_all_collection", "today's collection"),
+    "how much did we collect?": ("_handle_all_collection", "today's collection"),
+    "how much did we collect yesterday?": ("_handle_all_collection", "yesterday's collection"),
+    "payment mode split": ("_handle_all_collection", "today's collection"),
+    "cash vs upi": ("_handle_all_collection", "today's collection"),
+    "month to date": ("_handle_all_collection", "this month collection"),
+    "year to date": ("_handle_all_collection", "this year collection"),
+    "today's discount": ("_handle_concession_total", "total concession today"),
+    "refunds today": ("_handle_refunds", "refunds today"),
+    # Patients and doctors
+    "how many patients today?": ("_handle_patients_count", "how many patients today"),
+    "patient count today": ("_handle_patients_count", "how many patients today"),
+    "top referral doctors": ("_handle_referring_doctors", "top referring doctors today"),
+    "top doctors today": ("_handle_referring_doctors", "top doctors today"),
+    # Laboratory
+    "lab status": ("_handle_status_mix", "status breakdown today"),
+    "sample rejection": ("_handle_lab_volume", "sample rejected today"),
+    "rejected samples": ("_handle_lab_volume", "sample rejected today"),
+    "how many ct scans today?": ("_handle_modality_volume", "ct scan today"),
+    "how many mri scans?": ("_handle_modality_volume", "mri count today"),
+    "x-ray today": ("_handle_modality_volume", "x-ray count today"),
+    "mammography today": ("_handle_modality_volume", "mammography volume today"),
+    "top 10 tests": ("_handle_top_tests", "top tests today"),
+    "most ordered tests": ("_handle_top_tests", "top tests today"),
+    "top tests today": ("_handle_top_tests", "top tests today"),
+    # Branch / packages
+    "top packages": ("_handle_package_orders", "top packages today"),
+}
+
+# Do not force explanatory, hypothetical, or speculative questions into today's
+# numeric dashboard. Return None so the normal non-intent flow can answer them.
+_NON_REPORT_PREFIXES = (
+    "explain ", "why ", "what does ", "what is the difference ",
+    "how does ", "can you explain ", "show tat compliance for a date",
+    "show tat for a date", "is ", "should ",
+)
+
+# Direct TAT route precedes _ANALYTIC which otherwise rejects 'average'.
+_TAT_REPORT_TERMS = (
+    "tat report", "tat dashboard", "tat compliance", "today's tat",
+    "todays tat", "average tat", "avg tat", "turnaround time report",
+    "turnaround time dashboard",
+)
+
+def _custom_route(q, role, db_name, db_server, db_user, db_password):
+    if q.startswith(_NON_REPORT_PREFIXES):
+        return None
+    match = _CUSTOM_EXACT.get(q)
+    if match:
+        handler_name, canonical = match
+        handler = globals()[handler_name]
+        return handler(canonical, role, db_name, db_server, db_user, db_password,
+                       matched_keyword=canonical)
+    if any(term in q for term in _TAT_REPORT_TERMS) and not _is_comparison_question(q):
+        # Avoid replacing the user's date or location with 'today'.
+        return _handle_tat(q, role, db_name, db_server, db_user, db_password)
+    return None
+
+
 def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=None, db_password=None):
     q = (question or "").strip().lower()
+
+    # Custom exact aliases, plus early TAT dispatch (before analytics gate).
+    # No client DB writes; handlers retain their own roles, schema profiles and SQL.
+    if q.startswith(_NON_REPORT_PREFIXES):
+        return None
+    custom = _custom_route(q, role, db_name, db_server, db_user, db_password)
+    if custom is not None:
+        return custom
 
     # 1) Collection growth / branch-vs-branch ONLY when the question is purely about collection.
     #    "doctors this month vs last month", "refunds by branch compared with last month",
