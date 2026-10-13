@@ -1871,6 +1871,28 @@ def _needs_llm(q: str) -> bool:
 _CUSTOM_EXACT = {
     # Business / finance: re-use schema_ctx coll_amt (including per-client pins).
     "today's collection": ("_handle_all_collection", "today's collection"),
+    "todays collection": ("_handle_all_collection", "today's collection"),
+    "how much did we collect": ("_handle_all_collection", "today's collection"),
+    "how much did we collect yesterday": ("_handle_all_collection", "yesterday's collection"),
+    "collection today": ("_handle_all_collection", "today's collection"),
+    "collection yesterday": ("_handle_all_collection", "yesterday's collection"),
+    "mtd collection": ("_handle_all_collection", "this month collection"),
+    "ytd collection": ("_handle_all_collection", "this year collection"),
+    "discount summary": ("_handle_concession_total", "total concession today"),
+    "top referring doctors": ("_handle_referring_doctors", "top referring doctors today"),
+    "referring doctors": ("_handle_referring_doctors", "top referring doctors today"),
+    "lab status today": ("_handle_status_mix", "status breakdown today"),
+    "top tests": ("_handle_top_tests", "top tests today"),
+    "top tests today": ("_handle_top_tests", "top tests today"),
+    "branch-wise collection": ("_handle_collection_by_location", "collection by branch today"),
+    "collection by branch": ("_handle_collection_by_location", "collection by branch today"),
+    "which branch collected the most today": ("_handle_collection_by_location", "collection by branch today"),
+    "pending tests today": ("_handle_lab_volume", "pending tests today"),
+    "how many pending tests today": ("_handle_lab_volume", "pending tests today"),
+    "ct scans today": ("_handle_modality_volume", "ct scan today"),
+    "mri scans today": ("_handle_modality_volume", "mri count today"),
+    "top packages today": ("_handle_package_orders", "top packages today"),
+
     "how much did we collect?": ("_handle_all_collection", "today's collection"),
     "how much did we collect yesterday?": ("_handle_all_collection", "yesterday's collection"),
     "payment mode split": ("_handle_all_collection", "today's collection"),
@@ -1917,7 +1939,7 @@ _TAT_REPORT_TERMS = (
 def _custom_route(q, role, db_name, db_server, db_user, db_password):
     if q.startswith(_NON_REPORT_PREFIXES):
         return None
-    match = _CUSTOM_EXACT.get(q)
+    match = _CUSTOM_EXACT.get(q) or _CUSTOM_EXACT.get(q.rstrip(" ?.!").strip())
     if match:
         handler_name, canonical = match
         handler = globals()[handler_name]
