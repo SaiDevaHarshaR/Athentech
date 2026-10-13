@@ -37,7 +37,19 @@ from auth.admin_service import list_admins, create_admin, set_admin_status, chan
 from audit.log import audit, read_audit_log
 from reports.pdf_generator import generate_smart_report
 from reports.patient_report_generator import build_patient_report_data, PatientNotFound, PatientAmbiguous
-from database.license_db import init_license_db, seed_demo_institutions, seed_bootstrap_admin
+from database.license_db import init_license_db
+try:
+    from database.license_db import seed_demo_institutions
+except ImportError:                       # older/newer license_db without demo seeding: skip it, don't crash
+    def seed_demo_institutions():
+        print('[startup] WARNING: seed_demo_institutions missing in database/license_db.py - demo seeding skipped', flush=True)
+try:
+    from database.license_db import seed_bootstrap_admin
+except ImportError:
+    def seed_bootstrap_admin():
+        print('[startup] WARNING: seed_bootstrap_admin missing in database/license_db.py - legacy admin migration skipped (existing admins unaffected)', flush=True)
+from database.byok_migration import ensure_llm_columns
+import database.byok_migration as _byok_mig
 from notifications.email import send_alert_email
 from notifications.webhook import send_webhook_alert
 from notifications.expiry_checker import start_background_expiry_checker, check_and_alert
@@ -127,6 +139,7 @@ RATE = {}
 CODE_RATE = {}
 
 init_license_db()
+ensure_llm_columns()                     # never raises; sets byok_migration.READY and logs a loud ERROR when it fails
 seed_demo_institutions()
 seed_bootstrap_admin()  # one-time migration: legacy .env admin -> real admins table, see auth/admin_service.py
 start_background_expiry_checker()  # actually fires the "email alerts for expiring licenses" setting
@@ -484,10 +497,17 @@ def api_client_diagnostics(code: str, refresh: bool = False, admin: str = Depend
         except Exception: pass
 
 
+def _byok_not_ready():
+    if _byok_mig.READY:
+        return None
+    return {"status": "error", "code": "byok_not_ready",
+            "message": "AI-key storage is not ready (database migration failed: %s). Nothing was saved." % (_byok_mig.LAST_ERROR or "unknown")}
+
+
 @app.get("/admin/llm-providers")
 def api_llm_providers(admin: str = Depends(require_admin)):
     from agent import llm_providers
-    return {"status": "success", "providers": llm_providers.CATALOG}
+    return {"status": "success", "providers": llm_providers.CATALOG, "byok_ready": _byok_mig.READY, "byok_error": _byok_mig.LAST_ERROR}
 
 
 @app.post("/admin/llm-providers/validate")
@@ -525,6 +545,8 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
     try:
         key_status = None
         if req.llm_api_key:
+            if _byok_not_ready():
+                return _byok_not_ready()
             from agent import llm_providers
             chk = llm_providers.validate_key(req.llm_provider, req.llm_api_key, req.llm_model, req.llm_base_url)
             if not chk["ok"]:
@@ -558,11 +580,12 @@ def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, a
         changes = req.model_dump(exclude_unset=True)
         from agent import llm_providers
         if changes.pop("remove_llm_key", None):
-            from auth.license_service import remove_institution_llm_key
-            remove_institution_llm_key(institution_id)
             for k in ("llm_provider", "llm_model", "llm_api_key", "llm_base_url"):
                 changes.pop(k, None)
+            changes["clear_llm_key"] = True          # cleared inside the same UPDATE as the other edits
         elif changes.get("llm_api_key"):
+            if _byok_not_ready():
+                return _byok_not_ready()
             chk = llm_providers.validate_key(changes.get("llm_provider"), changes["llm_api_key"],
                                              changes.get("llm_model"), changes.get("llm_base_url"))
             if not chk["ok"]:
@@ -1058,8 +1081,13 @@ async def generate_patient_report(req: PatientReportRequest):
     db_user = validation.get("db_user")
     db_password = validation.get("db_password")
 
-    from agent.agent import _get_provider_chain
-    chain = _get_provider_chain()
+    from agent.agent import _data_chain, _BYOK_USER_MESSAGES
+    from agent.llm_providers import ByokUnavailable
+    try:
+        # patient data is summarised with the institution's own AI key when it has one; never silently AthenTech's
+        chain = _data_chain(validation.get("institution_code") or db_name, True)
+    except ByokUnavailable:
+        raise HTTPException(status_code=503, detail=_BYOK_USER_MESSAGES["unavailable"])
     if not chain:
         raise HTTPException(status_code=503, detail="No LLM provider is currently configured.")
     _, agent_llm = chain[0]
@@ -1068,8 +1096,10 @@ async def generate_patient_report(req: PatientReportRequest):
     loop = asyncio.get_event_loop()
 
     try:
+        import contextvars
+        _ctx = contextvars.copy_context()      # carries the "own AI key" flag into the worker thread (no shared-AI fallback)
         report_data = await loop.run_in_executor(
-            None, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
+            None, _ctx.run, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
             db_server, db_user, db_password,
         )
     except PatientNotFound:

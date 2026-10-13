@@ -159,7 +159,17 @@ async function loadInstitutionsFromAPI() {
     code: i.client_prefix,
     city: i.city,
     status: i.status,
-    db_name: i.db_name
+    db_name: i.db_name,
+    db_server: i.db_server || '',
+    db_user: i.db_user || '',
+    has_db_password: Boolean(i.has_db_password),
+    // Only public configuration metadata is retained. Secret keys never leave the API.
+    has_llm_key: Boolean(i.has_llm_key),
+    llm_provider: i.llm_provider || '',
+    llm_model: i.llm_model || '',
+    llm_base_url: i.llm_base_url || '',
+    llm_key_status: i.llm_key_status || '',
+    llm_key_checked_at: i.llm_key_checked_at || ''
   }));
   save();
 }
@@ -1175,6 +1185,16 @@ function renderInstitutions() {
                                 ✎
                             </button>
 
+                            <button type="button" class="row-action ra" data-ra="1" data-c="indigo"
+                                title="AI Settings — provider and API key"
+                                aria-label="AI Settings for institution ${institution.id}"
+                                onclick="openInstitutionAiSettings(${institution.id})">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round">
+                                    <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+                                    <circle cx="12" cy="12" r="4"/>
+                                </svg>
+                            </button>
+
                             <button
                                 class="row-action"
                                 onclick="
@@ -1353,42 +1373,22 @@ function institutionFields(
 
             </div>
 
-            <div class="form-group" style="grid-column:1/-1;border-top:1px solid var(--line,#ddd);padding-top:10px">
-                <label><strong>AI provider (client's own key)</strong>
-                    <small style="display:block;font-weight:normal">Optional. Leave empty to use AthenTech's AI for this client's data questions. General and "About AthenTech" questions always use AthenTech's AI.
-                    ${institution.llm_provider ? `<br>Saved: <b>${institution.llm_provider}</b> &middot; status: <b>${institution.llm_key_status || 'unknown'}</b>` : ''}</small>
-                </label>
+            <div class="form-group" style="grid-column:1/-1">
+                ${institution.id ? `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--border,#e2e8f0);background:var(--surface-2,#f8fafc);border-radius:12px;padding:13px 14px">
+                    <div style="min-width:0">
+                        <strong style="display:block;font-size:12px">AI Provider &amp; API Key</strong>
+                        <small style="display:block;margin-top:3px;color:var(--muted,#64748b);font-size:11px">
+                            ${institution.has_llm_key ? `Configured · ${escapeAiText(institution.llm_provider || 'provider')}` : 'Uses AthenTech AI · no client key saved'}
+                        </small>
+                    </div>
+                    <button type="button" class="secondary-btn" onclick="openInstitutionAiSettings(${institution.id})"
+                            aria-label="Manage institution AI settings">✨ AI Settings</button>
+                </div>` : `
+                <div style="border:1px dashed var(--border,#cbd5e1);border-radius:11px;padding:11px 14px;color:var(--muted,#64748b);font-size:11px">
+                    ✨ AI Settings can be configured after creating the institution, using its AI button.
+                </div>`}
             </div>
-
-            <div class="form-group">
-                <label>AI Provider</label>
-                <select name="llm_provider" id="llmProviderSel" data-saved="${institution.llm_provider || ''}">
-                    <option value="">— use AthenTech's AI —</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Model (optional)</label>
-                <input name="llm_model" id="llmModelInp" placeholder="default for provider" value="${institution.llm_model || ''}">
-            </div>
-
-            <div class="form-group">
-                <label>Base URL (only for "Other")</label>
-                <input name="llm_base_url" id="llmBaseInp" placeholder="https://..." value="${institution.llm_base_url || ''}">
-            </div>
-
-            <div class="form-group">
-                <label>API Key</label>
-                <input name="llm_api_key" id="llmKeyInp" type="password" autocomplete="off"
-                       placeholder="${institution.has_llm_key ? '(saved — leave blank to keep)' : 'Paste the provider API key'}">
-                <button type="button" class="secondary-btn" onclick="testLlmKey()" style="margin-top:6px">Test key</button>
-                <span id="llmKeyResult" style="margin-left:8px"></span>
-            </div>
-
-            ${institution.has_llm_key ? `<div class="form-group"><label><input type="checkbox" name="remove_llm_key"> Remove saved key (go back to AthenTech's AI)</label></div>` : ''}
-
-
-
 
 
             <div class="form-group">
@@ -1568,69 +1568,315 @@ async function openTokensModal() {
   `, null);
 }
 
-// ---- Institution AI key helpers (BYOK) ----
-async function populateLlmProviders() {
-    const sel = document.getElementById('llmProviderSel');
-    if (!sel) return;
-    try {
-        const res = await authFetch(`${API_BASE}/admin/llm-providers`);
-        const data = await res.json();
-        const saved = sel.dataset.saved || '';
-        (data.providers || []).forEach(p => {
-            const o = document.createElement('option');
-            o.value = p.id; o.textContent = p.label; o.dataset.model = p.default_model || '';
-            if (p.id === saved) o.selected = true;
-            sel.appendChild(o);
-        });
-        sel.onchange = () => {
-            const m = document.getElementById('llmModelInp');
-            const opt = sel.options[sel.selectedIndex];
-            if (m && !m.value && opt && opt.dataset.model) m.placeholder = opt.dataset.model;
-        };
-    } catch (e) { console.error(e); }
+// ---- Dedicated institution AI Settings dialog (BYOK) ----
+// Intentionally independent of the institution editor, so editing a key cannot
+// accidentally save or discard changes to name, DB credentials or licenses.
+function escapeAiText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[ch]));
 }
 
-async function testLlmKey() {
-    const out = document.getElementById('llmKeyResult');
-    const provider = document.getElementById('llmProviderSel')?.value;
-    const key = document.getElementById('llmKeyInp')?.value;
-    if (!provider) { out.textContent = 'Choose a provider first.'; return; }
-    if (!key) { out.textContent = 'Paste the API key to test.'; return; }
-    out.textContent = 'Testing…';
-    try {
-        const res = await authFetch(`${API_BASE}/admin/llm-providers/validate`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider, api_key: key,
-                model: document.getElementById('llmModelInp')?.value || null,
-                base_url: document.getElementById('llmBaseInp')?.value || null,
-            }),
-        });
-        const r = await res.json();
-        out.textContent = (r.ok ? '✅ ' : '❌ ') + r.message;
-    } catch (e) { out.textContent = '❌ Could not reach the server.'; }
+function ensureInstitutionAiDialog() {
+    if (document.getElementById('institutionAiOverlay')) return;
+    const style = document.createElement('style');
+    style.id = 'institutionAiStyles';
+    style.textContent = `
+      #institutionAiOverlay { position:fixed;inset:0;z-index:400;display:none;align-items:center;
+        justify-content:center;padding:18px;background:rgba(8,12,24,.64);backdrop-filter:blur(5px) }
+      #institutionAiOverlay.open { display:flex }
+      #institutionAiOverlay [hidden] { display:none!important }
+      #institutionAiOverlay .ai-dialog { width:min(570px,100%);max-height:calc(100vh - 36px);
+        overflow:auto;background:var(--surface,#fff);color:var(--text,#1e293b);border:1px solid var(--border,#e2e8f0);
+        border-radius:18px;box-shadow:0 26px 80px rgba(0,0,0,.28) }
+      #institutionAiOverlay .ai-head { display:flex;align-items:flex-start;justify-content:space-between;
+        gap:12px;padding:23px 24px 16px;border-bottom:1px solid var(--border,#e2e8f0) }
+      #institutionAiOverlay .ai-head h2 { margin:3px 0 5px;font-size:20px;color:var(--ink,#111827) }
+      #institutionAiOverlay .ai-muted { font-size:12px;color:var(--muted,#64748b);line-height:1.6 }
+      #institutionAiOverlay .ai-badge { font-size:11px;font-weight:650;padding:6px 10px;
+        border-radius:20px;background:var(--surface-2,#f1f5f9);color:var(--text,#334155) }
+      #institutionAiOverlay .ai-content { padding:20px 24px 10px;display:grid;gap:15px }
+      #institutionAiOverlay .ai-field { display:grid;gap:6px }
+      #institutionAiOverlay .ai-field label { font-size:12px;font-weight:650;color:var(--text,#334155) }
+      #institutionAiOverlay .ai-field input,#institutionAiOverlay .ai-field select {
+        width:100%;height:40px;border:1px solid var(--border,#cbd5e1);
+        border-radius:10px;background:var(--surface,#fff);color:var(--ink,#111827);
+        padding:9px 12px;font-size:13px;box-sizing:border-box }
+      #institutionAiOverlay .ai-field input:focus,#institutionAiOverlay .ai-field select:focus {
+        outline:2px solid var(--primary,#635bce);outline-offset:1px }
+      #institutionAiOverlay .ai-two { display:grid;grid-template-columns:1fr 1fr;gap:14px }
+      #institutionAiOverlay .ai-two:has(#institutionAiUrlWrap[hidden]) { grid-template-columns:1fr }
+      #institutionAiOverlay .ai-note { background:var(--surface-2,#f8fafc);border:1px solid var(--border,#e2e8f0);
+        border-radius:11px;padding:11px 13px;font-size:12px;line-height:1.6;color:var(--text,#475569) }
+      #institutionAiOverlay .ai-result { font-size:12px;line-height:1.6;min-height:19px;white-space:normal }
+      #institutionAiOverlay .ai-actions { padding:16px 24px 22px;display:flex;gap:8px;justify-content:flex-end;
+        align-items:center;flex-wrap:wrap }
+      #institutionAiOverlay button { cursor:pointer }
+      #institutionAiOverlay button:disabled { cursor:wait;opacity:.62 }
+      #institutionAiOverlay .ai-danger { color:#dc2626;border:1px solid #fecaca;background:transparent;
+        border-radius:9px;padding:9px 12px;font-size:12px;margin-right:auto }
+      @media(max-width:550px){#institutionAiOverlay .ai-two{grid-template-columns:1fr}
+        #institutionAiOverlay .ai-head,#institutionAiOverlay .ai-content{padding-left:16px;padding-right:16px}
+        #institutionAiOverlay .ai-actions{padding-left:16px;padding-right:16px} }
+    `;
+    document.head.appendChild(style);
+    const overlay = document.createElement('div');
+    overlay.id = 'institutionAiOverlay';
+    overlay.setAttribute('role', 'presentation');
+    overlay.innerHTML = `
+      <section class="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="institutionAiTitle">
+        <div class="ai-head">
+          <div><div class="ai-muted">INSTITUTION SETTINGS · BRING YOUR OWN KEY</div>
+            <h2 id="institutionAiTitle">✨ AI Provider Settings</h2>
+            <div class="ai-muted" id="institutionAiSub"></div></div>
+          <button type="button" class="modal-close" id="institutionAiClose" aria-label="Close AI settings">×</button>
+        </div>
+        <form id="institutionAiForm" autocomplete="off">
+          <div class="ai-content">
+            <div class="ai-note" id="institutionAiStatus">Checking institution AI configuration…</div>
+            <div class="ai-field"><label for="institutionAiProvider">Provider</label>
+              <select id="institutionAiProvider" name="llm_provider" required><option value="">Choose a provider…</option></select>
+            </div>
+            <div class="ai-two">
+              <div class="ai-field"><label for="institutionAiModel">Model (optional)</label>
+                <input id="institutionAiModel" name="llm_model" placeholder="Provider default" spellcheck="false"></div>
+              <div class="ai-field" id="institutionAiUrlWrap" hidden>
+                <label for="institutionAiUrl">Custom HTTPS Base URL</label>
+                <input id="institutionAiUrl" name="llm_base_url" placeholder="https://api.example.com/v1" spellcheck="false">
+              </div>
+            </div>
+            <div class="ai-field"><label for="institutionAiKey">API key</label>
+              <input id="institutionAiKey" name="llm_api_key" type="password" autocomplete="new-password"
+                placeholder="Paste a new API key" spellcheck="false">
+              <div class="ai-muted">Saved keys are never displayed. Leave blank to keep the existing key unchanged.</div>
+            </div>
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+              <button type="button" class="secondary-btn" id="institutionAiTest">Test new key</button>
+              <button type="button" class="secondary-btn" id="institutionAiRecheck" hidden>Recheck saved key</button>
+              <span id="institutionAiResult" class="ai-result" role="status" aria-live="polite"></span>
+            </div>
+            <div class="ai-note">Client-data AI requests use this institution's key when configured.
+              Without one, the existing AthenTech AI behavior remains. This does not alter LIS data or other institutions.</div>
+          </div>
+          <div class="ai-actions">
+            <button type="button" class="ai-danger" id="institutionAiRemove" hidden>Remove saved key</button>
+            <button type="button" class="secondary-btn" id="institutionAiCancel">Cancel</button>
+            <button type="submit" class="primary-btn" id="institutionAiSave">Validate &amp; save key</button>
+          </div>
+        </form>
+      </section>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeInstitutionAiSettings(); });
+    document.body.appendChild(overlay);
+    document.getElementById('institutionAiClose').onclick = closeInstitutionAiSettings;
+    document.getElementById('institutionAiCancel').onclick = closeInstitutionAiSettings;
+    document.getElementById('institutionAiTest').onclick = testInstitutionAiKey;
+    document.getElementById('institutionAiRecheck').onclick = revalidateInstitutionAiKey;
+    document.getElementById('institutionAiRemove').onclick = removeInstitutionAiKey;
+    document.getElementById('institutionAiForm').onsubmit = saveInstitutionAiKey;
+    document.getElementById('institutionAiProvider').addEventListener('change', updateInstitutionAiProvider);
+    // Esc closes ONLY the AI dialog, even if the Institution editor is open behind it.
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.getElementById('institutionAiOverlay')?.classList.contains('open')) {
+            e.stopPropagation(); closeInstitutionAiSettings();
+        }
+    });
 }
-window.testLlmKey = testLlmKey;
 
-function llmPayload(data) {
-    const out = {};
-    if (data.remove_llm_key) { out.remove_llm_key = true; return out; }
-    if (data.llm_api_key && data.llm_provider) {
-        out.llm_provider = data.llm_provider;
-        out.llm_api_key = data.llm_api_key;
-        out.llm_model = (data.llm_model || '').trim() || null;
-        out.llm_base_url = (data.llm_base_url || '').trim() || null;
-    } else if (data.llm_api_key && !data.llm_provider) {
-        out.llm_api_key = data.llm_api_key;   // server answers with a clear error
+let _institutionAiId = null;
+let _institutionAiBusy = false;
+let _institutionAiReady = false;
+let _institutionAiPreviousProvider = '';
+const aiEl = id => document.getElementById(id);
+
+function aiMessage(message, ok = null) {
+    const el = aiEl('institutionAiResult');
+    if (!el) return;
+    el.textContent = message;
+    el.style.color = ok === true ? 'var(--green,#16803c)' : ok === false ? '#dc2626' : 'var(--muted,#64748b)';
+}
+function aiBusy(busy) {
+    _institutionAiBusy = busy;
+    for (const id of ['institutionAiSave','institutionAiTest','institutionAiRecheck','institutionAiRemove']) {
+        const b = aiEl(id); if (b) b.disabled = busy || !_institutionAiReady;
     }
-    return out;
+}
+function closeInstitutionAiSettings() {
+    if (_institutionAiBusy) return;
+    const overlay = aiEl('institutionAiOverlay');
+    if (overlay) overlay.classList.remove('open');
+    if (aiEl('institutionAiKey')) aiEl('institutionAiKey').value = '';
+    _institutionAiId = null;
+}
+
+function updateInstitutionAiProvider() {
+    const select = aiEl('institutionAiProvider');
+    const option = select?.selectedOptions[0];
+    const custom = select?.value === 'custom';
+    aiEl('institutionAiUrlWrap').hidden = !custom;
+    const model = aiEl('institutionAiModel');
+    // A saved Groq model must never be accidentally sent when switching to OpenAI.
+    if (_institutionAiPreviousProvider && _institutionAiPreviousProvider !== select.value && model) model.value = '';
+    _institutionAiPreviousProvider = select?.value || '';
+    if (model && option) model.placeholder = option.dataset.model || 'Provider default';
+    aiMessage('');
+}
+
+async function openInstitutionAiSettings(id) {
+    const institution = inst(id);
+    if (!institution) { toast('Institution not found. Refresh the registry.'); return; }
+    ensureInstitutionAiDialog();
+    if (_institutionAiBusy) return;
+    _institutionAiId = Number(id);
+    _institutionAiReady = false;
+    const overlay = aiEl('institutionAiOverlay');
+    overlay.classList.add('open');
+    aiEl('institutionAiSub').textContent = institution.name + ' · ' + institution.code;
+    aiEl('institutionAiProvider').innerHTML = '<option value="">Loading providers…</option>';
+    aiEl('institutionAiKey').value = '';
+    _institutionAiPreviousProvider = '';
+    aiEl('institutionAiModel').value = institution.llm_model || '';
+    aiEl('institutionAiUrl').value = institution.llm_base_url || '';
+    aiEl('institutionAiStatus').textContent = institution.has_llm_key
+        ? `Saved provider: ${institution.llm_provider || 'Unknown'} · Status: ${institution.llm_key_status || 'Not checked'}${institution.llm_key_checked_at ? ' · Last checked: ' + institution.llm_key_checked_at : ''}`
+        : 'No institution key saved. Client AI currently uses the existing AthenTech fallback.';
+    aiEl('institutionAiRecheck').hidden = !institution.has_llm_key;
+    aiEl('institutionAiRemove').hidden = !institution.has_llm_key;
+    aiMessage('');
+    aiBusy(false);
+    try {
+        const response = await authFetch(`${API_BASE}/admin/llm-providers`);
+        const data = await response.json();
+        if (!response.ok || data.status !== 'success' || !Array.isArray(data.providers)) throw new Error('Provider list unavailable.');
+        if (_institutionAiId !== Number(id)) return;  // dialog was closed or changed during the request
+        const select = aiEl('institutionAiProvider');
+        select.replaceChildren();
+        const hint = document.createElement('option'); hint.value = ''; hint.textContent = 'Choose a provider…'; select.appendChild(hint);
+        for (const p of data.providers) {
+            const option = document.createElement('option');
+            option.value = p.id; option.textContent = p.label; option.dataset.model = p.default_model || '';
+            if (p.id === institution.llm_provider) option.selected = true;
+            select.appendChild(option);
+        }
+        // Existing server deployment can have a saved provider not in the current list.
+        if (institution.llm_provider && !Array.from(select.options).some(o => o.value === institution.llm_provider)) {
+            aiMessage('Previously saved provider is unavailable in this version. Contact an administrator.', false);
+        }
+        updateInstitutionAiProvider();
+        _institutionAiReady = Boolean(data.byok_ready);
+        if (!_institutionAiReady) {
+            aiMessage('AI-key storage is not ready. Nothing can be saved. Contact the server administrator.', false);
+        }
+        aiBusy(false);
+    } catch (e) {
+        _institutionAiReady = false;
+        aiBusy(false);
+        aiMessage('Could not load AI providers. Check admin login and backend availability.', false);
+    }
+    aiEl('institutionAiProvider').focus();
+}
+window.openInstitutionAiSettings = openInstitutionAiSettings;
+
+async function aiRequest(url, payload) {
+    const r = await authFetch(`${API_BASE}${url}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok && data.status === 'success' && data.ok !== false, data };
+}
+
+async function testInstitutionAiKey() {
+    const provider = aiEl('institutionAiProvider').value;
+    const api_key = aiEl('institutionAiKey').value.trim();
+    if (!provider) { aiMessage('Choose an AI provider.', false); return false; }
+    if (!api_key) { aiMessage('Paste a new key first, or use Recheck saved key.', false); return false; }
+    aiBusy(true); aiMessage('Checking authentication, model access and account availability…');
+    try {
+        const {ok,data} = await aiRequest('/admin/llm-providers/validate', {
+            provider, api_key, model:aiEl('institutionAiModel').value.trim() || null,
+            base_url:provider === 'custom' ? aiEl('institutionAiUrl').value.trim() : null
+        });
+        aiMessage(data.message || (ok ? 'Key works.' : 'Key verification failed.'), ok);
+        return ok;
+    } catch (e) { aiMessage('Unable to contact the provider-validation endpoint.', false); return false; }
+    finally { aiBusy(false); }
+}
+
+async function saveInstitutionAiKey(e) {
+    e.preventDefault();
+    if (!_institutionAiReady || _institutionAiBusy) return;
+    const api_key = aiEl('institutionAiKey').value.trim();
+    const provider = aiEl('institutionAiProvider').value;
+    if (!api_key) { aiMessage('Enter a new key to save. Use Recheck saved key to validate an existing one.', false); return; }
+    if (!provider) { aiMessage('Choose a provider first.', false); return; }
+    aiBusy(true); aiMessage('Validating and securely saving the new key…');
+    try {
+        const res = await authFetch(`${API_BASE}/admin/institutions/${_institutionAiId}`, {
+            method:'PATCH',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ llm_provider:provider, llm_api_key:api_key,
+                llm_model:aiEl('institutionAiModel').value.trim() || null,
+                llm_base_url:provider === 'custom' ? aiEl('institutionAiUrl').value.trim() || null : null })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.status !== 'success') {
+            aiMessage(data.message || data.detail || 'The key could not be saved.', false); return;
+        }
+        const institutionName = inst(_institutionAiId)?.name || 'Institution';
+        aiEl('institutionAiKey').value = '';
+        aiMessage('Key verified and saved for ' + institutionName + '.', true);
+        toast('Institution AI key saved');
+        aiEl('institutionAiRecheck').hidden = false;
+        aiEl('institutionAiRemove').hidden = false;
+        try {
+            await loadInstitutionsFromAPI(); renderInstitutions();
+            const fresh = inst(_institutionAiId);
+            aiEl('institutionAiStatus').textContent = `Saved provider: ${fresh?.llm_provider || provider} · Status: ${fresh?.llm_key_status || 'Valid'}`;
+        } catch (refreshErr) {
+            aiEl('institutionAiStatus').textContent = `Key saved for ${provider}. Refresh the registry to see updated status.`;
+        }
+    } catch (e) { aiMessage('Failed to save the key. Your previous settings are unchanged if the server rejected it.', false); }
+    finally { aiBusy(false); }
+}
+
+async function revalidateInstitutionAiKey() {
+    if (_institutionAiId === null) return;
+    aiBusy(true); aiMessage('Rechecking saved key with its provider…');
+    try {
+        const r = await aiRequest(`/admin/institutions/${_institutionAiId}/revalidate-llm-key`, {});
+        aiMessage(r.data.message || (r.ok ? 'Saved key is valid.' : 'The saved key could not be verified.'), r.ok);
+        await loadInstitutionsFromAPI(); renderInstitutions();
+        const updated = inst(_institutionAiId);
+        if (updated) aiEl('institutionAiStatus').textContent = `Saved provider: ${updated.llm_provider || 'Unknown'} · Status: ${updated.llm_key_status || 'Unknown'}`;
+    } catch (e) { aiMessage('Could not recheck the saved key.', false); }
+    finally { aiBusy(false); }
+}
+
+async function removeInstitutionAiKey() {
+    if (_institutionAiId === null || !confirm("Remove this institution\'s saved AI key? Client-data questions will use the existing AthenTech fallback.")) return;
+    aiBusy(true); aiMessage('Removing saved AI key…');
+    try {
+        const res = await authFetch(`${API_BASE}/admin/institutions/${_institutionAiId}`, {
+            method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({remove_llm_key:true})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.status !== 'success') {
+            aiMessage(data.message || 'Could not remove saved key.', false); return;
+        }
+        aiEl('institutionAiKey').value = '';
+        try { await loadInstitutionsFromAPI(); renderInstitutions(); }
+        catch (refreshErr) { console.warn('Key removed, but the institution list could not refresh.'); }
+        aiEl('institutionAiStatus').textContent = 'No client key saved. AthenTech AI fallback is active.';
+        aiEl('institutionAiRecheck').hidden = true;
+        aiEl('institutionAiRemove').hidden = true;
+        aiMessage('Client API key removed.', true);
+        toast('Institution AI key removed');
+    } catch (e) { aiMessage('Could not reach the server to remove the key.', false); }
+    finally { aiBusy(false); }
 }
 
 function openInstitution(
     institution = null
 ) {
 
-    setTimeout(populateLlmProviders, 0);
     openModal(
 
         'INSTITUTION',
@@ -1662,7 +1908,7 @@ function openInstitution(
                                 type: data.type,
                                 city: data.city.trim(),
                                 status: data.status,
-                                ...llmPayload(data),
+                                
                             }),
                         });
                         const result = await res.json();
@@ -1704,7 +1950,7 @@ function openInstitution(
                             type: data.type,
                             city: data.city.trim(),
                             status: data.status,
-                            ...llmPayload(data),
+                            
                         }),
                     });
                     const result = await res.json();
