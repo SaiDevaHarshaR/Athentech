@@ -5,8 +5,12 @@ NOTE: base URLs / default models are the providers' documented values at time of
 NOT exercised against the live providers from the build sandbox. Validation reports the real answer at
 runtime, and an admin can override the model (or use the 'custom' provider with any OpenAI-compatible URL).
 """
+import ipaddress
+import os
 import re
+import socket
 import threading
+from urllib.parse import urlparse
 import time
 
 import requests
@@ -66,6 +70,32 @@ def provider_info(pid):
     return None if not v else {"id": pid, "label": v[0], "protocol": v[1], "base_url": v[2], "default_model": v[3]}
 
 
+def check_base_url(url):
+    """SSRF guard for user-supplied URLs ('custom' provider): https only, no credentials in URL, and the host must
+    not resolve to loopback / private / link-local / reserved addresses (blocks internal services and cloud metadata)."""
+    try:
+        u = urlparse(url or "")
+    except Exception:
+        return False, "Invalid URL."
+    if u.scheme != "https" or not u.hostname or u.username or u.password:
+        return False, "Base URL must be a plain https:// address."
+    host = u.hostname
+    try:
+        infos = socket.getaddrinfo(host, u.port or 443, proto=socket.IPPROTO_TCP)
+    except Exception:
+        return False, "Base URL host could not be resolved."
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False, "Base URL points to a private or internal address, which is not allowed."
+    return True, ""
+
+
+def _effective_base(provider, info, base_url):
+    """Only the 'custom' provider may use a user-supplied URL; every other provider is pinned to its catalog URL."""
+    return (base_url or "").rstrip("/") if provider == "custom" else info["base_url"].rstrip("/")
+
+
 def _classify(status, body):
     text = str(body or "")[:1500]
     if status == 200:
@@ -98,15 +128,22 @@ def validate_key(provider, api_key, model=None, base_url=None, timeout=20):
         return {"ok": False, "code": "bad_request", "message": "Unknown AI provider."}
     if not key:
         return {"ok": False, "code": "invalid_key", "message": "Please enter the API key."}
-    base = (base_url or info["base_url"] or "").rstrip("/")
+    base = _effective_base(provider, info, base_url)
     mdl = (model or info["default_model"] or "").strip()
     if not base or not re.match(r"^https://", base):
         return {"ok": False, "code": "bad_request", "message": "A valid https:// base URL is required."}
+    if provider == "custom":
+        if os.environ.get("BYOK_ALLOW_CUSTOM", "") != "1":
+            return {"ok": False, "code": "bad_request",
+                    "message": "The 'Other (custom URL)' provider is disabled on this server (set BYOK_ALLOW_CUSTOM=1 to enable)."}
+        ok_url, why = check_base_url(base)
+        if not ok_url:
+            return {"ok": False, "code": "bad_request", "message": why}
     if not mdl:
         return {"ok": False, "code": "bad_model", "message": "Please enter the model name."}
     hdr = _headers(info["protocol"], key)
     try:
-        r = requests.get(base + "/models", headers=hdr, timeout=timeout)
+        r = requests.get(base + "/models", headers=hdr, timeout=timeout, allow_redirects=False)
         if r.status_code in (401, 403) or (r.status_code != 200 and _BADKEY.search(r.text or "")):
             code = _classify(r.status_code, r.text)
             if code == "invalid_key":
@@ -117,14 +154,28 @@ def validate_key(provider, api_key, model=None, base_url=None, timeout=20):
         else:
             url = base + "/chat/completions"
             body = {"model": mdl, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
-        r = requests.post(url, headers=hdr, json=body, timeout=timeout)
+        r = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
         if r.status_code == 400 and "max_tokens" in (r.text or "") and "max_completion_tokens" in (r.text or ""):
             body.pop("max_tokens"); body["max_completion_tokens"] = 16
-            r = requests.post(url, headers=hdr, json=body, timeout=timeout)
+            r = requests.post(url, headers=hdr, json=body, timeout=timeout, allow_redirects=False)
         code = _classify(r.status_code, r.text)
+        if code == "ok" and not _is_real_completion(info["protocol"], r):
+            code = "bad_request"
         return {"ok": code == "ok", "code": code, "message": MESSAGES[code]}
     except requests.exceptions.RequestException:
         return {"ok": False, "code": "unreachable", "message": MESSAGES["unreachable"]}
+
+
+def _is_real_completion(protocol, resp):
+    """HTTP 200 alone is not proof: require a genuine model reply shape."""
+    try:
+        j = resp.json()
+    except Exception:
+        return False
+    if protocol == "anthropic":
+        return isinstance(j, dict) and isinstance(j.get("content"), list)
+    ch = j.get("choices") if isinstance(j, dict) else None
+    return isinstance(ch, list) and len(ch) > 0 and isinstance(ch[0], dict) and "message" in ch[0]
 
 
 def classify_runtime_error(exc):
@@ -149,7 +200,14 @@ def build_chat_model(provider, api_key, model=None, base_url=None):
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=mdl, temperature=0, api_key=api_key)
     from langchain_openai import ChatOpenAI
-    return ChatOpenAI(model=mdl, temperature=0, api_key=api_key, base_url=base_url or info["base_url"])
+    base = _effective_base(provider, info, base_url)
+    if provider == "custom":
+        if os.environ.get("BYOK_ALLOW_CUSTOM", "") != "1":
+            raise ValueError("custom provider disabled")
+        ok_url, why = check_base_url(base)
+        if not ok_url:
+            raise ValueError(why)
+    return ChatOpenAI(model=mdl, temperature=0, api_key=api_key, base_url=base)
 
 
 # ---- per-institution lookup (cached briefly; key stays encrypted at rest) ---------------------------
@@ -174,8 +232,14 @@ def institution_llm_settings(client_prefix):
             "api_key": decrypt_secret(row["llm_api_key"]), "base_url": row["llm_base_url"] or None}
 
 
+class ByokUnavailable(Exception):
+    """The institution HAS its own AI key configured but it can't be used right now (settings unreadable /
+    model can't be built). Callers must NOT fall back to AthenTech's shared AI."""
+
+
 def institution_chain(client_prefix):
-    """[(provider, model)] for this institution's own key, or None to use AthenTech's shared chain."""
+    """[(provider, model)] for this institution's own key, or None if it has NO own key (use AthenTech's chain).
+    Raises ByokUnavailable when a key is configured/possibly configured but cannot be used: fail closed."""
     now = time.time()
     with _lock:
         hit = _cache.get(client_prefix)
@@ -184,9 +248,27 @@ def institution_chain(client_prefix):
     try:
         s = institution_llm_settings(client_prefix)
     except Exception as e:
-        print(f"[byok] could not read institution key settings: {type(e).__name__}", flush=True)
-        return None            # settings unreadable -> do not break chat; fall back to shared chain
-    chain = [(s["provider"], build_chat_model(s["provider"], s["api_key"], s["model"], s["base_url"]))] if s else None
+        # Columns not migrated yet => nobody has a key => shared AI. Anything else (DB down, decrypt error): fail closed.
+        if re.search(r"invalid column name|42s22", str(e), re.I):
+            try:
+                from database import byok_migration
+                migrated = byok_migration.READY
+            except Exception:
+                migrated = False
+            if not migrated:          # migration never completed => nobody can have a key yet => shared AI
+                return None
+            # migration said OK but columns are gone/inconsistent: fail closed
+            raise ByokUnavailable("settings schema inconsistent") from e
+        print(f"[byok] cannot read institution key settings: {type(e).__name__}", flush=True)
+        raise ByokUnavailable("settings unreadable") from e
+    if not s:
+        chain = None
+    else:
+        try:
+            chain = [(s["provider"], build_chat_model(s["provider"], s["api_key"], s["model"], s["base_url"]))]
+        except Exception as e:
+            print(f"[byok] cannot build model for institution: {type(e).__name__}", flush=True)
+            raise ByokUnavailable("model unavailable") from e
     with _lock:
         _cache[client_prefix] = (now, chain)
     return chain

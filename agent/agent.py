@@ -82,6 +82,7 @@ def _build_llm():
 
 import os
 import time
+import contextvars
 from auth.provider_exhaustion import is_exhausted, mark_exhausted
 
 _provider_chain_cache = {"chain": None, "built_at": 0}
@@ -223,6 +224,10 @@ def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> i
     return _PROVIDER_FALLBACK_TTL.get(provider_name, 26 * 60 * 60) # unknown — conservative fallback
 
 
+# True while serving a request that uses an INSTITUTION'S OWN AI key: no shared-provider fallback, no shared exhaustion marks.
+_OWN_KEY = contextvars.ContextVar("own_key_request", default=False)
+
+
 def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
     from agent.chip_health import NO_LLM, NeedsLLM
     if NO_LLM.get():        # chip self-test mode: never call a model
@@ -242,11 +247,15 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
             if not _is_rate_limit_error(e):
                 raise
             if i == retries:
+                if _OWN_KEY.get():
+                    raise          # client's own key is rate-limited: surface it, never use AthenTech's AI or mark its providers exhausted
                 retry_seconds = _extract_retry_seconds(str(e), current_provider)
                 mark_exhausted(current_provider, ttl_seconds=retry_seconds)
                 break
             time.sleep(4)      # was 20s: try the next provider quickly instead of idling
 
+    if _OWN_KEY.get():
+        return None        # defence in depth: an own-key request can never reach the shared fallback chain
     remaining = [(name, m) for name, m in _get_provider_chain() if name != current_provider]
     for name, model in remaining:
         if is_exhausted(name):
@@ -530,15 +539,15 @@ def _preflight_schema_search(question: str, role: str) -> str:
         return f"Schema discovery failed: {e}"
 def _data_chain(institution_code, is_premium):
     """Hospital-data questions use the institution's OWN AI key when it has one; otherwise AthenTech's shared chain.
+    If the institution has a key that can't be used, this RAISES (ByokUnavailable) - it never silently uses AthenTech's credits.
     (Normal / about-AthenTech questions always use AthenTech's chain.)"""
+    _OWN_KEY.set(False)
     if is_premium and institution_code:
-        try:
-            from agent.llm_providers import institution_chain
-            own = institution_chain(institution_code)
-            if own:
-                return own
-        except Exception as e:
-            print(f"[byok] falling back to shared chain: {type(e).__name__}", flush=True)
+        from agent.llm_providers import institution_chain
+        own = institution_chain(institution_code)      # may raise ByokUnavailable -> handled in ask_agent
+        if own:
+            _OWN_KEY.set(True)
+            return own
     return _get_provider_chain()
 
 
@@ -546,15 +555,25 @@ _BYOK_USER_MESSAGES = {
     "invalid_key": "Your AI provider rejected the saved API key. Please ask your administrator to update the AI key in Institution settings.",
     "no_credits": "Your AI provider account has no credits or tokens left. Please top up the provider account (or ask your administrator to update the key).",
     "rate_limited": "Your AI provider is rate-limiting the key right now. Please try again in a minute.",
+    "unavailable": "Your institution's AI key could not be loaded right now, so this question was not sent to any AI. Please try again shortly or contact your administrator.",
 }
 
 
 def ask_agent(*args, **kwargs):
+    _OWN_KEY.set(False)
     """Runs the agent. If the institution uses its OWN AI key and the provider rejects it (bad key / no credits /
     rate limit), return a clear message instead of a crash, and log it for the Guardian."""
     try:
         return _ask_agent_impl(*args, **kwargs)
     except Exception as e:
+        from agent.llm_providers import ByokUnavailable
+        if isinstance(e, ByokUnavailable):
+            try:
+                from agent import guardian
+                guardian.record_event(kwargs.get("db_name"), "ask", "client API key unavailable (settings unreadable or model cannot be built)")
+            except Exception:
+                pass
+            return _BYOK_USER_MESSAGES["unavailable"], 0
         inst = kwargs.get("institution_code")
         if kwargs.get("is_premium") and inst:
             try:
