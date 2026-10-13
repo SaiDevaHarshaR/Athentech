@@ -165,6 +165,8 @@ async function loadInstitutionsFromAPI() {
     has_db_password: Boolean(i.has_db_password),
     // Only public configuration metadata is retained. Secret keys never leave the API.
     has_llm_key: Boolean(i.has_llm_key),
+    llm_provider_count: Number(i.llm_provider_count || (i.has_llm_key ? 1 : 0)),
+    allow_athentech_fallback: i.allow_athentech_fallback === true || i.allow_athentech_fallback === 1,
     llm_provider: i.llm_provider || '',
     llm_model: i.llm_model || '',
     llm_base_url: i.llm_base_url || '',
@@ -1186,8 +1188,7 @@ function renderInstitutions() {
                             </button>
 
                             <button type="button" class="row-action ra" data-ra="1" data-c="indigo"
-                                title="AI Settings - provider and API key"
-                                data-tip="AI Settings · Manage provider and API key"
+                                title="AI Settings — provider and API key"
                                 aria-label="AI Settings for institution ${institution.id}"
                                 onclick="openInstitutionAiSettings(${institution.id})">
                                 <svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round">
@@ -1380,7 +1381,7 @@ function institutionFields(
                     <div style="min-width:0">
                         <strong style="display:block;font-size:12px">AI Provider &amp; API Key</strong>
                         <small style="display:block;margin-top:3px;color:var(--muted,#64748b);font-size:11px">
-                            ${institution.has_llm_key ? `Configured · ${escapeAiText(institution.llm_provider || 'provider')}` : 'Uses AthenTech AI · no client key saved'}
+                            ${institution.has_llm_key ? `Configured · ${institution.llm_provider_count>1?`${institution.llm_provider_count} providers`:escapeAiText(institution.llm_provider || 'provider')}` : (institution.allow_athentech_fallback ? 'AthenTech AI fallback enabled by admin' : 'AI disabled · no key / no fallback consent')}
                         </small>
                     </div>
                     <button type="button" class="secondary-btn" onclick="openInstitutionAiSettings(${institution.id})"
@@ -1569,321 +1570,395 @@ async function openTokensModal() {
   `, null);
 }
 
-// ---- Dedicated institution AI Settings dialog (BYOK) ----
-// Intentionally independent of the institution editor, so editing a key cannot
-// accidentally save or discard changes to name, DB credentials or licenses.
+// ---- Multi-provider institution AI workspace ----
+// The first provider slot always exists. Others are opt-in, independently
+// enabled, and collapsible. Keys are write-only, stored encrypted by backend.
 function escapeAiText(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
-        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[ch]));
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
 }
-
-function ensureInstitutionAiDialog() {
-    if (document.getElementById('institutionAiOverlay')) return;
-    const style = document.createElement('style');
-    style.id = 'institutionAiStyles';
-    style.textContent = `
-      #institutionAiOverlay { position:fixed;inset:0;z-index:400;display:none;align-items:center;
-        justify-content:center;padding:18px;background:rgba(8,12,24,.64);backdrop-filter:blur(5px) }
-      #institutionAiOverlay.open { display:flex }
-      #institutionAiOverlay [hidden] { display:none!important }
-      #institutionAiOverlay .ai-dialog { width:min(570px,100%);max-height:calc(100vh - 36px);
-        overflow:auto;background:var(--surface,#fff);color:var(--text,#1e293b);border:1px solid var(--border,#e2e8f0);
-        border-radius:18px;box-shadow:0 26px 80px rgba(0,0,0,.28) }
-      #institutionAiOverlay .ai-head { display:flex;align-items:flex-start;justify-content:space-between;
-        gap:12px;padding:23px 24px 16px;border-bottom:1px solid var(--border,#e2e8f0) }
-      #institutionAiOverlay .ai-head h2 { margin:3px 0 5px;font-size:20px;color:var(--ink,#111827) }
-      #institutionAiOverlay .ai-muted { font-size:12px;color:var(--muted,#64748b);line-height:1.6 }
-      #institutionAiOverlay .ai-badge { font-size:11px;font-weight:650;padding:6px 10px;
-        border-radius:20px;background:var(--surface-2,#f1f5f9);color:var(--text,#334155) }
-      #institutionAiOverlay .ai-content { padding:20px 24px 10px;display:grid;gap:15px }
-      #institutionAiOverlay .ai-field { display:grid;gap:6px }
-      #institutionAiOverlay .ai-field label { font-size:12px;font-weight:650;color:var(--text,#334155) }
-      #institutionAiOverlay .ai-field input,#institutionAiOverlay .ai-field select {
-        width:100%;height:40px;border:1px solid var(--border,#cbd5e1);
-        border-radius:10px;background:var(--surface,#fff);color:var(--ink,#111827);
-        padding:9px 12px;font-size:13px;box-sizing:border-box }
-      #institutionAiOverlay .ai-field input:focus,#institutionAiOverlay .ai-field select:focus {
-        outline:2px solid var(--primary,#635bce);outline-offset:1px }
-      #institutionAiOverlay .ai-two { display:grid;grid-template-columns:1fr 1fr;gap:14px }
-      #institutionAiOverlay .ai-two:has(#institutionAiUrlWrap[hidden]) { grid-template-columns:1fr }
-      #institutionAiOverlay .ai-note { background:var(--surface-2,#f8fafc);border:1px solid var(--border,#e2e8f0);
-        border-radius:11px;padding:11px 13px;font-size:12px;line-height:1.6;color:var(--text,#475569) }
-      #institutionAiOverlay .ai-result { font-size:12px;line-height:1.6;min-height:19px;white-space:normal }
-      #institutionAiOverlay .ai-actions { padding:16px 24px 22px;display:flex;gap:8px;justify-content:flex-end;
-        align-items:center;flex-wrap:wrap }
-      #institutionAiOverlay button { cursor:pointer }
-      #institutionAiOverlay button:disabled { cursor:wait;opacity:.62 }
-      #institutionAiOverlay .ai-danger { color:#dc2626;border:1px solid #fecaca;background:transparent;
-        border-radius:9px;padding:9px 12px;font-size:12px;margin-right:auto }
-      @media(max-width:550px){#institutionAiOverlay .ai-two{grid-template-columns:1fr}
-        #institutionAiOverlay .ai-head,#institutionAiOverlay .ai-content{padding-left:16px;padding-right:16px}
-        #institutionAiOverlay .ai-actions{padding-left:16px;padding-right:16px} }
-    `;
-    document.head.appendChild(style);
-    const overlay = document.createElement('div');
-    overlay.id = 'institutionAiOverlay';
-    overlay.setAttribute('role', 'presentation');
-    overlay.innerHTML = `
-      <section class="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="institutionAiTitle">
-        <div class="ai-head">
-          <div><div class="ai-muted">INSTITUTION SETTINGS · BRING YOUR OWN KEY</div>
-            <h2 id="institutionAiTitle">✨ AI Provider Settings</h2>
-            <div class="ai-muted" id="institutionAiSub"></div></div>
-          <button type="button" class="modal-close" id="institutionAiClose" aria-label="Close AI settings">×</button>
-        </div>
-        <form id="institutionAiForm" autocomplete="off">
-          <div class="ai-content">
-            <div class="ai-note" id="institutionAiStatus">Checking institution AI configuration…</div>
-            <div class="ai-field"><label for="institutionAiProvider">Provider</label>
-              <select id="institutionAiProvider" name="llm_provider" required><option value="">Choose a provider…</option></select>
-            </div>
-            <div class="ai-two">
-              <div class="ai-field"><label for="institutionAiModel">Model (optional)</label>
-                <input id="institutionAiModel" name="llm_model" placeholder="Provider default" spellcheck="false"></div>
-              <div class="ai-field" id="institutionAiUrlWrap" hidden>
-                <label for="institutionAiUrl">Custom HTTPS Base URL</label>
-                <input id="institutionAiUrl" name="llm_base_url" placeholder="https://api.example.com/v1" spellcheck="false">
-              </div>
-            </div>
-            <div class="ai-field"><label for="institutionAiKey">API key</label>
-              <input id="institutionAiKey" name="llm_api_key" type="password" autocomplete="new-password"
-                placeholder="Paste a new API key" spellcheck="false">
-              <div class="ai-muted">Saved keys are never displayed. Leave blank to keep the existing key unchanged.</div>
-            </div>
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
-              <button type="button" class="secondary-btn" id="institutionAiTest">Test new key</button>
-              <button type="button" class="secondary-btn" id="institutionAiRecheck" hidden>Recheck saved key</button>
-              <span id="institutionAiResult" class="ai-result" role="status" aria-live="polite"></span>
-            </div>
-            <div class="ai-note">Client-data AI requests use this institution's key when configured.
-              Without one, the existing AthenTech AI behavior remains. This does not alter LIS data or other institutions.</div>
-          </div>
-          <div class="ai-actions">
-            <button type="button" class="ai-danger" id="institutionAiRemove" hidden>Remove saved key</button>
-            <button type="button" class="secondary-btn" id="institutionAiCancel">Cancel</button>
-            <button type="submit" class="primary-btn" id="institutionAiSave">Validate &amp; save key</button>
-          </div>
-        </form>
-      </section>`;
-    overlay.addEventListener('click', e => { if (e.target === overlay) closeInstitutionAiSettings(); });
-    document.body.appendChild(overlay);
-    document.getElementById('institutionAiClose').onclick = closeInstitutionAiSettings;
-    document.getElementById('institutionAiCancel').onclick = closeInstitutionAiSettings;
-    document.getElementById('institutionAiTest').onclick = testInstitutionAiKey;
-    document.getElementById('institutionAiRecheck').onclick = revalidateInstitutionAiKey;
-    document.getElementById('institutionAiRemove').onclick = removeInstitutionAiKey;
-    document.getElementById('institutionAiForm').onsubmit = saveInstitutionAiKey;
-    document.getElementById('institutionAiProvider').addEventListener('change', updateInstitutionAiProvider);
-    // Esc closes ONLY the AI dialog, even if the Institution editor is open behind it.
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && document.getElementById('institutionAiOverlay')?.classList.contains('open')) {
-            e.stopPropagation(); closeInstitutionAiSettings();
-        }
-    });
-}
-
-let _institutionAiId = null;
-let _institutionAiBusy = false;
-let _institutionAiReady = false;
-let _institutionAiPreviousProvider = '';
 const aiEl = id => document.getElementById(id);
+let _institutionAiId = null;
+let _institutionAiReady = false;
+let _institutionAiBusy = false;
+let _institutionAiSlots = [];
+let _institutionAiCatalog = [];
+let _institutionAiExpanded = 1;
 
-function aiMessage(message, ok = null) {
-    const el = aiEl('institutionAiResult');
-    if (!el) return;
-    el.textContent = message;
-    el.style.whiteSpace = 'pre-line';
-    el.style.color = ok === true ? 'var(--green,#16803c)' : ok === false ? '#dc2626' : 'var(--muted,#64748b)';
+function aiFeedback(text, kind = '') {
+  const e = aiEl('institutionAiResult');
+  if (!e) return;
+  e.textContent = text || '';
+  e.dataset.kind = kind;
 }
 function aiValidationMessage(data, fallback) {
-    if (!data || typeof data !== 'object') return fallback;
-    const parts = [data.message || fallback];
-    if (data.provider || data.model) {
-        parts.push('Provider: ' + (data.provider || '?') + ' · Model: ' + (data.model || 'default'));
-    }
-    if (data.http_status) parts.push('Provider HTTP status: ' + data.http_status);
-    if (data.detail) parts.push('Diagnostic: ' + data.detail);
-    return parts.filter(Boolean).join('\n');
+  if (!data || typeof data !== 'object') return fallback;
+  const parts = [data.message || data.detail || fallback];
+  if (data.http_status) parts.push('Provider HTTP ' + data.http_status);
+  if (data.detail && data.message) parts.push(data.detail);
+  return parts.filter(Boolean).join(' · ');
 }
 function aiBusy(busy) {
-    _institutionAiBusy = busy;
-    for (const id of ['institutionAiSave','institutionAiTest','institutionAiRecheck','institutionAiRemove']) {
-        const b = aiEl(id); if (b) b.disabled = busy || !_institutionAiReady;
+  _institutionAiBusy = Boolean(busy);
+  const panel = aiEl('institutionAiOverlay');
+  panel?.classList.toggle('busy', _institutionAiBusy);
+  ['institutionAiSave','institutionAiAdd','institutionAiFallback'].forEach(id => {
+    const item = aiEl(id); if (item) item.disabled = busy || !_institutionAiReady;
+  });
+  panel?.querySelectorAll('.ai-slot-area button, .ai-slot-area input, .ai-slot-area select').forEach(e => {
+    e.disabled = busy || !_institutionAiReady || (e.dataset.primary === 'mandatory');
+  });
+}
+function ensureInstitutionAiDialog() {
+  if (aiEl('institutionAiOverlay')) return;
+  const style = document.createElement('style');
+  style.id = 'institutionAiStyles';
+  style.textContent = `
+  #institutionAiOverlay {position:fixed;inset:0;z-index:450;display:none;align-items:center;justify-content:center;
+    background:rgba(10,18,33,.58);backdrop-filter:blur(8px);padding:20px}
+  #institutionAiOverlay.open {display:flex;animation:aiFade .19s ease}
+  @keyframes aiFade {from{opacity:0}to{opacity:1}}
+  #institutionAiOverlay [hidden] {display:none!important}
+  #institutionAiOverlay .ai-window{width:min(720px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;
+    border:1px solid var(--border,#e2e8f0);border-radius:22px;background:var(--surface,#fff);
+    color:var(--text,#1f2937);box-shadow:0 32px 95px rgba(9,22,40,.28);overflow:hidden;
+    animation:aiIn .24s cubic-bezier(.2,.75,.2,1)}
+  @keyframes aiIn{from{transform:translateY(9px) scale(.986)}to{transform:none}}
+  #institutionAiOverlay .ai-head{display:flex;gap:16px;align-items:center;justify-content:space-between;
+    padding:23px 27px 21px;border-bottom:1px solid var(--border,#e2e8f0)}
+  #institutionAiOverlay .ai-eyebrow{font-size:10px;letter-spacing:.13em;font-weight:750;color:var(--muted,#64748b)}
+  #institutionAiOverlay h2{font-size:22px;line-height:1.25;margin:6px 0 5px;color:var(--ink,#111827);letter-spacing:-.03em}
+  #institutionAiOverlay .ai-muted{color:var(--muted,#64748b);font-size:12px;line-height:1.6}
+  #institutionAiOverlay .ai-exit{border:1px solid var(--border,#e2e8f0);border-radius:50%;background:transparent;
+    color:var(--muted,#64748b);width:32px;height:32px;display:grid;place-items:center;font-size:21px;cursor:pointer}
+  #institutionAiOverlay .ai-scroll{overflow-y:auto;min-height:0;overscroll-behavior:contain;padding:22px 27px 25px}
+  #institutionAiOverlay .ai-summary{padding:12px 14px;border-radius:11px;background:var(--surface-2,#f8fafc);
+    color:var(--muted,#475569);font-size:12px;border:1px solid var(--border,#e2e8f0);line-height:1.5;margin-bottom:22px}
+  #institutionAiOverlay .ai-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  #institutionAiOverlay .ai-section-title strong{font-size:14px;letter-spacing:-.012em;color:var(--ink,#111827)}
+  #institutionAiOverlay .ai-slot-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 17px}
+  #institutionAiOverlay .ai-slot-chip{display:inline-flex;gap:9px;align-items:center;padding:10px 13px;border-radius:11px;
+    cursor:pointer;border:1px solid var(--border,#e2e8f0);background:var(--surface,#fff);font-size:12px;font-weight:700;
+    color:var(--text,#334155);transition:background .16s,border-color .16s;user-select:none}
+  #institutionAiOverlay .ai-slot-chip.is-on{border-color:var(--primary,#635bce);background:color-mix(in srgb,var(--primary,#635bce) 7%,var(--surface,#fff))}
+  #institutionAiOverlay .ai-slot-chip input{accent-color:var(--primary,#635bce);width:15px;height:15px;margin:0;cursor:pointer}
+  #institutionAiOverlay .ai-slot-chip input:disabled{cursor:not-allowed;opacity:1}
+  #institutionAiOverlay .ai-slot-chip small{font-size:10px;color:var(--muted,#64748b);font-weight:500}
+  #institutionAiOverlay button.ai-add{border:1px dashed var(--border,#cbd5e1);border-radius:11px;padding:10px 13px;
+    color:var(--primary,#635bce);font-size:12px;font-weight:700;background:transparent;cursor:pointer}
+  #institutionAiOverlay .ai-panels{display:grid;gap:10px}
+  #institutionAiOverlay details.ai-provider{border:1px solid var(--border,#e2e8f0);border-radius:13px;background:var(--surface,#fff);
+    overflow:hidden;transition:border-color .18s}
+  #institutionAiOverlay details.ai-provider[open]{border-color:color-mix(in srgb,var(--primary,#635bce) 35%,var(--border,#e2e8f0))}
+  #institutionAiOverlay details.ai-provider > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;
+    padding:14px 15px;min-height:40px}
+  #institutionAiOverlay details.ai-provider > summary::-webkit-details-marker{display:none}
+  #institutionAiOverlay .ai-slot-num{flex:0 0 31px;height:31px;border:1px solid var(--border,#e2e8f0);border-radius:9px;
+    display:grid;place-items:center;color:var(--muted,#64748b);font-weight:750;font-size:12px}
+  #institutionAiOverlay .ai-slot-copy{min-width:0;flex:1}
+  #institutionAiOverlay .ai-slot-copy strong{font-size:12px;display:block;color:var(--ink,#111827)}
+  #institutionAiOverlay .ai-slot-copy span{font-size:11px;color:var(--muted,#64748b);display:block;margin-top:2px}
+  #institutionAiOverlay .ai-status-pill{font-size:10px;font-weight:750;border-radius:15px;padding:4px 8px;
+    background:var(--surface-2,#f1f5f9);color:var(--muted,#64748b);white-space:nowrap}
+  #institutionAiOverlay .ai-status-pill.good{background:#e9f8ef;color:#147444}
+  #institutionAiOverlay .ai-status-pill.off{background:var(--surface-2,#f1f5f9);color:var(--muted,#64748b)}
+  #institutionAiOverlay .ai-chevron{color:var(--muted,#94a3b8);font-size:18px;transition:transform .2s}
+  #institutionAiOverlay details[open] .ai-chevron{transform:rotate(180deg)}
+  #institutionAiOverlay .ai-panel-body{padding:17px 17px 15px;border-top:1px solid var(--border,#e2e8f0);display:grid;gap:15px}
+  #institutionAiOverlay .ai-field{display:grid;gap:6px;min-width:0}
+  #institutionAiOverlay .ai-field label{font-size:12px;font-weight:650;color:var(--text,#334155)}
+  #institutionAiOverlay .ai-field input,#institutionAiOverlay .ai-field select{box-sizing:border-box;width:100%;height:42px;
+    padding:9px 12px;border:1px solid var(--border,#cbd5e1);border-radius:10px;font-size:13px;
+    background:var(--surface,#fff);color:var(--ink,#111827)}
+  #institutionAiOverlay .ai-field input:focus,#institutionAiOverlay .ai-field select:focus{
+    outline:2px solid var(--primary,#635bce);outline-offset:1px}
+  #institutionAiOverlay .ai-row2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  #institutionAiOverlay .ai-provider-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  #institutionAiOverlay .ai-lite{border:1px solid var(--border,#cbd5e1);color:var(--text,#334155);
+    background:var(--surface,#fff);padding:8px 11px;border-radius:9px;font-size:11px;font-weight:650;cursor:pointer}
+  #institutionAiOverlay .ai-lite.danger{color:#c03940;border-color:#f7c6cc}
+  #institutionAiOverlay .ai-mini-state{font-size:11px;color:var(--muted,#64748b);line-height:1.5}
+  #institutionAiOverlay .ai-toggle-row{display:flex;gap:16px;align-items:center;justify-content:space-between;
+    margin-top:22px;border-radius:14px;border:1px solid var(--border,#e2e8f0);
+    padding:18px;background:var(--surface-2,#f8fafc)}
+  #institutionAiOverlay .ai-toggle-row strong{display:block;font-size:13px;color:var(--ink,#111827);margin-bottom:4px}
+  #institutionAiOverlay .ai-switch{position:relative;display:block;width:42px;height:24px;flex-shrink:0}
+  #institutionAiOverlay .ai-switch input{opacity:0;width:100%;height:100%;position:absolute;inset:0;cursor:pointer;z-index:2}
+  #institutionAiOverlay .ai-track{position:absolute;inset:0;border-radius:20px;background:#cbd5e1;transition:background .18s}
+  #institutionAiOverlay .ai-track:after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;
+    background:#fff;border-radius:50%;transition:transform .18s;box-shadow:0 1px 4px #0002}
+  #institutionAiOverlay .ai-switch input:checked + .ai-track{background:var(--primary,#635bce)}
+  #institutionAiOverlay .ai-switch input:checked + .ai-track:after{transform:translateX(18px)}
+  #institutionAiOverlay .ai-switch input:focus-visible + .ai-track{outline:2px solid var(--primary,#635bce);outline-offset:3px}
+  #institutionAiOverlay .ai-result{font-size:12px;line-height:1.6;white-space:pre-line;min-height:17px;margin-top:14px;color:var(--muted,#64748b)}
+  #institutionAiOverlay .ai-result[data-kind="success"]{color:#15803d}
+  #institutionAiOverlay .ai-result[data-kind="error"]{color:#cc3e45}
+  #institutionAiOverlay .ai-footer{border-top:1px solid var(--border,#e2e8f0);padding:14px 27px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface,#fff)}
+  #institutionAiOverlay .ai-footnote{font-size:11px;color:var(--muted,#64748b)}
+  #institutionAiOverlay .ai-footer-buttons{display:flex;gap:9px}
+  #institutionAiOverlay .ai-footer button{border-radius:9px;font-size:12px;font-weight:700;padding:10px 15px;cursor:pointer}
+  #institutionAiOverlay .ai-footer .ai-save{border:1px solid var(--primary,#635bce);background:var(--primary,#635bce);color:white}
+  #institutionAiOverlay .ai-footer .ai-cancel{border:1px solid var(--border,#cbd5e1);background:transparent;color:var(--text,#334155)}
+  #institutionAiOverlay.busy button{opacity:.68;cursor:wait}
+  @media(max-width:570px){#institutionAiOverlay{padding:8px}#institutionAiOverlay .ai-window{max-height:calc(100vh - 16px)}
+    #institutionAiOverlay .ai-head{padding:18px}#institutionAiOverlay .ai-scroll{padding:16px}
+    #institutionAiOverlay .ai-row2{grid-template-columns:1fr}#institutionAiOverlay .ai-footer{padding:14px 16px}
+    #institutionAiOverlay .ai-footnote{display:none}}
+  `;
+  document.head.appendChild(style);
+  const overlay = document.createElement('div');
+  overlay.id = 'institutionAiOverlay';
+  overlay.innerHTML = `
+   <section class="ai-window" role="dialog" aria-modal="true" aria-labelledby="institutionAiTitle">
+    <header class="ai-head"><div><div class="ai-eyebrow">INSTITUTION  /  AI CONFIGURATION</div>
+      <h2 id="institutionAiTitle">AI Providers</h2>
+      <div class="ai-muted" id="institutionAiSub"></div></div>
+      <button type="button" class="ai-exit" id="institutionAiClose" aria-label="Close dialog">×</button></header>
+    <div class="ai-scroll"><div class="ai-summary" id="institutionAiStatus">Loading configuration…</div>
+     <div class="ai-section-title"><strong>Provider slots</strong><span class="ai-muted">Priority: 1 → 2 → 3 → ...</span></div>
+     <div class="ai-muted">Provider 1 is required. Check more slots to enable them. Expand a card to configure its key.</div>
+     <div class="ai-slot-area"><div class="ai-slot-bar" id="institutionAiSlotBar"></div>
+       <div class="ai-panels" id="institutionAiPanels"></div></div>
+     <div class="ai-toggle-row"><div><strong>Allow AthenTech AI fallback</strong>
+       <div class="ai-muted">Optional · Off by default. Used <b>only when no institution provider is enabled with a key</b>.
+       A failing or exhausted institution key never switches to AthenTech automatically.</div></div>
+       <label class="ai-switch" title="Explicitly allow AthenTech AI when no client key is configured">
+         <input id="institutionAiFallback" type="checkbox" aria-label="Allow AthenTech AI fallback"/><span class="ai-track"></span></label></div>
+     <div class="ai-result" id="institutionAiResult" role="status" aria-live="polite"></div>
+    </div>
+    <footer class="ai-footer"><div class="ai-footnote">Keys are encrypted · Client databases untouched</div>
+     <div class="ai-footer-buttons"><button type="button" class="ai-cancel" id="institutionAiCancel">Cancel</button>
+     <button type="button" class="ai-save" id="institutionAiSave">Save settings</button></div></footer>
+   </section>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => {if(e.target===overlay) closeInstitutionAiSettings();});
+  aiEl('institutionAiClose').onclick = closeInstitutionAiSettings;
+  aiEl('institutionAiCancel').onclick = closeInstitutionAiSettings;
+  aiEl('institutionAiSave').onclick = saveInstitutionAiSettings;
+  overlay.addEventListener('change', onInstitutionAiChange);
+  overlay.addEventListener('input', onInstitutionAiInput);
+  overlay.addEventListener('click', onInstitutionAiClick);
+  overlay.addEventListener('toggle', e => {
+    if (e.target?.matches?.('details.ai-provider') && e.target.open) _institutionAiExpanded = Number(e.target.dataset.position);
+  }, true);
+  document.addEventListener('keydown', e => {
+    if (e.key==='Escape' && aiEl('institutionAiOverlay')?.classList.contains('open')) {
+      e.stopPropagation(); closeInstitutionAiSettings();
     }
+  });
+}
+
+function makeEmptyAiSlot(position) {
+  return {position,enabled:position===1,provider:'',model:'',base_url:'',key_status:'not_configured',
+          has_key:false,clear_key:false,new_key:'',legacy:false};
+}
+function aiSlotLabel(slot) {
+  const info = _institutionAiCatalog.find(p => p.id === slot.provider);
+  return info?.label || slot.provider || 'Not configured';
+}
+function renderInstitutionAiSlots() {
+  const bar = aiEl('institutionAiSlotBar');
+  const panels = aiEl('institutionAiPanels');
+  if (!bar || !panels) return;
+  bar.innerHTML = _institutionAiSlots.map((s,i) => `
+    <label class="ai-slot-chip ${s.enabled?'is-on':''}" title="${i===0?'Required primary provider':'Enable / disable this provider'}">
+      <input type="checkbox" data-ai-enabled="${i}" ${s.enabled?'checked':''}
+        ${i===0?'disabled data-primary="mandatory"':''} aria-label="Enable provider ${i+1}"/>
+      <span>${i+1}${i===0?'<small> · required</small>':''}</span>
+    </label>`).join('') + `<button id="institutionAiAdd" type="button" class="ai-add" data-ai-action="add"
+      ${_institutionAiSlots.length>=25?'disabled':''}>＋ Add provider</button>`;
+  panels.innerHTML = _institutionAiSlots.map((s,i) => {
+    const opts = _institutionAiCatalog.map(p => `<option value="${escapeAiText(p.id)}" ${p.id===s.provider?'selected':''}
+      ${p.disabled?'disabled':''}>${escapeAiText(p.label)}${p.disabled?' (unavailable)':''}</option>`).join('');
+    const fallbackModel = _institutionAiCatalog.find(p => p.id===s.provider)?.default_model || 'Provider default';
+    const status = s.clear_key ? 'Will remove key' : s.new_key ? 'New key entered' : s.has_key ? (s.key_status==='valid'?'Verified key saved':'Saved key · '+s.key_status) : 'No key yet';
+    const state = !s.enabled ? 'Disabled' : s.has_key || s.new_key ? 'Configured' : 'Set up';
+    return `<details class="ai-provider" data-position="${i+1}" ${_institutionAiExpanded===i+1?'open':''}>
+       <summary><div class="ai-slot-num">${String(i+1).padStart(2,'0')}</div>
+         <div class="ai-slot-copy"><strong>Provider ${i+1} · ${escapeAiText(aiSlotLabel(s))}</strong>
+           <span>${escapeAiText(status)}</span></div>
+         <span class="ai-status-pill ${s.enabled&&(s.has_key||s.new_key)?'good':(!s.enabled?'off':'')}">${escapeAiText(state)}</span>
+         <span class="ai-chevron" aria-hidden="true">⌄</span></summary>
+       <div class="ai-panel-body">
+         <div class="ai-field"><label for="aiProvider${i}">Provider</label>
+           <select id="aiProvider${i}" data-ai-field="provider" data-index="${i}">
+             <option value="">Choose a provider…</option>${opts}</select></div>
+         <div class="ai-row2"><div class="ai-field"><label for="aiModel${i}">Model <span class="ai-muted">(optional)</span></label>
+             <input id="aiModel${i}" data-ai-field="model" data-index="${i}" spellcheck="false"
+                value="${escapeAiText(s.model)}" placeholder="${escapeAiText(fallbackModel)}"/></div>
+           <div class="ai-field" data-ai-url-wrap="${i}" ${s.provider!=='custom'?'hidden':''}>
+             <label for="aiUrl${i}">Custom HTTPS URL</label><input id="aiUrl${i}" data-ai-field="base_url" data-index="${i}"
+               value="${escapeAiText(s.base_url)}" placeholder="https://api.example.com/v1" spellcheck="false"/></div></div>
+         <div class="ai-field"><label for="aiKey${i}">API key</label>
+           <input id="aiKey${i}" data-ai-field="new_key" data-index="${i}" type="password"
+             autocomplete="new-password" placeholder="${s.has_key?'•••••••• (saved — leave blank to keep)':'Paste API key'}" spellcheck="false"/>
+           <div class="ai-muted">Saved keys are never shown. New keys are tested before saving.</div></div>
+         <div class="ai-provider-actions">
+           <button type="button" class="ai-lite" data-ai-action="test" data-index="${i}">Test new key</button>
+           ${s.has_key&&!s.clear_key?`<button type="button" class="ai-lite" data-ai-action="recheck" data-index="${i}">Recheck saved</button>
+              <button type="button" class="ai-lite danger" data-ai-action="clear" data-index="${i}">Remove key</button>`:''}
+           ${i>=3&&i===_institutionAiSlots.length-1?`<button type="button" class="ai-lite danger" data-ai-action="remove" data-index="${i}">Remove slot</button>`:''}
+         </div>
+         <div class="ai-mini-state" id="aiSlotResult${i}" role="status" aria-live="polite"></div>
+       </div></details>`;
+  }).join('');
+  if (_institutionAiBusy || !_institutionAiReady) aiBusy(_institutionAiBusy);
+}
+function onInstitutionAiInput(e) {
+  const el=e.target, i=Number(el.dataset.index), field=el.dataset.aiField;
+  if (!field || !_institutionAiSlots[i]) return;
+  _institutionAiSlots[i][field] = el.value;
+  if (field==='new_key' && el.value) _institutionAiSlots[i].clear_key=false;
+}
+function onInstitutionAiChange(e) {
+  const el=e.target;
+  if (el.dataset.aiEnabled!==undefined) {
+    const i=Number(el.dataset.aiEnabled);if(i===0){el.checked=true;return;}
+    _institutionAiSlots[i].enabled=el.checked;
+    if (el.checked) _institutionAiExpanded=i+1;
+    renderInstitutionAiSlots();
+  }
+  if (el.dataset.aiField==='provider') {
+    const i=Number(el.dataset.index), s=_institutionAiSlots[i];
+    s.provider=el.value;s.model='';s.base_url='';s.new_key='';
+    // A saved key cannot be reassigned to another provider without replacing it.
+    if (s.has_key) { s.clear_key=true; s.has_key=false; }
+    _institutionAiExpanded=i+1;
+    renderInstitutionAiSlots();
+    aiFeedback('Changing a provider requires a new API key.', '');
+  }
+}
+async function aiProviderCall(endpoint, method='POST', body=undefined) {
+  const r=await authFetch(`${API_BASE}${endpoint}`,{
+    method, ...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  });
+  const data=await r.json().catch(()=>({}));
+  return {ok:r.ok&&data.status==='success'&&data.ok!==false,data};
+}
+async function onInstitutionAiClick(e) {
+  const button=e.target.closest('[data-ai-action]');
+  if (!button || _institutionAiBusy) return;
+  const action=button.dataset.aiAction, i=Number(button.dataset.index);
+  if(action==='add') {
+    if(_institutionAiSlots.length>=25) return aiFeedback('Maximum 25 provider slots.','error');
+    _institutionAiSlots.push(makeEmptyAiSlot(_institutionAiSlots.length+1));
+    _institutionAiExpanded=_institutionAiSlots.length;
+    renderInstitutionAiSlots();return;
+  }
+  const slot=_institutionAiSlots[i];if(!slot) return;
+  if(action==='remove') {
+    if(i<3||i!==_institutionAiSlots.length-1) return;
+    if(slot.has_key&&!confirm('Remove this provider slot and its saved key when you save?')) return;
+    _institutionAiSlots.pop();_institutionAiExpanded=Math.min(i,3);
+    renderInstitutionAiSlots();return;
+  }
+  if(action==='clear') {
+    if(!confirm('Remove only Provider '+(i+1)+' saved key when you save?')) return;
+    slot.clear_key=true;slot.has_key=false;slot.new_key='';
+    _institutionAiExpanded=i+1;renderInstitutionAiSlots();
+    aiFeedback('Key will be removed when you click Save settings.','');return;
+  }
+  if(action==='test' || action==='recheck') {
+    if(!_institutionAiReady) return;
+    if(action==='test'&&(!slot.provider||!slot.new_key.trim())) {
+      aiFeedback('Select a provider and enter a new key in Provider '+(i+1)+'.','error');return;
+    }
+    aiBusy(true);aiFeedback('Checking Provider '+(i+1)+'…');
+    try {
+      const {ok,data}=action==='test'
+       ?await aiProviderCall('/admin/llm-providers/validate','POST',{
+          provider:slot.provider,model:slot.model||null,api_key:slot.new_key.trim(),
+          base_url:slot.provider==='custom'?slot.base_url||null:null})
+       :await aiProviderCall(`/admin/institutions/${_institutionAiId}/ai-providers/${i+1}/revalidate`);
+      const msg=aiValidationMessage(data,ok?'Validated successfully.':'Verification failed.');
+      aiFeedback('Provider '+(i+1)+': '+msg,ok?'success':'error');
+      if(ok){slot.key_status='valid';if(action==='recheck')slot.has_key=true;}
+    } catch(err){aiFeedback('Cannot reach the provider-validation service. Check network connectivity.','error');}
+    finally{aiBusy(false);}
+  }
 }
 function closeInstitutionAiSettings() {
-    if (_institutionAiBusy) return;
-    const overlay = aiEl('institutionAiOverlay');
-    if (overlay) overlay.classList.remove('open');
-    if (aiEl('institutionAiKey')) aiEl('institutionAiKey').value = '';
-    _institutionAiId = null;
+  if (_institutionAiBusy) return;
+  aiEl('institutionAiOverlay')?.classList.remove('open');
+  _institutionAiSlots.forEach(s => {s.new_key='';});
+  _institutionAiId=null;
 }
-
-function updateInstitutionAiProvider() {
-    const select = aiEl('institutionAiProvider');
-    const option = select?.selectedOptions[0];
-    const custom = select?.value === 'custom';
-    aiEl('institutionAiUrlWrap').hidden = !custom;
-    const model = aiEl('institutionAiModel');
-    // A saved Groq model must never be accidentally sent when switching to OpenAI.
-    if (_institutionAiPreviousProvider && _institutionAiPreviousProvider !== select.value && model) model.value = '';
-    _institutionAiPreviousProvider = select?.value || '';
-    if (model && option) model.placeholder = option.dataset.model || 'Provider default';
-    aiMessage('');
-}
-
 async function openInstitutionAiSettings(id) {
-    const institution = inst(id);
-    if (!institution) { toast('Institution not found. Refresh the registry.'); return; }
-    ensureInstitutionAiDialog();
-    if (_institutionAiBusy) return;
-    _institutionAiId = Number(id);
-    _institutionAiReady = false;
-    const overlay = aiEl('institutionAiOverlay');
-    overlay.classList.add('open');
-    aiEl('institutionAiSub').textContent = institution.name + ' · ' + institution.code;
-    aiEl('institutionAiProvider').innerHTML = '<option value="">Loading providers…</option>';
-    aiEl('institutionAiKey').value = '';
-    _institutionAiPreviousProvider = '';
-    aiEl('institutionAiModel').value = institution.llm_model || '';
-    aiEl('institutionAiUrl').value = institution.llm_base_url || '';
-    aiEl('institutionAiStatus').textContent = institution.has_llm_key
-        ? `Saved provider: ${institution.llm_provider || 'Unknown'} · Status: ${institution.llm_key_status || 'Not checked'}${institution.llm_key_checked_at ? ' · Last checked: ' + institution.llm_key_checked_at : ''}`
-        : 'No institution key saved. Client AI currently uses the existing AthenTech fallback.';
-    aiEl('institutionAiRecheck').hidden = !institution.has_llm_key;
-    aiEl('institutionAiRemove').hidden = !institution.has_llm_key;
-    aiMessage('');
-    aiBusy(false);
-    try {
-        const response = await authFetch(`${API_BASE}/admin/llm-providers`);
-        const data = await response.json();
-        if (!response.ok || data.status !== 'success' || !Array.isArray(data.providers)) throw new Error('Provider list unavailable.');
-        if (_institutionAiId !== Number(id)) return;  // dialog was closed or changed during the request
-        const select = aiEl('institutionAiProvider');
-        select.replaceChildren();
-        const hint = document.createElement('option'); hint.value = ''; hint.textContent = 'Choose a provider…'; select.appendChild(hint);
-        for (const p of data.providers) {
-            const option = document.createElement('option');
-            option.value = p.id; option.textContent = p.label; option.dataset.model = p.default_model || '';
-            if (p.disabled) { option.disabled = true; option.textContent += ' — unavailable'; option.title = p.reason || ''; }
-            if (p.id === institution.llm_provider) option.selected = true;
-            select.appendChild(option);
-        }
-        // Existing server deployment can have a saved provider not in the current list.
-        if (institution.llm_provider && !Array.from(select.options).some(o => o.value === institution.llm_provider)) {
-            aiMessage('Previously saved provider is unavailable in this version. Contact an administrator.', false);
-        }
-        updateInstitutionAiProvider();
-        _institutionAiReady = Boolean(data.byok_ready);
-        if (!_institutionAiReady) {
-            aiMessage('AI-key storage is not ready. Nothing can be saved. Contact the server administrator.', false);
-        }
-        aiBusy(false);
-    } catch (e) {
-        _institutionAiReady = false;
-        aiBusy(false);
-        aiMessage('Could not load AI providers. Check admin login and backend availability.', false);
+  const institution=inst(id);
+  if(!institution) return toast('Institution not found. Refresh the registry.');
+  ensureInstitutionAiDialog();
+  if(_institutionAiBusy)return;
+  _institutionAiId=Number(id); _institutionAiReady=false; _institutionAiExpanded=1;
+  aiEl('institutionAiOverlay').classList.add('open');
+  aiEl('institutionAiSub').textContent=institution.name+' · '+institution.code;
+  aiEl('institutionAiStatus').textContent='Loading saved institution settings…';
+  aiEl('institutionAiFallback').checked=!!institution.allow_athentech_fallback;
+  aiFeedback('');
+  _institutionAiSlots=[makeEmptyAiSlot(1),makeEmptyAiSlot(2),makeEmptyAiSlot(3)];
+  renderInstitutionAiSlots();aiBusy(false);
+  try {
+    const [catalogResponse,settingsResponse]=await Promise.all([
+      authFetch(`${API_BASE}/admin/llm-providers`),
+      authFetch(`${API_BASE}/admin/institutions/${id}/ai-providers`)
+    ]);
+    const catalog=await catalogResponse.json(),settings=await settingsResponse.json();
+    if(_institutionAiId!==Number(id))return;
+    if(!catalogResponse.ok || !settingsResponse.ok || catalog.status!=='success'||settings.status!=='success')
+       throw new Error(settings.message||'AI provider settings could not be loaded');
+    _institutionAiCatalog=catalog.providers||[];
+    _institutionAiReady=!!catalog.byok_ready;
+    _institutionAiSlots=(settings.slots||[]).map(s=>({...makeEmptyAiSlot(s.position),...s,new_key:'',clear_key:false}));
+    while(_institutionAiSlots.length<3)_institutionAiSlots.push(makeEmptyAiSlot(_institutionAiSlots.length+1));
+    _institutionAiSlots[0].enabled=true;
+    aiEl('institutionAiFallback').checked=!!settings.allow_athentech_fallback;
+    const n=_institutionAiSlots.filter(s=>s.enabled&&s.has_key).length;
+    aiEl('institutionAiStatus').textContent=n
+      ?`${n} enabled institution provider${n===1?'':'s'} · Uses client's own credentials`
+      :(settings.allow_athentech_fallback?'No client key · AthenTech AI explicitly allowed':'No client key · AI disabled until a key is saved or fallback is enabled');
+    renderInstitutionAiSlots();aiBusy(false);
+    if(!_institutionAiReady)aiFeedback('AI-key storage is unavailable. Nothing can be saved.','error');
+  } catch(error) {
+    _institutionAiReady=false;aiBusy(false);
+    aiFeedback('Could not load AI settings: '+(error.message||'server unreachable'),'error');
+  }
+}
+window.openInstitutionAiSettings=openInstitutionAiSettings;
+
+async function saveInstitutionAiSettings() {
+  if(!_institutionAiReady||_institutionAiBusy||_institutionAiId===null)return;
+  const slots=_institutionAiSlots.map((s,i)=>({
+    position:i+1,enabled:i===0?true:!!s.enabled,
+    provider:s.provider,model:s.model,base_url:s.provider==='custom'?s.base_url:'',
+    ...(s.new_key.trim()?{api_key:s.new_key.trim()}:{}),
+    ...(s.clear_key?{clear_key:true}:{})
+  }));
+  // The UI's primary checkbox is intentionally locked ON. The primary key
+  // itself is optional only when AI should remain disabled or consent is ON.
+  for(const [i,s] of slots.entries()) {
+    if(s.enabled&&i>0&&!s.api_key&&!_institutionAiSlots[i].has_key) {
+      aiFeedback(`Provider ${i+1} is enabled but has no key. Enter one or uncheck it.`,'error');
+      _institutionAiExpanded=i+1;renderInstitutionAiSlots();return;
     }
-    aiEl('institutionAiProvider').focus();
-}
-window.openInstitutionAiSettings = openInstitutionAiSettings;
-
-async function aiRequest(url, payload) {
-    const r = await authFetch(`${API_BASE}${url}`, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  }
+  aiBusy(true);aiFeedback('Validating and saving settings securely…');
+  try {
+    const {ok,data}=await aiProviderCall(`/admin/institutions/${_institutionAiId}/ai-providers`,'PUT',{
+      slots,allow_athentech_fallback:!!aiEl('institutionAiFallback').checked
     });
-    const data = await r.json().catch(() => ({}));
-    return { ok: r.ok && data.status === 'success' && data.ok !== false, data };
-}
-
-async function testInstitutionAiKey() {
-    const provider = aiEl('institutionAiProvider').value;
-    const api_key = aiEl('institutionAiKey').value.trim();
-    if (!provider) { aiMessage('Choose an AI provider.', false); return false; }
-    if (!api_key) { aiMessage('Paste a new key first, or use Recheck saved key.', false); return false; }
-    aiBusy(true); aiMessage('Checking authentication, model access and account availability…');
-    try {
-        const {ok,data} = await aiRequest('/admin/llm-providers/validate', {
-            provider, api_key, model:aiEl('institutionAiModel').value.trim() || null,
-            base_url:provider === 'custom' ? aiEl('institutionAiUrl').value.trim() : null
-        });
-        aiMessage(aiValidationMessage(data, ok ? 'Key works.' : 'Key verification failed.'), ok);
-        return ok;
-    } catch (e) { aiMessage('Unable to contact the provider-validation endpoint.', false); return false; }
-    finally { aiBusy(false); }
-}
-
-async function saveInstitutionAiKey(e) {
-    e.preventDefault();
-    if (!_institutionAiReady || _institutionAiBusy) return;
-    const api_key = aiEl('institutionAiKey').value.trim();
-    const provider = aiEl('institutionAiProvider').value;
-    if (!api_key) { aiMessage('Enter a new key to save. Use Recheck saved key to validate an existing one.', false); return; }
-    if (!provider) { aiMessage('Choose a provider first.', false); return; }
-    aiBusy(true); aiMessage('Validating and securely saving the new key…');
-    try {
-        const res = await authFetch(`${API_BASE}/admin/institutions/${_institutionAiId}`, {
-            method:'PATCH',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ llm_provider:provider, llm_api_key:api_key,
-                llm_model:aiEl('institutionAiModel').value.trim() || null,
-                llm_base_url:provider === 'custom' ? aiEl('institutionAiUrl').value.trim() || null : null })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.status !== 'success') {
-            aiMessage(aiValidationMessage(data, 'The key could not be saved.'), false); return;
-        }
-        const institutionName = inst(_institutionAiId)?.name || 'Institution';
-        aiEl('institutionAiKey').value = '';
-        aiMessage('Key verified and saved for ' + institutionName + '.', true);
-        toast('Institution AI key saved');
-        aiEl('institutionAiRecheck').hidden = false;
-        aiEl('institutionAiRemove').hidden = false;
-        try {
-            await loadInstitutionsFromAPI(); renderInstitutions();
-            const fresh = inst(_institutionAiId);
-            aiEl('institutionAiStatus').textContent = `Saved provider: ${fresh?.llm_provider || provider} · Status: ${fresh?.llm_key_status || 'Valid'}`;
-        } catch (refreshErr) {
-            aiEl('institutionAiStatus').textContent = `Key saved for ${provider}. Refresh the registry to see updated status.`;
-        }
-    } catch (e) { aiMessage('Failed to save the key. Your previous settings are unchanged if the server rejected it.', false); }
-    finally { aiBusy(false); }
-}
-
-async function revalidateInstitutionAiKey() {
-    if (_institutionAiId === null) return;
-    aiBusy(true); aiMessage('Rechecking saved key with its provider…');
-    try {
-        const r = await aiRequest(`/admin/institutions/${_institutionAiId}/revalidate-llm-key`, {});
-        aiMessage(aiValidationMessage(r.data, r.ok ? 'Saved key is valid.' : 'The saved key could not be verified.'), r.ok);
-        await loadInstitutionsFromAPI(); renderInstitutions();
-        const updated = inst(_institutionAiId);
-        if (updated) aiEl('institutionAiStatus').textContent = `Saved provider: ${updated.llm_provider || 'Unknown'} · Status: ${updated.llm_key_status || 'Unknown'}`;
-    } catch (e) { aiMessage('Could not recheck the saved key.', false); }
-    finally { aiBusy(false); }
-}
-
-async function removeInstitutionAiKey() {
-    if (_institutionAiId === null || !confirm("Remove this institution\'s saved AI key? Client-data questions will use the existing AthenTech fallback.")) return;
-    aiBusy(true); aiMessage('Removing saved AI key…');
-    try {
-        const res = await authFetch(`${API_BASE}/admin/institutions/${_institutionAiId}`, {
-            method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({remove_llm_key:true})
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.status !== 'success') {
-            aiMessage(data.message || 'Could not remove saved key.', false); return;
-        }
-        aiEl('institutionAiKey').value = '';
-        try { await loadInstitutionsFromAPI(); renderInstitutions(); }
-        catch (refreshErr) { console.warn('Key removed, but the institution list could not refresh.'); }
-        aiEl('institutionAiStatus').textContent = 'No client key saved. AthenTech AI fallback is active.';
-        aiEl('institutionAiRecheck').hidden = true;
-        aiEl('institutionAiRemove').hidden = true;
-        aiMessage('Client API key removed.', true);
-        toast('Institution AI key removed');
-    } catch (e) { aiMessage('Could not reach the server to remove the key.', false); }
-    finally { aiBusy(false); }
+    if(!ok){aiFeedback(data.message||'Save failed; previous settings remain unchanged.','error');return;}
+    _institutionAiSlots=(data.slots||[]).map(s=>({...makeEmptyAiSlot(s.position),...s,new_key:'',clear_key:false}));
+    while(_institutionAiSlots.length<3)_institutionAiSlots.push(makeEmptyAiSlot(_institutionAiSlots.length+1));
+    _institutionAiSlots[0].enabled=true;
+    const n=_institutionAiSlots.filter(s=>s.enabled&&s.has_key).length;
+    aiEl('institutionAiStatus').textContent=`${n} enabled client provider${n===1?'':'s'} · ${data.allow_athentech_fallback?'Shared fallback permitted only with no client keys':'No AthenTech shared fallback'}`;
+    renderInstitutionAiSlots();
+    aiFeedback('Saved successfully · provider order, enabled keys and fallback preference updated.','success');
+    try{await loadInstitutionsFromAPI();renderInstitutions();}catch(_e){/* successful write remains successful */}
+    toast('AI provider settings saved');
+  } catch(error){aiFeedback('The server could not save these settings. Previous settings remain unchanged.','error');}
+  finally{aiBusy(false);}
 }
 
 function openInstitution(
