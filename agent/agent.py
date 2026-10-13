@@ -226,12 +226,40 @@ def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> i
 
 # True while serving a request that uses an INSTITUTION'S OWN AI key: no shared-provider fallback, no shared exhaustion marks.
 _OWN_KEY = contextvars.ContextVar("own_key_request", default=False)
+_OWN_CLIENT_CHAIN = contextvars.ContextVar("own_client_provider_chain", default=None)
+_OWN_CLIENT_INDEX = contextvars.ContextVar("own_client_provider_index", default=0)
 
 
 def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
     from agent.chip_health import NO_LLM, NeedsLLM
     if NO_LLM.get():        # chip self-test mode: never call a model
         raise NeedsLLM()
+    if _OWN_KEY.get():
+        # Fail over ONLY among the same institution's own validated providers.
+        # Never visit _get_provider_chain() (AthenTech). Remember a successful
+        # secondary provider for later tool-calling rounds within this request.
+        chain = _OWN_CLIENT_CHAIN.get() or []
+        if not chain:
+            raise RuntimeError("Institution AI provider chain missing")
+        preferred = min(_OWN_CLIENT_INDEX.get(), len(chain) - 1)
+        order = [preferred] + [i for i in range(preferred + 1, len(chain))]
+        last_error = None
+        for ix in order:
+            name, model = chain[ix]
+            try:
+                candidate = runnable if ix == 0 else (model.bind_tools(fallback_tools) if fallback_tools else model)
+                answer = candidate.invoke(messages)
+                _OWN_CLIENT_INDEX.set(ix)
+                return answer
+            except Exception as error:
+                last_error = error
+                print(f"[_invoke_with_retry] client provider #{ix+1} ({name}) failed: {type(error).__name__}", flush=True)
+                if "tool_use_failed" in str(error) or "Failed to parse tool call" in str(error):
+                    return None
+                continue
+        if last_error:
+            raise last_error
+        return None
     for i in range(retries + 1):
         try:
             return runnable.invoke(messages)
@@ -537,21 +565,46 @@ def _preflight_schema_search(question: str, role: str) -> str:
         return str(result) if result else "No matching schema candidates found."
     except Exception as e:
         return f"Schema discovery failed: {e}"
+def _bind_first_usable_model(current_chain, tools):
+    """Select a provider capable of tool calling, within the allowed chain.
+
+    For own-key requests, a failed .bind_tools must not force AthenTech spend
+    or prevent trying an enabled secondary institution provider.
+    """
+    error = None
+    for i, (name, model) in enumerate(current_chain):
+        try:
+            bound = model.bind_tools(tools)
+            if _OWN_KEY.get():
+                _OWN_CLIENT_INDEX.set(i)
+            return name, model, bound
+        except Exception as exc:
+            error = exc
+            print(f"[byok] model cannot bind tools at provider position {i+1}: {type(exc).__name__}", flush=True)
+    if error:
+        raise error
+    raise RuntimeError("No model available for tool calling")
+
+
 def _data_chain(institution_code, is_premium):
-    """Hospital-data questions use the institution's OWN AI key when it has one; otherwise AthenTech's shared chain.
-    If the institution has a key that can't be used, this RAISES (ByokUnavailable) - it never silently uses AthenTech's credits.
-    (Normal / about-AthenTech questions always use AthenTech's chain.)"""
+    """Client AI: own key, or AthenTech ONLY after explicit per-institution opt-in.
+    Normal/AthenTech Info requests without client-data context keep shared AI."""
     _OWN_KEY.set(False)
-    if is_premium and institution_code:
+    if "_OWN_CLIENT_CHAIN" in globals():
+        _OWN_CLIENT_CHAIN.set(None)
+        _OWN_CLIENT_INDEX.set(0)
+    if is_premium:
         from agent.llm_providers import institution_chain
         own = institution_chain(institution_code)      # may raise ByokUnavailable -> handled in ask_agent
         if own:
             _OWN_KEY.set(True)
+            _OWN_CLIENT_CHAIN.set(own)
             return own
     return _get_provider_chain()
 
 
 _BYOK_USER_MESSAGES = {
+    "opt_in_required": "AI is not configured for this institution. Ask your administrator to add a provider API key or enable 'Allow AthenTech AI fallback' in the institution's AI Settings. Direct LIS reports remain available.",
     "invalid_key": "Your AI provider rejected the saved API key. Please ask your administrator to update the AI key in Institution settings.",
     "no_credits": "Your AI provider account has no credits or tokens left. Please top up the provider account (or ask your administrator to update the key).",
     "rate_limited": "Your AI provider is rate-limiting the key right now. Please try again in a minute.",
@@ -568,7 +621,9 @@ def ask_agent(*args, **kwargs):
     try:
         return _ask_agent_impl(*args, **kwargs)
     except Exception as e:
-        from agent.llm_providers import ByokUnavailable
+        from agent.llm_providers import ByokUnavailable, ByokOptInRequired
+        if isinstance(e, ByokOptInRequired):
+            return _BYOK_USER_MESSAGES["opt_in_required"], 0
         if isinstance(e, ByokUnavailable):
             try:
                 from agent import guardian
@@ -689,8 +744,7 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
         current_chain = _data_chain(institution_code, is_premium)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
-        primary_provider_name, llm = current_chain[0]
-        llm_with_tools = llm.bind_tools(tools)
+        primary_provider_name, llm, llm_with_tools = _bind_first_usable_model(current_chain, tools)
         messages = [
             SystemMessage(content=his_prompt),
             SystemMessage(content=STYLE_RULES),
@@ -968,8 +1022,7 @@ refusal — nothing else fits A or C.
         current_chain = _data_chain(institution_code, is_premium)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
-        primary_provider_name, llm = current_chain[0]
-        llm_with_tools = llm.bind_tools(tools)
+        primary_provider_name, llm, llm_with_tools = _bind_first_usable_model(current_chain, tools)
 
 
 
@@ -1212,8 +1265,7 @@ For a single-fact answer (not a list), respond in plain text instead — one emo
         current_chain = _get_provider_chain()
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
-        primary_provider_name, llm = current_chain[0]
-        llm_with_tools = llm.bind_tools(tools)
+        primary_provider_name, llm, llm_with_tools = _bind_first_usable_model(current_chain, tools)
 
         messages = [SystemMessage(content=normal_prompt), SystemMessage(content=STYLE_RULES)]
         messages.extend(chat_history)

@@ -310,63 +310,96 @@ def build_chat_model(provider, api_key, model=None, base_url=None):
 _cache, _lock, _TTL = {}, threading.Lock(), 300
 
 
-def institution_llm_settings(client_prefix):
-    """Decrypted BYOK settings for an institution, or None if it has no key configured."""
+def institution_ai_policy(client_prefix):
+    """Read every institution-owned provider in priority order; never assume shared-AI consent.
+
+    Reads only the AthenTech admin DB. An unavailable/malformed configuration
+    fails closed instead of authorizing AthenTech spend.
+    """
     if not client_prefix:
-        return None
-    from database.license_db import get_conn
-    from auth.secrets_crypto import decrypt_secret
-    conn = get_conn()
+        raise ByokUnavailable("missing institution identity")
     try:
-        row = conn.execute("SELECT llm_provider, llm_model, llm_api_key, llm_base_url FROM institutions "
-                           "WHERE client_prefix = ?", (str(client_prefix).upper(),)).fetchone()
-    finally:
-        conn.close()
-    if not row or not row["llm_api_key"] or not row["llm_provider"]:
-        return None
-    return {"provider": row["llm_provider"], "model": row["llm_model"] or None,
-            "api_key": decrypt_secret(row["llm_api_key"]), "base_url": row["llm_base_url"] or None}
+        from auth.institution_ai_slots import runtime_slots
+        policy = runtime_slots(client_prefix)
+    except Exception as exc:
+        print(f"[byok] institution AI policy unavailable: {type(exc).__name__}", flush=True)
+        raise ByokUnavailable("institution AI settings unreadable") from exc
+    providers = policy["providers"]
+    primary = providers[0] if providers else {}
+    return {
+        "provider": primary.get("provider"), "model": primary.get("model"),
+        "api_key": primary.get("api_key"), "base_url": primary.get("base_url"),
+        "providers": providers,
+        "allow_athentech_fallback": bool(policy["allow_athentech_fallback"]),
+    }
+
+
+def institution_llm_settings(client_prefix):
+    """Existing revalidation API: return own-key details only, or None when no key."""
+    s = institution_ai_policy(client_prefix)
+    return s if s["api_key"] else None
 
 
 class ByokUnavailable(Exception):
-    """The institution HAS its own AI key configured but it can't be used right now (settings unreadable /
-    model can't be built). Callers must NOT fall back to AthenTech's shared AI."""
+    """Institution AI settings cannot be safely read or its configured model cannot run."""
+
+
+class ByokOptInRequired(ByokUnavailable):
+    """No institution key, and shared AthenTech AI has NOT been explicitly authorized."""
 
 
 def institution_chain(client_prefix):
-    """[(provider, model)] for this institution's own key, or None if it has NO own key (use AthenTech's chain).
-    Raises ByokUnavailable when a key is configured/possibly configured but cannot be used: fail closed."""
+    """Choose client's own key or authorized shared AI; never assume consent.
+
+    Returns None ONLY for the explicit allow_athentech_fallback=True, no-own-key
+    case. All other missing-key situations fail closed.
+    """
+    if not client_prefix:
+        raise ByokUnavailable("missing institution identity")
     now = time.time()
     with _lock:
-        hit = _cache.get(client_prefix)
+        hit = _cache.get(str(client_prefix).upper())
         if hit and now - hit[0] < _TTL:
+            if hit[1] == "blocked":
+                raise ByokOptInRequired("institution AI not configured")
             return hit[1]
     try:
-        s = institution_llm_settings(client_prefix)
+        s = institution_ai_policy(client_prefix)
+    except ByokUnavailable:
+        raise
     except Exception as e:
-        # Columns not migrated yet => nobody has a key => shared AI. Anything else (DB down, decrypt error): fail closed.
-        if re.search(r"invalid column name|42s22", str(e), re.I):
+        print(f"[byok] cannot read institution AI policy: {type(e).__name__}", flush=True)
+        raise ByokUnavailable("institution settings unreadable") from e
+
+    # Older integrations and mock tests may return the legacy one-key
+    # policy shape. Real production policies contain the full slots list.
+    own_providers = s.get("providers")
+    if own_providers is None:
+        own_providers = [{"position": 1, "provider": s.get("provider"),
+                          "api_key": s.get("api_key"), "model": s.get("model"),
+                          "base_url": s.get("base_url")}] if s.get("api_key") else []
+    if own_providers:
+        chain = []
+        for slot in own_providers:
             try:
-                from database import byok_migration
-                migrated = byok_migration.READY
-            except Exception:
-                migrated = False
-            if not migrated:          # migration never completed => nobody can have a key yet => shared AI
-                return None
-            # migration said OK but columns are gone/inconsistent: fail closed
-            raise ByokUnavailable("settings schema inconsistent") from e
-        print(f"[byok] cannot read institution key settings: {type(e).__name__}", flush=True)
-        raise ByokUnavailable("settings unreadable") from e
-    if not s:
-        chain = None
+                model = build_chat_model(slot["provider"], slot["api_key"], slot["model"], slot["base_url"])
+                chain.append((slot["provider"] if slot["position"] == 1 else f"{slot['provider']}#slot{slot['position']}", model))
+            except Exception as e:
+                # A broken OPTIONAL client provider must not disable working
+                # client-owned providers. Shared AthenTech AI remains forbidden.
+                print(f"[byok] cannot build client provider slot {slot['position']}: {type(e).__name__}", flush=True)
+                continue
+        if not chain:
+            raise ByokUnavailable("no institution provider could be built")
+    elif s["allow_athentech_fallback"]:
+        chain = None  # Only explicit no-key consent authorizes AthenTech AI.
     else:
-        try:
-            chain = [(s["provider"], build_chat_model(s["provider"], s["api_key"], s["model"], s["base_url"]))]
-        except Exception as e:
-            print(f"[byok] cannot build model for institution: {type(e).__name__}", flush=True)
-            raise ByokUnavailable("model unavailable") from e
+        chain = "blocked"
+
     with _lock:
-        _cache[client_prefix] = (now, chain)
+        _cache[str(client_prefix).upper()] = (now, chain)
+    if chain == "blocked":
+        raise ByokOptInRequired("institution AI not configured")
     return chain
 
 
