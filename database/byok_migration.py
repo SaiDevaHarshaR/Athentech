@@ -3,6 +3,7 @@ Self-contained: needs only get_conn() from license_db. Idempotent. READY tells t
 from database.license_db import get_conn
 
 READY = False
+SLOTS_READY = False
 LAST_ERROR = ""
 
 _COLS = [
@@ -12,6 +13,7 @@ _COLS = [
     ("llm_base_url", "NVARCHAR(300)"),
     ("llm_key_status", "NVARCHAR(30)"),
     ("llm_key_checked_at", "NVARCHAR(50)"),
+    ("allow_athentech_fallback", "BIT NOT NULL DEFAULT (0)"),
 ]
 
 
@@ -24,7 +26,7 @@ def _name(row):
 
 
 def ensure_llm_columns():
-    global READY, LAST_ERROR
+    global READY, SLOTS_READY, LAST_ERROR
     conn = None
     try:
         conn = get_conn()
@@ -38,14 +40,34 @@ def ensure_llm_columns():
         cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", ("institutions",))
         have = {_name(r) for r in cur.fetchall()}
         READY = all(c.lower() in have for c, _ in _COLS)
-        LAST_ERROR = "" if READY else "columns still missing after migration"
+        if READY:
+            cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?", ("institution_ai_slots",))
+            if cur.fetchone() is None:
+                cur.execute("""CREATE TABLE institution_ai_slots (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    institution_id INT NOT NULL,
+                    position INT NOT NULL,
+                    enabled BIT NOT NULL DEFAULT (1),
+                    provider NVARCHAR(50) NULL,
+                    model NVARCHAR(150) NULL,
+                    api_key NVARCHAR(2048) NULL,
+                    base_url NVARCHAR(350) NULL,
+                    key_status NVARCHAR(30) NULL,
+                    checked_at NVARCHAR(50) NULL,
+                    CONSTRAINT UQ_institution_ai_slots_position UNIQUE (institution_id, position)
+                )""")
+                conn.commit()
+            cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?", ("institution_ai_slots",))
+            SLOTS_READY = cur.fetchone() is not None
+        READY = READY and SLOTS_READY
+        LAST_ERROR = "" if READY else "AI configuration table/columns missing after migration"
     except Exception as e:
-        READY, LAST_ERROR = False, f"{type(e).__name__}: {str(e)[:200]}"
+        READY, SLOTS_READY, LAST_ERROR = False, False, f"{type(e).__name__}: {str(e)[:200]}"
     finally:
         try:
             if conn: conn.close()
         except Exception:
             pass
     if not READY:
-        print(f"[startup] ERROR: AI-key storage NOT ready ({LAST_ERROR}). Clients keep using AthenTech's AI; saving a client key is blocked.", flush=True)
+        print(f"[startup] ERROR: AI-key storage NOT ready ({LAST_ERROR}). Client AI is blocked until this migration succeeds; normal AthenTech mode remains available.", flush=True)
     return READY

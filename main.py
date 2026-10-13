@@ -185,6 +185,7 @@ class InstitutionCreateRequest(BaseModel):
     llm_model: str | None = None
     llm_api_key: str | None = None
     llm_base_url: str | None = None
+    allow_athentech_fallback: bool = False
 
 
 
@@ -203,6 +204,7 @@ class InstitutionUpdateRequest(BaseModel):
     llm_api_key: Optional[str] = None
     llm_base_url: Optional[str] = None
     remove_llm_key: Optional[bool] = None
+    allow_athentech_fallback: Optional[bool] = None
 
 
 
@@ -518,6 +520,58 @@ def api_llm_validate(req: dict, admin: str = Depends(require_admin)):
     return {"status": "success" if r["ok"] else "error", **r}
 
 
+# Multi-provider settings: separate from Institution editor and client LIS DB.
+@app.get("/admin/institutions/{institution_id}/ai-providers")
+def api_institution_ai_providers(institution_id: int, admin: str = Depends(require_admin)):
+    if _byok_not_ready():
+        return _byok_not_ready()
+    from auth.institution_ai_slots import public_slots
+    try:
+        return {"status": "success", **public_slots(institution_id)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Institution AI settings are temporarily unavailable")
+
+
+@app.put("/admin/institutions/{institution_id}/ai-providers")
+def api_save_institution_ai_providers(institution_id: int, req: dict, admin: str = Depends(require_admin)):
+    if _byok_not_ready():
+        return _byok_not_ready()
+    from auth.institution_ai_slots import save_slots
+    from agent.llm_providers import validate_key
+    try:
+        result = save_slots(institution_id, req.get("slots"),
+                            req.get("allow_athentech_fallback"), validate_key)
+        _log_admin_action(admin, "Updated institution AI providers", str(institution_id),
+                          meta={"provider_count": sum(1 for s in result["slots"] if s["enabled"] and s["has_key"]),
+                                "athentech_fallback": result["allow_athentech_fallback"]})
+        return {"status": "success", **result}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        print(f"[byok] saving AI provider slots failed: {type(e).__name__}", flush=True)
+        return {"status": "error", "message": "Could not save AI settings. Previous settings remain unchanged."}
+
+
+@app.post("/admin/institutions/{institution_id}/ai-providers/{position}/revalidate")
+def api_revalidate_institution_ai_slot(institution_id: int, position: int, admin: str = Depends(require_admin)):
+    if _byok_not_ready():
+        return _byok_not_ready()
+    from auth.institution_ai_slots import revalidate_slot
+    from agent.llm_providers import validate_key
+    if not 1 <= position <= 25:
+        raise HTTPException(status_code=400, detail="Invalid provider number")
+    try:
+        result = revalidate_slot(institution_id, position, validate_key)
+        return {"status": "success" if result["ok"] else "error", **result}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        print(f"[byok] slot revalidation failed: {type(e).__name__}", flush=True)
+        return {"status": "error", "message": "Could not revalidate the saved provider"}
+
+
 @app.post("/admin/institutions/{institution_id}/revalidate-llm-key")
 def api_llm_revalidate(institution_id: int, admin: str = Depends(require_admin)):
     """Re-test the institution's SAVED key (e.g. after they say 'AI stopped working')."""
@@ -530,7 +584,7 @@ def api_llm_revalidate(institution_id: int, admin: str = Depends(require_admin))
             raise HTTPException(status_code=404, detail="Institution not found")
         s = llm_providers.institution_llm_settings(row["client_prefix"])
         if not s:
-            return {"status": "error", "code": "no_key", "message": "This institution has no AI key saved (it uses AthenTech's AI)."}
+            return {"status": "error", "code": "no_key", "message": "This institution has no AI key saved. Shared AthenTech AI requires explicit opt-in."}
         r = llm_providers.validate_key(s["provider"], s["api_key"], s["model"], s["base_url"])
         conn.execute("UPDATE institutions SET llm_key_status = ?, llm_key_checked_at = ? WHERE id = ?",
                      ("valid" if r["ok"] else r["code"], datetime.utcnow().isoformat(), institution_id))
@@ -544,9 +598,11 @@ def api_llm_revalidate(institution_id: int, admin: str = Depends(require_admin))
 def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(require_admin)):
     try:
         key_status = None
+        # Institution inserts contain AI columns even if no key is supplied.
+        # A failed admin-DB migration must be reported, never silently ignored.
+        if _byok_not_ready():
+            return _byok_not_ready()
         if req.llm_api_key:
-            if _byok_not_ready():
-                return _byok_not_ready()
             from agent import llm_providers
             chk = llm_providers.validate_key(req.llm_provider, req.llm_api_key, req.llm_model, req.llm_base_url)
             if not chk["ok"]:
@@ -567,6 +623,7 @@ def api_create_institution(req: InstitutionCreateRequest, admin: str = Depends(r
             llm_api_key=req.llm_api_key,
             llm_base_url=req.llm_base_url if req.llm_api_key else None,
             llm_key_status=key_status,
+            allow_athentech_fallback=req.allow_athentech_fallback,
         )
         _log_admin_action(admin, "Created institution", req.name)
         return {"status": "success", "institution": data}
@@ -579,6 +636,22 @@ def api_update_institution(institution_id: int, req: InstitutionUpdateRequest, a
     try:
         changes = req.model_dump(exclude_unset=True)
         from agent import llm_providers
+        # Legacy one-key writes must not silently conflict with multi-slot
+        # configuration. Existing single-key institutions still work until
+        # they are explicitly migrated by the AI Providers dialog.
+        if any(k in changes for k in ("llm_provider", "llm_model", "llm_api_key", "llm_base_url", "remove_llm_key")):
+            from database.license_db import get_conn
+            _c = get_conn()
+            try:
+                _has = _c.execute("SELECT TOP 1 position FROM institution_ai_slots WHERE institution_id = ?",
+                                  (institution_id,)).fetchone()
+            finally:
+                _c.close()
+            if _has:
+                return {"status": "error", "code": "use_ai_providers",
+                        "message": "This institution uses multiple AI providers. Open its separate AI Providers dialog to edit keys."}
+        if "allow_athentech_fallback" in changes and _byok_not_ready():
+            return _byok_not_ready()
         if changes.pop("remove_llm_key", None):
             for k in ("llm_provider", "llm_model", "llm_api_key", "llm_base_url"):
                 changes.pop(k, None)
@@ -1082,10 +1155,12 @@ async def generate_patient_report(req: PatientReportRequest):
     db_password = validation.get("db_password")
 
     from agent.agent import _data_chain, _BYOK_USER_MESSAGES
-    from agent.llm_providers import ByokUnavailable
+    from agent.llm_providers import ByokUnavailable, ByokOptInRequired
     try:
         # patient data is summarised with the institution's own AI key when it has one; never silently AthenTech's
         chain = _data_chain(validation.get("institution_code") or db_name, True)
+    except ByokOptInRequired:
+        raise HTTPException(status_code=503, detail=_BYOK_USER_MESSAGES["opt_in_required"])
     except ByokUnavailable:
         raise HTTPException(status_code=503, detail=_BYOK_USER_MESSAGES["unavailable"])
     if not chain:
