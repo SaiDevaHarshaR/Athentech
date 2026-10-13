@@ -234,6 +234,8 @@ def _sanitize_institution(row_dict: dict) -> dict:
     d = dict(row_dict)
     d["has_db_password"] = bool(d.get("db_password"))
     d.pop("db_password", None)
+    d["has_llm_key"] = bool(d.get("llm_api_key"))
+    d.pop("llm_api_key", None)          # AI keys never leave the server
     return d
 
 
@@ -253,6 +255,11 @@ def create_institution(
     db_server: str = None,
     db_user: str = None,
     db_password: str = None,
+    llm_provider: str = None,
+    llm_model: str = None,
+    llm_api_key: str = None,
+    llm_base_url: str = None,
+    llm_key_status: str = None,
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -262,8 +269,9 @@ def create_institution(
         cur.execute(
             """
             INSERT INTO institutions
-            (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at,
+             llm_provider, llm_model, llm_api_key, llm_base_url, llm_key_status, llm_key_checked_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
@@ -276,6 +284,12 @@ def create_institution(
                 encrypt_secret(db_password),
                 status or "Active",
                 now,
+                llm_provider or None,
+                llm_model or None,
+                encrypt_secret(llm_api_key) if llm_api_key else None,
+                llm_base_url or None,
+                llm_key_status or None,
+                now if llm_api_key else None,
             ),
         )
         conn.commit()
@@ -292,6 +306,17 @@ def create_institution(
         except Exception:
             pass
         raise
+    finally:
+        conn.close()
+
+
+def remove_institution_llm_key(institution_id: int):
+    """Back to AthenTech's shared AI (clears provider, model, key)."""
+    conn = get_conn()
+    try:
+        conn.execute("UPDATE institutions SET llm_provider=NULL, llm_model=NULL, llm_api_key=NULL, "
+                     "llm_base_url=NULL, llm_key_status=NULL, llm_key_checked_at=NULL WHERE id = ?", (institution_id,))
+        conn.commit()
     finally:
         conn.close()
 
@@ -319,7 +344,8 @@ def update_institution(institution_id: int, **fields):
         conn.close()
         raise ValueError("Institution not found")
 
-    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password"}
+    allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password",
+                      "llm_provider", "llm_model", "llm_api_key", "llm_base_url", "llm_key_status", "llm_key_checked_at"}
     updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
 
     if "client_prefix" in updates:
@@ -327,6 +353,10 @@ def update_institution(institution_id: int, **fields):
 
     if "db_password" in updates:
         updates["db_password"] = encrypt_secret(updates["db_password"])
+    if updates.get("llm_api_key"):
+        updates["llm_api_key"] = encrypt_secret(updates["llm_api_key"])
+    elif "llm_api_key" in updates:
+        updates.pop("llm_api_key")      # blank = keep the saved key
 
     if not updates:
         conn.close()
