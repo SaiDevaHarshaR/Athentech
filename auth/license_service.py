@@ -235,15 +235,40 @@ def _sanitize_institution(row_dict: dict) -> dict:
     d["has_db_password"] = bool(d.get("db_password"))
     d.pop("db_password", None)
     d["has_llm_key"] = bool(d.get("llm_api_key"))
+    d["allow_athentech_fallback"] = bool(d.get("allow_athentech_fallback", False))
     d.pop("llm_api_key", None)          # AI keys never leave the server
     return d
 
 
 def list_institutions():
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM institutions ORDER BY id ASC").fetchall()
-    conn.close()
-    return [_sanitize_institution(dict(r.items())) for r in rows]
+    try:
+        rows = conn.execute("SELECT * FROM institutions ORDER BY id ASC").fetchall()
+        public = [_sanitize_institution(dict(r.items())) for r in rows]
+        by_id = {r["id"]: r for r in public}
+        # Include all enabled AI slots in the Registry summary. No API keys
+        # are selected or returned, and the registry still loads on old DBs.
+        try:
+            active = conn.execute(
+                "SELECT institution_id, position, provider, key_status "
+                "FROM institution_ai_slots WHERE enabled=1 AND api_key IS NOT NULL "
+                "ORDER BY institution_id, position"
+            ).fetchall()
+            counts = {}
+            for entry in active:
+                iid = entry["institution_id"]
+                counts[iid] = counts.get(iid, 0) + 1
+                if iid in by_id and counts[iid] == 1:
+                    by_id[iid]["llm_provider"] = entry["provider"]
+                    by_id[iid]["llm_key_status"] = entry["key_status"]
+                    by_id[iid]["has_llm_key"] = True
+            for r in public:
+                r["llm_provider_count"] = counts.get(r["id"], int(bool(r["has_llm_key"])))
+        except Exception:
+            pass
+        return public
+    finally:
+        conn.close()
 
 def create_institution(
     name: str,
@@ -260,6 +285,7 @@ def create_institution(
     llm_api_key: str = None,
     llm_base_url: str = None,
     llm_key_status: str = None,
+    allow_athentech_fallback: bool = False,
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -270,8 +296,8 @@ def create_institution(
             """
             INSERT INTO institutions
             (name, client_prefix, type, city, db_name, db_server, db_user, db_password, status, created_at,
-             llm_provider, llm_model, llm_api_key, llm_base_url, llm_key_status, llm_key_checked_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             llm_provider, llm_model, llm_api_key, llm_base_url, llm_key_status, llm_key_checked_at, allow_athentech_fallback)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
@@ -290,6 +316,7 @@ def create_institution(
                 llm_base_url or None,
                 llm_key_status or None,
                 now if llm_api_key else None,
+                bool(allow_athentech_fallback),
             ),
         )
         conn.commit()
@@ -311,7 +338,7 @@ def create_institution(
 
 
 def remove_institution_llm_key(institution_id: int):
-    """Back to AthenTech's shared AI (clears provider, model, key)."""
+    """Remove institution key; shared AI remains disabled unless explicitly opted in."""
     conn = get_conn()
     try:
         conn.execute("UPDATE institutions SET llm_provider=NULL, llm_model=NULL, llm_api_key=NULL, "
@@ -368,7 +395,8 @@ def _update_institution_impl(conn, institution_id: int, **fields):
         raise ValueError("Institution not found")
 
     allowed_fields = {"name", "client_prefix", "db_name", "type", "city", "status", "db_server", "db_user", "db_password",
-                      "llm_provider", "llm_model", "llm_api_key", "llm_base_url", "llm_key_status", "llm_key_checked_at"}
+                      "llm_provider", "llm_model", "llm_api_key", "llm_base_url", "llm_key_status", "llm_key_checked_at",
+                      "allow_athentech_fallback"}
     clear_key = bool(fields.get("clear_llm_key"))     # applied in the SAME UPDATE as other changes (atomic)
     updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
     if clear_key:
@@ -423,6 +451,7 @@ def delete_institution(institution_id: int) -> dict:
     cur.execute("DELETE FROM licenses WHERE institution_id = ?", (institution_id,))
     licenses_removed = cur.rowcount
 
+    cur.execute("DELETE FROM institution_ai_slots WHERE institution_id = ?", (institution_id,))
     cur.execute("DELETE FROM institutions WHERE id = ?", (institution_id,))
     conn.commit()
     conn.close()
