@@ -16,7 +16,7 @@
                ['b2b', 'B2B', 'Paid mode for business companies'],
                ['admin', 'Admin', 'Activation code → live data, role based (no Smart Report PDF)']];
 
-  var S = { label: 'normal', clients: [], clientId: '', client: null, cfg: null,
+  var S = { label: 'normal', clients: [], clientId: '', client: null, cfg: null, contacts: [],
             url: '', embedMode: '', embed: null, platform: 'html', busy: false };
 
   function esc(v) {
@@ -78,6 +78,26 @@
         '<label class="switch"><input type="checkbox" data-wl-mode="' + m[0] + '"' +
         (c[m[0] + '_enabled'] ? ' checked' : '') + '><span></span></label></div>';
     }).join('');
+  }
+
+  function b2bContactsSection() {
+    var rows = (S.contacts || []).map(function (c) {
+      return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #edf2f7;">' +
+        '<div style="min-width:0"><strong style="font-size:12px">' + esc(c.contact_name) + '</strong>' +
+        '<small style="display:block;font-size:11px;color:#64748b">Org: ' + esc(c.organisation_code) + ' · ' + esc(c.phone) +
+        ' · ' + (c.active ? 'Enabled' : 'Disabled') + '</small></div>' +
+        '<button type="button" class="secondary-btn" data-wl-contact-id="' + esc(c.id) + '" data-wl-contact-active="' + (c.active ? '0' : '1') + '">' +
+        (c.active ? 'Disable access' : 'Enable access') + '</button></div>';
+    }).join('');
+    return '<p style="font-size:11px;color:#64748b;margin:10px 0">Only registered business contacts receive SMS verification. ' +
+      'Organisation code must exist in this client’s LIS. Their sessions can access only that organisation’s invoices.</p>' +
+      '<div class="wl-grid">' +
+      '<label class="setting">Organisation code<input class="setting-input" id="wlB2BOrgCode" maxlength="80" placeholder="e.g. CORP001"></label>' +
+      '<label class="setting">Contact name<input class="setting-input" id="wlB2BContact" maxlength="120" placeholder="Authorised representative"></label>' +
+      '<label class="setting wl-span2">Mobile number<input class="setting-input" id="wlB2BPhone" maxlength="30" placeholder="+919876543210"></label>' +
+      '</div>' +
+      '<button type="button" class="secondary-btn" id="wlB2BAdd">+ Authorise corporate contact</button>' +
+      '<div style="margin-top:8px">' + (rows || '<small style="color:#94a3b8">No B2B contacts registered yet.</small>') + '</div>';
   }
 
   function whiteSection() {
@@ -167,6 +187,7 @@
 
     return top +
       wlCard('modes', 'Modes & access', 'B2C / B2B / Admin toggles', modesBody, true) +
+      wlCard('b2b', 'B2B mobile verification & contacts', 'Corporate organisations · approved phones · OTP', b2bContactsSection(), false) +
       wlCard('brand', 'Brand & copy', 'Name, logo, welcome, knowledge', brandBody, true) +
       wlCard('appear', 'Appearance', 'Colours, size, footer', appearBody, false) +
       wlCard('esc', 'Escalation', 'Phone + message for handoff', escalateBody, false) +
@@ -221,13 +242,46 @@
 
   // ---------------------------------------------------------------- data
   function loadClient(id) {
-    S.clientId = id; S.cfg = null; S.client = null; S.embed = null; S.embedMode = '';
+    S.clientId = id; S.cfg = null; S.client = null; S.embed = null; S.embedMode = ''; S.contacts = [];
     if (!id) return render();
     api('/admin/whitelabel/' + encodeURIComponent(id)).then(function (d) {
       S.cfg = d.config; S.client = d.client;
       if (d.config.configured) { S.url = d.config.site_url || S.url; }
       render();
+      loadB2BContacts();
     }).catch(function (e) { say(e.message); render(); });
+  }
+
+  function loadB2BContacts() {
+    if (!S.clientId) return;
+    var capturedId = S.clientId;
+    api('/admin/b2b/contacts?institution_id=' + encodeURIComponent(capturedId)).then(function (d) {
+      if (S.clientId !== capturedId) return;
+      S.contacts = d.contacts || [];
+      // Update only the contact list card content; do not lose unsaved white-label form edits.
+      var box = document.querySelector('[data-wl-card="b2b"] .wl-card-b');
+      if (box) box.innerHTML = b2bContactsSection();
+    }).catch(function (e) { say('B2B contacts: ' + e.message); });
+  }
+
+  function addB2BContact() {
+    if (!S.clientId) return;
+    var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    var body = { institution_id: Number(S.clientId), organisation_code: val('wlB2BOrgCode'),
+                 contact_name: val('wlB2BContact'), phone: val('wlB2BPhone') };
+    if (!body.organisation_code || !body.contact_name || !body.phone) return say('Enter organisation code, name, and mobile number.');
+    api('/admin/b2b/contacts', jsonOpts('POST', body)).then(function () {
+      say('Corporate contact authorised'); loadB2BContacts();
+    }).catch(function (e) { say(e.message); });
+  }
+
+  function changeB2BContact(id, active) {
+    if (!S.clientId) return;
+    var path = '/admin/b2b/contacts/' + encodeURIComponent(id) + '/access?institution_id=' +
+      encodeURIComponent(S.clientId) + '&active=' + (active ? 'true' : 'false');
+    api(path, jsonOpts('POST', {})).then(function () {
+      say(active ? 'Contact access enabled' : 'Contact and active sessions revoked'); loadB2BContacts();
+    }).catch(function (e) { say(e.message); });
   }
 
   function readCfgFromForm() {
@@ -327,6 +381,9 @@
       if (card) card.classList.toggle('open');
       return;
     }
+    if (t.id === 'wlB2BAdd') return addB2BContact();
+    var contactBtn = t.closest && t.closest('[data-wl-contact-id]');
+    if (contactBtn) return changeB2BContact(contactBtn.getAttribute('data-wl-contact-id'), contactBtn.getAttribute('data-wl-contact-active') === '1');
     if (t.id === 'wlSave') return saveWhite();
     if (t.id === 'wlGenerate') return generate();
     var copy = t.getAttribute && t.getAttribute('data-wl-copy');
