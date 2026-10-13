@@ -29,7 +29,7 @@ def test_catalog_has_25_unique():
     (R(200), R(400, '{"error":{"message":"Your credit balance is too low to access the Anthropic API"}}'), "no_credits"),
     (R(200), R(429, "Rate limit reached for requests per minute"), "rate_limited"),
     (R(200), R(404, "The model `x` does not exist"), "bad_model"),
-    (R(200), R(503, "down"), "unreachable"),
+    (R(200), R(503, "down"), "provider_error"),
     (R(404), R(403, "API key not valid. Please pass a valid API key."), "invalid_key"),
 ])
 def test_validate_codes(monkeypatch, get, post, code):
@@ -40,7 +40,7 @@ def test_validate_codes(monkeypatch, get, post, code):
 
 def test_validate_network_error(monkeypatch):
     def boom(*a, **k): raise L.requests.exceptions.ConnectionError("x")
-    monkeypatch.setattr(L.requests, "get", boom)
+    monkeypatch.setattr(L.requests, "post", boom)
     assert L.validate_key("groq", "k")["code"] == "unreachable"
 
 
@@ -86,7 +86,7 @@ def test_200_without_real_completion_is_rejected(monkeypatch):
         def json(s): return s._j
     monkeypatch.setattr(L.requests, "get", lambda *a, **k: R(200))
     monkeypatch.setattr(L.requests, "post", lambda *a, **k: J(200, {"hello": "world"}))
-    assert L.validate_key("openai", "k")["code"] == "bad_request"
+    assert L.validate_key("openai", "k")["code"] == "invalid_response"
     monkeypatch.setattr(L.requests, "post", lambda *a, **k: J(200, {"choices": [{"message": {"content": "hi"}}]}))
     assert L.validate_key("openai", "k")["ok"]
 
@@ -103,7 +103,7 @@ def test_ssrf_guard(monkeypatch):
 
 def test_only_custom_may_override_url(monkeypatch):
     seen = {}
-    monkeypatch.setattr(L.requests, "get", lambda url, **k: seen.setdefault("url", url) and R(401, "invalid api key"))
+    monkeypatch.setattr(L.requests, "post", lambda url, **k: seen.setdefault("url", url) and R(401, "invalid api key"))
     L.validate_key("openai", "k", base_url="https://evil.example.com")
     assert seen["url"].startswith("https://api.openai.com/")
 
