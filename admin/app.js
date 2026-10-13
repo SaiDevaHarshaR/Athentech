@@ -1186,7 +1186,8 @@ function renderInstitutions() {
                             </button>
 
                             <button type="button" class="row-action ra" data-ra="1" data-c="indigo"
-                                title="AI Settings — provider and API key"
+                                title="AI Settings - provider and API key"
+                                data-tip="AI Settings · Manage provider and API key"
                                 aria-label="AI Settings for institution ${institution.id}"
                                 onclick="openInstitutionAiSettings(${institution.id})">
                                 <svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round">
