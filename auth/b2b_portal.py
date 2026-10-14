@@ -23,10 +23,10 @@ from urllib.request import Request as URLRequest, urlopen
 from base64 import b64encode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 
-from auth.secrets_crypto import decrypt_secret
+from auth.secrets_crypto import decrypt_secret, encrypt_secret
 from database.license_db import get_conn
 from database.connection import get_hospital_connection
 
@@ -87,6 +87,19 @@ CREATE TABLE dbo.sahasra_b2b_contacts (
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     created_by NVARCHAR(100) NULL,
     CONSTRAINT UQ_sahasra_b2b_phone UNIQUE (institution_id, phone_e164)
+)
+""")
+    cur.execute("""
+IF OBJECT_ID('dbo.sahasra_b2b_test_otp', 'U') IS NULL
+CREATE TABLE dbo.sahasra_b2b_test_otp (
+    institution_id INT NOT NULL,
+    contact_id INT NOT NULL,
+    code_hash CHAR(64) NOT NULL,
+    encrypted_code NVARCHAR(600) NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    consumed BIT NOT NULL DEFAULT 0,
+    PRIMARY KEY (institution_id, contact_id)
 )
 """)
     cur.execute("""
@@ -206,6 +219,73 @@ def _twilio(path, form):
         raise HTTPException(502, "SMS provider could not complete verification. Contact support.")
     except (URLError, TimeoutError, ValueError, OSError):
         raise HTTPException(503, "SMS provider is temporarily unreachable.")
+
+
+def _test_otp_mode():
+    """Explicit staging-only feature gate; refuses to run in production."""
+    environment = os.environ.get("SAHASRA_ENV", "").strip().lower()
+    return (environment in ("development", "staging", "test")
+            and os.environ.get("B2B_TEST_OTP_ENABLED", "") == "1")
+
+
+def _otp_delivery():
+    mode = os.environ.get("B2B_OTP_PROVIDER", "twilio").strip().lower()
+    if mode == "test" and not _test_otp_mode():
+        raise HTTPException(503, "Test verification is disabled outside an explicitly enabled test environment.")
+    if mode not in ("test", "twilio"):
+        raise HTTPException(503, "WhatsApp verification provider is not configured yet.")
+    return mode
+
+
+def _make_test_otp(institution_id, contact_id):
+    """Store encrypted short-lived OTP in the admin DB, never in a public response."""
+    code = f"{secrets.randbelow(1000000):06d}"
+    encrypted = encrypt_secret(code)
+    if not encrypted.startswith("enc::"):
+        raise RuntimeError("Encrypted OTP storage was not configured.")
+    digest = hashlib.sha256(code.encode()).hexdigest()
+    expiry = _utc() + timedelta(minutes=5)
+    conn = _admin_conn()
+    try:
+        conn.execute("DELETE FROM dbo.sahasra_b2b_test_otp WHERE institution_id=? AND contact_id=?",
+                     (institution_id, contact_id))
+        conn.execute("INSERT INTO dbo.sahasra_b2b_test_otp "
+                     "(institution_id, contact_id, code_hash, encrypted_code, expires_at) "
+                     "VALUES (?,?,?,?,?)", (institution_id, contact_id, digest, encrypted, expiry))
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise
+    finally: conn.close()
+
+
+def _verify_test_otp(institution_id, contact_id, candidate):
+    """Lock challenge row and consume it in the same transaction; fail closed."""
+    if not _test_otp_mode():
+        raise HTTPException(503, "Test verification is disabled.")
+    conn = _admin_conn()
+    try:
+        row = conn.execute("SELECT code_hash, expires_at, attempts, consumed "
+                           "FROM dbo.sahasra_b2b_test_otp WITH (UPDLOCK, HOLDLOCK) "
+                           "WHERE institution_id=? AND contact_id=?",
+                           (institution_id, contact_id)).fetchone()
+        if row is None:
+            conn.rollback(); return False
+        digest, expires, attempts, consumed = (row[k] for k in ("code_hash", "expires_at", "attempts", "consumed")) if hasattr(row, "items") else row
+        expired = expires <= _utc() if isinstance(expires, datetime) else True
+        if expired or consumed or int(attempts) >= 5:
+            conn.rollback(); return False
+        valid = hmac.compare_digest(str(digest), hashlib.sha256(candidate.encode()).hexdigest())
+        conn.execute("UPDATE dbo.sahasra_b2b_test_otp SET attempts=attempts+1, consumed=? "
+                     "WHERE institution_id=? AND contact_id=?", (int(valid), institution_id, contact_id))
+        conn.commit()
+        return valid
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise HTTPException(503, "Verification unavailable. Try again later.")
+    finally: conn.close()
 
 
 class ContactIn(BaseModel):
@@ -348,6 +428,80 @@ def _auth_session(request: Request, client: str):
     return _session(token.strip(), client)
 
 
+# B2B answers are compiled from a fixed allowlist of organization-scoped read-only tools.
+# No unrestricted LLM/SQL execution is allowed in the authenticated B2B surface.
+class ChatRequest(BaseModel):
+    client: str = Field(min_length=1, max_length=50)
+    message: str = Field(min_length=1, max_length=700)
+    period: str = Field(default="this_month", max_length=30)
+
+
+def _classify_business_question(question):
+    """Deterministic natural-language routing, including report requests."""
+    q = re.sub(r"\s+", " ", question.strip().lower())
+    if re.search(r"\b(other company|another company|all organizations|all organisations|all patients)\b", q):
+        return "forbidden"
+    if re.search(r"\b(pdf|patient report|lab report|test report|download report)\b", q):
+        return "patient_report"
+    if re.search(r"\b(download|export|excel|spreadsheet|xlsx)\b", q):
+        return "excel"
+    if re.search(r"\b(how many|total|count|number of)\b", q) and re.search(r"\b(bills?|invoices?|samples?|investigations?)\b", q):
+        return "overview"
+    if re.search(r"\b(pending|status|statuses|invoice|invoices|bill|bills|completed report)\b", q):
+        return "bills"
+    if re.search(r"\b(how many|total|overview|summary|amount|business|dashboard|revenue|collection|investigation|sample)\b", q):
+        return "overview"
+    return "help"
+
+
+def _pdf_configured_root(inst):
+    """Trusted server-admin config only; no user-provided path, and disabled by default.
+
+    JSON example: {"KONNECT": "/srv/sahasra-approved-pdfs/konnect"}.
+    Only pre-approved exported LIS PDFs named by safe bill number are served.
+    """
+    from pathlib import Path
+    try:
+        roots = json.loads(os.environ.get("B2B_PDF_EXPORT_ROOTS", "{}"))
+        root = roots.get(str(inst.get("client_prefix", "")).upper())
+        if not isinstance(root, str) or not root:
+            return None
+        resolved = Path(root).resolve(strict=True)
+        return resolved if resolved.is_dir() else None
+    except (ValueError, OSError, TypeError):
+        return None
+
+
+def _authorized_pdf(inst, org_code, bill_no):
+    from pathlib import Path
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", bill_no or ""):
+        raise HTTPException(400, "Enter an invoice number using letters, numbers, hyphens or underscores.")
+    # Authorization MUST precede any filesystem access. The bill is NOT trusted from the browser.
+    conn = _lis(inst)
+    try:
+        match = conn.execute(
+            "SELECT TOP 1 BILLNO FROM trnINVLABPRI WHERE BILLNO=? AND ORGANISATIONCODE=?",
+            (bill_no, org_code),
+        ).fetchone()
+        if match is None:
+            raise HTTPException(404, "No authorized report found for this invoice.")
+    finally:
+        conn.close()
+    root = _pdf_configured_root(inst)
+    if root is None:
+        raise HTTPException(503, "Patient PDF exports are not configured for this institution yet.")
+    target = (root / (bill_no + ".pdf")).resolve()
+    if target.parent != root or not target.is_file() or target.is_symlink():
+        raise HTTPException(404, "No approved PDF export is available for this invoice.")
+    if target.stat().st_size > 25 * 1024 * 1024:
+        raise HTTPException(413, "PDF exceeds the allowed size.")
+    with target.open("rb") as handle:
+        pdf = handle.read()
+    if not pdf.startswith(b"%PDF-"):
+        raise HTTPException(422, "The approved report export is not a valid PDF.")
+    return pdf
+
+
 def build_router(require_admin) -> APIRouter:
     router = APIRouter()
 
@@ -409,6 +563,28 @@ def build_router(require_admin) -> APIRouter:
         finally: conn.close()
         return {"status": "success", "active": active}
 
+    @router.get("/admin/b2b/test-otp")
+    def inspect_test_otp(institution_id: int = Query(..., gt=0),
+                         contact_id: int = Query(..., gt=0), admin: str = Depends(require_admin)):
+        """Admin-only staging diagnostics: retrieve OTP for a registered active contact."""
+        if _otp_delivery() != "test":
+            raise HTTPException(404, "Test OTP is not enabled.")
+        conn = _admin_conn()
+        try:
+            row = conn.execute("SELECT TOP 1 o.encrypted_code, o.expires_at "
+                               "FROM dbo.sahasra_b2b_test_otp o "
+                               "JOIN dbo.sahasra_b2b_contacts c ON c.id=o.contact_id "
+                               "AND c.institution_id=o.institution_id "
+                               "WHERE o.institution_id=? AND o.contact_id=? "
+                               "AND c.active=1 AND o.consumed=0 AND o.attempts<5 "
+                               "AND o.expires_at>SYSUTCDATETIME()",
+                               (institution_id, contact_id)).fetchone()
+            if not row: raise HTTPException(404, "No active test code for this contact.")
+            encrypted = row["encrypted_code"] if hasattr(row, "items") else row[0]
+            return {"test_code": decrypt_secret(encrypted), "expires_in_minutes": 5,
+                    "warning": "TEST ENVIRONMENT ONLY. Never send this code to production users."}
+        finally: conn.close()
+
     @router.post("/public/b2b/request-otp")
     def request_otp(body: OTPRequest, request: Request):
         inst = _institution_by_prefix(body.client)
@@ -417,13 +593,19 @@ def build_router(require_admin) -> APIRouter:
         ip = request.client.host if request.client else "unknown"
         _rate("start-ip", ip, inst["id"], "ip", 15)
         _rate("start-phone", "global", inst["id"], phone, 3)
+        mode = _otp_delivery()
         contact = _contact(int(inst["id"]), phone)
         # Same response for unknown numbers: no phone / organization enumeration.
         if contact:
-            response = _twilio("Verifications", {"To": phone, "Channel": "sms"})
-            if response.get("status") not in ("pending", "approved"):
-                raise HTTPException(502, "SMS provider did not accept the verification request.")
-        return {"status": "success", "message": "If this number is registered, a verification SMS has been sent."}
+            if mode == "test":
+                _make_test_otp(int(inst["id"]), int(contact["id"]))
+            else:
+                response = _twilio("Verifications", {"To": phone, "Channel": "sms"})
+                if response.get("status") not in ("pending", "approved"):
+                    raise HTTPException(502, "SMS provider did not accept the verification request.")
+        note = ("If registered, a test verification code is available to an authorized staging admin."
+                if mode == "test" else "If this number is registered, a verification SMS has been sent.")
+        return {"status": "success", "message": note}
 
     @router.post("/public/b2b/verify-otp")
     def verify_otp(body: OTPCheck, request: Request):
@@ -436,8 +618,13 @@ def build_router(require_admin) -> APIRouter:
         _rate("verify-phone", "global", inst["id"], phone, 8)
         contact = _contact(int(inst["id"]), phone)
         if not contact: raise HTTPException(401, "Invalid or expired verification code.")
-        verified = _twilio("VerificationCheck", {"To": phone, "Code": body.code})
-        if not hmac.compare_digest(str(verified.get("status", "")), "approved"):
+        mode = _otp_delivery()
+        if mode == "test":
+            verified = _verify_test_otp(int(inst["id"]), int(contact["id"]), body.code)
+        else:
+            response = _twilio("VerificationCheck", {"To": phone, "Code": body.code})
+            verified = hmac.compare_digest(str(response.get("status", "")), "approved")
+        if not verified:
             raise HTTPException(401, "Invalid or expired verification code.")
         token = secrets.token_urlsafe(48)
         expiry = _utc() + timedelta(hours=SESSION_HOURS)
@@ -499,6 +686,50 @@ def build_router(require_admin) -> APIRouter:
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f'attachment; filename="{filename}"',
                      "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+    @router.post("/public/b2b/chat")
+    def business_chat(body: ChatRequest, request: Request):
+        inst, contact = _auth_session(request, body.client)
+        _rate("chat", request.client.host if request.client else "unknown", inst["id"],
+              str(contact["id"]), 90, 600)
+        intent = _classify_business_question(body.message)
+        org = contact["organisation_code"]  # always resolved server-side
+        if intent == "forbidden":
+            return {"status": "success", "intent": intent, "answer": "I can only access your verified organization's records."}
+        if intent == "patient_report":
+            return {"status": "success", "intent": intent,
+                    "answer": "To download a patient PDF, type: Report PDF BILLNUMBER. The invoice must belong to your organization, and an approved report must be available."}
+        if intent == "excel":
+            return {"status": "success", "intent": intent, "action": "download_excel",
+                    "answer": "Your organization's Excel invoice report is ready to request."}
+        if intent == "overview":
+            summary = _summary_for_org(inst, org, body.period)
+            return {"status": "success", "intent": intent, "summary": summary,
+                    "answer": (f"For {body.period}: {summary['bills']} invoices, "
+                               f"billed amount INR {summary['billed_total']:,.2f}. "
+                               "This is billed value, not collected cash. See the summary for status details.")}
+        if intent == "bills":
+            rows = _rows_for_org(inst, org, body.period, max_rows=20)
+            return {"status": "success", "intent": intent,
+                    "bills": [{"bill_no": b, "bill_date": dt, "billed_amount": amount, "status": st}
+                              for b, dt, amount, st in rows[:20]], "has_more": len(rows) > 20,
+                    "answer": f"Found {min(len(rows),20)} invoice records for your organization in {body.period}."}
+        return {"status": "success", "intent": intent,
+                "answer": "You can ask: How many invoices this month? Show pending invoices. "
+                          "What is our billed amount? Download Excel. Report PDF BILLNUMBER. "
+                          "Choose a reporting period to change the date range."}
+
+    @router.get("/public/b2b/patient-report/{bill_no}")
+    def authorized_patient_pdf(bill_no: str, request: Request,
+                               client: str = Query(..., min_length=1, max_length=50)):
+        inst, contact = _auth_session(request, client)
+        # B2B PDFs only; no reuse of unscoped /generate-patient-report API.
+        content = _authorized_pdf(inst, contact["organisation_code"], bill_no)
+        return Response(content=content, media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="patient_report_{bill_no}.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+        })
 
     @router.post("/public/b2b/logout")
     def logout(request: Request, client: str = Query(..., min_length=1, max_length=50)):

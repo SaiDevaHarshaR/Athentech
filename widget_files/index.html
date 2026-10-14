@@ -1033,7 +1033,12 @@ function start() {
 function handleSend() {
   const text = input.value.trim();
   if (!text) return;
-  addMessage(text, 'user');
+  // Never display a raw B2B verification code or full mobile number in chat history.
+  if (typeof WL !== 'undefined' && WL.isWhite && WL.activeMode === 'b2b' && WL.b2bStep === 'otp' && /^\d{4,10}$/.test(text)) {
+    addMessage('••••••', 'user');
+  } else if (typeof WL !== 'undefined' && WL.isWhite && WL.activeMode === 'b2b' && WL.b2bStep === 'phone' && /^[+\d\s().-]{8,25}$/.test(text)) {
+    addMessage('Mobile ending ' + text.replace(/\D/g, '').slice(-4), 'user');
+  } else { addMessage(text, 'user'); }
   input.value = '';
   processMessage(text);
   resetSessionTimeout();
@@ -1626,7 +1631,7 @@ function clearSession() {
    WHITE-LABEL LAYER — does nothing unless the URL has ?label=white&client=...
    (the loader / admin "Generate Embed URL" produce that URL).
    Modes:  b2c   public chat, no code, no database
-           b2b   locked until an activation code is entered (access rules: product decision pending)
+           b2b   corporate mobile verification; organization-scoped reports (no activation code)
            admin same activation-code flow as Premium today; no PDF unless the client was granted it
    ========================================================================== */
 const WL_API = API_URL.replace(/\/ask$/, '');
@@ -1651,7 +1656,7 @@ const WL_I18N = {
   en: { placeholder: 'Ask anything...', enterCode: 'Enter Activation Code', needCode: 'Please enter your activation code to continue.',
         language: 'Language', unavailable: 'This chatbot is not available.', wrongSite: 'This chatbot is not enabled for this website.',
         noPdf: 'PDF reports are not available in this chat.', error: 'Something went wrong. Please try again.',
-        invalid: 'This chatbot link is not valid.', b2bDefault: 'This service is available to subscribed business customers. Enter your activation code to continue.',
+        invalid: 'This chatbot link is not valid.', b2bDefault: 'Business customer access requires your registered mobile number and a verification code.',
         b2cTail: 'Ask me about our services, timings and general health information.', notThis: 'I can only help with this chat\'s services.' },
   hi: { placeholder: 'कुछ भी पूछें...', enterCode: 'एक्टिवेशन कोड दर्ज करें', needCode: 'जारी रखने के लिए कृपया अपना एक्टिवेशन कोड दर्ज करें।', language: 'भाषा' },
   te: { placeholder: 'ఏదైనా అడగండి...', enterCode: 'యాక్టివేషన్ కోడ్ నమోదు చేయండి', needCode: 'కొనసాగించడానికి దయచేసి మీ యాక్టివేషన్ కోడ్ నమోదు చేయండి.', language: 'భాష' }
@@ -1672,6 +1677,154 @@ function wlEmbedderOrigin() {
   if (WL.embedder) return WL.embedder;
   try { if (location.ancestorOrigins && location.ancestorOrigins.length) return location.ancestorOrigins[0]; } catch (e) {}
   try { return new URL(document.referrer).origin; } catch (e) { return ''; }
+}
+
+// B2B never reuses the institution activation code or general /ask endpoint.
+// Its session is kept in memory only; reloading the widget requires phone verification again.
+function wlB2BMenu() {
+  showSuggestions([
+    { label: 'Business overview', send: 'Business overview' },
+    { label: 'Invoice statuses', send: 'Invoice statuses' },
+    { label: 'Patient PDF', send: 'Report PDF BILLNUMBER' },
+    { label: 'Download Excel', send: 'Download Excel' },
+    { label: 'Change period', send: 'Change period' },
+    { label: 'Sign out', send: 'Sign out' }
+  ]);
+}
+
+async function wlB2BCall(path, opts = {}) {
+  const url = WL_API + '/public/b2b/' + path;
+  const headers = { 'Content-Type': 'application/json' };
+  if (WL.b2bToken) headers.Authorization = 'Bearer ' + WL.b2bToken;
+  const res = await fetch(url, { ...opts, headers: { ...headers, ...(opts.headers || {}) }, cache: 'no-store' });
+  if (!res.ok) {
+    let msg = 'Request could not be completed. Try again.';
+    try { const d = await res.json(); msg = d.detail || d.message || msg; } catch (_) {}
+    if (res.status === 401) { WL.b2bToken = null; WL.b2bStep = 'phone'; }
+    throw new Error(typeof msg === 'string' ? msg : 'B2B request failed');
+  }
+  return res;
+}
+
+async function wlB2BDownload() {
+  if (!WL.b2bToken) { addMessage('Please verify your registered phone number first.', 'bot'); return; }
+  statusEl.textContent = 'Preparing Excel…';
+  try {
+    const q = '?client=' + encodeURIComponent(WL.client) + '&period=' + encodeURIComponent(WL.b2bPeriod || 'this_month');
+    const res = await wlB2BCall('download-excel' + q);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'b2b_invoices_' + (WL.b2bPeriod || 'this_month') + '.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    addMessage('Excel report downloaded. Only your organisation’s invoices are included.', 'bot');
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = 'B2B verified'; wlB2BMenu(); }
+}
+
+async function wlB2BPatientPDF(bill) {
+  if (!/^[A-Za-z0-9_-]{1,60}$/.test(bill)) {
+    addMessage('Enter a valid invoice number: Report PDF BILLNUMBER', 'bot'); return;
+  }
+  statusEl.textContent = 'Checking report access…';
+  try {
+    const res = await wlB2BCall('patient-report/' + encodeURIComponent(bill) + '?client=' + encodeURIComponent(WL.client));
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'patient_report_' + bill + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    addMessage('Approved patient PDF downloaded for invoice **' + bill + '**.', 'bot');
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = 'B2B verified'; wlB2BMenu(); }
+}
+
+async function wlB2BChat(message) {
+  statusEl.textContent = 'Checking your organisation’s records…';
+  try {
+    const res = await wlB2BCall('chat', { method: 'POST', body: JSON.stringify({
+      client: WL.client, period: WL.b2bPeriod || 'this_month', message
+    }) });
+    const d = await res.json();
+    if (d.action === 'download_excel') return wlB2BDownload();
+    if (d.intent === 'bills') {
+      const lines = (d.bills || []).slice(0, 12).map(b => '- ' + b.bill_no + ' · ' + b.bill_date.slice(0, 10) + ' · ₹' + Number(b.billed_amount || 0).toLocaleString('en-IN') + ' · ' + b.status);
+      addMessage(d.answer + '\n\n' + (lines.join('\n') || 'No invoices in this period.') + (d.has_more ? '\n\nDownload Excel to see more.' : ''), 'bot');
+    } else {
+      let response = d.answer || 'No data available.';
+      if (d.intent === 'overview' && d.summary) {
+        const stats = (d.summary.invoice_statuses || []).slice(0, 10).map(x => '- ' + x.status + ': ' + x.bills).join('\n');
+        if (stats) response += '\n\n**Invoice statuses**\n' + stats;
+      }
+      addMessage(response, 'bot');
+    }
+    wlB2BMenu();
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = WL.b2bToken ? 'B2B verified' : 'B2B sign-in'; }
+}
+
+async function wlB2BMessage(text) {
+  const q = String(text || '').trim();
+  if (!q) return;
+  const low = q.toLowerCase();
+  if (WL.b2bStep === 'phone') {
+    if (!/^(\+?[\d\s().-]{8,25})$/.test(q)) {
+      addMessage('Enter your registered mobile number (for example, +919876543210).', 'bot'); return;
+    }
+    WL.b2bPhone = q;
+    statusEl.textContent = 'Requesting verification…';
+    try {
+      const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: q }) });
+      const d = await res.json();
+      WL.b2bStep = 'otp';
+      addMessage((d.message || 'If the number is registered, a code was sent.') + '\n\nEnter your verification code.', 'bot');
+      input.placeholder = 'Enter verification code';
+      showSuggestions([{ label: 'Resend code', send: 'Resend code' }, { label: 'Change number', send: 'Change number' }]);
+    } catch (e) { addMessage(e.message, 'bot'); }
+    finally { statusEl.textContent = 'B2B verification'; }
+    return;
+  }
+  if (WL.b2bStep === 'otp') {
+    if (low === 'change number') { WL.b2bStep = 'phone'; WL.b2bPhone = ''; addMessage('Enter your registered mobile number.', 'bot'); return; }
+    if (low === 'resend code') {
+      try {
+        const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone }) });
+        addMessage((await res.json()).message || 'Code requested.', 'bot');
+      } catch (e) { addMessage(e.message, 'bot'); }
+      return;
+    }
+    if (!/^\d{4,10}$/.test(q)) { addMessage('Enter the numeric verification code.', 'bot'); return; }
+    statusEl.textContent = 'Verifying…';
+    try {
+      const res = await wlB2BCall('verify-otp', { method: 'POST',
+        body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone, code: q }) });
+      const d = await res.json();
+      WL.b2bToken = d.access_token; WL.b2bStep = 'ready'; WL.b2bPeriod = 'this_month';
+      WL.b2bPhone = '';
+      input.placeholder = 'Business overview, statuses, reports…';
+      addMessage('Verified! Welcome ' + (d.contact_name || '') + '.\n\nOrganisation: **' + (d.organisation || 'Business customer') + '**.\nAccess expires after 8 hours. Choose a report below.', 'bot');
+      wlB2BMenu();
+    } catch (e) { addMessage(e.message, 'bot'); }
+    finally { statusEl.textContent = WL.b2bToken ? 'B2B verified' : 'B2B verification'; }
+    return;
+  }
+  if (low === 'sign out' || low === 'logout' || low === 'exit') {
+    try { await wlB2BCall('logout?client=' + encodeURIComponent(WL.client), { method: 'POST' }); } catch (_) {}
+    WL.b2bToken = null; WL.b2bStep = 'phone'; WL.b2bPeriod = 'this_month';
+    statusEl.textContent = 'B2B sign-in'; input.placeholder = 'Registered mobile number';
+    addMessage('Signed out. Enter your registered mobile number to sign in again.', 'bot'); return;
+  }
+  if (low === 'change period') {
+    addMessage('Choose a reporting period: **today**, **yesterday**, **last_7_days**, **this_month**, **last_month**, a day **YYYY-MM-DD**, or a month **YYYY-MM**.', 'bot');
+    return;
+  }
+  if (/^(today|yesterday|last_7_days|this_month|last_month|20\d{2}-\d{2}(?:-\d{2})?)$/.test(low)) {
+    WL.b2bPeriod = low; addMessage('Reporting period set to **' + low + '**.', 'bot'); wlB2BMenu(); return;
+  }
+  const patientPdf = q.match(/^(?:download\s+)?(?:report\s+pdf|patient\s+pdf|patient\s+report)(?:\s+(?:for\s+)?(?:bill\s*#?\s*)?)?([A-Za-z0-9_-]{1,60})$/i);
+  if (patientPdf && patientPdf[1].toUpperCase() !== 'BILLNUMBER') return wlB2BPatientPDF(patientPdf[1]);
+  return wlB2BChat(q);
 }
 
 (function installWhiteLabel() {
@@ -1706,6 +1859,7 @@ function wlEmbedderOrigin() {
     if (WL.locked) return;
     if (q.indexOf('athentech') >= 0 && /(mode|about|info)/.test(q)) { addMessage(wlT('notThis'), 'bot'); return; }
     if (WL.activeMode === 'b2c') return wlAskB2C(text);
+    if (WL.activeMode === 'b2b') return wlB2BMessage(text);
 
     const inFlow = state.mode === 'premium' || state.waitingForCode || state.waitingForOtp ||
                    q.indexOf('activation code') >= 0 || q === 'cancel';
@@ -1795,9 +1949,10 @@ async function wlStart() {
   }
 
   const hello = (b.welcome_message || '').trim() || `Hello! 👋\n\nI'm the virtual assistant for **${WL.brand || 'us'}**.`;
+  if (mode === 'b2b') { WL.b2bStep = 'phone'; WL.b2bToken = null; WL.b2bPhone = ''; WL.b2bPeriod = 'this_month'; input.placeholder = 'Enter registered mobile number'; statusEl.textContent = 'B2B sign-in'; }
   const tail = mode === 'b2c' ? wlT('b2cTail') : (mode === 'b2b' ? (cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'));
   setTimeout(() => addMessage(hello + '\n\n' + tail, 'bot'), 100);
-  showSuggestions(mode === 'b2c' ? [] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+  showSuggestions(mode === 'b2c' ? [] : mode === 'b2b' ? [{ label: 'Verify my mobile number', send: 'Verify my mobile number' }] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
 
   wlReveal();
   if (window.parent && window.parent !== window) {      // let the loader recolour the floating bubble
