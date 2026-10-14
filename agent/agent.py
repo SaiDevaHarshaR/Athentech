@@ -229,6 +229,7 @@ def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> i
 _OWN_KEY = contextvars.ContextVar("own_key_request", default=False)
 _OWN_CLIENT_CHAIN = contextvars.ContextVar("own_client_provider_chain", default=None)
 _OWN_CLIENT_INDEX = contextvars.ContextVar("own_client_provider_index", default=0)
+_SHARED_FALLBACK_ALLOWED = contextvars.ContextVar("shared_fallback_allowed", default=False)
 
 
 def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, current_provider="groq"):
@@ -259,6 +260,21 @@ def _invoke_with_retry(runnable, messages, retries=1, fallback_tools=None, curre
                     return None
                 continue
         if last_error:
+            # Explicit per-institution consent is necessary but never sufficient
+            # to bypass hybrid cloud restrictions. Only provider rate-limit errors
+            # qualify; invalid credentials and authorization errors fail closed.
+            if _SHARED_FALLBACK_ALLOWED.get() and _is_rate_limit_error(last_error):
+                for shared_name, shared_model in _get_provider_chain():
+                    if is_exhausted(shared_name):
+                        continue
+                    try:
+                        shared_runnable = (shared_model.bind_tools(fallback_tools)
+                                           if fallback_tools else shared_model)
+                        return shared_runnable.invoke(messages)
+                    except Exception as shared_error:
+                        if _is_rate_limit_error(shared_error):
+                            mark_exhausted(shared_name, ttl_seconds=_extract_retry_seconds(str(shared_error), shared_name))
+                        continue
             raise last_error
         return None
     for i in range(retries + 1):
@@ -591,6 +607,7 @@ def _data_chain(institution_code, is_premium, question=None):
     """Client AI: own key, or AthenTech ONLY after explicit per-institution opt-in.
     Normal/AthenTech Info requests without client-data context keep shared AI."""
     _OWN_KEY.set(False)
+    _SHARED_FALLBACK_ALLOWED.set(False)
     if "_OWN_CLIENT_CHAIN" in globals():
         _OWN_CLIENT_CHAIN.set(None)
         _OWN_CLIENT_INDEX.set(0)
@@ -606,6 +623,12 @@ def _data_chain(institution_code, is_premium, question=None):
             own = route_chain(question, own)
             _OWN_KEY.set(True)
             _OWN_CLIENT_CHAIN.set(own)
+            # Consent must be read from the same institution's admin DB.
+            # For hybrid routing, routine local requests must never spill into
+            # shared cloud AI; complex cloud requests require explicit enablement.
+            from agent.llm_providers import institution_ai_policy
+            consent = bool(institution_ai_policy(institution_code).get("allow_athentech_fallback", False))
+            _SHARED_FALLBACK_ALLOWED.set(consent and tier != "routine")
             return own
     return _get_provider_chain()
 
