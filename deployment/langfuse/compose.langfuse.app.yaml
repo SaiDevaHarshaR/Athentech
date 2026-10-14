@@ -1,0 +1,10 @@
+# Optional merge with existing Sahasra compose.yaml; does NOT deploy Langfuse.
+# The official Langfuse deployment stack must be prepared separately.
+services:
+  api:
+    environment:
+      SAHASRA_LANGFUSE_ENABLED: ${SAHASRA_LANGFUSE_ENABLED:-0}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-staging}
