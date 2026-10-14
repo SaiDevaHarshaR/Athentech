@@ -1,0 +1,21 @@
+# OPTIONAL, NOT included by default: enforce only after measuring ALL required
+# outbound dependencies (external SQL Server, Redis, provider endpoints, DNS).
+# CNI must support network policies (K3s typically ships with a controller).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sahasra-api-ingress-only
+  namespace: sahasra-staging
+spec:
+  podSelector:
+    matchLabels:
+      app: sahasra-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8000
+# Limits ingress to namespace-sourced pods, NOT a complete security boundary.
+# Narrow source selectors to your real gateway/monitoring Pods later.

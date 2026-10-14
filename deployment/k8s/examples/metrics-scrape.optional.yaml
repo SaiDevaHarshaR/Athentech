@@ -1,0 +1,12 @@
+# Optional annotation-only metadata for future metrics discovery. Does NOT
+# authenticate to protected /internal/metrics; Prometheus needs bearer token.
+# Prometheus integration from Stage 3 must be deployed and independently secured.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-scrape-notes
+data:
+  target: 'sahasra-api.sahasra-staging.svc.cluster.local:8000'
+  path: /internal/metrics
+  scheme: http
+  auth: bearer-token-required

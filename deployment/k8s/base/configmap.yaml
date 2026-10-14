@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sahasra-config
+data:
+  SAHASRA_ENV: staging
+  ALLOWED_ORIGINS: https://staging.example.invalid
+  SAHASRA_LANGFUSE_ENABLED: '0'
+  SAHASRA_OLLAMA_ENABLED: '0'
+  B2B_TEST_OTP_ENABLED: '0'
+  # No local model and no external paid service is activated by infrastructure.

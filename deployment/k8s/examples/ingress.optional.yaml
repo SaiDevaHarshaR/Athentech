@@ -1,0 +1,23 @@
+# FUTURE STAGING ONLY. Not included in Kustomize; set DNS/TLS and verify
+# IIS / ingress route ownership before enabling. No public /internal paths.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sahasra-staging
+  namespace: sahasra-staging
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [sahasra-staging.example.invalid]
+      secretName: sahasra-staging-tls
+  rules:
+    - host: sahasra-staging.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sahasra-api
+                port:
+                  name: http

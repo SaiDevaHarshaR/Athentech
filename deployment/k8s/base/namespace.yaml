@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sahasra-staging
+  labels:
+    app.kubernetes.io/part-of: sahasra
+    environment: staging
