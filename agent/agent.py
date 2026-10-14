@@ -471,6 +471,7 @@ def _integrity_guard(text, ok_results, bad_results, tools_used, verified_empty=F
                  "somewhere I haven't checked — tell me what to look at and I'll check.")
     return text
 
+
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
     total_tokens = 0
@@ -768,7 +769,6 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
             llm_with_tools, messages, tools_by_name,
             tool_extra_kwargs={
                 "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
-               # "his_run_sql_query": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
                 "his_describe_table": {"role": role, "db_name": db_name, "db_server": db_server, "db_user": db_user, "db_password": db_password},
             }
         )
