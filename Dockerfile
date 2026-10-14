@@ -1,7 +1,7 @@
 # Sahasra AI Agent - Linux container, IIS remains the external HTTPS gateway.
 # IMPORTANT: Set PYTHON_VERSION to the version actually running Sahasra in IIS/NSSM.
 # The source archive does not pin the deployed Python version.
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12.7
 FROM python:${PYTHON_VERSION}-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
