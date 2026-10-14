@@ -1,3 +1,4 @@
+from observability.langfuse_tracing import trace_agent_call, trace_llm_call
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from agent.style import STYLE_RULES
 #from agent.tools import run_sql_query, describe_table, get_verified_day_collection, search_schema
@@ -586,7 +587,7 @@ def _bind_first_usable_model(current_chain, tools):
     raise RuntimeError("No model available for tool calling")
 
 
-def _data_chain(institution_code, is_premium):
+def _data_chain(institution_code, is_premium, question=None):
     """Client AI: own key, or AthenTech ONLY after explicit per-institution opt-in.
     Normal/AthenTech Info requests without client-data context keep shared AI."""
     _OWN_KEY.set(False)
@@ -595,8 +596,14 @@ def _data_chain(institution_code, is_premium):
         _OWN_CLIENT_INDEX.set(0)
     if is_premium:
         from agent.llm_providers import institution_chain
-        own = institution_chain(institution_code)      # may raise ByokUnavailable -> handled in ask_agent
+        from agent.hybrid_router import enabled as hybrid_enabled, classify, HybridRouteUnavailable
+        tier = classify(question).tier if hybrid_enabled() else None
+        if tier == "complex" and os.getenv('SAHASRA_HYBRID_COMPLEX_CLOUD_ENABLED', '0') != '1':
+            raise HybridRouteUnavailable('Complex AI requests are disabled by the administrator. No cloud provider was contacted.')
+        own = institution_chain(institution_code, provider_tier=tier) if tier else institution_chain(institution_code)
         if own:
+            from agent.hybrid_router import route_chain
+            own = route_chain(question, own)
             _OWN_KEY.set(True)
             _OWN_CLIENT_CHAIN.set(own)
             return own
@@ -614,6 +621,8 @@ _BYOK_USER_MESSAGES = {
 }
 
 
+_invoke_with_retry = trace_llm_call(_invoke_with_retry)
+
 def ask_agent(*args, **kwargs):
     _OWN_KEY.set(False)
     """Runs the agent. If the institution uses its OWN AI key and the provider rejects it (bad key / no credits /
@@ -621,6 +630,9 @@ def ask_agent(*args, **kwargs):
     try:
         return _ask_agent_impl(*args, **kwargs)
     except Exception as e:
+        from agent.hybrid_router import HybridRouteUnavailable
+        if isinstance(e, HybridRouteUnavailable):
+            return str(e), 0
         from agent.llm_providers import ByokUnavailable, ByokOptInRequired
         if isinstance(e, ByokOptInRequired):
             return _BYOK_USER_MESSAGES["opt_in_required"], 0
@@ -648,6 +660,8 @@ def ask_agent(*args, **kwargs):
                 pass
         raise
 
+
+ask_agent = trace_agent_call(ask_agent)
 
 def _ask_agent_impl(
     question: str,
@@ -741,7 +755,7 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
 """
         tools = [his_search_schema, his_describe_table, his_run_sql_query]
         tools_by_name = {t.name: t for t in tools}
-        current_chain = _data_chain(institution_code, is_premium)
+        current_chain = _data_chain(institution_code, is_premium, question)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
         primary_provider_name, llm, llm_with_tools = _bind_first_usable_model(current_chain, tools)
@@ -1019,7 +1033,7 @@ refusal — nothing else fits A or C.
 
         tools = [run_report, search_schema, describe_table, run_sql_query, get_verified_day_collection, get_department_dashboard, get_lab_day_collection, get_tat_compliance_dashboard, check_zero_collection_alert,check_tat_alert]
         tools_by_name = {t.name: t for t in tools}
-        current_chain = _data_chain(institution_code, is_premium)
+        current_chain = _data_chain(institution_code, is_premium, question)
         if not current_chain:
             return "No LLM provider is currently configured. Please check API keys in Settings.", 0
         primary_provider_name, llm, llm_with_tools = _bind_first_usable_model(current_chain, tools)
