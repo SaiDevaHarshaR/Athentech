@@ -783,7 +783,7 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
             from agent.agent import _data_chain, _OWN_KEY, _BYOK_USER_MESSAGES
             from agent.llm_providers import ByokUnavailable, classify_runtime_error
             try:
-                chain = _data_chain(str(inst.get("client_prefix") or "").upper(), True)   # client's own AI key if it has one
+                chain = _data_chain(str(inst.get("client_prefix") or "").upper(), True, question)  # institution-authorized tier
             except ByokUnavailable:
                 return {"status": "error", "answer": _BYOK_USER_MESSAGES["unavailable"]}
             if not chain:
@@ -805,6 +805,9 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
                 return {"status": "error", "answer": "Sorry, I could not answer that right now. Please try again."}
             return {"status": "success", "answer": text}
         except Exception as e:
+            from agent.hybrid_router import HybridRouteUnavailable
+            if isinstance(e, HybridRouteUnavailable):
+                return {"status": "error", "answer": str(e)}
             print(f"[whitelabel] b2c answer failed: {type(e).__name__}: {e}")
             try:
                 from agent.agent import _OWN_KEY, _BYOK_USER_MESSAGES
