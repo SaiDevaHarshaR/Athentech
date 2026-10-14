@@ -1,0 +1,3 @@
+# OPTIONAL for future local HF vector embedding/re-ranking, not required for lexical RAG.
+# Install only after validating platform and pinning verified package versions.
+sentence-transformers

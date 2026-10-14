@@ -61,6 +61,8 @@ import os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 app = FastAPI(title="Sahasra AI Agent")
+from observability.metrics import metrics_middleware
+app.middleware("http")(metrics_middleware)
 #print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
 app.add_middleware(

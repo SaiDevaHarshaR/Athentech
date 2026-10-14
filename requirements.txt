@@ -29,3 +29,4 @@ tavily-python
 pyotp
 qrcode[pil]
 beautifulsoup4
+prometheus-client>=0.20,<1
