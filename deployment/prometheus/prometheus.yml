@@ -1,0 +1,15 @@
+# Staging scrape only. Install/run Prometheus in a later stage.
+# Token file is created privately at deployment time, never committed.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+scrape_configs:
+  - job_name: sahasra-api
+    scheme: http
+    metrics_path: /internal/metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["sahasra-api:8000"]  # when Prometheus shares the Docker network
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/sahasra_metrics_token
