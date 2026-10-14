@@ -168,6 +168,12 @@ _HEADERS = {
 
 def _normalize_url(url: str) -> str:
     url = (url or "").strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    elif url.startswith("/"):
+        url = _BASE + url
+    elif url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
     if url.startswith("http://"):
         url = "https://" + url[len("http://"):]
     # force www for consistency with our base
