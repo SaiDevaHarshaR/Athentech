@@ -1,0 +1,5 @@
+# Kubernetes source planning, zero paid K8s control-plane license
+
+Choose k3s or kubeadm on existing Linux servers only if production availability needs justify the operating overhead. Minikube/kind are local development tools; not production HA solutions. This stage deliberately **does not** start a cluster or introduce public services. Stage 8 should author version-pinned manifests after testing the Docker image and shared session/cache state. K8s will not fix the current process-local B2B OTP throttle and can make it worse with more replicas.
+
+Expected manifests later: Namespace, ServiceAccount, non-root Deployment, read-only ConfigMap, referenced ExternalSecret/Secret, ClusterIP Service, probes, NetworkPolicy, PodDisruptionBudget and optional HPA. No patient data in config or metrics. The current project requires externally managed SQL Server; production LIS credentials must remain outside images and manifests. The existing IIS front end can stay in place until an approved ingress migration.
