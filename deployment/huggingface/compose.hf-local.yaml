@@ -1,0 +1,33 @@
+# STAGING / single authorized institution ONLY. Requires NVIDIA GPU + NVIDIA Container Toolkit.
+# Combine with base compose.yaml only when explicitly approved for installation.
+services:
+  hf-local:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?pin-an-approved-vllm-version}
+    profiles: ["hf-local"]
+    runtime: nvidia
+    environment:
+      HF_TOKEN: ${HF_TOKEN:?model-download-token-required}
+      NVIDIA_VISIBLE_DEVICES: all
+    command:
+      - --model
+      - ${SAHASRA_HF_LOCAL_MODEL:?select-approved-model}
+      - --served-model-name
+      - ${SAHASRA_HF_LOCAL_MODEL:?select-approved-model}
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+      - --api-key
+      - ${SAHASRA_HF_LOCAL_GATEWAY_KEY:?private-gateway-key-required}
+      - --max-model-len
+      - '4096'
+    # Never publish the gateway to a host port; accessible only on Compose network.
+    expose: ["8000"]
+    volumes:
+      - hf_model_cache:/root/.cache/huggingface
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ipc: host  # vLLM often needs shared memory; review security before production
+volumes:
+  hf_model_cache:
