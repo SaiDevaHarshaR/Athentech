@@ -1,0 +1,17 @@
+# OPTIONAL, NOT DEPLOYED. CPU-oriented proof of concept only.
+# Running Ollama does not automatically configure Sahasra BYOK routing.
+# Check the model license, test CPU/RAM availability, and connect through
+# a validated per-institution backend adapter before enabling.
+services:
+  ollama-local:
+    image: ollama/ollama:${OLLAMA_VERSION:?pin tested version}
+    profiles: ["local-ai"]
+    restart: unless-stopped
+    expose: ["11434"]
+    volumes:
+      - ollama_models:/root/.ollama
+    security_opt:
+      - no-new-privileges:true
+    # No public ports. Add limits based on actual staging hardware.
+volumes:
+  ollama_models:

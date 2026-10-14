@@ -1,0 +1,26 @@
+# Optional source template only: combine with existing compose.yaml when deploying later.
+# No external SaaS or paid edition. Do not expose observability to the internet.
+services:
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION:?pin tested Prometheus version}
+    profiles: ["monitoring"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./deployment/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    expose: ["9090"]
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana-oss:${GRAFANA_VERSION:?pin tested Grafana OSS version}
+    profiles: ["monitoring"]
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deployment/grafana/provisioning:/etc/grafana/provisioning:ro
+    expose: ["3000"]
+    restart: unless-stopped
+volumes:
+  prometheus_data:
+  grafana_data:
