@@ -1774,13 +1774,14 @@ function renderInstitutionAiSlots() {
     const opts = _institutionAiCatalog.map(p => `<option value="${escapeAiText(p.id)}" ${p.id===s.provider?'selected':''}
       ${p.disabled?'disabled':''}>${escapeAiText(p.label)}${p.disabled?' (unavailable)':''}</option>`).join('');
     const fallbackModel = _institutionAiCatalog.find(p => p.id===s.provider)?.default_model || 'Provider default';
-    const status = s.clear_key ? 'Will remove key' : s.new_key ? 'New key entered' : s.has_key ? (s.key_status==='valid'?'Verified key saved':'Saved key · '+s.key_status) : 'No key yet';
-    const state = !s.enabled ? 'Disabled' : s.has_key || s.new_key ? 'Configured' : 'Set up';
+    const local = s.provider === 'ollama_local';
+    const status = local ? 'Local model · no API key' : s.clear_key ? 'Will remove key' : s.new_key ? 'New key entered' : s.has_key ? (s.key_status==='valid'?'Verified key saved':'Saved key · '+s.key_status) : 'No key yet';
+    const state = !s.enabled ? 'Disabled' : local || s.has_key || s.new_key ? 'Configured' : 'Set up';
     return `<details class="ai-provider" data-position="${i+1}" ${_institutionAiExpanded===i+1?'open':''}>
        <summary><div class="ai-slot-num">${String(i+1).padStart(2,'0')}</div>
          <div class="ai-slot-copy"><strong>Provider ${i+1} · ${escapeAiText(aiSlotLabel(s))}</strong>
            <span>${escapeAiText(status)}</span></div>
-         <span class="ai-status-pill ${s.enabled&&(s.has_key||s.new_key)?'good':(!s.enabled?'off':'')}">${escapeAiText(state)}</span>
+         <span class="ai-status-pill ${s.enabled&&(local||s.has_key||s.new_key)?'good':(!s.enabled?'off':'')}">${escapeAiText(state)}</span>
          <span class="ai-chevron" aria-hidden="true">⌄</span></summary>
        <div class="ai-panel-body">
          <div class="ai-field"><label for="aiProvider${i}">Provider</label>
@@ -1792,13 +1793,13 @@ function renderInstitutionAiSlots() {
            <div class="ai-field" data-ai-url-wrap="${i}" ${s.provider!=='custom'?'hidden':''}>
              <label for="aiUrl${i}">Custom HTTPS URL</label><input id="aiUrl${i}" data-ai-field="base_url" data-index="${i}"
                value="${escapeAiText(s.base_url)}" placeholder="https://api.example.com/v1" spellcheck="false"/></div></div>
-         <div class="ai-field"><label for="aiKey${i}">API key</label>
+         <div class="ai-field" ${local?'hidden':''}><label for="aiKey${i}">API key</label>
            <input id="aiKey${i}" data-ai-field="new_key" data-index="${i}" type="password"
              autocomplete="new-password" placeholder="${s.has_key?'•••••••• (saved — leave blank to keep)':'Paste API key'}" spellcheck="false"/>
            <div class="ai-muted">Saved keys are never shown. New keys are tested before saving.</div></div>
          <div class="ai-provider-actions">
-           <button type="button" class="ai-lite" data-ai-action="test" data-index="${i}">Test new key</button>
-           ${s.has_key&&!s.clear_key?`<button type="button" class="ai-lite" data-ai-action="recheck" data-index="${i}">Recheck saved</button>
+           ${local ? `<button type="button" class="ai-lite" data-ai-action="recheck" data-index="${i}">Check local model</button>` : `<button type="button" class="ai-lite" data-ai-action="test" data-index="${i}">Test new key</button>`}
+           ${!local&&s.has_key&&!s.clear_key?`<button type="button" class="ai-lite" data-ai-action="recheck" data-index="${i}">Recheck saved</button>
               <button type="button" class="ai-lite danger" data-ai-action="clear" data-index="${i}">Remove key</button>`:''}
            ${i>=3&&i===_institutionAiSlots.length-1?`<button type="button" class="ai-lite danger" data-ai-action="remove" data-index="${i}">Remove slot</button>`:''}
          </div>
@@ -1828,7 +1829,7 @@ function onInstitutionAiChange(e) {
     if (s.has_key) { s.clear_key=true; s.has_key=false; }
     _institutionAiExpanded=i+1;
     renderInstitutionAiSlots();
-    aiFeedback('Changing a provider requires a new API key.', '');
+    aiFeedback(s.provider==='ollama_local'?'Local Ollama needs no API key. Enable only for approved institutions.':'Changing a provider requires a new API key.', '');
   }
 }
 async function aiProviderCall(endpoint, method='POST', body=undefined) {
@@ -1875,7 +1876,7 @@ async function onInstitutionAiClick(e) {
        :await aiProviderCall(`/admin/institutions/${_institutionAiId}/ai-providers/${i+1}/revalidate`);
       const msg=aiValidationMessage(data,ok?'Validated successfully.':'Verification failed.');
       aiFeedback('Provider '+(i+1)+': '+msg,ok?'success':'error');
-      if(ok){slot.key_status='valid';if(action==='recheck')slot.has_key=true;}
+      if(ok){slot.key_status='valid';if(action==='recheck'&&slot.provider!=='ollama_local')slot.has_key=true;}
     } catch(err){aiFeedback('Cannot reach the provider-validation service. Check network connectivity.','error');}
     finally{aiBusy(false);}
   }
@@ -1914,7 +1915,7 @@ async function openInstitutionAiSettings(id) {
     while(_institutionAiSlots.length<3)_institutionAiSlots.push(makeEmptyAiSlot(_institutionAiSlots.length+1));
     _institutionAiSlots[0].enabled=true;
     aiEl('institutionAiFallback').checked=!!settings.allow_athentech_fallback;
-    const n=_institutionAiSlots.filter(s=>s.enabled&&s.has_key).length;
+    const n=_institutionAiSlots.filter(s=>s.enabled&&(s.has_key||s.provider==='ollama_local')).length;
     aiEl('institutionAiStatus').textContent=n
       ?`${n} enabled institution provider${n===1?'':'s'} · Uses client's own credentials`
       :(settings.allow_athentech_fallback?'No client key · AthenTech AI explicitly allowed':'No client key · AI disabled until a key is saved or fallback is enabled');
@@ -1938,7 +1939,7 @@ async function saveInstitutionAiSettings() {
   // The UI's primary checkbox is intentionally locked ON. The primary key
   // itself is optional only when AI should remain disabled or consent is ON.
   for(const [i,s] of slots.entries()) {
-    if(s.enabled&&i>0&&!s.api_key&&!_institutionAiSlots[i].has_key) {
+    if(s.enabled&&i>0&&s.provider!=='ollama_local'&&!s.api_key&&!_institutionAiSlots[i].has_key) {
       aiFeedback(`Provider ${i+1} is enabled but has no key. Enter one or uncheck it.`,'error');
       _institutionAiExpanded=i+1;renderInstitutionAiSlots();return;
     }
@@ -1952,7 +1953,7 @@ async function saveInstitutionAiSettings() {
     _institutionAiSlots=(data.slots||[]).map(s=>({...makeEmptyAiSlot(s.position),...s,new_key:'',clear_key:false}));
     while(_institutionAiSlots.length<3)_institutionAiSlots.push(makeEmptyAiSlot(_institutionAiSlots.length+1));
     _institutionAiSlots[0].enabled=true;
-    const n=_institutionAiSlots.filter(s=>s.enabled&&s.has_key).length;
+    const n=_institutionAiSlots.filter(s=>s.enabled&&(s.has_key||s.provider==='ollama_local')).length;
     aiEl('institutionAiStatus').textContent=`${n} enabled client provider${n===1?'':'s'} · ${data.allow_athentech_fallback?'Shared fallback permitted only with no client keys':'No AthenTech shared fallback'}`;
     renderInstitutionAiSlots();
     aiFeedback('Saved successfully · provider order, enabled keys and fallback preference updated.','success');
