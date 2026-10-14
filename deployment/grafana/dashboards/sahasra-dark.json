@@ -1,0 +1,633 @@
+{
+  "id": null,
+  "uid": "sahasra-command-dark",
+  "title": "Sahasra • Dark Command Center",
+  "tags": [
+    "sahasra",
+    "athentech",
+    "prometheus",
+    "stage4",
+    "dark"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(sahasra_http_requests_total{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Requests per second for instrumented API calls",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "5xx server error ratio",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(sahasra_http_requests_total{job=\"sahasra-api\",status_class=\"5xx\"}[$__rate_interval])) / clamp_min(sum(rate(sahasra_http_requests_total{job=\"sahasra-api\"}[$__rate_interval])), 0.000001)",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "HTTP 5xx fraction; zero is meaningful only with traffic",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "API P95 latency",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sahasra_http_request_seconds_bucket{job=\"sahasra-api\"}[$__rate_interval])))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "P95 API server duration (not full browser render time)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Active scrape targets",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(up{job=\"sahasra-api\"})",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Count of healthy Prometheus scrape targets",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Requests by route",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (route) (rate(sahasra_http_requests_total{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Coarse endpoint categories only; excludes sensitive URL segments",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "4xx client errors by route",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (route) (rate(sahasra_http_requests_total{job=\"sahasra-api\",status_class=\"4xx\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Rate of HTTP client errors by safe route class",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "B2B operations",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (operation) (rate(sahasra_b2b_requests_total{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Endpoint traffic, NOT authenticated OTP success or completed business transaction counts",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "B2B failed HTTP responses",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (operation,status_class) (rate(sahasra_b2b_requests_total{job=\"sahasra-api\",status_class=~\"4xx|5xx\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Only HTTP status classes; no mobile numbers or organization codes",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Report P95 duration",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (format,le) (rate(sahasra_report_request_seconds_bucket{job=\"sahasra-api\"}[$__rate_interval])))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "PDF/Excel request processing P95, grouped by safe format",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Reports by format and outcome",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (format,status_class) (rate(sahasra_report_request_seconds_count{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "Report requests by format and HTTP status",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "AI provider outcomes (hook required)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (provider,result) (rate(sahasra_ai_provider_attempts_total{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "NO DATA until record_ai_provider is called inside actual provider adapter; not equivalent to request success",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "AI provider P95 latency (hook required)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (provider,le) (rate(sahasra_ai_provider_seconds_bucket{job=\"sahasra-api\"}[$__rate_interval])))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "NO DATA until provider backend hook is wired; provider names are fixed allowlisted labels",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "OTP outcomes (hook required)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (action,result) (rate(sahasra_b2b_otp_outcomes_total{job=\"sahasra-api\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{operation}} {{format}} {{provider}} {{result}}",
+          "refId": "A",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "description": "NO DATA until actual OTP outcome hook is wired; endpoint traffic is not successful OTP verification",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "sahasra-prometheus"
+        },
+        "hide": 0,
+        "refresh": 1
+      }
+    ]
+  },
+  "description": "Prometheus-backed operational dashboard. No patient data. Some outcome series need explicit Stage 3 hooks. Theme appearance is controlled by Grafana user preference; companion palettes guide exported snapshots."
+}

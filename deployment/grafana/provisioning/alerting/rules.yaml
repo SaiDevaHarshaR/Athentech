@@ -1,0 +1,194 @@
+apiVersion: 1
+groups:
+- orgId: 1
+  name: Sahasra availability & performance
+  folder: sahasra-alerts
+  interval: 1m
+  rules:
+  - uid: sahasra-target-down
+    title: Sahasra scrape target unavailable
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: sahasra-prometheus
+      model:
+        datasource:
+          type: prometheus
+          uid: sahasra-prometheus
+        editorMode: code
+        expr: up{job="sahasra-api"} == bool 0
+        instant: true
+        range: false
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+        settings: {}
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        refId: C
+        conditions:
+        - evaluator:
+            params:
+            - 0.5
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            params: []
+            type: last
+          type: query
+    noDataState: NoData
+    execErrState: Error
+    for: 2m
+    annotations:
+      summary: Prometheus cannot scrape the Sahasra API target; check availability
+        and metrics authentication.
+    labels:
+      severity: critical
+      service: sahasra
+    isPaused: false
+  - uid: sahasra-error-spike
+    title: Sahasra high HTTP 5xx ratio
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: sahasra-prometheus
+      model:
+        datasource:
+          type: prometheus
+          uid: sahasra-prometheus
+        editorMode: code
+        expr: (sum(rate(sahasra_http_requests_total{job="sahasra-api",status_class="5xx"}[5m]))
+          or vector(0)) / clamp_min(sum(rate(sahasra_http_requests_total{job="sahasra-api"}[5m])),0.001)
+        instant: true
+        range: false
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+        settings: {}
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        refId: C
+        conditions:
+        - evaluator:
+            params:
+            - 0.05
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            params: []
+            type: last
+          type: query
+    noDataState: NoData
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: Over 5% of recent API requests returned HTTP 5xx. Requires traffic
+        to be meaningful.
+    labels:
+      severity: warning
+      service: sahasra
+    isPaused: false
+  - uid: sahasra-high-p95
+    title: Sahasra slow P95 API latency
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: sahasra-prometheus
+      model:
+        datasource:
+          type: prometheus
+          uid: sahasra-prometheus
+        editorMode: code
+        expr: histogram_quantile(0.95, sum by (le) (rate(sahasra_http_request_seconds_bucket{job="sahasra-api"}[5m])))
+        instant: true
+        range: false
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+        settings: {}
+    - refId: C
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        refId: C
+        conditions:
+        - evaluator:
+            params:
+            - 3
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            params: []
+            type: last
+          type: query
+    noDataState: NoData
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: P95 API latency exceeded 3 seconds. Tune threshold against staging
+        measurements.
+    labels:
+      severity: warning
+      service: sahasra
+    isPaused: false
