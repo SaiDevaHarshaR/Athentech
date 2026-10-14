@@ -42,6 +42,7 @@ _P = {
     "huggingface": ("Hugging Face", "openai", "https://router.huggingface.co/v1", "meta-llama/Llama-3.3-70B-Instruct", "huggingface.co/settings/tokens"),
     "ai21":        ("AI21 Jamba", "openai", "https://api.ai21.com/studio/v1", "jamba-large", "studio.ai21.com"),
     "custom":      ("Other (OpenAI-compatible URL)", "openai", "", "", ""),
+    "ollama_local": ("Local Ollama (CPU · no API subscription)", "openai", "", "qwen3:4b", ""),
 }
 
 CATALOG = [{"id": k, "label": v[0], "base_url": v[2], "default_model": v[3], "key_page": v[4],
@@ -196,6 +197,8 @@ def validate_key(provider, api_key, model=None, base_url=None, timeout=25):
     if provider == "github":
         return {"ok": False, "code": "bad_request",
                 "message": "GitHub Models was retired on July 30, 2026. Choose another AI provider."}
+    if provider == "ollama_local":
+        return {"ok": False, "code": "bad_request", "message": "Local Ollama needs no API key. Save an institution-authorized local model instead."}
     if not key:
         return {"ok": False, "code": "invalid_key", "message": "Please enter the API key."}
     base = _effective_base(provider, info, base_url)
@@ -285,13 +288,18 @@ def classify_runtime_error(exc):
     return None
 
 
-def build_chat_model(provider, api_key, model=None, base_url=None):
+def build_chat_model(provider, api_key, model=None, base_url=None, client_prefix=None):
     info = provider_info(provider)
     if not info:
         raise ValueError("Unknown AI provider")
     if provider == "github":
         raise ValueError("GitHub Models has been retired; please select a supported provider")
     mdl = model or info["default_model"]
+    if provider == "ollama_local":
+        from agent.ollama_local import assert_allowed
+        endpoint = assert_allowed(client_prefix, mdl)
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model=mdl, temperature=0, api_key="local-no-external-key", base_url=endpoint, timeout=90, max_retries=0)
     if info["protocol"] == "anthropic":
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=mdl, temperature=0, api_key=api_key)
@@ -310,7 +318,7 @@ def build_chat_model(provider, api_key, model=None, base_url=None):
 _cache, _lock, _TTL = {}, threading.Lock(), 300
 
 
-def institution_ai_policy(client_prefix):
+def institution_ai_policy(client_prefix, provider_tier=None):
     """Read every institution-owned provider in priority order; never assume shared-AI consent.
 
     Reads only the AthenTech admin DB. An unavailable/malformed configuration
@@ -320,7 +328,7 @@ def institution_ai_policy(client_prefix):
         raise ByokUnavailable("missing institution identity")
     try:
         from auth.institution_ai_slots import runtime_slots
-        policy = runtime_slots(client_prefix)
+        policy = runtime_slots(client_prefix, provider_tier=provider_tier) if provider_tier else runtime_slots(client_prefix)
     except Exception as exc:
         print(f"[byok] institution AI policy unavailable: {type(exc).__name__}", flush=True)
         raise ByokUnavailable("institution AI settings unreadable") from exc
@@ -331,6 +339,7 @@ def institution_ai_policy(client_prefix):
         "api_key": primary.get("api_key"), "base_url": primary.get("base_url"),
         "providers": providers,
         "allow_athentech_fallback": bool(policy["allow_athentech_fallback"]),
+        "had_active_slots": bool(policy.get("had_active_slots", False)),
     }
 
 
@@ -348,7 +357,7 @@ class ByokOptInRequired(ByokUnavailable):
     """No institution key, and shared AthenTech AI has NOT been explicitly authorized."""
 
 
-def institution_chain(client_prefix):
+def institution_chain(client_prefix, provider_tier=None):
     """Choose client's own key or authorized shared AI; never assume consent.
 
     Returns None ONLY for the explicit allow_athentech_fallback=True, no-own-key
@@ -357,14 +366,15 @@ def institution_chain(client_prefix):
     if not client_prefix:
         raise ByokUnavailable("missing institution identity")
     now = time.time()
+    cache_key = (str(client_prefix).upper(), provider_tier or "any")
     with _lock:
-        hit = _cache.get(str(client_prefix).upper())
+        hit = _cache.get(cache_key)
         if hit and now - hit[0] < _TTL:
             if hit[1] == "blocked":
                 raise ByokOptInRequired("institution AI not configured")
             return hit[1]
     try:
-        s = institution_ai_policy(client_prefix)
+        s = institution_ai_policy(client_prefix, provider_tier=provider_tier) if provider_tier else institution_ai_policy(client_prefix)
     except ByokUnavailable:
         raise
     except Exception as e:
@@ -382,22 +392,32 @@ def institution_chain(client_prefix):
         chain = []
         for slot in own_providers:
             try:
-                model = build_chat_model(slot["provider"], slot["api_key"], slot["model"], slot["base_url"])
+                model = build_chat_model(slot["provider"], slot["api_key"], slot["model"], slot["base_url"], client_prefix=client_prefix)
                 chain.append((slot["provider"] if slot["position"] == 1 else f"{slot['provider']}#slot{slot['position']}", model))
             except Exception as e:
+                if slot["provider"] == "ollama_local":
+                    raise ByokUnavailable("Institution local AI provider is unavailable or not authorized") from e
                 # A broken OPTIONAL client provider must not disable working
                 # client-owned providers. Shared AthenTech AI remains forbidden.
                 print(f"[byok] cannot build client provider slot {slot['position']}: {type(e).__name__}", flush=True)
                 continue
         if not chain:
             raise ByokUnavailable("no institution provider could be built")
+    elif provider_tier and s.get("had_active_slots"):
+        # The institution has approved some models, but NONE in this tier.
+        # Fallback consent is NOT authorization to switch tiers or use
+        # AthenTech's shared account when a local/client slot exists.
+        from agent.hybrid_router import HybridRouteUnavailable
+        if provider_tier == "routine":
+            raise HybridRouteUnavailable("Local Qwen3 is not enabled for this institution. No cloud provider was contacted.")
+        raise HybridRouteUnavailable("No institution-approved cloud model is configured for complex requests. No shared AI was contacted.")
     elif s["allow_athentech_fallback"]:
         chain = None  # Only explicit no-key consent authorizes AthenTech AI.
     else:
         chain = "blocked"
 
     with _lock:
-        _cache[str(client_prefix).upper()] = (now, chain)
+        _cache[cache_key] = (now, chain)
     if chain == "blocked":
         raise ByokOptInRequired("institution AI not configured")
     return chain
@@ -406,6 +426,9 @@ def institution_chain(client_prefix):
 def invalidate(client_prefix=None):
     with _lock:
         if client_prefix:
-            _cache.pop(client_prefix, None)
+            prefix = str(client_prefix).upper()
+            for cache_key in list(_cache):
+                if cache_key == prefix or (isinstance(cache_key, tuple) and cache_key[0] == prefix):
+                    _cache.pop(cache_key, None)
         else:
             _cache.clear()
