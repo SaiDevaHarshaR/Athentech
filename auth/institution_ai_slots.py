@@ -67,7 +67,7 @@ def public_slots(institution_id):
         conn.close()
 
 
-def runtime_slots(client_prefix):
+def runtime_slots(client_prefix, provider_tier=None):
     """Return enabled owned credentials or [] for none. Never return plaintext to API clients."""
     conn = get_conn()
     try:
@@ -80,10 +80,29 @@ def runtime_slots(client_prefix):
         if not slots:
             slots = _legacy(inst)
         configured = []
+        has_any_own_slot = any(
+            bool(s["enabled"]) and bool(s.get("provider")) and
+            (bool(s.get("api_key")) or s.get("provider") == "ollama_local")
+            for s in slots
+        )
         for s in slots:
             if not s["enabled"]:
                 continue
+            # Choose the requested tier BEFORE constructing or validating the
+            # model. A disconnected local model must not disable an unrelated,
+            # explicitly configured institution cloud model for complex work.
+            if provider_tier == "complex" and s.get("provider") == "ollama_local":
+                continue
+            if provider_tier == "routine" and s.get("provider") != "ollama_local":
+                continue
             encrypted = s.get("api_key")
+            if not encrypted and s.get("provider") == "ollama_local":
+                from agent.ollama_local import assert_allowed
+                chosen_model = s.get("model") or "qwen3:4b"
+                assert_allowed(str(client_prefix), chosen_model)
+                configured.append({"position": int(s["position"]), "provider": "ollama_local",
+                                   "model": chosen_model, "base_url": None, "api_key": "local-no-external-key"})
+                continue
             if not encrypted:
                 continue
             if not s.get("provider"):
@@ -94,8 +113,11 @@ def runtime_slots(client_prefix):
             configured.append({"position": int(s["position"]), "provider": s["provider"],
                                "model": s.get("model"), "base_url": s.get("base_url"),
                                "api_key": secret})
-        return {"providers": configured,
-                "allow_athentech_fallback": bool(inst.get("allow_athentech_fallback"))}
+        response = {"providers": configured,
+                    "allow_athentech_fallback": bool(inst.get("allow_athentech_fallback"))}
+        if provider_tier is not None:
+            response["had_active_slots"] = has_any_own_slot
+        return response
     finally:
         conn.close()
 
@@ -147,7 +169,14 @@ def save_slots(institution_id, slot_payload, allow_fallback, validate_key):
                 # the other providers or their priority.
                 key = ""
                 old = {}
-            if key:
+            if provider == "ollama_local":
+                from agent.ollama_local import assert_allowed
+                if key or url:
+                    raise ValueError(f"Provider {pos}: local Ollama needs no API key or URL")
+                model = model or "qwen3:4b"
+                assert_allowed(inst.get("client_prefix"), model)
+                encrypted, status, checked_at = None, "local_configured", None
+            elif key:
                 if not provider:
                     raise ValueError(f"Provider {pos}: select the provider first")
                 check = validate_key(provider, key, model or None, url or None)
@@ -180,7 +209,7 @@ def save_slots(institution_id, slot_payload, allow_fallback, validate_key):
                     if old.get("api_key") and provider:
                         raise ValueError(f"Provider {pos}: enter a new key when changing provider or API URL")
                     encrypted, status, checked_at = None, "not_configured", None
-            if enabled and pos > 1 and not encrypted:
+            if enabled and pos > 1 and not encrypted and provider != "ollama_local":
                 raise ValueError(f"Provider {pos}: add and validate a key before enabling this provider")
             prepared.append((pos, enabled, provider or None, model or None, encrypted, url or None, status, checked_at))
 
@@ -231,6 +260,9 @@ def revalidate_slot(institution_id, position, validate_key):
         inst = _get_inst(cur, institution_id)
         rows = _raw_slots(cur, institution_id) or _legacy(inst)
         slot = next((x for x in rows if int(x["position"]) == position), None)
+        if slot and slot.get("provider") == "ollama_local":
+            from agent.ollama_local import check_health
+            return check_health(inst.get("client_prefix"), slot.get("model") or "qwen3:4b")
         if not slot or not slot.get("api_key"):
             raise ValueError("No saved key for this provider")
         key = decrypt_secret(slot["api_key"])
