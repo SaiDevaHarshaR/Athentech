@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 BASE = pathlib.Path(__file__).resolve().parents[1]
 for package in ('auth', 'database'):
     pkg = types.ModuleType(package)
-    pkg.__path__ = []
+    pkg.__path__ = [str(BASE / package)]
     sys.modules[package] = pkg
 m = types.ModuleType('auth.secrets_crypto')
 m.decrypt_secret = lambda x: x
@@ -338,3 +338,21 @@ def test_pdf_org_isolation_with_temp_directory(monkeypatch,tmp_path):
     assert exc.value.status_code==404
     with pytest.raises(HTTPException):
         b2b._authorized_pdf(INST_A,'CORP1','../../INV123')
+
+
+def test_stage12_pending_invoice_cannot_show_unfiltered_records(client, monkeypatch):
+    c, _, _ = client
+    token = login(client)
+    monkeypatch.setattr(b2b, '_rows_for_org', lambda *a, **k: pytest.fail('must not fetch all invoices for pending filter'))
+    resp = c.post('/public/b2b/chat', headers={'Authorization':'Bearer '+token},
+                  json={'client':'KONNECT','message':'Show pending invoices'})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload['intent'] == 'status_mapping_required'
+    assert 'bills' not in payload
+
+
+def test_stage12_b2b_local_intent_requires_verified_session(client, monkeypatch):
+    c, _, _ = client
+    resp = c.post('/public/b2b/chat', json={'client':'KONNECT','message':'Show our invoices'})
+    assert resp.status_code in (401, 403)
