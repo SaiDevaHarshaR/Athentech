@@ -1,0 +1,48 @@
+# Never send secrets or server-specific configuration to the build context
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*credentials*
+*secrets*
+# Do not ship source-control internals and build artifacts
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.DS_Store
+# Production/customer information, exports and local snapshots
+*.db
+*.db-shm
+*.db-wal
+*.db-info
+*.bak
+*.bak.gz
+*.zip
+*.7z
+*.log
+crash_log.txt
+audit/*.log
+exports/*
+!exports/.gitkeep
+schema_profile.json
+schema_profile_*.csv
+table_classification_review.csv
+table_relationships_review.csv
+# Tests/docs are not needed for runtime
+.gitignore
+tests/
+*.md
+# Windows-only service configuration is not part of container runtime
+deployment/install_service.ps1
