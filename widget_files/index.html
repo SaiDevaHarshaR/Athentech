@@ -462,6 +462,32 @@
     font-style: italic;
     color: #64748b;
   }
+
+/* Sahasra White Label UX: intentionally isolated from normal-mode styles. */
+body.wl-modern .container { background:#f8fafc; animation:none; }
+body.wl-modern .header { background:linear-gradient(115deg,var(--wl-primary,#334155),#17253a); animation:none; padding:17px 18px; }
+body.wl-modern .chat { background:#f8fafc; background-image:none; padding:16px; gap:13px; }
+body.wl-modern .bot { border:1px solid #e3eaf3; box-shadow:0 4px 16px #192b4210; }
+body.wl-modern .user { background:var(--wl-primary,#334155); box-shadow:none; }
+body.wl-modern .suggestions { background:#fff; border-top:1px solid #e5eaf0; }
+body.wl-modern .suggestions button { border-radius:999px; font-weight:600; }
+body.wl-modern .input-area { background:white; border-top:1px solid #e6edf5; }
+.wl-quick { display:none; flex-shrink:0; background:#fff; padding:13px 14px 12px; border-bottom:1px solid #e7edf4; }
+.wl-quick.visible { display:block; }
+.wl-quick-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.wl-quick-label { font-size:12px; letter-spacing:.035em; font-weight:800; color:#334155; }
+.wl-quick-state { display:inline-flex; font-size:10px; font-weight:700; padding:5px 8px; background:#f0f5fb; color:#556982; border-radius:20px; }
+.wl-quick-state.verified { color:#087c59; background:#e8f8ef; }
+.wl-quick-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.wl-action { text-align:left; border:1px solid #e2e9f3; border-radius:12px; background:#fbfdff; color:#263b58; padding:10px 11px; min-height:53px; font:600 12px 'Segoe UI',system-ui,sans-serif; cursor:pointer; box-shadow:none; overflow-wrap:anywhere; }
+.wl-action:hover,.wl-action:focus-visible { outline:2px solid color-mix(in srgb,var(--wl-primary,#334155) 35%,white); background:#f3f7ff; }
+.wl-action small { display:block; color:#72839b; font-weight:400; margin-top:4px; font-size:10px; }
+.wl-action.primary { border-color:var(--wl-primary,#334155); background:var(--wl-primary,#334155); color:white; }
+.wl-action.primary small { color:#e7eaf0; }
+.wl-quick-help { font-size:11px; color:#718198; line-height:1.4; margin-top:9px; }
+.wl-mini-select { border:1px solid #d9e3ef; padding:7px; border-radius:9px; background:#fff; color:#304158; font-size:11px; min-width:120px; max-width:100%; }
+.wl-quick-state + .wl-mini-select { margin-left:auto; }
+@media(max-width:370px) { .wl-quick-actions { grid-template-columns:1fr; }.wl-action { min-height:39px; } }
 </style>
 <link rel="stylesheet" href="theme.css">
 </head>
@@ -479,6 +505,11 @@
   <span id="usageBannerText"></span>
   <button onclick="document.getElementById('usageBanner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:14px;">×</button>
 </div>
+    <section id="wlQuick" class="wl-quick" aria-label="Chatbot quick actions">
+      <div class="wl-quick-top"><span class="wl-quick-label" id="wlQuickTitle">How can we help?</span><span class="wl-quick-state" id="wlQuickState">Ready</span></div>
+      <div class="wl-quick-actions" id="wlQuickActions"></div>
+      <div class="wl-quick-help" id="wlQuickHelp"></div>
+    </section>
     <div class="chat" id="chat"></div>
     <div class="suggestions" id="suggestions"></div>
 
@@ -1679,17 +1710,68 @@ function wlEmbedderOrigin() {
   try { return new URL(document.referrer).origin; } catch (e) { return ''; }
 }
 
+// Branded, low-clutter action cards; requests still go through the existing authenticated router.
+function wlQuickAction(label, detail, send, primary = false, action = null) {
+  const btn = document.createElement('button'); btn.type='button';
+  btn.className='wl-action' + (primary ? ' primary' : '');
+  const text = document.createElement('span'); text.textContent=label; btn.appendChild(text);
+  if (detail) { const small=document.createElement('small'); small.textContent=detail; btn.appendChild(small); }
+  btn.addEventListener('click', () => { if (action) action(); else { input.value=send; handleSend(); } });
+  return btn;
+}
+function wlQuickRender() {
+  if (!WL.isWhite || !WL.activeMode) return;
+  const panel=document.getElementById('wlQuick'), actions=document.getElementById('wlQuickActions');
+  const title=document.getElementById('wlQuickTitle'), badge=document.getElementById('wlQuickState');
+  const help=document.getElementById('wlQuickHelp'); if (!panel || !actions) return;
+  panel.classList.add('visible'); actions.replaceChildren();
+  if (WL.activeMode === 'b2c') {
+    title.textContent='Explore our services'; badge.textContent='Guest access'; badge.classList.remove('verified');
+    [['Our services','Tests and facilities','What diagnostic services do you offer?'],
+     ['Timings & location','Plan your visit','What are your opening hours and location?'],
+     ['Preparing for tests','Before your appointment','How should I prepare for a blood test?'],
+     ['Contact & support','Get assistance','How can I contact your laboratory?']]
+     .forEach(([a,b,q])=>actions.appendChild(wlQuickAction(a,b,q)));
+    help.textContent='General information only. Personal reports and patient details require an authorized access flow.';
+  } else if (WL.activeMode === 'b2b') {
+    const step=WL.b2bStep||'phone', ready=step==='ready' && !!WL.b2bToken;
+    title.textContent=ready?'Business self-service':'Secure business access';
+    badge.textContent=ready?'✓ Verified organization':step==='otp'?'Code requested':'Verification required';
+    badge.classList.toggle('verified',ready);
+    if (!ready) {
+      if (step==='phone') {
+        actions.appendChild(wlQuickAction('Enter your mobile','Use your registered number','',true,()=>{input.focus();}));
+        actions.appendChild(wlQuickAction('How it works','Mobile → code → reports','',false,()=>addMessage('Enter your registered corporate mobile number. After verification, you can view business invoices and download authorized reports.','bot')));
+        help.textContent='Your account is matched to an administrator-approved organization. No reports are accessible before verification.';
+      } else {
+        actions.appendChild(wlQuickAction('Enter verification code','Enter the code you received','',true,()=>input.focus()));
+        actions.appendChild(wlQuickAction('Resend code','Request another code','Resend code'));
+        actions.appendChild(wlQuickAction('Change mobile number','Go back','Change number'));
+        help.textContent='Never share your verification code. A code is delivered only if the number is registered and the OTP provider is configured.';
+      }
+    } else {
+      [['Business overview','Invoice counts & billed value','Business overview'],
+       ['Invoice statuses','Your organization only','Invoice statuses'],
+       ['Export Excel','Download invoice statement','Download Excel'],
+       ['Patient report PDF','Enter approved bill number','',false,()=>{input.value='Report PDF ';input.focus();}]]
+       .forEach(([a,b,q,pr,fn])=>actions.appendChild(wlQuickAction(a,b,q,pr||false,fn||null)));
+      const select=document.createElement('select'); select.className='wl-mini-select'; select.setAttribute('aria-label','Reporting period');
+      [['today','Today'],['yesterday','Yesterday'],['last_7_days','Last 7 days'],['this_month','This month'],['last_month','Last month']]
+        .forEach(([value,label])=>{const opt=document.createElement('option');opt.value=value;opt.textContent=label;select.appendChild(opt);});
+      select.value=WL.b2bPeriod||'this_month';
+      select.addEventListener('change',()=>{WL.b2bPeriod=select.value;addMessage('Reporting period: **'+select.options[select.selectedIndex].textContent+'**.','bot');});
+      actions.appendChild(select);
+      actions.appendChild(wlQuickAction('Sign out','End this business session','Sign out'));
+      help.textContent='Billed value is not collected cash. Patient PDFs require an approved export and organization-level authorization.';
+    }
+  } else { panel.classList.remove('visible'); }
+}
+
 // B2B never reuses the institution activation code or general /ask endpoint.
 // Its session is kept in memory only; reloading the widget requires phone verification again.
 function wlB2BMenu() {
-  showSuggestions([
-    { label: 'Business overview', send: 'Business overview' },
-    { label: 'Invoice statuses', send: 'Invoice statuses' },
-    { label: 'Patient PDF', send: 'Report PDF BILLNUMBER' },
-    { label: 'Download Excel', send: 'Download Excel' },
-    { label: 'Change period', send: 'Change period' },
-    { label: 'Sign out', send: 'Sign out' }
-  ]);
+  // Permanent action panel replaces repeated suggestion chips.
+  wlQuickRender();
 }
 
 async function wlB2BCall(path, opts = {}) {
@@ -1700,7 +1782,7 @@ async function wlB2BCall(path, opts = {}) {
   if (!res.ok) {
     let msg = 'Request could not be completed. Try again.';
     try { const d = await res.json(); msg = d.detail || d.message || msg; } catch (_) {}
-    if (res.status === 401) { WL.b2bToken = null; WL.b2bStep = 'phone'; }
+    if (res.status === 401) { WL.b2bToken = null; WL.b2bStep = 'phone'; wlQuickRender(); }
     throw new Error(typeof msg === 'string' ? msg : 'B2B request failed');
   }
   return res;
@@ -1777,8 +1859,8 @@ async function wlB2BMessage(text) {
     try {
       const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: q }) });
       const d = await res.json();
-      WL.b2bStep = 'otp';
-      addMessage((d.message || 'If the number is registered, a code was sent.') + '\n\nEnter your verification code.', 'bot');
+      WL.b2bStep = 'otp'; wlQuickRender();
+      addMessage((d.message || 'If registered, a verification code has been requested.') + '\n\nEnter your verification code.', 'bot');
       input.placeholder = 'Enter verification code';
       showSuggestions([{ label: 'Resend code', send: 'Resend code' }, { label: 'Change number', send: 'Change number' }]);
     } catch (e) { addMessage(e.message, 'bot'); }
@@ -1786,7 +1868,7 @@ async function wlB2BMessage(text) {
     return;
   }
   if (WL.b2bStep === 'otp') {
-    if (low === 'change number') { WL.b2bStep = 'phone'; WL.b2bPhone = ''; addMessage('Enter your registered mobile number.', 'bot'); return; }
+    if (low === 'change number') { WL.b2bStep = 'phone'; WL.b2bPhone = ''; input.placeholder = 'Enter registered mobile number'; wlQuickRender(); addMessage('Enter your registered mobile number.', 'bot'); return; }
     if (low === 'resend code') {
       try {
         const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone }) });
@@ -1801,7 +1883,7 @@ async function wlB2BMessage(text) {
         body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone, code: q }) });
       const d = await res.json();
       WL.b2bToken = d.access_token; WL.b2bStep = 'ready'; WL.b2bPeriod = 'this_month';
-      WL.b2bPhone = '';
+      WL.b2bPhone = ''; wlQuickRender();
       input.placeholder = 'Business overview, statuses, reports…';
       addMessage('Verified! Welcome ' + (d.contact_name || '') + '.\n\nOrganisation: **' + (d.organisation || 'Business customer') + '**.\nAccess expires after 8 hours. Choose a report below.', 'bot');
       wlB2BMenu();
@@ -1812,7 +1894,7 @@ async function wlB2BMessage(text) {
   if (low === 'sign out' || low === 'logout' || low === 'exit') {
     try { await wlB2BCall('logout?client=' + encodeURIComponent(WL.client), { method: 'POST' }); } catch (_) {}
     WL.b2bToken = null; WL.b2bStep = 'phone'; WL.b2bPeriod = 'this_month';
-    statusEl.textContent = 'B2B sign-in'; input.placeholder = 'Registered mobile number';
+    statusEl.textContent = 'B2B sign-in'; input.placeholder = 'Registered mobile number'; wlQuickRender();
     addMessage('Signed out. Enter your registered mobile number to sign in again.', 'bot'); return;
   }
   if (low === 'change period') {
@@ -1885,6 +1967,7 @@ async function wlAskB2C(text) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client: WL.client, question: text, lang: WL.lang, chat_history: state.history.slice(-7, -1) })
     });
+    if (!res.ok) throw new Error('B2C request failed');
     const d = await res.json();
     typing.remove();
     const answer = d.answer || wlT('error');
@@ -1952,7 +2035,8 @@ async function wlStart() {
   if (mode === 'b2b') { WL.b2bStep = 'phone'; WL.b2bToken = null; WL.b2bPhone = ''; WL.b2bPeriod = 'this_month'; input.placeholder = 'Enter registered mobile number'; statusEl.textContent = 'B2B sign-in'; }
   const tail = mode === 'b2c' ? wlT('b2cTail') : (mode === 'b2b' ? (cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'));
   setTimeout(() => addMessage(hello + '\n\n' + tail, 'bot'), 100);
-  showSuggestions(mode === 'b2c' ? [] : mode === 'b2b' ? [{ label: 'Verify my mobile number', send: 'Verify my mobile number' }] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+  showSuggestions(mode === 'b2c' || mode === 'b2b' ? [] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+  document.body.classList.add('wl-modern'); document.body.style.setProperty('--wl-primary', primary); wlQuickRender();
 
   wlReveal();
   if (window.parent && window.parent !== window) {      // let the loader recolour the floating bubble
