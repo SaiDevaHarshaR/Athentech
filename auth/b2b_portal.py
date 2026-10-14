@@ -692,28 +692,64 @@ def build_router(require_admin) -> APIRouter:
         inst, contact = _auth_session(request, body.client)
         _rate("chat", request.client.host if request.client else "unknown", inst["id"],
               str(contact["id"]), 90, 600)
-        intent = _classify_business_question(body.message)
+        # Stage 12: retain authenticated, organization-scoped B2B routing.
+        # Never use AI-generated SQL or trust a model for authorization.
+        from auth.b2b_intent_engine import parse_question
+        decision = parse_question(body.message)
+        # Legacy explicit-scope denial has additional English phrases (such as
+        # "all patients") that must be preserved when adopting Stage 7B.
+        if _classify_business_question(body.message) == "forbidden":
+            return {"status": "success", "intent": "forbidden", "answer":
+                    "I can only access your verified organization's records."}
+        if decision.intent == "forbidden":
+            intent = "forbidden"
+        elif decision.intent == "patient_report":
+            intent = "patient_report"
+        elif decision.intent == "excel":
+            intent = "excel"
+        elif decision.intent == "overview":
+            intent = "overview"
+        elif decision.intent == "bills":
+            intent = "bills"
+        elif decision.intent in ("invoice_status", "unsupported_clinical_status", "clarify"):
+            # Do not silently return ALL invoices for a pending/completed filter.
+            return {"status":"success", "intent":"status_mapping_required", "answer":
+                    "Pending/completed status queries require approved LIS-specific status mapping. No unfiltered records were returned."}
+        else:
+            # Only ambiguous authenticated requests may be interpreted by local
+            # Qwen3. The model can select a safe intent, never a SQL query.
+            from auth.b2b_local_intent import refine_ambiguous
+            intent = refine_ambiguous(body.message, str(inst.get("client_prefix") or body.client))
         org = contact["organisation_code"]  # always resolved server-side
+        requested_period = decision.period or body.period
         if intent == "forbidden":
             return {"status": "success", "intent": intent, "answer": "I can only access your verified organization's records."}
         if intent == "patient_report":
             return {"status": "success", "intent": intent,
                     "answer": "To download a patient PDF, type: Report PDF BILLNUMBER. The invoice must belong to your organization, and an approved report must be available."}
         if intent == "excel":
-            return {"status": "success", "intent": intent, "action": "download_excel",
+            return {"status": "success", "intent": intent, "action": "download_excel", "period": requested_period,
                     "answer": "Your organization's Excel invoice report is ready to request."}
         if intent == "overview":
-            summary = _summary_for_org(inst, org, body.period)
+            summary = _summary_for_org(inst, org, requested_period)
             return {"status": "success", "intent": intent, "summary": summary,
-                    "answer": (f"For {body.period}: {summary['bills']} invoices, "
+                    "answer": (f"For {requested_period}: {summary['bills']} invoices, "
                                f"billed amount INR {summary['billed_total']:,.2f}. "
                                "This is billed value, not collected cash. See the summary for status details.")}
         if intent == "bills":
-            rows = _rows_for_org(inst, org, body.period, max_rows=20)
+            rows = _rows_for_org(inst, org, requested_period, max_rows=20)
             return {"status": "success", "intent": intent,
                     "bills": [{"bill_no": b, "bill_date": dt, "billed_amount": amount, "status": st}
                               for b, dt, amount, st in rows[:20]], "has_more": len(rows) > 20,
-                    "answer": f"Found {min(len(rows),20)} invoice records for your organization in {body.period}."}
+                    "answer": f"Found {min(len(rows),20)} invoice records for your organization in {requested_period}."}
+        # FAQ is separate from financial tools. The backend supplies the
+        # authenticated institution and organization, never an LLM-supplied ID.
+        if intent == "help":
+            from auth.b2b_local_answer import approved_faq_answer
+            faq_answer = approved_faq_answer(question=body.message, inst=inst,
+                                             organization_code=org)
+            if faq_answer:
+                return {"status":"success", "intent":"approved_faq", "answer":faq_answer}
         return {"status": "success", "intent": intent,
                 "answer": "You can ask: How many invoices this month? Show pending invoices. "
                           "What is our billed amount? Download Excel. Report PDF BILLNUMBER. "
