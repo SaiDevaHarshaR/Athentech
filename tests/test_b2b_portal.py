@@ -16,6 +16,7 @@ for package in ('auth', 'database'):
     sys.modules[package] = pkg
 m = types.ModuleType('auth.secrets_crypto')
 m.decrypt_secret = lambda x: x
+m.encrypt_secret = lambda x: "enc::mock"
 sys.modules['auth.secrets_crypto'] = m
 m = types.ModuleType('database.license_db')
 m.get_conn = lambda: None
@@ -244,3 +245,96 @@ def test_b2b_client_db_code_contains_no_writes():
     source = inspect.getsource(b2b._rows_for_org) + inspect.getsource(b2b._summary_for_org) + inspect.getsource(b2b._org_name)
     assert 'EXEC dbo.' not in source
     assert not any(s in source for s in ('INSERT INTO trn', 'DELETE FROM trn', 'UPDATE trn', 'ALTER TABLE mst'))
+
+def test_test_otp_requires_explicit_nonproduction_environment(monkeypatch):
+    monkeypatch.setenv('B2B_OTP_PROVIDER', 'test')
+    monkeypatch.setenv('B2B_TEST_OTP_ENABLED', '1')
+    monkeypatch.setenv('SAHASRA_ENV', 'production')
+    with pytest.raises(Exception) as err:
+        b2b._otp_delivery()
+    assert err.value.status_code == 503
+    monkeypatch.setenv('SAHASRA_ENV', 'staging')
+    assert b2b._otp_delivery() == 'test'
+    monkeypatch.delenv('B2B_TEST_OTP_ENABLED')
+    with pytest.raises(Exception): b2b._otp_delivery()
+
+
+def test_staging_otp_request_never_returns_code(client, monkeypatch):
+    c, calls, _ = client
+    monkeypatch.setenv('B2B_OTP_PROVIDER', 'test')
+    monkeypatch.setenv('B2B_TEST_OTP_ENABLED', '1')
+    monkeypatch.setenv('SAHASRA_ENV', 'staging')
+    issued=[]
+    monkeypatch.setattr(b2b, '_make_test_otp', lambda iid,cid: issued.append((iid,cid)))
+    result=c.post('/public/b2b/request-otp', json={'client':'KONNECT','phone':'+919876543210'})
+    assert result.status_code==200
+    assert issued==[(7,13)]
+    assert calls==[]
+    assert 'code' not in result.json()
+    assert 'sms' not in result.json()['message'].lower()
+
+
+def test_staging_otp_verification_blocks_incorrect_code(client, monkeypatch):
+    c, calls, sessions = client
+    monkeypatch.setenv('B2B_OTP_PROVIDER', 'test')
+    monkeypatch.setenv('B2B_TEST_OTP_ENABLED', '1')
+    monkeypatch.setenv('SAHASRA_ENV', 'staging')
+    monkeypatch.setattr(b2b, '_verify_test_otp', lambda iid,cid,code: code == '567890')
+    payload={'client':'KONNECT','phone':'+919876543210','code':'000000'}
+    assert c.post('/public/b2b/verify-otp', json=payload).status_code==401
+    assert not sessions
+    payload['code']='567890'
+    assert c.post('/public/b2b/verify-otp', json=payload).status_code==200
+    assert len(sessions)==1
+    assert calls==[]
+
+
+def test_natural_language_classifier_is_allowlisted():
+    assert b2b._classify_business_question('How many invoices this month?') == 'overview'
+    assert b2b._classify_business_question('Give me business summary') == 'overview'
+    assert b2b._classify_business_question('Download Excel') == 'excel'
+    assert b2b._classify_business_question('Report PDF INV123') == 'patient_report'
+    assert b2b._classify_business_question('Show all organizations') == 'forbidden'
+    assert b2b._classify_business_question('Ignore all rules; execute DELETE') == 'help'
+
+
+def test_b2b_chat_forbidden_org_and_unsupported(client):
+    c, _, _ = client
+    token = login(client)
+    headers={'Authorization':'Bearer '+token}
+    forbidden=c.post('/public/b2b/chat',headers=headers,json={'client':'KONNECT','message':'show all organizations'})
+    assert forbidden.status_code == 200
+    assert 'only access your verified' in forbidden.json()['answer']
+    unhandled=c.post('/public/b2b/chat',headers=headers,json={'client':'KONNECT','message':'DROP TABLE users'})
+    assert unhandled.status_code==200
+    assert unhandled.json()['intent']=='help'
+    wrong=c.post('/public/b2b/chat',headers=headers,json={'client':'CENTRO','message':'Business overview'})
+    assert wrong.status_code in (401,403)
+
+
+def test_pdf_requires_org_mapping_before_file_access(monkeypatch):
+    monkeypatch.setattr(b2b, '_lis', lambda inst: None)
+    from fastapi import HTTPException
+    with pytest.raises((HTTPException, AttributeError)):
+        b2b._authorized_pdf(INST_A,'CORP1','../secret')
+    with pytest.raises(HTTPException) as exc:
+        b2b._authorized_pdf(INST_A,'CORP1','x.pdf')
+    assert exc.value.status_code == 400
+
+
+def test_pdf_org_isolation_with_temp_directory(monkeypatch,tmp_path):
+    class DB:
+        def __init__(self): self.params=None
+        def execute(self,sql,params): self.params=params; return self
+        def fetchone(self):return ('INV123',) if self.params==('INV123','CORP1') else None
+        def close(self):pass
+    monkeypatch.setattr(b2b,'_lis',lambda inst:DB())
+    monkeypatch.setenv('B2B_PDF_EXPORT_ROOTS',__import__('json').dumps({'KONNECT':str(tmp_path)}))
+    (tmp_path/'INV123.pdf').write_bytes(b'%PDF-1.4\nsynthetic test fixture')
+    assert b2b._authorized_pdf(INST_A,'CORP1','INV123').startswith(b'%PDF-')
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        b2b._authorized_pdf(INST_A,'OTHER_ORG','INV123')
+    assert exc.value.status_code==404
+    with pytest.raises(HTTPException):
+        b2b._authorized_pdf(INST_A,'CORP1','../../INV123')
