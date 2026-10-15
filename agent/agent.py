@@ -226,6 +226,20 @@ def _extract_retry_seconds(error_message: str, provider_name: str = "groq") -> i
 
 
 # True while serving a request that uses an INSTITUTION'S OWN AI key: no shared-provider fallback, no shared exhaustion marks.
+try:
+    from agent import confidence as _conf
+except Exception:  # scoring must never break answering
+    _conf = None
+
+
+def _cn(fn, *a, **k):
+    try:
+        if _conf is not None:
+            getattr(_conf, fn)(*a, **k)
+    except Exception:
+        pass
+
+
 _OWN_KEY = contextvars.ContextVar("own_key_request", default=False)
 _OWN_CLIENT_CHAIN = contextvars.ContextVar("own_client_provider_chain", default=None)
 _OWN_CLIENT_INDEX = contextvars.ContextVar("own_client_provider_index", default=0)
@@ -469,6 +483,13 @@ _BAD_TOOL = re.compile(r"^(error|query failed|query rejected|tool error|unsuppor
 
 
 def _integrity_guard(text, ok_results, bad_results, tools_used, verified_empty=False):
+    out = _integrity_guard_core(text, ok_results, bad_results, tools_used, verified_empty)
+    neg_thin = bool(text and _NEG_CLAIM.search(text) and len(ok_results) <= 1 and not verified_empty)
+    _cn("note_llm", out, ok_results, bad_results, tools_used, verified_empty, neg_thin)
+    return out
+
+
+def _integrity_guard_core(text, ok_results, bad_results, tools_used, verified_empty=False):
     """Last line of defence against confident wrong answers."""
     if not text:
         return text
@@ -518,6 +539,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                 result = f"Error: unknown tool '{tool_call['name']}'."
             else:
                 args = dict(tool_call.get("args") or {})
+                _cn("note_tool_call", tool_call["name"], dict(args))
                 args.update(tool_extra_kwargs.get(tool_call["name"], {}))
                 try:
                     result = tool_fn.invoke(args)
@@ -536,6 +558,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             elif not _rt.lower().startswith(("no data found", "no records", "no ")):
                 ok_results.append(_rt)
             if len(result_text) > 900:
+                _cn("note_truncated")
                 result_text = result_text[:900] + "\n...[truncated]"
 
             messages.append(
@@ -555,6 +578,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     if not getattr(response, "tool_calls", None):
         return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
 
+    _cn("note_forced_final")
     messages.append(
         HumanMessage(
             content=(
@@ -724,6 +748,7 @@ def _ask_agent_impl(
         from agent.intents_his import try_intent_his
         his_answer = try_intent_his(question, role, db_name, db_server, db_user, db_password)
         if his_answer is not None:
+            _cn("note_intent", question, his_answer)
             return check_output(his_answer), 0
 
         # No fixed HIS intent matched — fall through to raw SQL/LLM
@@ -804,6 +829,7 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
             question, role, db_name, db_server, db_user, db_password
         )
         if intent_answer is not None:
+            _cn("note_intent", question, intent_answer)
             return check_output(intent_answer), 0
 
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
