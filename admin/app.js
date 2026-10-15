@@ -766,7 +766,42 @@ function renderDashboard() {
 
     renderDashboardChart();
     renderDashboardActivities();
+    loadAnswerQuality();
 }
+
+
+// =========================================================
+// ANSWER QUALITY CARD (links to the answer review console)
+// =========================================================
+async function loadAnswerQuality() {
+    const countEl = document.getElementById('qualityOpenCount');
+    if (!countEl) return;
+    try {
+        const res = await authFetch(`${API_BASE}/admin/answer-review?view=open&limit=1`);
+        const j = await res.json();
+        const s = (j && j.stats) || {};
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = Number(v || 0).toLocaleString(); };
+        set('qualityOpenCount', s.open);
+        set('qLow', s.low_confidence); set('qDown', s.thumbs_down); set('qUp', s.thumbs_up); set('qAll', s.answers);
+        const sub = document.getElementById('qualitySub');
+        if (sub) sub.textContent = (s.open === 1 ? 'answer needs review' : 'answers need review');
+        const card = document.getElementById('qualityCard');
+        if (card) card.classList.toggle('has-open', (s.open || 0) > 0);
+    } catch (e) {
+        countEl.textContent = '–';
+    }
+}
+
+document.addEventListener('click', (ev) => {
+    const t = ev.target.closest && ev.target.closest('#qualityToggle');
+    if (!t) return;
+    const box = document.getElementById('qualityDetails');
+    const open = t.getAttribute('aria-expanded') === 'true';
+    t.setAttribute('aria-expanded', open ? 'false' : 'true');
+    if (box) box.hidden = open;
+    const card = document.getElementById('qualityCard');
+    if (card) card.classList.toggle('expanded', !open);
+});
 
 
 // =========================================================

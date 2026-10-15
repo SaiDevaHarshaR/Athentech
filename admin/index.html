@@ -143,6 +143,21 @@
           <div class="metric-card"><div class="metric-top"><span>Active Hospitals</span><b class="metric-icon purple">▦</b></div><strong id="activeHospitals">0</strong><div class="metric-bottom positive">↑ 8.2% <small>vs last month</small></div></div>
           <div class="metric-card"><div class="metric-top"><span>Queries Today</span><b class="metric-icon green">⌁</b></div><strong id="queriesToday">0</strong><div class="metric-bottom positive">↑ 18.7% <small>vs yesterday</small></div></div>
           <div class="metric-card"><div class="metric-top"><span>Failed Validations</span><b class="metric-icon red">!</b></div><strong id="failedValidations">0</strong><div class="metric-bottom negative">↓ 4.3% <small>vs yesterday</small></div></div>
+          <div class="metric-card quality-card" id="qualityCard">
+            <div class="metric-top">
+              <button type="button" class="quality-toggle" id="qualityToggle" aria-expanded="false" aria-controls="qualityDetails"><span>Answer Quality</span><i aria-hidden="true">▾</i></button>
+              <a class="metric-icon amber quality-open" id="qualityOpen" href="https://api.athentech.in/admin/answer-review/console" target="_blank" rel="noopener" title="Open the answer review console" aria-label="Open the answer review console (new tab)">↗</a>
+            </div>
+            <strong id="qualityOpenCount">–</strong>
+            <div class="metric-bottom"><small id="qualitySub">answers need review</small></div>
+            <div class="quality-details" id="qualityDetails" hidden>
+              <div class="q-row"><span>Low confidence (7d)</span><b id="qLow">–</b></div>
+              <div class="q-row"><span>👎 Thumbs down (7d)</span><b id="qDown">–</b></div>
+              <div class="q-row"><span>👍 Thumbs up (7d)</span><b id="qUp">–</b></div>
+              <div class="q-row"><span>Answers (7d)</span><b id="qAll">–</b></div>
+              <a class="q-link" href="https://api.athentech.in/admin/answer-review/console" target="_blank" rel="noopener">Open review console →</a>
+            </div>
+          </div>
 
         </div>
         <div class="dashboard-grid">
