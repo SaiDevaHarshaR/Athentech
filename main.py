@@ -60,8 +60,9 @@ import io
 import os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-app = FastAPI(title="Sahasra AI Agent")
 from observability.metrics import metrics_middleware
+from observability.ops_summary import summary as ops_summary
+app = FastAPI(title="Sahasra AI Agent")
 app.middleware("http")(metrics_middleware)
 #print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
@@ -1414,6 +1415,11 @@ def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs 
                 "plan": validation.get("plan") if is_premium else None,
             }
 
+        try:
+            from agent import confidence as _conf
+            _conf.begin(req.question)
+        except Exception:
+            _conf = None
         answer, tokens_used = ask_agent(
             question=req.question,
             db_name=db_name,
@@ -1439,6 +1445,18 @@ def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs 
                 meta={"db_name": db_name, "hospital": hospital_name})
             
 
+        _conf_res, _answer_id, _explain_pub = None, None, None
+        if is_premium and _conf is not None:
+            try:
+                from agent import answer_log as _alog
+                _conf_res = _conf.result()
+                _full = _conf.explain(include_sql=True)
+                _answer_id = _alog.log_answer(institution_code, role, req.question, answer, _conf_res, _full)
+                # End users see the method and tables; only admins see the SQL text.
+                _explain_pub = _conf.explain(include_sql=(role == "admin"))
+            except Exception:
+                pass
+
         usage_warning = None
         if is_premium:
             budget_after = record_usage(institution_code, tokens_used)
@@ -1453,6 +1471,9 @@ def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs 
             "role": role if is_premium else None,
             "hospital_name": hospital_name if is_premium else None,
             "usage_warning": usage_warning,
+            "confidence": _conf_res,
+            "answer_id": _answer_id,
+            "explain": _explain_pub,
             "suggestions": suggest_followups(req.question, answer, institution_type, verified=verified_chips(role, institution_code, institution_type, db_name, db_server, db_user, db_password, hospital_name)) if is_premium else [],
         }
 
@@ -1468,6 +1489,54 @@ def ask_question(req: QueryRequest, request: Request):   # sync -> FastAPI runs 
             from datetime import datetime
             f.write(f"\n{'='*60}\n{datetime.now().isoformat()}\n{error_text}\n")
         raise
+
+class FeedbackRequest(BaseModel):
+    activation_code: str
+    answer_id: int
+    vote: str
+    note: str = ""
+    answer_text: str = ""
+
+
+@app.post("/ask/feedback")
+def ask_feedback(req: FeedbackRequest):
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        return {"status": "error", "message": "Invalid or expired activation code."}
+    if req.vote not in ("up", "down"):
+        return {"status": "error", "message": "Invalid vote."}
+    inst = validation.get("institution_code") or validation.get("db_name") or "hospital_demo"
+    from agent import answer_log
+    saved = answer_log.set_vote(req.answer_id, inst, req.vote, (req.note or "")[:300])
+    if saved and req.vote == "down" and req.answer_text:
+        answer_log.attach_preview(req.answer_id, inst, req.answer_text[:600])
+    return {"status": "success" if saved else "error"}
+
+
+@app.get("/admin/answer-review")
+def api_answer_review(view: str = "open", client: str = "", limit: int = 50, offset: int = 0,
+                      admin: str = Depends(require_admin)):
+    from agent import answer_log
+    return {"status": "success", "rows": answer_log.list_rows(view, client or None, limit, offset),
+            "stats": answer_log.stats()}
+
+
+class ResolveRequest(BaseModel):
+    note: str = ""
+
+
+@app.post("/admin/answer-review/{answer_id}/resolve")
+def api_answer_review_resolve(answer_id: int, req: ResolveRequest, admin: str = Depends(require_admin)):
+    from agent import answer_log
+    return {"status": "success" if answer_log.resolve(answer_id, req.note) else "error"}
+
+
+@app.get("/admin/answer-review/console", include_in_schema=False)
+def answer_review_console():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "answer_review.html"),
+                        media_type="text/html", headers={"Cache-Control": "no-store"})
+
 
 @app.on_event("startup")
 async def warm_athentech_cache():
@@ -1538,3 +1607,9 @@ def guardian_api_schema_check(code: str, admin: str = Depends(require_admin)):
 @app.get('/admin/guardian/api/support-report')
 def guardian_api_support_report(admin: str = Depends(require_admin)):
     return guardian_support_report(admin)
+
+
+@app.get("/admin/ops/summary")
+def sahasra_ops_summary(admin: str = Depends(require_admin)):
+    """Per-worker aggregate counters; authenticated administrators only."""
+    return ops_summary()
