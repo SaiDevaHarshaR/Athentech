@@ -7,7 +7,7 @@ call at all (zero token cost). Falls through to the normal LLM path
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from database.connection import get_hospital_connection
 from agent.schema_ctx import coll_amt, pri_amt, radiology_dept_sql, location_names, location_regex
@@ -1153,37 +1153,57 @@ def _handle_credit_bills(q, role, db_name, db_server, db_user, db_password, matc
 
 
 # ---------- compare_collection ----------
+def _compare_windows(q, today):
+    """Like-for-like windows: current period-to-date vs the SAME elapsed span of the previous period.
+    Returns (unit, cur_start, cur_end, prev_start, prev_end, full_prev_end)."""
+    ql = (q or "").lower()
+    if "year" in ql:
+        unit, cur_start = "year", today.replace(month=1, day=1)
+        prev_start = cur_start.replace(year=cur_start.year - 1)
+    elif "week" in ql:
+        unit, cur_start = "week", today - timedelta(days=today.weekday())
+        prev_start = cur_start - timedelta(days=7)
+    else:
+        unit, cur_start = "month", today.replace(day=1)
+        prev_start = (cur_start - timedelta(days=1)).replace(day=1)
+    cur_end = today + timedelta(days=1)
+    span = (cur_end - cur_start).days
+    prev_end = min(prev_start + timedelta(days=span), cur_start)
+    return unit, cur_start, cur_end, prev_start, prev_end, cur_start
+
+
 def _handle_compare_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
         return "Error: your role does not have access to this data."
-    today = date.today()
-    this_start = today.replace(day=1)
-    last_start = (this_start - timedelta(days=1)).replace(day=1)
+    unit, cur_start, cur_end, prev_start, prev_end, prev_full_end = _compare_windows(q, date.today())
     conn = _conn(db_name, db_server, db_user, db_password)
     if not conn:
         return "Error: could not connect to the database."
     try:
         cursor = conn.cursor()
         _amt = coll_amt(_prof(conn, db_name, db_server))
-        cursor.execute(
-            f"SELECT SUM({_amt}) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
-            (this_start.isoformat(), (today + timedelta(days=1)).isoformat()),
-        )
-        this_total = float(cursor.fetchone()[0] or 0)
-        cursor.execute(
-            f"SELECT SUM({_amt}) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?",
-            (last_start.isoformat(), this_start.isoformat()),
-        )
-        last_total = float(cursor.fetchone()[0] or 0)
-        growth = ((this_total - last_total) / last_total * 100) if last_total else None
+        sql = f"SELECT SUM({_amt}) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?"
+        def total(a, b):
+            cursor.execute(sql, (datetime.combine(a, datetime.min.time()), datetime.combine(b, datetime.min.time())))
+            return float(cursor.fetchone()[0] or 0)
+        this_total = total(cur_start, cur_end)
+        last_same = total(prev_start, prev_end)
+        last_full = total(prev_start, prev_full_end)
+        growth = ((this_total - last_same) / last_same * 100) if last_same else None
+        def rng(a, b):
+            z = b - timedelta(days=1)
+            return a.strftime("%d %b") + ("" if a == z else " - " + z.strftime("%d %b"))
+        U = unit.upper()
         stats = [
-            {"label": "THIS MONTH", "value": f"₹{this_total:,.0f}"},
-            {"label": "LAST MONTH", "value": f"₹{last_total:,.0f}"},
+            {"label": f"THIS {U} (to date)", "value": f"₹{this_total:,.0f}"},
+            {"label": f"LAST {U}, same days ({rng(prev_start, prev_end)})", "value": f"₹{last_same:,.0f}"},
         ]
+        if prev_end < prev_full_end:
+            stats.append({"label": f"FULL LAST {U}", "value": f"₹{last_full:,.0f}"})
         card = {"icon": "📈", "title": "Collection Growth", "stats": stats}
         if growth is not None:
             arrow = "▲" if growth >= 0 else "▼"
-            card["footer"] = {"label": "Growth", "value": f"{arrow}{abs(growth):.1f}%"}
+            card["footer"] = {"label": f"Growth vs same days last {unit}", "value": f"{arrow}{abs(growth):.1f}%"}
         return _dashboard_card(**card)
     except Exception as e:
         return f"Error: {e}"
