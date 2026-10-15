@@ -15,6 +15,20 @@ from datetime import datetime, timedelta
 from database.connection import get_hospital_connection
 
 
+import re as _re_iso
+
+
+def _iso_to_date(params):
+    """'YYYY-MM-DD' strings -> date objects so SQL Server never re-parses them with a day-first DATEFORMAT."""
+    from datetime import date as _d
+    out = []
+    for p in (params if isinstance(params, (tuple, list)) else (params,)):
+        if isinstance(p, str) and _re_iso.fullmatch(r"\d{4}-\d{2}-\d{2}", p):
+            p = _d.fromisoformat(p)
+        out.append(p)
+    return tuple(out)
+
+
 def _resolve_relative_date(value: str) -> str:
     v = (value or "").strip().lower()
     today = datetime.now().date()
@@ -33,7 +47,7 @@ def _compute_one_location(cursor, location_id: str, bill_date: str) -> dict:
     """Runs the SP's per-location formula as pure SELECTs, no writes."""
 
     def scalar(sql, params):
-        cursor.execute(sql, params)
+        cursor.execute(sql, _iso_to_date(params))
         row = cursor.fetchone()
         return float(row[0]) if row and row[0] is not None else 0.0
 

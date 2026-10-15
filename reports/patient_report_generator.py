@@ -540,5 +540,6 @@ def build_patient_report_data(patient_identifier: str, db_name: str, role: str, 
     structured.setdefault("patient_age", patient_info.get("age"))
     structured.setdefault("patient_gender", patient_info.get("gender"))
     structured["hospital_name"] = hospital_name
+    structured["_has_lab_data"] = bool(raw_data.get("trnparamresult"))
 
     return structured

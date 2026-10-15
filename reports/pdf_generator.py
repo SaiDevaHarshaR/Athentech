@@ -20,9 +20,11 @@ Two ways this gets used:
 """
 
 import copy
+import json
 import os
 import re
 import tempfile
+import time
 import uuid
 from datetime import datetime
 from io import BytesIO
@@ -133,7 +135,49 @@ def _deep_merge(defaults: dict, override: dict) -> dict:
     return result
 
 
+def _flatten(obj, out, prefix=""):
+    if isinstance(obj, dict):
+        label = obj.get("label") or obj.get("title") or obj.get("name")
+        val = obj.get("value")
+        if label is not None and val is not None and not isinstance(val, (dict, list)):
+            out.append(f"{prefix}{label}: {val}")
+            return
+        for k, v in obj.items():
+            if k in ("icon",) or v in (None, "", [], {}):
+                continue
+            if isinstance(v, (dict, list)):
+                _flatten(v, out, prefix)
+            else:
+                out.append(f"{prefix}{str(k).replace('_', ' ').title()}: {v}" if k not in ("title", "subtitle", "primary") else f"{prefix}{v}")
+    elif isinstance(obj, list):
+        for it in obj:
+            _flatten(it, out, prefix)
+    elif obj not in (None, ""):
+        out.append(f"{prefix}{obj}")
+
+
+def expand_cards(content_lines: list) -> list:
+    """Chat answers shown as dashboard/list cards arrive as fenced JSON. Turn them into plain readable lines
+    so a report built from them is never empty."""
+    text = "\n".join(str(l) for l in (content_lines or []))
+    if "```" not in text:
+        return list(content_lines or [])
+
+    def repl(m):
+        try:
+            data = json.loads(m.group(1))
+        except Exception:
+            return ""
+        out = []
+        _flatten(data, out)
+        return "\n".join(out)
+
+    text = re.sub(r"```(?:dashboard-card|list-card|search-card)\s*(\{.*?\})\s*```", repl, text, flags=re.S)
+    return [l for l in text.split("\n") if l.strip()]
+
+
 def build_findings_from_content_lines(content_lines: list) -> list:
+    content_lines = expand_cards(content_lines)
     """
     Fallback adapter: turns the agent's plain-text bullet lines into
     lightweight 'finding' entries so the Smart Report template has
@@ -694,15 +738,36 @@ def generate_smart_report(data: dict) -> BytesIO:
 
 
 def _render_pdf_with_chromium(html_file_path: str) -> bytes:
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
+    """Render via headless Chromium. A render that races the page load can produce a BLANK pdf, so wait for
+    load + fonts, check the page really has text, and retry once before giving up."""
+    last = None
+    for attempt in (1, 2):
         try:
-            page = browser.new_page()
-            page.goto(f"file://{html_file_path}")
-            pdf_bytes = page.pdf(format="A4", print_background=True, prefer_css_page_size=True)
-        finally:
-            browser.close()
-    return pdf_bytes
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    page = browser.new_page()
+                    page.goto(f"file://{html_file_path}", wait_until="load")
+                    try:
+                        page.evaluate("() => (document.fonts ? document.fonts.ready.then(() => true) : true)")
+                    except Exception:
+                        pass
+                    # One overlong value makes Chromium shrink the WHOLE page (cover looks ~80% + white). Clamp it.
+                    page.add_style_tag(content="html,body{max-width:210mm !important;overflow-x:hidden !important}"
+                                               "body *{overflow-wrap:anywhere;word-break:break-word;min-width:0}"
+                                               ".sr-cover{overflow:hidden !important}")
+                    page.wait_for_timeout(200)
+                    n = page.evaluate("() => ((document.body && document.body.innerText) || '').trim().length")
+                    if n < 20:
+                        raise RuntimeError("rendered page was blank")
+                    return page.pdf(format="A4", print_background=True, prefer_css_page_size=True)
+                finally:
+                    browser.close()
+        except Exception as e:
+            last = e
+            print(f"[pdf] render attempt {attempt} failed: {e}", flush=True)
+            time.sleep(0.4)
+    raise last
 
 
 def _template_dir() -> str:

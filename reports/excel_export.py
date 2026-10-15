@@ -18,6 +18,14 @@ from database.connection import get_hospital_connection
 from agent.schema_ctx import get_profile, coll_amt
 
 
+def _dt(v):
+    """ISO date string -> date object (language-neutral for SQL Server)."""
+    if isinstance(v, str) and len(v) == 10 and v[4] == "-" and v[7] == "-":
+        from datetime import date as _d
+        return _d.fromisoformat(v)
+    return v
+
+
 def _period_dates(period_keyword: str):
     today = date.today()
     p = (period_keyword or "today").lower().replace(" ", "_")
@@ -264,7 +272,7 @@ def _export_multi_branch_mode_pivot(
             "WHERE m.DATEOFBILL >= ? AND m.DATEOFBILL < ? "
             "GROUP BY l.LOCATIONNAME, UPPER(LTRIM(RTRIM(m.MODE))) "
             "ORDER BY l.LOCATIONNAME",
-            (date_from, date_to),
+            (_dt(date_from), _dt(date_to)),
         )
         rows = cur.fetchall()
     except Exception as e:
@@ -407,7 +415,7 @@ def export_single_branch_collection(
             "FROM trnmodeofcollectionsdet "
             "WHERE LOCATIONID = ? AND DATEOFBILL >= ? AND DATEOFBILL < ? "
             "GROUP BY UPPER(LTRIM(RTRIM(MODE)))",
-            (loc_id, date_from, date_to),
+            (loc_id, _dt(date_from), _dt(date_to)),
         )
         rows = cur.fetchall()
     except Exception as e:
@@ -497,7 +505,7 @@ def export_top_tests(
             "JOIN mstInvestigations i ON d.TCODE = i.INVCODE "
             "WHERE d.BILLDATE >= ? AND d.BILLDATE < ? "
             "GROUP BY i.INVNAME ORDER BY Cnt DESC",
-            (date_from, date_to),
+            (_dt(date_from), _dt(date_to)),
         )
         rows = cur.fetchall()
     except Exception as e:
@@ -536,7 +544,7 @@ def export_refunds_list(
             "FROM trnmodeofcollectionsdet "
             "WHERE TYPE = 'LabRefund' AND DATEOFBILL >= ? AND DATEOFBILL < ? "
             "ORDER BY DATEOFBILL DESC",
-            (date_from, date_to),
+            (_dt(date_from), _dt(date_to)),
         )
         rows = cur.fetchall()
     except Exception as e:
@@ -577,7 +585,7 @@ def export_registrations_by_branch(
             "JOIN mstlocation l ON p.LOCATIONID = l.LOCATIONID "
             "WHERE p.REGDATE >= ? AND p.REGDATE < ? "
             "GROUP BY l.LOCATIONNAME ORDER BY Cnt DESC",
-            (date_from, date_to),
+            (_dt(date_from), _dt(date_to)),
         )
         rows = cur.fetchall()
     except Exception as e:

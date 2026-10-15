@@ -2100,3 +2100,9 @@ body {
     flex: 1;
 }
 .zone-seg.zone-normal { flex: 3; }
+
+/* ---- layout polish: no orphan headings, no near-empty pages ---- */
+.soft-break { height: 6px; }
+.section-heading, .sr-h2, .sr-pagehead { break-after: avoid; page-break-after: avoid; }
+.radar-chart-container svg { max-height: 210px; }
+.body-map { padding: 9px; margin-bottom: 8px; }
