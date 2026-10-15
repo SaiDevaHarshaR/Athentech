@@ -514,6 +514,7 @@ body.wl-modern .input-area { background:white; border-top:1px solid #e6edf5; }
   .conf-dialog button.conf-secondary { background:#e5e7eb; }
 </style>
 <link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="premium.css?v=1792061513">
 </head>
 <body>
   <div class="container">
@@ -1406,6 +1407,14 @@ async function processMessage(text) {
       return;
     }
 
+    // pzNameMatch: "report for John Doe" -> fresh lookup by NAME, never the previous patient's answer
+    const pzNameMatch = text.match(/\b(?:for|of|patient)\s+(?:patient\s+|mr\.?\s+|mrs\.?\s+|ms\.?\s+)?([A-Za-z][A-Za-z .'-]{2,60}?)\s*(?:'s)?\s*(?:smart\s+)?(?:report|pdf)?\s*[.?!]*$/i);
+    const pzName = pzNameMatch && pzNameMatch[1].trim();
+    if (pzName && !/^(this|that|it|him|her|them|the|last|previous|above|today|yesterday|me|us|all|smart|report|pdf)\b/i.test(pzName)) {
+      await downloadPatientReport(pzName);
+      return;
+    }
+
     if (!state.lastAnswer) {
       addMessage('Please ask a data question first, then request the PDF.', 'bot');
       return;
@@ -1772,7 +1781,8 @@ async function downloadPdf(answerText) {
     });
 
     if (!response.ok) {
-      addMessage('Failed to generate PDF.', 'bot');
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || 'Failed to generate PDF.', 'bot');
       return;
     }
 
@@ -1808,6 +1818,17 @@ async function downloadPatientReport(patientIdentifier) {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
+      if (err.code === 'report_failed_retryable') {
+        const m = addMessage((err.detail || "I couldn't build this report.") + '\n\nWant me to try again?', 'bot');
+        if (m) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = 'Try again';
+          b.style.cssText = 'display:block;margin-top:10px;padding:8px 16px;border-radius:999px;border:1px solid var(--w-accent,#6a5cf6);background:var(--w-accent-soft,rgba(106,92,246,.15));color:var(--w-accent-ink,#4a3dd1);font:600 13px inherit;cursor:pointer';
+          b.onclick = () => { b.disabled = true; b.remove(); downloadPatientReport(patientIdentifier); };
+          m.appendChild(b);
+        }
+        return;
+      }
       addMessage(err.detail || 'Failed to generate the patient report.', 'bot');
       return;
     }
@@ -2246,5 +2267,6 @@ window.addEventListener('load', function () { if (WL.isWhite) { wlStart(); } els
 
 </script>
 
+<script src="premium.js?v=1792061513" defer></script>
 </body>
 </html>
