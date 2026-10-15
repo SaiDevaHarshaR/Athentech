@@ -113,6 +113,14 @@ def get_hospital_connection(
             # bounds actual query EXECUTION time too, on every cursor
             # from this connection.
             conn.timeout = settings.query_timeout_seconds
+            # Language-neutral dates: 'YYYY-MM-DD' strings are read as year-month-day on EVERY client,
+            # even if the login's default language is dmy/British (otherwise 2026-03-04 can mean 3 April).
+            try:
+                _c = conn.cursor()
+                _c.execute("SET DATEFORMAT ymd")
+                _c.close()
+            except Exception as _e:
+                print(f"[get_hospital_connection] SET DATEFORMAT skipped: {_e}")
             return conn
         except Exception as e:
             last_error = e
