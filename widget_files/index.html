@@ -488,6 +488,30 @@ body.wl-modern .input-area { background:white; border-top:1px solid #e6edf5; }
 .wl-mini-select { border:1px solid #d9e3ef; padding:7px; border-radius:9px; background:#fff; color:#304158; font-size:11px; min-width:120px; max-width:100%; }
 .wl-quick-state + .wl-mini-select { margin-left:auto; }
 @media(max-width:370px) { .wl-quick-actions { grid-template-columns:1fr; }.wl-action { min-height:39px; } }
+
+  .conf-warn { position:absolute; top:4px; right:6px; border:0; background:transparent; cursor:pointer;
+    font-size:15px; line-height:1; padding:2px; }
+  .conf-warn:focus-visible { outline:2px solid #f59e0b; border-radius:4px; }
+  .conf-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99999; display:flex;
+    align-items:center; justify-content:center; padding:16px; }
+  .conf-dialog { background:#fff; color:#1f2937; max-width:340px; width:100%; border-radius:12px;
+    padding:16px 16px 12px; box-shadow:0 10px 30px rgba(0,0,0,.3); font-size:14px; line-height:1.45; }
+  .conf-dialog h4 { margin:0 0 8px; font-size:15px; }
+  .conf-dialog ul { margin:8px 0; padding-left:18px; }
+  .conf-dialog .conf-meta { font-size:12px; color:#6b7280; margin-top:6px; }
+  .conf-dialog button.conf-close { margin-top:10px; width:100%; padding:8px; border:0; border-radius:8px;
+    background:#f59e0b; color:#1f2937; font-weight:600; cursor:pointer; }
+
+  .ans-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:-2px 0 8px 4px; font-size:12px; color:#6b7280; }
+  .ans-btn { border:1px solid #e5e7eb; background:#fff; border-radius:999px; padding:3px 9px; cursor:pointer; font-size:12px; line-height:1.4; color:#374151; }
+  .ans-btn:hover:not(:disabled) { background:#f3f4f6; }
+  .ans-btn:disabled { opacity:.5; cursor:default; }
+  .ans-btn:focus-visible { outline:2px solid #f59e0b; }
+  .conf-dialog pre { background:#f3f4f6; border-radius:8px; padding:8px; margin:6px 0; max-height:150px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size:12px; }
+  .conf-dialog textarea { width:100%; box-sizing:border-box; min-height:70px; border:1px solid #d1d5db; border-radius:8px; padding:8px; font:inherit; margin-top:8px; }
+  .conf-dialog .conf-row { display:flex; gap:8px; margin-top:10px; }
+  .conf-dialog .conf-row button { flex:1; margin-top:0; }
+  .conf-dialog button.conf-secondary { background:#e5e7eb; }
 </style>
 <link rel="stylesheet" href="theme.css">
 </head>
@@ -653,6 +677,178 @@ function now() {
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
+}
+
+function attachConfidence(conf) {
+  try {
+    if (!conf || conf.ok !== false) return;
+    const target = chatEl.lastElementChild;
+    if (!target || target.querySelector('.conf-warn')) return;
+    if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
+    const b = document.createElement('button');
+    b.className = 'conf-warn';
+    b.type = 'button';
+    b.title = 'Low confidence - tap for details';
+    b.setAttribute('aria-label', 'Low confidence answer. Tap for details');
+    b.textContent = '\u26A0\uFE0F';
+    b.addEventListener('click', () => showConfidenceDialog(conf));
+    target.appendChild(b);
+  } catch (e) { /* never break chat for a marker */ }
+}
+
+function showConfidenceDialog(conf) {
+  const old = document.getElementById('confOverlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'conf-overlay';
+  ov.id = 'confOverlay';
+  const dlg = document.createElement('div');
+  dlg.className = 'conf-dialog';
+  dlg.setAttribute('role', 'dialog');
+  dlg.setAttribute('aria-modal', 'true');
+  const h = document.createElement('h4');
+  h.textContent = '\u26A0\uFE0F I\u2019m not fully sure about this answer';
+  const p = document.createElement('div');
+  p.textContent = 'This answer has low confidence. Please check it against the report or your LIS before relying on it.';
+  dlg.appendChild(h); dlg.appendChild(p);
+  if (Array.isArray(conf.reasons) && conf.reasons.length) {
+    const ul = document.createElement('ul');
+    conf.reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    dlg.appendChild(ul);
+  }
+  const meta = document.createElement('div');
+  meta.className = 'conf-meta';
+  meta.textContent = 'Verification score ' + conf.score + '/100 (needs ' + conf.threshold + '). Computed from checks on the data, not by asking the AI.';
+  dlg.appendChild(meta);
+  const close = document.createElement('button');
+  close.className = 'conf-close';
+  close.type = 'button';
+  close.textContent = 'Close';
+  const done = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') done(); };
+  close.addEventListener('click', done);
+  ov.addEventListener('click', (e) => { if (e.target === ov) done(); });
+  document.addEventListener('keydown', onKey);
+  dlg.appendChild(close);
+  ov.appendChild(dlg);
+  document.body.appendChild(ov);
+  close.focus();
+}
+
+function _dialog(titleText, build) {
+  const old = document.getElementById('confOverlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'conf-overlay';
+  ov.id = 'confOverlay';
+  const dlg = document.createElement('div');
+  dlg.className = 'conf-dialog';
+  dlg.setAttribute('role', 'dialog');
+  dlg.setAttribute('aria-modal', 'true');
+  const h = document.createElement('h4');
+  h.textContent = titleText;
+  dlg.appendChild(h);
+  const done = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', onKey);
+  ov.addEventListener('click', (e) => { if (e.target === ov) done(); });
+  build(dlg, done);
+  ov.appendChild(dlg);
+  document.body.appendChild(ov);
+  const first = dlg.querySelector('textarea, button');
+  if (first) first.focus();
+}
+
+function _line(dlg, text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  d.style.marginTop = '6px';
+  dlg.appendChild(d);
+}
+
+function _closeBtn(dlg, done, label) {
+  const b = document.createElement('button');
+  b.className = 'conf-close';
+  b.type = 'button';
+  b.textContent = label || 'Close';
+  b.addEventListener('click', done);
+  dlg.appendChild(b);
+}
+
+function showExplainDialog(ex) {
+  _dialog('How was this calculated?', (dlg, done) => {
+    _line(dlg, ex.note || '');
+    if (ex.periods && ex.periods.length) _line(dlg, 'Period asked: ' + ex.periods.join(', '));
+    if (ex.tables && ex.tables.length) _line(dlg, 'Data used: ' + ex.tables.join(', '));
+    if (Array.isArray(ex.queries) && ex.queries.length) {
+      _line(dlg, 'Read-only queries run:');
+      ex.queries.forEach(q => { const pre = document.createElement('pre'); pre.textContent = q; dlg.appendChild(pre); });
+    } else if (ex.source === 'llm') {
+      _line(dlg, 'The exact queries are visible to administrators.');
+    }
+    _line(dlg, 'Nothing was changed in your data. All queries are read-only.');
+    _closeBtn(dlg, done);
+  });
+}
+
+async function sendFeedback(data, vote, note, row) {
+  try {
+    row.querySelectorAll('.ans-vote').forEach(b => { b.disabled = true; });
+    const res = await fetch(API_URL.replace('/ask', '/ask/feedback'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activation_code: state.activationCode ? String(state.activationCode) : '',
+        answer_id: data.answer_id, vote: vote, note: note || '',
+        answer_text: vote === 'down' ? String(data.answer || '').slice(0, 600) : ''
+      })
+    });
+    const j = await res.json();
+    const msg = document.createElement('span');
+    msg.textContent = (j && j.status === 'success') ? 'Thanks for the feedback' : 'Could not save feedback';
+    row.insertBefore(msg, row.firstChild);
+  } catch (e) {
+    row.querySelectorAll('.ans-vote').forEach(b => { b.disabled = false; });
+  }
+}
+
+function showFeedbackDialog(data, row) {
+  _dialog('What was wrong with this answer?', (dlg, done) => {
+    const ta = document.createElement('textarea');
+    ta.maxLength = 300;
+    ta.placeholder = 'Optional: e.g. wrong branch, wrong date, number does not match the LIS';
+    dlg.appendChild(ta);
+    const r = document.createElement('div');
+    r.className = 'conf-row';
+    const cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.className = 'conf-close conf-secondary'; cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', done);
+    const send = document.createElement('button');
+    send.type = 'button'; send.className = 'conf-close'; send.textContent = 'Send';
+    send.addEventListener('click', () => { const t = ta.value; done(); sendFeedback(data, 'down', t, row); });
+    r.appendChild(cancel); r.appendChild(send); dlg.appendChild(r);
+  });
+}
+
+function attachAnswerActions(data) {
+  try {
+    if (state.mode !== 'premium' || !data || !data.answer_id) return;
+    const row = document.createElement('div');
+    row.className = 'ans-actions';
+    const mk = (txt, title, cls, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ans-btn ' + (cls || ''); b.textContent = txt;
+      b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn);
+      return b;
+    };
+    row.appendChild(mk('\uD83D\uDC4D', 'Good answer', 'ans-vote', () => sendFeedback(data, 'up', '', row)));
+    row.appendChild(mk('\uD83D\uDC4E', 'Wrong or unhelpful', 'ans-vote', () => showFeedbackDialog(data, row)));
+    if (data.explain) {
+      row.appendChild(mk('\u24D8 How was this calculated?', 'How was this calculated?', '', () => showExplainDialog(data.explain)));
+    }
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  } catch (e) { /* never break chat for feedback buttons */ }
 }
 
 function escapeHtml(str) {
@@ -1508,6 +1704,8 @@ async function callBackend(question) {
     }
     if (data.status === 'success') {
       addMessage(data.answer, 'bot');
+      attachConfidence(data.confidence);
+      attachAnswerActions(data);
       state.history.push({ role: 'assistant', content: data.answer });
       state.lastAnswer = data.answer;
       saveSession();
