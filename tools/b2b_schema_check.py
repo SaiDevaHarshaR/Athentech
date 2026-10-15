@@ -1,12 +1,19 @@
-"""Read-only: check each LIS DB has what the B2B portal needs. Usage: python tools/b2b_schema_check.py PREFIX [PREFIX ...]"""
+"""Read-only: check each LIS DB has what the B2B portal needs. Usage: python tools/b2b_schema_check.py PREFIX_or_DBNAME [...]"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from auth import b2b_portal as B
 
 def check(inst):
     out = []
-    inst = B._institution_by_prefix(inst)
-    if not inst: return ['  institution not found (use client_prefix)']
+    key = inst.upper()
+    c = B._admin_conn()
+    try:
+        rows = [B._dict(r) for r in c.execute("SELECT * FROM institutions").fetchall()]
+    finally:
+        c.close()
+    inst = next((r for r in rows if key in (str(r.get('client_prefix') or '').upper(), str(r.get('db_name') or '').upper(), str(r.get('name') or '').upper())), None)
+    if not inst:
+        return ['  not found. Available (prefix | db_name | name):'] + ['    %s | %s | %s' % (r.get('client_prefix'), r.get('db_name'), r.get('name')) for r in rows]
     conn = B._lis(inst)
     try:
         for t, need in (("trnINVLABPRI", {"BILLNO", "BILLDATE", "ORGANISATIONCODE"}), ("mstOrganisation", {"ORGANISATIONCODE", "ORGANISATIONNAME"})):
