@@ -1930,6 +1930,23 @@ _NON_REPORT_PREFIXES = (
 )
 
 # Direct TAT route precedes _ANALYTIC which otherwise rejects 'average'.
+
+# Questions that name a ranking, a branch/location filter or an unusual period
+# are NOT answered by the fixed dashboards (which ignore those words and would
+# silently return the wrong numbers). They go to the LLM + SQL tools instead.
+_RANK_OR_FILTER = re.compile(
+    r"\b(which|who|longest|slowest|fastest|shortest|highest|lowest|top|worst|best|"
+    r"rank|ranking|each|every|per|by)\b|\b(branch|branches|centre|center|location|unit)\b",
+    re.I)
+_OTHER_PERIOD = re.compile(
+    r"(month before|previous month|prior month|two months|2 months|months ago|"
+    r"week before|previous week|year before|previous year|last quarter|this quarter|"
+    r"\bq[1-4]\b|last \d+ (days|weeks|months))", re.I)
+
+
+def _is_ranking_or_filtered(q: str) -> bool:
+    return bool(_RANK_OR_FILTER.search(q or "")) or bool(_OTHER_PERIOD.search(q or ""))
+
 _TAT_REPORT_TERMS = (
     "tat report", "tat dashboard", "tat compliance", "today's tat",
     "todays tat", "average tat", "avg tat", "turnaround time report",
@@ -1945,7 +1962,8 @@ def _custom_route(q, role, db_name, db_server, db_user, db_password):
         handler = globals()[handler_name]
         return handler(canonical, role, db_name, db_server, db_user, db_password,
                        matched_keyword=canonical)
-    if any(term in q for term in _TAT_REPORT_TERMS) and not _is_comparison_question(q):
+    if (any(term in q for term in _TAT_REPORT_TERMS) and not _is_comparison_question(q)
+            and not _is_ranking_or_filtered(q)):
         # Avoid replacing the user's date or location with 'today'.
         return _handle_tat(q, role, db_name, db_server, db_user, db_password)
     return None
@@ -1965,6 +1983,8 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
     # 1) Collection growth / branch-vs-branch ONLY when the question is purely about collection.
     #    "doctors this month vs last month", "refunds by branch compared with last month",
     #    "radiology vs lab revenue" etc. are NOT collection growth -> LLM.
+    if _is_comparison_question(q) and _is_ranking_or_filtered(q):
+        return None  # ranking / per-branch / odd period -> LLM with real SQL
     if _is_comparison_question(q):
         pure_collection = any(w in q for w in _COLLECTION_WORDS) and not any(w in q for w in _OTHER_TOPICS)
         r = _handle_branch_compare(q, role, db_name, db_server, db_user, db_password)
