@@ -8,6 +8,7 @@ from config import settings
 from auth.roles import Role
 from auth.table_access import list_allowed_tables_for_role
 from auth.schema_pack import schema_hint_for_prompt
+import json
 import time
 import re
 from datetime import date, timedelta
@@ -482,6 +483,31 @@ _NEG_CLAIM = re.compile(
 _BAD_TOOL = re.compile(r"^(error|query failed|query rejected|tool error|unsupported|could not connect)", re.I)
 
 
+def _safe_err(text, limit=160):
+    """Driver/server details never reach the user: strip ODBC prefixes, hosts/IPs, codes, paths."""
+    t = str(text or "")
+    t = re.sub(r"\[(?:Microsoft|ODBC|SQL Server|MySQL|unixODBC)[^\]]*\]", "", t, flags=re.I)
+    t = re.sub(r"\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b", "[host]", t)
+    t = re.sub(r"\b[\w-]+(?:\.[\w-]+)+(?:,\d+|:\d+)?\b", lambda m: m.group(0) if re.fullmatch(r"\w+\.\w+", m.group(0)) else "[host]", t)
+    t = re.sub(r"(?i)\b(?:pwd|password|uid|user|server)\s*=\s*[^;\s]+", "", t)
+    t = re.sub(r"(?i)\bfor user\s+'[^']*'", "for the database user", t)
+    t = re.sub(r"\s+", " ", re.sub(r"^(tool error|error|query failed)\s*:?\s*", "", t.strip(), flags=re.I)).strip(" :;-")
+    return t[:limit] or "database error"
+
+
+def _tool_error_text(e):
+    """What the MODEL sees for a failed tool: sanitized + a concrete next step."""
+    msg = _safe_err(e, 300)
+    low = msg.lower()
+    if "invalid column" in low or "invalid object" in low or "unknown column" in low or "doesn't exist" in low:
+        msg += " -> Check the real table/column names with the schema tool before retrying; do not guess names."
+    elif "timeout" in low or "timed out" in low:
+        msg += " -> Narrow the date range or add a branch filter, then retry once."
+    elif "conversion failed" in low or "syntax" in low:
+        msg += " -> Fix the query syntax / date format (use YYYY-MM-DD) and retry once."
+    return "Tool error: " + msg
+
+
 def _integrity_guard(text, ok_results, bad_results, tools_used, verified_empty=False):
     out = _integrity_guard_core(text, ok_results, bad_results, tools_used, verified_empty)
     neg_thin = bool(text and _NEG_CLAIM.search(text) and len(ok_results) <= 1 and not verified_empty)
@@ -496,7 +522,7 @@ def _integrity_guard_core(text, ok_results, bad_results, tools_used, verified_em
     # Every data call failed, yet the model produced an answer anyway -> don't ship it.
     if bad_results and not ok_results:
         return ("I couldn't get a reliable answer to this: my database query failed "
-                f"({bad_results[-1][:160].strip()}). Please rephrase with one branch or one month, "
+                f"({_safe_err(bad_results[-1])}). Please rephrase with one branch or one month, "
                 "or ask your administrator to check this report.")
     # Answer contains figures but no tool ever returned data -> it is made up.
     if not ok_results and re.search(r"\d{2,}", text) and tools_used is not None and not tools_used:
@@ -507,6 +533,39 @@ def _integrity_guard_core(text, ok_results, bad_results, tools_used, verified_em
         text += ("\n\nℹ️ I found nothing in the place I looked. If you expected results, they may be stored "
                  "somewhere I haven't checked — tell me what to look at and I'll check.")
     return text
+
+def _q_text(messages):
+    """The user's question = the last human message that is not our own instruction."""
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            c = str(getattr(m, "content", "") or "")
+            if not c.startswith(("Give your best final answer", "Check your answer")):
+                return c
+    return ""
+
+
+def _repair_answer(text, ok_results, messages, llm_with_tools, question=""):
+    """One corrective pass when the answer states figures that no tool returned (agent/answer_repair.py)."""
+    if not text or not ok_results:
+        return text
+    try:
+        from agent.answer_repair import maybe_repair
+        from langchain_core.messages import AIMessage
+        plain = getattr(llm_with_tools, "bound", llm_with_tools)
+
+        def ask(prompt):
+            msgs = list(messages) + [AIMessage(content=text), HumanMessage(content=prompt)]
+            r = _invoke_with_retry(plain, msgs, retries=0, fallback_tools=None)
+            return _extract_text(r.content) if r is not None else None
+
+        out, did = maybe_repair(text, ok_results, question, ask)
+        if did:
+            print("[repair] ungrounded figures corrected", flush=True)
+        return out
+    except Exception as e:
+        print(f"[repair] skipped: {e}", flush=True)
+        return text
+
 
 def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwargs: dict = None):
     tool_extra_kwargs = tool_extra_kwargs or {}
@@ -523,10 +582,12 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     last_tool_text = None
     ok_results, bad_results, tools_used = [], [], []
     verified = []
+    _seen = {}
     t_loop = time.time()
     for _round in range(MAX_TOOL_ROUNDS):
         if not getattr(response, "tool_calls", None):
-            return _integrity_guard(_extract_text(response.content) or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
+            _txt = _repair_answer(_extract_text(response.content) or None, ok_results, messages, llm_with_tools, _q_text(messages))
+            return _integrity_guard(_txt, ok_results, bad_results, tools_used, bool(verified)), total_tokens
         if time.time() - t_loop > LLM_BUDGET_SECONDS:
             print(f"[llm] budget {LLM_BUDGET_SECONDS}s exceeded after {_round} rounds — forcing final answer", flush=True)
             break
@@ -540,12 +601,22 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
             else:
                 args = dict(tool_call.get("args") or {})
                 _cn("note_tool_call", tool_call["name"], dict(args))
-                args.update(tool_extra_kwargs.get(tool_call["name"], {}))
                 try:
-                    result = tool_fn.invoke(args)
-                except Exception as e:
-                    print(f"[_run_tool_loop] tool {tool_call['name']} failed: {e}")
-                    result = f"Tool error: {e}"
+                    _key = tool_call["name"] + "|" + json.dumps(args, sort_keys=True, default=str)
+                except Exception:
+                    _key = None
+                args.update(tool_extra_kwargs.get(tool_call["name"], {}))
+                if _key is not None and _key in _seen:
+                    result = ("(This exact query already ran; reuse the result below instead of repeating it.)\n"
+                              + _seen[_key])
+                else:
+                    try:
+                        result = tool_fn.invoke(args)
+                        if _key is not None and not _BAD_TOOL.match(str(result).strip()):
+                            _seen[_key] = str(result)[:3000]
+                    except Exception as e:
+                        print(f"[_run_tool_loop] tool {tool_call['name']} failed: {e}")
+                        result = _tool_error_text(e)
 
             result_text = str(result)
             last_tool_text = result_text
@@ -559,7 +630,9 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
                 ok_results.append(_rt)
             if len(result_text) > 900:
                 _cn("note_truncated")
-                result_text = result_text[:900] + "\n...[truncated]"
+                result_text = (result_text[:900] + "\n...[truncated: this is only PART of the rows. "
+                               "Do NOT state totals, rankings or 'top N' from these rows; "
+                               "run an aggregate query (SUM/COUNT/GROUP BY/TOP) instead.]")
 
             messages.append(
                 ToolMessage(content=result_text, tool_call_id=tool_call["id"])
@@ -597,6 +670,7 @@ def _run_tool_loop(llm_with_tools, messages, tools_by_name: dict, tool_extra_kwa
     if not text and last_tool_text:
         text = ("I couldn't finish this analysis automatically. The last result I got was:\n\n"
                 + last_tool_text[:800] + "\n\nTry rephrasing with one branch or one month.")
+    text = _repair_answer(text or None, ok_results, messages, llm_with_tools, _q_text(messages))
     return _integrity_guard(text or None, ok_results, bad_results, tools_used, bool(verified)), total_tokens
 
 # AFTER:
