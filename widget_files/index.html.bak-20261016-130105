@@ -1,0 +1,2273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="Favicon.ico" type="image/x-icon" />
+<link rel="apple-touch-icon" href="Favicon.ico" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sahasra AI Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #ffffff;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  @keyframes bg-drift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .typing-dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin: 0 2px;
+  background: #999;
+  border-radius: 50%;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+  .container {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #f0f4ff 0%, #fdf2ff 50%, #f0fdfa 100%);
+    background-size: 200% 200%;
+    animation: bg-drift 18s ease-in-out infinite;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #8B008B, #4c1d95, #1e293b);
+    background-size: 200% 200%;
+    animation: header-shift 8s ease-in-out infinite;
+    color: white;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(139,0,139,0.25);
+    position: relative;
+    z-index: 2;
+  }
+  @keyframes header-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .logo {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .header-info { flex: 1; }
+  .header-info h1 { font-size: 15px; font-weight: 600; }
+  .header-info p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+
+  .badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    background: #22c55e;
+    color: white;
+  }
+  .badge.premium { background: #f59e0b; }
+
+  /* Chat area */
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-image: radial-gradient(circle, #e8ecf3 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-color: #fafbfd;
+  }
+
+  .message {
+    max-width: 85%;
+    padding: 11px 13px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .bot {
+    background: white;
+    border: 1px solid #e2e8f0;
+    align-self: flex-start;
+    border-radius: 18px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 8px rgba(30,41,59,0.06);
+  }
+
+  .user {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    align-self: flex-end;
+    border-radius: 18px;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.25);
+  }
+
+  .time {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 5px;
+    display: block;
+  }
+
+  /* Role chip */
+  .role-chip {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .msg-enter {
+  animation: msg-rise 0.45s cubic-bezier(0.34, 1.4, 0.4, 1) both;
+}
+@keyframes msg-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.9); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+  /* Suggestions */
+.suggestions {
+  padding: 0 14px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #e2e8f0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+
+.suggestions.open {
+  padding: 10px 14px;
+  max-height: 200px;
+  opacity: 1;
+}
+
+.suggestions button {
+  background: white;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 7px 13px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transform: scale(0.9);
+  opacity: 0;
+  animation: popIn 0.2s ease forwards;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.suggestions button:hover {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+@keyframes popIn {
+  to { transform: scale(1); opacity: 1; }
+}
+
+  /* Input */
+  .input-area {
+    padding: 12px 14px;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+  }
+
+  .input-area input {
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    outline: none;
+  }
+
+   .input-area input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .input-area button {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    border: none;
+    width: 46px;
+    border-radius: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.3);
+    transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease;
+  }
+  .input-area button:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(124,58,237,0.4); }
+  .input-area button:active { transform: scale(0.9); }
+  .search-card {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 8px 0;
+}
+.search-card-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.search-card-stat-pill {
+  background: #e0f2fe; color: #0369a1; font-size: 10.5px;
+  padding: 3px 8px; border-radius: 10px;
+}
+.search-card-header { font-weight: 700; font-size: 14px; color: #0c4a6e; }
+.search-card-subtitle { font-size: 11px; color: #0369a1; margin-top: 2px; margin-bottom: 10px; }
+.search-card-item {
+  display: flex; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid #e0f2fe; font-size: 12.5px;
+}
+.search-card-item:last-child { border-bottom: none; }
+.search-card-item span { color: #64748b; }
+.search-card-footer { margin-top: 10px; font-size: 10.5px; color: #64748b; font-style: italic; }
+
+  /* ===== Dashboard Card ===== */
+  .dash-card {
+    max-width: 92%;
+    align-self: flex-start;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .dash-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  .dash-card-icon { font-size: 16px; }
+  .dash-card-title { font-weight: 700; color: #0f766e; }
+  .dash-card-subtitle { color: #64748b; font-size: 13px; }
+
+  .dash-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .dash-stat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .dash-stat-box {
+    background: #eff6ff;
+    border-left: 3px solid #2563eb;
+    border-radius: 6px;
+    padding: 7px 12px;
+    min-width: 90px;
+    flex: 1 1 auto;
+  }
+  .dash-stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .dash-stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-top: 1px;
+  }
+
+  .dash-divider {
+    border: none;
+    border-top: 1px dotted #cbd5e1;
+    margin: 12px 0;
+  }
+
+  .dash-callout {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .dash-callout-label { font-weight: 700; color: #0f766e; }
+  .dash-delta-down { color: #dc2626; font-weight: 700; }
+  .dash-delta-up { color: #16a34a; font-weight: 700; }
+
+  .dash-bar-section-title {
+    font-weight: 700;
+    color: #0f766e;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
+  .dash-bar-section-title .dash-subtitle-italic {
+    font-weight: 400;
+    font-style: italic;
+    color: #64748b;
+  }
+
+  .dash-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .dash-bar-label {
+    width: 96px;
+    flex-shrink: 0;
+    color: #334155;
+    line-height: 1.25;
+  }
+  .dash-bar-track {
+    flex: 1;
+    height: 14px;
+    background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 3px, #e2e8f0 3px, #e2e8f0 6px);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .dash-bar-fill {
+    height: 100%;
+    background: #1e293b;
+    border-radius: 3px 0 0 3px;
+  }
+  .dash-bar-values {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    min-width: 70px;
+    justify-content: flex-end;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-footer {
+    margin-top: 10px;
+    font-weight: 700;
+    color: #0f766e;
+    font-size: 13px;
+  }
+
+  .dash-card-time {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 8px;
+    display: block;
+    text-align: right;
+  }
+
+  /* ===== List Card (record lists: recent patients, top doctors, etc.) ===== */
+  .dash-list-intro {
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .dash-list-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .dash-list-item:last-of-type { border-bottom: none; }
+
+  .dash-list-badge {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
+  .dash-list-body { flex: 1; min-width: 0; }
+  .dash-list-primary {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 13px;
+  }
+  .dash-list-fields {
+    color: #64748b;
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  .dash-list-fields span:not(:last-child)::after {
+    content: " · ";
+    color: #cbd5e1;
+  }
+
+  .dash-list-footer {
+    margin-top: 10px;
+    font-size: 12px;
+    font-style: italic;
+    color: #64748b;
+  }
+
+/* Sahasra White Label UX: intentionally isolated from normal-mode styles. */
+body.wl-modern .container { background:#f8fafc; animation:none; }
+body.wl-modern .header { background:linear-gradient(115deg,var(--wl-primary,#334155),#17253a); animation:none; padding:17px 18px; }
+body.wl-modern .chat { background:#f8fafc; background-image:none; padding:16px; gap:13px; }
+body.wl-modern .bot { border:1px solid #e3eaf3; box-shadow:0 4px 16px #192b4210; }
+body.wl-modern .user { background:var(--wl-primary,#334155); box-shadow:none; }
+body.wl-modern .suggestions { background:#fff; border-top:1px solid #e5eaf0; }
+body.wl-modern .suggestions button { border-radius:999px; font-weight:600; }
+body.wl-modern .input-area { background:white; border-top:1px solid #e6edf5; }
+.wl-quick { display:none; flex-shrink:0; background:#fff; padding:13px 14px 12px; border-bottom:1px solid #e7edf4; }
+.wl-quick.visible { display:block; }
+.wl-quick-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.wl-quick-label { font-size:12px; letter-spacing:.035em; font-weight:800; color:#334155; }
+.wl-quick-state { display:inline-flex; font-size:10px; font-weight:700; padding:5px 8px; background:#f0f5fb; color:#556982; border-radius:20px; }
+.wl-quick-state.verified { color:#087c59; background:#e8f8ef; }
+.wl-quick-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.wl-action { text-align:left; border:1px solid #e2e9f3; border-radius:12px; background:#fbfdff; color:#263b58; padding:10px 11px; min-height:53px; font:600 12px 'Segoe UI',system-ui,sans-serif; cursor:pointer; box-shadow:none; overflow-wrap:anywhere; }
+.wl-action:hover,.wl-action:focus-visible { outline:2px solid color-mix(in srgb,var(--wl-primary,#334155) 35%,white); background:#f3f7ff; }
+.wl-action small { display:block; color:#72839b; font-weight:400; margin-top:4px; font-size:10px; }
+.wl-action.primary { border-color:var(--wl-primary,#334155); background:var(--wl-primary,#334155); color:white; }
+.wl-action.primary small { color:#e7eaf0; }
+.wl-quick-help { font-size:11px; color:#718198; line-height:1.4; margin-top:9px; }
+.wl-mini-select { border:1px solid #d9e3ef; padding:7px; border-radius:9px; background:#fff; color:#304158; font-size:11px; min-width:120px; max-width:100%; }
+.wl-quick-state + .wl-mini-select { margin-left:auto; }
+@media(max-width:370px) { .wl-quick-actions { grid-template-columns:1fr; }.wl-action { min-height:39px; } }
+
+  .conf-warn { position:absolute; top:4px; right:6px; border:0; background:transparent; cursor:pointer;
+    font-size:15px; line-height:1; padding:2px; }
+  .conf-warn:focus-visible { outline:2px solid #f59e0b; border-radius:4px; }
+  .conf-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99999; display:flex;
+    align-items:center; justify-content:center; padding:16px; }
+  .conf-dialog { background:#fff; color:#1f2937; max-width:340px; width:100%; border-radius:12px;
+    padding:16px 16px 12px; box-shadow:0 10px 30px rgba(0,0,0,.3); font-size:14px; line-height:1.45; }
+  .conf-dialog h4 { margin:0 0 8px; font-size:15px; }
+  .conf-dialog ul { margin:8px 0; padding-left:18px; }
+  .conf-dialog .conf-meta { font-size:12px; color:#6b7280; margin-top:6px; }
+  .conf-dialog button.conf-close { margin-top:10px; width:100%; padding:8px; border:0; border-radius:8px;
+    background:#f59e0b; color:#1f2937; font-weight:600; cursor:pointer; }
+
+  .ans-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:-2px 0 8px 4px; font-size:12px; color:#6b7280; }
+  .ans-btn { border:1px solid #e5e7eb; background:#fff; border-radius:999px; padding:3px 9px; cursor:pointer; font-size:12px; line-height:1.4; color:#374151; }
+  .ans-btn:hover:not(:disabled) { background:#f3f4f6; }
+  .ans-btn:disabled { opacity:.5; cursor:default; }
+  .ans-btn:focus-visible { outline:2px solid #f59e0b; }
+  .conf-dialog pre { background:#f3f4f6; border-radius:8px; padding:8px; margin:6px 0; max-height:150px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size:12px; }
+  .conf-dialog textarea { width:100%; box-sizing:border-box; min-height:70px; border:1px solid #d1d5db; border-radius:8px; padding:8px; font:inherit; margin-top:8px; }
+  .conf-dialog .conf-row { display:flex; gap:8px; margin-top:10px; }
+  .conf-dialog .conf-row button { flex:1; margin-top:0; }
+  .conf-dialog button.conf-secondary { background:#e5e7eb; }
+</style>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="premium.css?v=1792061513">
+<script src="stream.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo"><img src="Favicon.ico" alt="AthenTech" style="width: 24px; height: 24px; border-radius: 4px;" /></div>
+      <div class="header-info">
+        <h1>Sahasra AI Assistant</h1>
+        <p id="status"><span class="status-dot"></span>General Mode</p>
+      </div>
+      <div class="badge" id="modeBadge">Normal</div>
+    </div>
+<div id="usageBanner" style="display:none; background:#fef3c7; color:#92400e; padding:8px 14px; font-size:12px; justify-content:space-between; align-items:center;">
+  <span id="usageBannerText"></span>
+  <button onclick="document.getElementById('usageBanner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:14px;">×</button>
+</div>
+    <section id="wlQuick" class="wl-quick" aria-label="Chatbot quick actions">
+      <div class="wl-quick-top"><span class="wl-quick-label" id="wlQuickTitle">How can we help?</span><span class="wl-quick-state" id="wlQuickState">Ready</span></div>
+      <div class="wl-quick-actions" id="wlQuickActions"></div>
+      <div class="wl-quick-help" id="wlQuickHelp"></div>
+    </section>
+    <div class="chat" id="chat"></div>
+    <div class="suggestions" id="suggestions"></div>
+
+    <div class="input-area">
+      <input id="msg" type="text" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')handleSend()" />
+      <button onclick="handleSend()">→</button>
+       <button type="button" id="excelBtn" onclick="showExcelMenu()" style="display:none; width:auto; padding:8px 12px; white-space:nowrap; font-size:13px;">Excel ▾</button>
+    
+    
+      </div>
+
+
+  
+
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; padding:6px; font-size:10px; color:#94a3b8; background:white;">
+      <span onclick="document.getElementById('disclaimerModal').style.display='flex'" style="position:absolute; left:10px; cursor:pointer; font-size:13px;" title="Disclaimer">⚠️</span>
+      <span>Powered by AthenTech</span>
+    </div>
+  </div>
+
+  <div id="disclaimerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; width:300px; max-width:85%; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.3); overflow:hidden;">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#e2e8f0; padding:8px 12px; border-bottom:1px solid #cbd5e1;">
+        <span style="font-size:12px; font-weight:700; color:#1e293b;">Disclaimer</span>
+        <span onclick="document.getElementById('disclaimerModal').style.display='none'" style="cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; background:#dc2626; color:white; font-size:12px; font-weight:700; border-radius:2px;">✕</span>
+      </div>
+      <div style="padding:16px; font-size:13px; line-height:1.5; color:#334155;">
+        ⚠️ This assistant provides informational support only. It is not a substitute for professional medical advice. Patient data access is role-restricted and audited.
+      </div>
+    </div>
+  </div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const suggestionsEl = document.getElementById('suggestions');
+const statusEl = document.getElementById('status');
+const modeBadge = document.getElementById('modeBadge');
+const input = document.getElementById('msg');
+
+const API_URL = "https://api.athentech.in/ask"; // <- the ONE per-server edit: your API address
+function getDeviceFingerprint() {
+  const raw = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ].join('|');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return 'fp_' + Math.abs(hash).toString(36);
+}
+const DEVICE_FINGERPRINT = getDeviceFingerprint();
+
+let widgetConfig = {};
+
+async function loadWidgetConfig() {
+  try {
+    const res = await fetch(API_URL.replace('/ask', '/widget-config'));
+    widgetConfig = await res.json();
+    applyWidgetConfig();
+  } catch (err) {
+    console.error('Could not load widget config, using defaults', err);
+  }
+}
+
+function applyWidgetConfig() {
+  if (!widgetConfig || Object.keys(widgetConfig).length === 0) return;
+    console.log('[DEBUG] widgetConfig:', widgetConfig);
+  resetIdleNudge();
+
+  document.querySelector('.header-info h1').textContent = widgetConfig.title || 'Sahasra AI Assistant';
+  document.querySelector('.header').style.background =
+    `linear-gradient(135deg, ${widgetConfig.primary_color}, ${widgetConfig.secondary_color})`;
+  document.querySelector('.container').style.width = widgetConfig.width_px ? widgetConfig.width_px + 'px' : '100%';
+  document.querySelector('.chat').style.backgroundColor = widgetConfig.bg_color || '#fafbfd';
+  const footerEl = document.querySelector('[onclick*="disclaimerModal"]')?.parentElement?.querySelector('span:last-child');
+  if (footerEl) footerEl.textContent = widgetConfig.footer_text || 'Powered by AthenTech';
+  const disclaimerBody = document.querySelector('#disclaimerModal div div:last-child');
+  if (disclaimerBody) disclaimerBody.textContent = '⚠️ ' + (widgetConfig.disclaimer_text || '');
+  if (widgetConfig.icon_url) {
+    const logoImg = document.querySelector('.logo img');
+    if (logoImg) logoImg.src = widgetConfig.icon_url;
+  }
+}
+
+function getRoleSuggestions() {
+  const key = state.institutionType === 'hospital' ? `hospital_${state.role}` : 'diagnostic';
+  const configured = widgetConfig.role_suggestions?.[key];
+  if (configured && configured.length && configured[0].label) {
+    return configured.map(s => ({ label: s.label, send: s.query }));
+  }
+  return state.institutionType === 'hospital'
+    ? [
+        { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+        { label: 'Currently admitted', send: 'who is admitted currently' },
+      ]
+    : [
+        { label: 'Show all patients', send: 'Show me all patients' },
+        { label: "Today's collection", send: "Today's collection data" },
+      ];
+}
+
+let sessionTimeoutTimer = null;
+function resetSessionTimeout() {
+  if (sessionTimeoutTimer) clearTimeout(sessionTimeoutTimer);
+  const timeoutMin = widgetConfig.session_timeout_min || 0;
+  if (timeoutMin > 0 && state.mode === 'premium') {
+    sessionTimeoutTimer = setTimeout(() => {
+      addMessage('Your session timed out due to inactivity. You have been logged out of Premium mode.', 'bot');
+      processMessage('exit');
+    }, timeoutMin * 60 * 1000);
+  }
+}
+
+let idleNudgeTimer = null;
+function resetIdleNudge() {
+  if (idleNudgeTimer) clearTimeout(idleNudgeTimer);
+  if (widgetConfig.idle_nudge_enabled) {
+    const minutes = widgetConfig.idle_nudge_minutes || 3;
+    idleNudgeTimer = setTimeout(() => {
+      addMessage(widgetConfig.idle_nudge_message || 'Still there? Ask me anything.', 'bot');
+    }, minutes * 60 * 1000);
+  }
+}
+
+
+let state = {
+  mode: 'normal',
+  activationCode: null,
+  role: null,
+  waitingForCode: false,
+  history: []
+};
+
+function now() {
+  const d = new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
+}
+
+function attachConfidence(conf) {
+  try {
+    if (!conf || conf.ok !== false) return;
+    const target = chatEl.lastElementChild;
+    if (!target || target.querySelector('.conf-warn')) return;
+    if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
+    const b = document.createElement('button');
+    b.className = 'conf-warn';
+    b.type = 'button';
+    b.title = 'Low confidence - tap for details';
+    b.setAttribute('aria-label', 'Low confidence answer. Tap for details');
+    b.textContent = '\u26A0\uFE0F';
+    b.addEventListener('click', () => showConfidenceDialog(conf));
+    target.appendChild(b);
+  } catch (e) { /* never break chat for a marker */ }
+}
+
+function showConfidenceDialog(conf) {
+  const old = document.getElementById('confOverlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'conf-overlay';
+  ov.id = 'confOverlay';
+  const dlg = document.createElement('div');
+  dlg.className = 'conf-dialog';
+  dlg.setAttribute('role', 'dialog');
+  dlg.setAttribute('aria-modal', 'true');
+  const h = document.createElement('h4');
+  h.textContent = '\u26A0\uFE0F I\u2019m not fully sure about this answer';
+  const p = document.createElement('div');
+  p.textContent = 'This answer has low confidence. Please check it against the report or your LIS before relying on it.';
+  dlg.appendChild(h); dlg.appendChild(p);
+  if (Array.isArray(conf.reasons) && conf.reasons.length) {
+    const ul = document.createElement('ul');
+    conf.reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    dlg.appendChild(ul);
+  }
+  const meta = document.createElement('div');
+  meta.className = 'conf-meta';
+  meta.textContent = 'Verification score ' + conf.score + '/100 (needs ' + conf.threshold + '). Computed from checks on the data, not by asking the AI.';
+  dlg.appendChild(meta);
+  const close = document.createElement('button');
+  close.className = 'conf-close';
+  close.type = 'button';
+  close.textContent = 'Close';
+  const done = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') done(); };
+  close.addEventListener('click', done);
+  ov.addEventListener('click', (e) => { if (e.target === ov) done(); });
+  document.addEventListener('keydown', onKey);
+  dlg.appendChild(close);
+  ov.appendChild(dlg);
+  document.body.appendChild(ov);
+  close.focus();
+}
+
+function _dialog(titleText, build) {
+  const old = document.getElementById('confOverlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'conf-overlay';
+  ov.id = 'confOverlay';
+  const dlg = document.createElement('div');
+  dlg.className = 'conf-dialog';
+  dlg.setAttribute('role', 'dialog');
+  dlg.setAttribute('aria-modal', 'true');
+  const h = document.createElement('h4');
+  h.textContent = titleText;
+  dlg.appendChild(h);
+  const done = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', onKey);
+  ov.addEventListener('click', (e) => { if (e.target === ov) done(); });
+  build(dlg, done);
+  ov.appendChild(dlg);
+  document.body.appendChild(ov);
+  const first = dlg.querySelector('textarea, button');
+  if (first) first.focus();
+}
+
+function _line(dlg, text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  d.style.marginTop = '6px';
+  dlg.appendChild(d);
+}
+
+function _closeBtn(dlg, done, label) {
+  const b = document.createElement('button');
+  b.className = 'conf-close';
+  b.type = 'button';
+  b.textContent = label || 'Close';
+  b.addEventListener('click', done);
+  dlg.appendChild(b);
+}
+
+function showExplainDialog(ex) {
+  _dialog('How was this calculated?', (dlg, done) => {
+    _line(dlg, ex.note || '');
+    if (ex.periods && ex.periods.length) _line(dlg, 'Period asked: ' + ex.periods.join(', '));
+    if (ex.tables && ex.tables.length) _line(dlg, 'Data used: ' + ex.tables.join(', '));
+    if (Array.isArray(ex.queries) && ex.queries.length) {
+      _line(dlg, 'Read-only queries run:');
+      ex.queries.forEach(q => { const pre = document.createElement('pre'); pre.textContent = q; dlg.appendChild(pre); });
+    } else if (ex.source === 'llm') {
+      _line(dlg, 'The exact queries are visible to administrators.');
+    }
+    _line(dlg, 'Nothing was changed in your data. All queries are read-only.');
+    _closeBtn(dlg, done);
+  });
+}
+
+async function sendFeedback(data, vote, note, row) {
+  try {
+    row.querySelectorAll('.ans-vote').forEach(b => { b.disabled = true; });
+    const res = await fetch(API_URL.replace('/ask', '/ask/feedback'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activation_code: state.activationCode ? String(state.activationCode) : '',
+        answer_id: data.answer_id, vote: vote, note: note || '',
+        answer_text: vote === 'down' ? String(data.answer || '').slice(0, 600) : ''
+      })
+    });
+    const j = await res.json();
+    const msg = document.createElement('span');
+    msg.textContent = (j && j.status === 'success') ? 'Thanks for the feedback' : 'Could not save feedback';
+    row.insertBefore(msg, row.firstChild);
+  } catch (e) {
+    row.querySelectorAll('.ans-vote').forEach(b => { b.disabled = false; });
+  }
+}
+
+function showFeedbackDialog(data, row) {
+  _dialog('What was wrong with this answer?', (dlg, done) => {
+    const ta = document.createElement('textarea');
+    ta.maxLength = 300;
+    ta.placeholder = 'Optional: e.g. wrong branch, wrong date, number does not match the LIS';
+    dlg.appendChild(ta);
+    const r = document.createElement('div');
+    r.className = 'conf-row';
+    const cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.className = 'conf-close conf-secondary'; cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', done);
+    const send = document.createElement('button');
+    send.type = 'button'; send.className = 'conf-close'; send.textContent = 'Send';
+    send.addEventListener('click', () => { const t = ta.value; done(); sendFeedback(data, 'down', t, row); });
+    r.appendChild(cancel); r.appendChild(send); dlg.appendChild(r);
+  });
+}
+
+function attachAnswerActions(data) {
+  try {
+    if (state.mode !== 'premium' || !data || !data.answer_id) return;
+    const row = document.createElement('div');
+    row.className = 'ans-actions';
+    const mk = (txt, title, cls, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ans-btn ' + (cls || ''); b.textContent = txt;
+      b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn);
+      return b;
+    };
+    row.appendChild(mk('\uD83D\uDC4D', 'Good answer', 'ans-vote', () => sendFeedback(data, 'up', '', row)));
+    row.appendChild(mk('\uD83D\uDC4E', 'Wrong or unhelpful', 'ans-vote', () => showFeedbackDialog(data, row)));
+    if (data.explain) {
+      row.appendChild(mk('\u24D8 How was this calculated?', 'How was this calculated?', '', () => showExplainDialog(data.explain)));
+    }
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  } catch (e) { /* never break chat for feedback buttons */ }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function addMessage(text, type) {
+  if (type === 'bot' && window.parent !== window && widgetConfig.preview_toast_enabled !== false) {
+    const preview = (text || '').replace(/```[\s\S]*?```/g, '').replace(/[*_#]/g, '').trim().slice(0, 80);
+    window.parent.postMessage({ type: 'sahasra-new-message', preview: preview || 'New message' }, '*');
+  }
+
+  const card = type === 'bot' ? extractDashboardCard(text) : null;
+  if (card) {
+    renderDashboardCard(card);
+    return;
+  }
+
+  const listCard = type === 'bot' ? extractListCard(text) : null;
+  if (listCard) {
+    renderListCard(listCard);
+    return;
+  }
+
+  const searchCard = type === 'bot' ? extractSearchCard(text) : null;
+  if (searchCard) {
+    renderSearchCard(searchCard);
+    return;
+  }
+
+  const div = document.createElement('div');
+  div.className = `message ${type}`;
+
+  // Escape raw text FIRST — text can contain real data pulled from the
+  // hospital DB (patient names, etc). Without escaping first, any HTML
+  // characters in that data would render as live markup instead of
+  // plain text — a real injection risk, not just a formatting bug.
+  let formatted = escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.*?)\*/g, '<i>$1</i>')
+    .replace(/\n/g, '<br>');
+
+  div.innerHTML = `${formatted}<span class="time">${now()}</span>`;
+  div.classList.add('msg-enter');
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+function extractDashboardCard(text) {
+  // The LLM emits a ```dashboard-card fenced JSON block when a question
+  // calls for a stat/breakdown summary. Anything else (a plain answer,
+  // an explanation, a refusal) just falls through to normal text
+  // rendering — this only activates for genuinely structured answers.
+  const match = text.match(/```dashboard-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.stats)) return null;
+    return data;
+  } catch (e) {
+    return null; // malformed JSON — fall back to plain text rather than crash
+  }
+}
+
+function renderDashboardCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  if (data.subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'dash-card-subtitle';
+    sub.textContent = ' · ' + data.subtitle;
+    header.appendChild(sub);
+  }
+  card.appendChild(header);
+
+  if (Array.isArray(data.meta)) {
+    for (const m of data.meta) {
+      const line = document.createElement('div');
+      line.className = 'dash-meta-line';
+      if (m.icon) {
+        const icon = document.createElement('span');
+        icon.textContent = m.icon;
+        line.appendChild(icon);
+      }
+      line.appendChild(document.createTextNode(m.text || ''));
+      card.appendChild(line);
+    }
+  }
+
+  if (data.stats && data.stats.length) {
+    const grid = document.createElement('div');
+    grid.className = 'dash-stat-grid';
+    for (const stat of data.stats) {
+      const box = document.createElement('div');
+      box.className = 'dash-stat-box';
+      const label = document.createElement('div');
+      label.className = 'dash-stat-label';
+      label.textContent = stat.label || '';
+      const value = document.createElement('div');
+      value.className = 'dash-stat-value';
+      value.textContent = stat.value != null ? stat.value : '-no_data';
+      box.appendChild(label);
+      box.appendChild(value);
+      grid.appendChild(box);
+    }
+    card.appendChild(grid);
+  }
+
+  if (data.callout) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
+    const callout = document.createElement('div');
+    callout.className = 'dash-callout';
+    if (data.callout.label) {
+      const lbl = document.createElement('span');
+      lbl.className = 'dash-callout-label';
+      lbl.textContent = data.callout.label + ': ';
+      callout.appendChild(lbl);
+    }
+    callout.appendChild(document.createTextNode(data.callout.text || ''));
+    if (data.callout.delta) {
+      const isDown = String(data.callout.delta).trim().startsWith('-');
+      const delta = document.createElement('span');
+      delta.className = isDown ? 'dash-delta-down' : 'dash-delta-up';
+      delta.textContent = ' ' + (isDown ? '▼' : '▲') + String(data.callout.delta).replace('-', '') + (data.callout.delta_label || '');
+      callout.appendChild(delta);
+    }
+    card.appendChild(callout);
+  }
+
+  if (data.bar_section && Array.isArray(data.bar_section.rows) && data.bar_section.rows.length) {
+    card.appendChild(document.createElement('hr')).className = 'dash-divider';
+
+    const secTitle = document.createElement('div');
+    secTitle.className = 'dash-bar-section-title';
+    secTitle.textContent = data.bar_section.title || '';
+    if (data.bar_section.subtitle) {
+      const subEl = document.createElement('span');
+      subEl.className = 'dash-subtitle-italic';
+      subEl.textContent = ' ' + data.bar_section.subtitle;
+      secTitle.appendChild(subEl);
+    }
+    card.appendChild(secTitle);
+
+    const maxVal = Math.max(...data.bar_section.rows.map(r => Number(r.value) || 0), 1);
+
+    for (const row of data.bar_section.rows) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'dash-bar-row';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'dash-bar-label';
+      labelEl.textContent = row.label || '';
+      rowEl.appendChild(labelEl);
+
+      const track = document.createElement('div');
+      track.className = 'dash-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'dash-bar-fill';
+      const pct = Math.max(4, Math.round(((Number(row.value) || 0) / maxVal) * 100));
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      rowEl.appendChild(track);
+
+      const valuesEl = document.createElement('div');
+      valuesEl.className = 'dash-bar-values';
+      const valSpan = document.createElement('span');
+      valSpan.textContent = row.value != null ? String(row.value) : '';
+      valuesEl.appendChild(valSpan);
+      if (row.extra) {
+        const extraSpan = document.createElement('span');
+        extraSpan.textContent = row.extra;
+        valuesEl.appendChild(extraSpan);
+      }
+      rowEl.appendChild(valuesEl);
+
+      card.appendChild(rowEl);
+    }
+  }
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-footer';
+    footer.textContent = (data.footer.label ? data.footer.label + ': ' : '') + (data.footer.value || '');
+    card.appendChild(footer);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function extractListCard(text) {
+  const match = text.match(/```list-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderListCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot dash-card';
+
+  const header = document.createElement('div');
+  header.className = 'dash-card-header';
+  if (data.icon) {
+    const icon = document.createElement('span');
+    icon.className = 'dash-card-icon';
+    icon.textContent = data.icon;
+    header.appendChild(icon);
+  }
+  const title = document.createElement('span');
+  title.className = 'dash-card-title';
+  title.textContent = data.title;
+  header.appendChild(title);
+  card.appendChild(header);
+
+  if (data.intro) {
+    const intro = document.createElement('div');
+    intro.className = 'dash-list-intro';
+    intro.textContent = data.intro;
+    card.appendChild(intro);
+  }
+
+  data.items.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'dash-list-item';
+
+    const badge = document.createElement('div');
+    badge.className = 'dash-list-badge';
+    badge.textContent = String(i + 1);
+    row.appendChild(badge);
+
+    const body = document.createElement('div');
+    body.className = 'dash-list-body';
+
+    const primary = document.createElement('div');
+    primary.className = 'dash-list-primary';
+    primary.textContent = item.primary || '';
+    body.appendChild(primary);
+
+    if (Array.isArray(item.fields) && item.fields.length) {
+      const fields = document.createElement('div');
+      fields.className = 'dash-list-fields';
+      for (const f of item.fields) {
+        const span = document.createElement('span');
+        span.textContent = f;
+        fields.appendChild(span);
+      }
+      body.appendChild(fields);
+    }
+
+    row.appendChild(body);
+    card.appendChild(row);
+  });
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-list-footer';
+    footer.textContent = data.footer;
+    card.appendChild(footer);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'dash-card-time';
+  time.textContent = now();
+  card.appendChild(time);
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function extractSearchCard(text) {
+  const match = text.match(/```search-card\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || !data.title || !Array.isArray(data.items)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderSearchCard(data) {
+  const card = document.createElement('div');
+  card.className = 'message bot search-card';
+
+  const header = document.createElement('div');
+  header.className = 'search-card-header';
+  header.textContent = (data.icon || '🌐') + ' ' + data.title;
+  card.appendChild(header);
+
+  if (data.subtitle) {
+    const sub = document.createElement('div');
+    sub.className = 'search-card-subtitle';
+    sub.textContent = data.subtitle;
+    card.appendChild(sub);
+  }
+
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'search-card-items';
+  data.items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'search-card-item';
+    const name = document.createElement('strong');
+    name.textContent = item.name || '';
+    row.appendChild(name);
+
+    if (item.detail) {
+      const detail = document.createElement('span');
+      detail.textContent = item.detail;
+      row.appendChild(detail);
+    } else if (Array.isArray(item.stats)) {
+      const statsWrap = document.createElement('div');
+      statsWrap.className = 'search-card-stats';
+      item.stats.forEach(s => {
+        const pill = document.createElement('span');
+        pill.className = 'search-card-stat-pill';
+        pill.textContent = `${s.label}: ${s.value}`;
+        statsWrap.appendChild(pill);
+      });
+      row.appendChild(statsWrap);
+    }
+    itemsWrap.appendChild(row);
+  });
+  card.appendChild(itemsWrap);
+
+  if (data.footer) {
+    const footer = document.createElement('div');
+    footer.className = 'search-card-footer';
+    footer.textContent = data.footer;
+    card.appendChild(footer);
+  }
+
+  chatEl.appendChild(card);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function showSuggestions(list) {
+  suggestionsEl.innerHTML = '';
+  list.forEach((item, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = item.label;
+    btn.style.animationDelay = (i * 0.04) + 's';
+    btn.onclick = () => {
+
+      suggestionsEl.classList.remove('open');
+      suggestionsEl.innerHTML = '';
+      if (item.action) {
+        item.action();
+      } else {
+        input.value = item.send;
+        handleSend();
+      }
+    };
+    suggestionsEl.appendChild(btn);
+  });
+  suggestionsEl.classList.add('open');
+}
+
+function start() {
+  loadWidgetConfig();
+  chatEl.innerHTML = '';
+  state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
+  statusEl.textContent = 'General Mode';
+  modeBadge.textContent = 'Normal';
+  modeBadge.classList.remove('premium');
+
+  // ===== DISCLAIMER (put it here) =====
+
+  setTimeout(() => {
+    addMessage(
+      (widgetConfig.welcome_message || `Hello! 👋\n\nI'm **Sahasra AI Assistant**.`) +
+      `\n\nYou can ask general questions about hospitals and doctors.\n\nHave an activation code? Enter it to access your hospital data.`,
+      'bot'
+    );
+  }, 100);
+
+  showSuggestions([
+    { label: 'Enter Activation Code', send: 'Enter activation code' },
+    { label: 'About AthenTech', send: 'athentech mode' }
+  ]);
+}
+
+function handleSend() {
+  const text = input.value.trim();
+  if (!text) return;
+  // Never display a raw B2B verification code or full mobile number in chat history.
+  if (typeof WL !== 'undefined' && WL.isWhite && WL.activeMode === 'b2b' && WL.b2bStep === 'otp' && /^\d{4,10}$/.test(text)) {
+    addMessage('••••••', 'user');
+  } else if (typeof WL !== 'undefined' && WL.isWhite && WL.activeMode === 'b2b' && WL.b2bStep === 'phone' && /^[+\d\s().-]{8,25}$/.test(text)) {
+    addMessage('Mobile ending ' + text.replace(/\D/g, '').slice(-4), 'user');
+  } else { addMessage(text, 'user'); }
+  input.value = '';
+  processMessage(text);
+  resetSessionTimeout();
+}
+
+async function downloadCollectionExcel(period, reportType, location) {
+  addMessage('Generating Excel export...', 'bot');
+
+  const payload = {
+    period: period || "today",
+    report_type: reportType || "collection",
+    activation_code: state.activationCode ? String(state.activationCode) : "",
+    location: location ? String(location) : ""
+  };
+  console.log("EXCEL PAYLOAD", payload);
+
+  try {
+        const response = await fetch(API_URL.replace('/ask', '/generate-excel'), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.log("EXCEL ERROR", response.status, errText);
+      addMessage("Excel failed (" + response.status + "): " + errText, "bot");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "collection_" + (period || "today") + ".xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage("✅ Excel downloaded.", "bot");
+  } catch (err) {
+    console.error(err);
+    addMessage("Could not download Excel. Try again.", "bot");
+  }
+}
+
+function showExcelMenu() {
+  if (state.mode  === 'premium'){
+  if (suggestionsEl.classList.contains('open') && suggestionsEl.dataset.menu === 'excel') {
+    suggestionsEl.classList.remove('open');
+    suggestionsEl.innerHTML = '';
+    return;
+  }
+  showSuggestions([
+    { label: 'Collection · Today', action: () => downloadCollectionExcel('today', 'collection') },
+    { label: 'Collection · Yesterday', action: () => downloadCollectionExcel('yesterday', 'collection') },
+    { label: 'Collection · This month', action: () => promptForLocationThenDownload('this_month', 'collection') },
+    { label: 'Top tests · Today', action: () => downloadCollectionExcel('today', 'top_tests') },
+    { label: 'Refunds · Today', action: () => downloadCollectionExcel('today', 'refunds') },
+    { label: 'Registrations · Today', action: () => downloadCollectionExcel('today', 'registrations') },
+  ]);
+  suggestionsEl.dataset.menu = 'excel';
+}}
+async function promptForLocationThenDownload(period, reportType) {
+  addMessage('Loading branches...', 'bot');
+  try {
+      const response = await fetch(API_URL.replace('/ask', '/locations'), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activation_code: state.activationCode ? String(state.activationCode) : "" })
+    });
+    const data = await response.json();
+    const locations = data.locations || [];
+
+    if (!locations.length) {
+      addMessage('Could not load branch list.', 'bot');
+      return;
+    }
+
+    showSuggestions(
+      locations.map(loc => ({
+        label: loc,
+        action: () => downloadCollectionExcel(period, reportType, loc)
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    addMessage('Could not load branch list.', 'bot');
+  }
+}
+async function processMessage(text) {
+  // alert('processMessage called with: ' + text);
+  const q = text.toLowerCase();
+  // Was 4 rigid exact phrases ("download pdf", "generate pdf", ...) which
+  // missed anything phrased naturally, like "download a report pdf about
+  // X" — "download" and "pdf" are both there, just not adjacent, so it
+  // fell through to the LLM instead of triggering the PDF export. Now
+  // matches "pdf" plus any reasonable action word, in any order/spacing.
+  const mentionsPdf = q.includes('pdf');
+  const hasActionWord = ['download', 'generate', 'export', 'give me', 'create', 'make', 'report'].some(w => q.includes(w));
+
+  if (q === '/limit') {
+    try {
+            const res = await fetch(API_URL.replace('/ask', '/usage-status'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode || '' }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addMessage(data.error, 'bot');
+      } else {
+        addMessage(
+          `⏱️ **Token Usage** (${data.institution_code})\n\n` +
+          `**${data.used.toLocaleString()}** / **${data.limit.toLocaleString()}** tokens used this ${data.period_type} (**${data.pct}%**)\n\n` +
+          `Remaining: **${data.remaining.toLocaleString()}**`,
+          'bot'
+        );
+      }
+    } catch (err) {
+      addMessage('Could not fetch usage status.', 'bot');
+    }
+    return;
+  }
+
+
+  if (mentionsPdf && hasActionWord) {
+    // If the request names a specific patient (UHID pattern, e.g.
+    // KDX26929648), fetch a REAL fresh report for that one patient
+    // instead of just re-wrapping whatever the last chat answer said.
+    // This is what makes it a "Smart Report" rather than a generic
+    // PDF-ification of old text — a targeted database lookup, not a
+    // re-hash of a previous unrelated answer (e.g. a 5-patient list).
+    const uhidMatch = text.match(/\b([A-Z]{1,6}\d{3,})\b/i);
+    if (uhidMatch) {
+      await downloadPatientReport(uhidMatch[1]);
+      return;
+    }
+
+    // pzNameMatch: "report for John Doe" -> fresh lookup by NAME, never the previous patient's answer
+    const pzNameMatch = text.match(/\b(?:for|of|patient)\s+(?:patient\s+|mr\.?\s+|mrs\.?\s+|ms\.?\s+)?([A-Za-z][A-Za-z .'-]{2,60}?)\s*(?:'s)?\s*(?:smart\s+)?(?:report|pdf)?\s*[.?!]*$/i);
+    const pzName = pzNameMatch && pzNameMatch[1].trim();
+    if (pzName && !/^(this|that|it|him|her|them|the|last|previous|above|today|yesterday|me|us|all|smart|report|pdf)\b/i.test(pzName)) {
+      await downloadPatientReport(pzName);
+      return;
+    }
+
+    if (!state.lastAnswer) {
+      addMessage('Please ask a data question first, then request the PDF.', 'bot');
+      return;
+    }
+    await downloadPdf(state.lastAnswer);
+    return;
+}
+  // ===== EXCEL =====
+  if (
+    (q.includes('excel') || q.includes('xlsx')) &&
+    (q.includes('export') || q.includes('download') || q.includes('generate') || q.includes('excel'))
+  ) {
+    let period = 'today';
+    if (q.includes('yesterday')) period = 'yesterday';
+    else if (q.includes('last month')) period = 'last_month';
+    else if (q.includes('this month')) period = 'this_month';
+    else if (q.includes('this week')) period = 'this_week';
+
+    let reportType = 'collection';
+    if (q.includes('top test')) reportType = 'top_tests';
+    else if (q.includes('refund')) reportType = 'refunds';
+    else if (q.includes('registration') || q.includes('register')) reportType = 'registrations';
+
+    await downloadExcel(period, reportType);
+    return;
+  }
+
+
+  // ===== EXIT PREMIUM =====
+  if (q === 'exit' || q.includes('exit premium') || q.includes('logout') || q.includes('switch to normal')) {
+    state.athentechMode = false;
+    if (state.activationCode) {
+      fetch(API_URL.replace('/ask', '/release-device'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode })
+      }).catch(() => {});
+    }
+    state.mode = 'normal';
+    document.getElementById('excelBtn').style.display = 'none';
+    state.activationCode = null;
+    state.role = null;
+    state.hospitalName = null;
+    state.history = [];
+
+    statusEl.textContent = 'General Mode';
+    modeBadge.textContent = 'Normal';
+    modeBadge.classList.remove('premium');
+
+    addMessage(`You have exited Premium mode.\nNow in **Normal Mode**.`, 'bot');
+
+   showSuggestions([
+    { label: 'Enter Activation Code', send: 'Enter activation code' },
+    { label: 'About AthenTech', send: 'athentech mode' }
+  ]);
+    return;
+  }
+
+
+  // User wants to enter code
+  if (q.includes('enter activation code') || q.includes('activation code')) {
+    state.waitingForCode = true;
+    addMessage(`Please type your activation code.`, 'bot');
+    showSuggestions([]);
+    return;
+  }
+
+  // Waiting for code
+  if (state.waitingForCode) {
+        if (q === 'cancel') {
+      state.waitingForCode = false;
+      addMessage('Cancelled.', 'bot');
+      showSuggestions([
+        { label: 'Enter Activation Code', send: 'Enter activation code' },
+        { label: 'Continue in Normal Mode', send: 'hi' }
+      ]);
+      return;
+    }
+    statusEl.textContent = 'Validating code...';
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: "validate",
+          activation_code: text,
+          chat_history: [],
+          device_fingerprint: DEVICE_FINGERPRINT
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success' && data.mode === 'otp_required') {
+        state.pendingActivationCode = text.toUpperCase();
+        state.otpMethod = data.otp_method || 'email';
+        state.waitingForCode = false;
+        state.waitingForOtp = true;
+
+        if (data.totp_first_setup && data.qr_code) {
+          addMessage(data.answer, 'bot');
+          const chatEl = document.getElementById('chat');
+          const imgDiv = document.createElement('div');
+          imgDiv.style.textAlign = 'center';
+          imgDiv.style.margin = '10px 0';
+          imgDiv.innerHTML = `<img src="${data.qr_code}" style="max-width:200px; border:1px solid #e2e8f0; border-radius:8px;" />`;
+          chatEl.appendChild(imgDiv);
+          chatEl.scrollTop = chatEl.scrollHeight;
+        } else {
+          addMessage(data.answer, 'bot');
+        }
+
+        showSuggestions([]);
+        return;
+      }
+
+      if (data.status === 'success' && data.mode === 'premium') {
+        state.mode = 'premium';
+        document.getElementById('excelBtn').style.display = 'inline-block';
+        state.activationCode = text.toUpperCase();   // ← MUST save the code
+        state.role = data.role;
+        state.institutionType = data.institution_type || 'diagnostic';
+        // alert('institutionType: ' + state.institutionType);
+        state.hospitalName = data.hospital_name || data.hospitalName || null;
+        state.waitingForCode = false;        
+        statusEl.textContent = `Premium • ${data.role}`;
+        modeBadge.textContent = 'Premium';
+        modeBadge.classList.add('premium');
+
+        addMessage(
+          `✅ **Premium activated**\n\nHospital: **${data.hospital_name || 'Unknown'}**\nRole: **${data.role.toUpperCase()}**\nPlan: **${data.plan || 'Standard'}**\nYou now have access to hospital live data.`,
+          'bot'
+        );
+
+        showSuggestions(getRoleSuggestions());
+      }else {
+       // state.waitingForCode = false;
+        addMessage(data.answer || `❌ Invalid or expired activation code. Try again, or type "cancel" to stop.`, 'bot');
+        showSuggestions([
+          { label: 'Enter Activation Code', send: 'Enter activation code' },
+          { label: 'Continue in Normal Mode', send: 'hi' }
+        ]);
+      }
+    } catch (err) {
+      addMessage('Could not validate the code. Please try again.', 'bot');
+    }
+    return;
+  }
+
+  if (state.waitingForOtp) {
+    statusEl.textContent = 'Verifying code...';
+    try {
+      const response = await fetch(API_URL.replace('/ask', '/verify-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activation_code: state.pendingActivationCode,
+          otp: text
+        })
+      });
+      const data = await response.json();
+
+      if (data.status === 'success' && data.mode === 'premium') {
+        state.mode = 'premium';
+        document.getElementById('excelBtn').style.display = 'inline-block';
+        state.activationCode = state.pendingActivationCode;
+        state.role = data.role;
+        state.institutionType = data.institution_type || 'diagnostic';
+        state.hospitalName = data.hospital_name || null;
+        state.waitingForOtp = false;
+        statusEl.textContent = `Premium • ${data.role}`;
+        modeBadge.textContent = 'Premium';
+        modeBadge.classList.add('premium');
+
+        addMessage(
+          `✅ **Premium activated**\n\nHospital: **${data.hospital_name || 'Unknown'}**\nRole: **${data.role.toUpperCase()}**\nPlan: **${data.plan || 'Standard'}**\nYou now have access to hospital live data.`,
+          'bot'
+        );
+
+        if (state.institutionType === 'hospital') {
+          showSuggestions([
+            { label: 'Bed occupancy', send: 'how many beds are occupied right now' },
+            { label: 'Currently admitted', send: 'who is admitted currently' },
+          ]);
+        } else {
+          showSuggestions([
+            { label: 'Show all patients', send: 'Show me all patients' },
+            { label: "Today's collection", send: "Today's collection data" }
+          ]);
+        }
+      } else {
+        addMessage(data.answer || 'Incorrect code. Try again.', 'bot');
+      }
+    } catch (err) {
+      addMessage('Could not verify the code. Please try again.', 'bot');
+    }
+    return;
+  }
+
+  // AthenTech-Mode
+  if (state.athentechMode) {
+    if (q === 'exit') {
+      state.athentechMode = false;
+      addMessage('Exited AthenTech Info mode.', 'bot');
+      showSuggestions([
+        { label: 'Enter Activation Code', send: 'Enter activation code' },
+        { label: 'About AthenTech', send: 'athentech mode' }
+      ]);
+      return;
+    }
+
+    const typingEl = document.createElement('div');
+    typingEl.className = 'message bot typing-indicator';
+    typingEl.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+    chatEl.appendChild(typingEl);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    try {
+      const response = await fetch(API_URL.replace('/ask', '/athentech-info'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text }),
+      });
+      const data = await response.json();
+      typingEl.remove();
+      addMessage(data.answer, 'bot');
+    } catch (err) {
+      typingEl.remove();
+      addMessage('Could not reach the server.', 'bot');
+    }
+    return;
+  }
+
+  if (q === 'athentech mode' || q.includes('about athentech')) {
+    state.athentechMode = true;
+    addMessage("You're now in AthenTech Info mode. Ask me anything about AthenTech the company — type 'exit' to leave.", 'bot');
+    showSuggestions([]);
+    return;
+  }
+// normal-mode
+  if (q === 'hi' || q.includes('continue without')) {
+    state.waitingForCode = false;
+    addMessage(`Continuing in Normal Mode.`, 'bot');
+  showSuggestions([
+    { label: 'Enter Activation Code', send: 'Enter activation code' },
+    { label: 'About AthenTech', send: 'athentech mode' }
+  ]);
+    return;
+  }
+
+    if (q.includes('talk to human') || q.includes('speak to someone') || q.includes('escalate') || q.includes('call support')) {
+    const phone = widgetConfig.escalate_phone;
+    const msg = widgetConfig.escalate_message || 'For urgent matters, please contact us directly.';
+    addMessage(phone ? `${msg}\n\n📞 **${phone}**` : msg, 'bot');
+    return;
+  }
+  // Call backend
+  await callBackend(text);
+}
+
+async function callBackend(question) {
+  statusEl.textContent = 'Thinking...';
+  state.history.push({ role: 'user', content: question });
+  const maxHistory = widgetConfig.max_history || 50;
+  if (state.history.length > maxHistory) {
+    state.history = state.history.slice(-maxHistory);
+  }
+
+  const typingEl = document.createElement('div');
+  typingEl.className = 'message bot typing-indicator';
+  typingEl.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  chatEl.appendChild(typingEl);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: question,
+        activation_code: state.activationCode,
+        chat_history: state.history,
+        device_fingerprint: DEVICE_FINGERPRINT
+      })
+    });
+
+    const data = await response.json();
+    console.log("Backend response:", data);
+
+    typingEl.remove();
+    resetIdleNudge();
+    if (data.usage_warning) {
+      document.getElementById('usageBannerText').textContent = data.usage_warning;
+      document.getElementById('usageBanner').style.display = 'flex';
+    }
+    if (data.status === 'success') {
+      addMessage(data.answer, 'bot');
+      attachConfidence(data.confidence);
+      attachAnswerActions(data);
+      state.history.push({ role: 'assistant', content: data.answer });
+      state.lastAnswer = data.answer;
+      saveSession();
+
+      if (state.mode === 'premium') {
+        if (Array.isArray(data.suggestions) && data.suggestions.length) {
+          showSuggestions(data.suggestions.map(s =>
+            typeof s === 'string' ? { label: s, send: s } : s
+          ));
+        } else {
+          showSuggestions(getRoleSuggestions());
+        }
+      } else {
+        showSuggestions([
+          { label: 'Enter Activation Code', send: 'Enter activation code' },
+          { label: 'About AthenTech', send: 'athentech mode' }
+        ]);
+      }
+    } else {
+      addMessage(data.answer || 'Something went wrong.', 'bot');
+    }
+
+  } catch (error) {
+    typingEl.remove();
+    addMessage('Could not connect to the AI server.', 'bot');
+    console.error(error);
+  }
+
+  if (state.mode === 'premium') {
+    statusEl.textContent = `Premium • ${state.role}`;
+  } else {
+    statusEl.textContent = 'General Mode';
+  }
+}
+// ===== SESSION PERSISTENCE =====
+function saveSession() {
+  localStorage.setItem('sahasra_session', JSON.stringify({
+    mode: state.mode,
+    activationCode: state.activationCode,
+    role: state.role,
+    hospitalName: state.hospitalName || null,
+    history: state.history
+  }));
+}
+async function downloadPdf(answerText) {
+  addMessage('Generating PDF report...', 'bot');
+
+  const lines = answerText
+    .split('\n')
+    .map(l => l.replace(/<[^>]*>/g, '').trim())
+    .filter(l => l.length > 0);
+
+  try {
+      const response = await fetch(API_URL.replace('/ask', '/generate-pdf'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Sahasra AI Report',
+        hospital_name: state.hospitalName || 'Hospital',
+        role: state.role || 'Staff',
+        activation_code: state.activationCode || '',
+        content_lines: lines
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      addMessage(err.detail || 'Failed to generate PDF.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sahasra_report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ PDF downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download PDF. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+async function downloadPatientReport(patientIdentifier) {
+  addMessage(`Generating Smart Report for ${patientIdentifier}...`, 'bot');
+
+  try {
+      const response = await fetch(API_URL.replace('/ask', '/generate-patient-report'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_identifier: patientIdentifier,
+        activation_code: state.activationCode || ''
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      if (err.code === 'report_failed_retryable') {
+        const m = addMessage((err.detail || "I couldn't build this report.") + '\n\nWant me to try again?', 'bot');
+        if (m) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = 'Try again';
+          b.style.cssText = 'display:block;margin-top:10px;padding:8px 16px;border-radius:999px;border:1px solid var(--w-accent,#6a5cf6);background:var(--w-accent-soft,rgba(106,92,246,.15));color:var(--w-accent-ink,#4a3dd1);font:600 13px inherit;cursor:pointer';
+          b.onclick = () => { b.disabled = true; b.remove(); downloadPatientReport(patientIdentifier); };
+          m.appendChild(b);
+        }
+        return;
+      }
+      addMessage(err.detail || 'Failed to generate the patient report.', 'bot');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patient_report_${patientIdentifier}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    addMessage('✅ Patient report downloaded successfully.', 'bot');
+  } catch (err) {
+    addMessage('Could not download the patient report. Please try again.', 'bot');
+    console.error(err);
+  }
+}
+
+function loadSession() {
+  const raw = localStorage.getItem('sahasra_session');
+  if (!raw) return false;
+
+  try {
+    const saved = JSON.parse(raw);
+    state.mode = saved.mode || 'normal';
+    state.activationCode = saved.activationCode || null;
+    state.role = saved.role || null;
+    state.hospitalName = saved.hospitalName || null;
+    state.history = saved.history || [];
+
+    if (state.mode === 'premium') {
+      statusEl.textContent = `Premium • ${state.role}${state.hospitalName ? ' • ' + state.hospitalName : ''}`;
+      modeBadge.textContent = 'Premium';
+      modeBadge.classList.add('premium');
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem('sahasra_session');
+}
+
+/* ============================================================================
+   WHITE-LABEL LAYER — does nothing unless the URL has ?label=white&client=...
+   (the loader / admin "Generate Embed URL" produce that URL).
+   Modes:  b2c   public chat, no code, no database
+           b2b   corporate mobile verification; organization-scoped reports (no activation code)
+           admin same activation-code flow as Premium today; no PDF unless the client was granted it
+   ========================================================================== */
+const WL_API = API_URL.replace(/\/ask$/, '');
+
+const WL = (function () {
+  const p = new URLSearchParams(location.search);
+  const ok = (v, re) => (v && re.test(v)) ? v : '';
+  const langs = (p.get('langs') || '').split(',').map(x => x.trim().toLowerCase()).filter(x => /^[a-z]{2,3}$/.test(x));
+  const lang = ok((p.get('lang') || '').toLowerCase(), /^[a-z]{2,3}$/) || langs[0] || 'en';
+  return {
+    isWhite: p.get('label') === 'white',
+    client: ok(p.get('client'), /^[A-Za-z0-9_-]{1,50}$/),
+    mode: ok((p.get('mode') || '').toLowerCase(), /^(b2c|b2b|admin)$/),
+    lang: lang, langs: langs.length > 1 ? langs : [lang],
+    embedder: p.get('embedder') || '', cfg: null, activeMode: '', locked: false, brand: ''
+  };
+})();
+
+// UI labels translated for Hindi + Telugu only; every other language falls back to English labels
+// (the AI's replies are in the chosen language regardless). Have a native speaker review.
+const WL_I18N = {
+  en: { placeholder: 'Ask anything...', enterCode: 'Enter Activation Code', needCode: 'Please enter your activation code to continue.',
+        language: 'Language', unavailable: 'This chatbot is not available.', wrongSite: 'This chatbot is not enabled for this website.',
+        noPdf: 'PDF reports are not available in this chat.', error: 'Something went wrong. Please try again.',
+        invalid: 'This chatbot link is not valid.', b2bDefault: 'Business customer access requires your registered mobile number and a verification code.',
+        b2cTail: 'Ask me about our services, timings and general health information.', notThis: 'I can only help with this chat\'s services.' },
+  hi: { placeholder: 'कुछ भी पूछें...', enterCode: 'एक्टिवेशन कोड दर्ज करें', needCode: 'जारी रखने के लिए कृपया अपना एक्टिवेशन कोड दर्ज करें।', language: 'भाषा' },
+  te: { placeholder: 'ఏదైనా అడగండి...', enterCode: 'యాక్టివేషన్ కోడ్ నమోదు చేయండి', needCode: 'కొనసాగించడానికి దయచేసి మీ యాక్టివేషన్ కోడ్ నమోదు చేయండి.', language: 'భాష' }
+};
+function wlT(key) { return (WL_I18N[WL.lang] && WL_I18N[WL.lang][key]) || WL_I18N.en[key]; }
+
+function wlShade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + pct))));
+  return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function wlReveal() { document.body.style.visibility = ''; }
+function wlLock(message) {
+  WL.locked = true; chatEl.innerHTML = ''; addMessage(message, 'bot');
+  input.disabled = true; suggestionsEl.innerHTML = ''; wlReveal();
+}
+function wlEmbedderOrigin() {
+  if (WL.embedder) return WL.embedder;
+  try { if (location.ancestorOrigins && location.ancestorOrigins.length) return location.ancestorOrigins[0]; } catch (e) {}
+  try { return new URL(document.referrer).origin; } catch (e) { return ''; }
+}
+
+// Branded, low-clutter action cards; requests still go through the existing authenticated router.
+function wlQuickAction(label, detail, send, primary = false, action = null) {
+  const btn = document.createElement('button'); btn.type='button';
+  btn.className='wl-action' + (primary ? ' primary' : '');
+  const text = document.createElement('span'); text.textContent=label; btn.appendChild(text);
+  if (detail) { const small=document.createElement('small'); small.textContent=detail; btn.appendChild(small); }
+  btn.addEventListener('click', () => { if (action) action(); else { input.value=send; handleSend(); } });
+  return btn;
+}
+function wlQuickRender() {
+  if (!WL.isWhite || !WL.activeMode) return;
+  const panel=document.getElementById('wlQuick'), actions=document.getElementById('wlQuickActions');
+  const title=document.getElementById('wlQuickTitle'), badge=document.getElementById('wlQuickState');
+  const help=document.getElementById('wlQuickHelp'); if (!panel || !actions) return;
+  panel.classList.add('visible'); actions.replaceChildren();
+  if (WL.activeMode === 'b2c') {
+    title.textContent='Explore our services'; badge.textContent='Guest access'; badge.classList.remove('verified');
+    [['Our services','Tests and facilities','What diagnostic services do you offer?'],
+     ['Timings & location','Plan your visit','What are your opening hours and location?'],
+     ['Preparing for tests','Before your appointment','How should I prepare for a blood test?'],
+     ['Contact & support','Get assistance','How can I contact your laboratory?']]
+     .forEach(([a,b,q])=>actions.appendChild(wlQuickAction(a,b,q)));
+    help.textContent='General information only. Personal reports and patient details require an authorized access flow.';
+  } else if (WL.activeMode === 'b2b') {
+    const step=WL.b2bStep||'phone', ready=step==='ready' && !!WL.b2bToken;
+    title.textContent=ready?'Business self-service':'Secure business access';
+    badge.textContent=ready?'✓ Verified organization':step==='otp'?'Code requested':'Verification required';
+    badge.classList.toggle('verified',ready);
+    if (!ready) {
+      if (step==='phone') {
+        actions.appendChild(wlQuickAction('Enter your mobile','Use your registered number','',true,()=>{input.focus();}));
+        actions.appendChild(wlQuickAction('How it works','Mobile → code → reports','',false,()=>addMessage('Enter your registered corporate mobile number. After verification, you can view business invoices and download authorized reports.','bot')));
+        help.textContent='Your account is matched to an administrator-approved organization. No reports are accessible before verification.';
+      } else {
+        actions.appendChild(wlQuickAction('Enter verification code','Enter the code you received','',true,()=>input.focus()));
+        actions.appendChild(wlQuickAction('Resend code','Request another code','Resend code'));
+        actions.appendChild(wlQuickAction('Change mobile number','Go back','Change number'));
+        help.textContent='Never share your verification code. A code is delivered only if the number is registered and the OTP provider is configured.';
+      }
+    } else {
+      [['Business overview','Invoice counts & billed value','Business overview'],
+       ['Invoice statuses','Your organization only','Invoice statuses'],
+       ['Export Excel','Download invoice statement','Download Excel'],
+       ['Patient report PDF','Enter approved bill number','',false,()=>{input.value='Report PDF ';input.focus();}]]
+       .forEach(([a,b,q,pr,fn])=>actions.appendChild(wlQuickAction(a,b,q,pr||false,fn||null)));
+      const select=document.createElement('select'); select.className='wl-mini-select'; select.setAttribute('aria-label','Reporting period');
+      [['today','Today'],['yesterday','Yesterday'],['last_7_days','Last 7 days'],['this_month','This month'],['last_month','Last month']]
+        .forEach(([value,label])=>{const opt=document.createElement('option');opt.value=value;opt.textContent=label;select.appendChild(opt);});
+      select.value=WL.b2bPeriod||'this_month';
+      select.addEventListener('change',()=>{WL.b2bPeriod=select.value;addMessage('Reporting period: **'+select.options[select.selectedIndex].textContent+'**.','bot');});
+      actions.appendChild(select);
+      actions.appendChild(wlQuickAction('Sign out','End this business session','Sign out'));
+      help.textContent='Billed value is not collected cash. Patient PDFs require an approved export and organization-level authorization.';
+    }
+  } else { panel.classList.remove('visible'); }
+}
+
+// B2B never reuses the institution activation code or general /ask endpoint.
+// Its session is kept in memory only; reloading the widget requires phone verification again.
+function wlB2BMenu() {
+  // Permanent action panel replaces repeated suggestion chips.
+  wlQuickRender();
+}
+
+async function wlB2BCall(path, opts = {}) {
+  const url = WL_API + '/public/b2b/' + path;
+  const headers = { 'Content-Type': 'application/json' };
+  if (WL.b2bToken) headers.Authorization = 'Bearer ' + WL.b2bToken;
+  const res = await fetch(url, { ...opts, headers: { ...headers, ...(opts.headers || {}) }, cache: 'no-store' });
+  if (!res.ok) {
+    let msg = 'Request could not be completed. Try again.';
+    try { const d = await res.json(); msg = d.detail || d.message || msg; } catch (_) {}
+    if (res.status === 401) { WL.b2bToken = null; WL.b2bStep = 'phone'; wlQuickRender(); }
+    throw new Error(typeof msg === 'string' ? msg : 'B2B request failed');
+  }
+  return res;
+}
+
+async function wlB2BDownload() {
+  if (!WL.b2bToken) { addMessage('Please verify your registered phone number first.', 'bot'); return; }
+  statusEl.textContent = 'Preparing Excel…';
+  try {
+    const q = '?client=' + encodeURIComponent(WL.client) + '&period=' + encodeURIComponent(WL.b2bPeriod || 'this_month');
+    const res = await wlB2BCall('download-excel' + q);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'b2b_invoices_' + (WL.b2bPeriod || 'this_month') + '.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    addMessage('Excel report downloaded. Only your organisation’s invoices are included.', 'bot');
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = 'B2B verified'; wlB2BMenu(); }
+}
+
+async function wlB2BPatientPDF(bill) {
+  if (!/^[A-Za-z0-9_-]{1,60}$/.test(bill)) {
+    addMessage('Enter a valid invoice number: Report PDF BILLNUMBER', 'bot'); return;
+  }
+  statusEl.textContent = 'Checking report access…';
+  try {
+    const res = await wlB2BCall('patient-report/' + encodeURIComponent(bill) + '?client=' + encodeURIComponent(WL.client));
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'patient_report_' + bill + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    addMessage('Approved patient PDF downloaded for invoice **' + bill + '**.', 'bot');
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = 'B2B verified'; wlB2BMenu(); }
+}
+
+async function wlB2BChat(message) {
+  statusEl.textContent = 'Checking your organisation’s records…';
+  try {
+    const res = await wlB2BCall('chat', { method: 'POST', body: JSON.stringify({
+      client: WL.client, period: WL.b2bPeriod || 'this_month', message
+    }) });
+    const d = await res.json();
+    if (d.action === 'download_excel') return wlB2BDownload();
+    if (d.intent === 'bills') {
+      const lines = (d.bills || []).slice(0, 12).map(b => '- ' + b.bill_no + ' · ' + b.bill_date.slice(0, 10) + ' · ₹' + Number(b.billed_amount || 0).toLocaleString('en-IN') + ' · ' + b.status);
+      addMessage(d.answer + '\n\n' + (lines.join('\n') || 'No invoices in this period.') + (d.has_more ? '\n\nDownload Excel to see more.' : ''), 'bot');
+    } else {
+      let response = d.answer || 'No data available.';
+      if (d.intent === 'overview' && d.summary) {
+        const stats = (d.summary.invoice_statuses || []).slice(0, 10).map(x => '- ' + x.status + ': ' + x.bills).join('\n');
+        if (stats) response += '\n\n**Invoice statuses**\n' + stats;
+      }
+      addMessage(response, 'bot');
+    }
+    wlB2BMenu();
+  } catch (e) { addMessage(e.message, 'bot'); }
+  finally { statusEl.textContent = WL.b2bToken ? 'B2B verified' : 'B2B sign-in'; }
+}
+
+async function wlB2BMessage(text) {
+  const q = String(text || '').trim();
+  if (!q) return;
+  const low = q.toLowerCase();
+  if (WL.b2bStep === 'phone') {
+    if (!/^(\+?[\d\s().-]{8,25})$/.test(q)) {
+      addMessage('Enter your registered mobile number (for example, +919876543210).', 'bot'); return;
+    }
+    WL.b2bPhone = q;
+    statusEl.textContent = 'Requesting verification…';
+    try {
+      const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: q }) });
+      const d = await res.json();
+      WL.b2bStep = 'otp'; wlQuickRender();
+      addMessage((d.message || 'If registered, a verification code has been requested.') + '\n\nEnter your verification code.', 'bot');
+      input.placeholder = 'Enter verification code';
+      showSuggestions([{ label: 'Resend code', send: 'Resend code' }, { label: 'Change number', send: 'Change number' }]);
+    } catch (e) { addMessage(e.message, 'bot'); }
+    finally { statusEl.textContent = 'B2B verification'; }
+    return;
+  }
+  if (WL.b2bStep === 'otp') {
+    if (low === 'change number') { WL.b2bStep = 'phone'; WL.b2bPhone = ''; input.placeholder = 'Enter registered mobile number'; wlQuickRender(); addMessage('Enter your registered mobile number.', 'bot'); return; }
+    if (low === 'resend code') {
+      try {
+        const res = await wlB2BCall('request-otp', { method: 'POST', body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone }) });
+        addMessage((await res.json()).message || 'Code requested.', 'bot');
+      } catch (e) { addMessage(e.message, 'bot'); }
+      return;
+    }
+    if (!/^\d{4,10}$/.test(q)) { addMessage('Enter the numeric verification code.', 'bot'); return; }
+    statusEl.textContent = 'Verifying…';
+    try {
+      const res = await wlB2BCall('verify-otp', { method: 'POST',
+        body: JSON.stringify({ client: WL.client, phone: WL.b2bPhone, code: q }) });
+      const d = await res.json();
+      WL.b2bToken = d.access_token; WL.b2bStep = 'ready'; WL.b2bPeriod = 'this_month';
+      WL.b2bPhone = ''; wlQuickRender();
+      input.placeholder = 'Business overview, statuses, reports…';
+      addMessage('Verified! Welcome ' + (d.contact_name || '') + '.\n\nOrganisation: **' + (d.organisation || 'Business customer') + '**.\nAccess expires after 8 hours. Choose a report below.', 'bot');
+      wlB2BMenu();
+    } catch (e) { addMessage(e.message, 'bot'); }
+    finally { statusEl.textContent = WL.b2bToken ? 'B2B verified' : 'B2B verification'; }
+    return;
+  }
+  if (low === 'sign out' || low === 'logout' || low === 'exit') {
+    try { await wlB2BCall('logout?client=' + encodeURIComponent(WL.client), { method: 'POST' }); } catch (_) {}
+    WL.b2bToken = null; WL.b2bStep = 'phone'; WL.b2bPeriod = 'this_month';
+    statusEl.textContent = 'B2B sign-in'; input.placeholder = 'Registered mobile number'; wlQuickRender();
+    addMessage('Signed out. Enter your registered mobile number to sign in again.', 'bot'); return;
+  }
+  if (low === 'change period') {
+    addMessage('Choose a reporting period: **today**, **yesterday**, **last_7_days**, **this_month**, **last_month**, a day **YYYY-MM-DD**, or a month **YYYY-MM**.', 'bot');
+    return;
+  }
+  if (/^(today|yesterday|last_7_days|this_month|last_month|20\d{2}-\d{2}(?:-\d{2})?)$/.test(low)) {
+    WL.b2bPeriod = low; addMessage('Reporting period set to **' + low + '**.', 'bot'); wlB2BMenu(); return;
+  }
+  const patientPdf = q.match(/^(?:download\s+)?(?:report\s+pdf|patient\s+pdf|patient\s+report)(?:\s+(?:for\s+)?(?:bill\s*#?\s*)?)?([A-Za-z0-9_-]{1,60})$/i);
+  if (patientPdf && patientPdf[1].toUpperCase() !== 'BILLNUMBER') return wlB2BPatientPDF(patientPdf[1]);
+  return wlB2BChat(q);
+}
+
+(function installWhiteLabel() {
+  if (!WL.isWhite) return;
+  document.body.style.visibility = 'hidden';            // no Athentech flash while the client's brand loads
+
+  // 1) tell the backend which client this chat belongs to (activation-code ownership + PDF rule are checked there)
+  const baseFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    try {
+      if (typeof url === 'string' && url.indexOf(WL_API) === 0 && opts && typeof opts.body === 'string'
+          && /\/(ask|generate-patient-report|generate-pdf)$/.test(new URL(url).pathname)) {
+        const body = JSON.parse(opts.body); body.client = WL.client;
+        opts = Object.assign({}, opts, { body: JSON.stringify(body) });
+      }
+    } catch (e) {}
+    return baseFetch(url, opts);
+  };
+
+  // 2) no Athentech buttons, no "continue in normal mode" (white label has no general-knowledge chat)
+  const baseSuggest = showSuggestions;
+  showSuggestions = function (list) {
+    const kept = (list || []).filter(s => s.send !== 'athentech mode' && s.send !== 'hi')
+      .map(s => s.send === 'Enter activation code' ? Object.assign({}, s, { label: wlT('enterCode') }) : s);
+    return baseSuggest(kept);
+  };
+
+  // 3) route every message by mode
+  const baseProcess = processMessage;
+  processMessage = async function (text) {
+    const q = text.toLowerCase().trim();
+    if (WL.locked) return;
+    if (q.indexOf('athentech') >= 0 && /(mode|about|info)/.test(q)) { addMessage(wlT('notThis'), 'bot'); return; }
+    if (WL.activeMode === 'b2c') return wlAskB2C(text);
+    if (WL.activeMode === 'b2b') return wlB2BMessage(text);
+
+    const inFlow = state.mode === 'premium' || state.waitingForCode || state.waitingForOtp ||
+                   q.indexOf('activation code') >= 0 || q === 'cancel';
+    if (!inFlow) {
+      addMessage(WL.activeMode === 'b2b' ? (WL.cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'), 'bot');
+      showSuggestions([{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+      return;
+    }
+    if (q.indexOf('pdf') >= 0 && !(WL.cfg.features && WL.cfg.features.smart_report)) { addMessage(wlT('noPdf'), 'bot'); return; }
+    return baseProcess(text);
+  };
+})();
+
+async function wlAskB2C(text) {
+  statusEl.textContent = 'Thinking...';
+  state.history.push({ role: 'user', content: text });
+  const typing = document.createElement('div');
+  typing.className = 'message bot typing-indicator';
+  typing.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  chatEl.appendChild(typing); chatEl.scrollTop = chatEl.scrollHeight;
+  try {
+    const res = await fetch(WL_API + '/public/whitelabel-ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client: WL.client, question: text, lang: WL.lang, chat_history: state.history.slice(-7, -1) })
+    });
+    if (!res.ok) throw new Error('B2C request failed');
+    const d = await res.json();
+    typing.remove();
+    const answer = d.answer || wlT('error');
+    addMessage(answer, 'bot');
+    if (d.status === 'success') state.history.push({ role: 'assistant', content: answer });
+  } catch (err) {
+    typing.remove(); addMessage(wlT('error'), 'bot');
+  } finally {
+    statusEl.textContent = 'Online';
+  }
+}
+
+async function wlStart() {
+  if (!WL.client) { wlLock(wlT('invalid')); return; }
+  let cfg;
+  try {
+    const r = await fetch(WL_API + '/public/whitelabel-config?client=' + encodeURIComponent(WL.client));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cfg = await r.json();
+  } catch (e) { wlLock(wlT('unavailable')); return; }
+  WL.cfg = cfg;
+
+  // soft check: is this page the website the admin said the chatbot is for?
+  const emb = wlEmbedderOrigin();
+  if (cfg.site_url && emb && emb !== cfg.site_url && emb !== location.origin) { wlLock(wlT('wrongSite')); return; }
+
+  // mode: the one asked for in the embed if the client has it on, else the client's default
+  const on = cfg.modes || {};
+  let mode = (WL.mode && on[WL.mode]) ? WL.mode : (on[cfg.default_mode] ? cfg.default_mode : ['b2c', 'b2b', 'admin'].find(m => on[m]));
+  if (!mode) { wlLock(wlT('unavailable')); return; }
+  WL.activeMode = mode;
+
+  // Athentech's generic settings (timeouts, escalation...) first, then the client's brand on top
+  await loadWidgetConfig();
+  const b = cfg.brand || {};
+  WL.brand = String(b.name || '').replace(/[<>]/g, '');
+  const primary = /^#[0-9a-fA-F]{6}$/.test(b.primary_color || '') ? b.primary_color : '#334155';
+  widgetConfig = Object.assign({}, widgetConfig, {
+    title: WL.brand, primary_color: primary, secondary_color: wlShade(primary, -0.3),
+    icon_url: b.logo_url || '', footer_text: '\u00A0'
+  });
+  applyWidgetConfig();
+  document.title = WL.brand || document.title;
+
+  chatEl.innerHTML = '';
+  state = { mode: 'normal', activationCode: null, role: null, waitingForCode: false, history: [] };
+  input.placeholder = wlT('placeholder');
+  statusEl.textContent = 'Online';
+  modeBadge.textContent = { b2c: 'Chat', b2b: 'B2B', admin: 'Admin' }[mode];
+  modeBadge.classList.remove('premium');
+
+  if (WL.langs.length > 1) {
+    const names = { en: 'English', hi: 'Hindi', te: 'Telugu', ta: 'Tamil', kn: 'Kannada', ml: 'Malayalam', mr: 'Marathi',
+                    bn: 'Bengali', gu: 'Gujarati', pa: 'Punjabi', ur: 'Urdu', or: 'Odia' };
+    const sel = document.createElement('select');
+    sel.id = 'wlLang'; sel.title = wlT('language'); sel.setAttribute('aria-label', wlT('language'));
+    sel.style.cssText = 'margin-right:8px;border-radius:6px;border:none;padding:3px 4px;font-size:11px;max-width:92px;';
+    WL.langs.forEach(code => { const o = document.createElement('option'); o.value = code; o.textContent = names[code] || code; sel.appendChild(o); });
+    sel.value = WL.lang;
+    sel.onchange = () => { WL.lang = sel.value; input.placeholder = wlT('placeholder'); sel.title = wlT('language'); };
+    modeBadge.parentNode.insertBefore(sel, modeBadge);
+  }
+
+  const hello = (b.welcome_message || '').trim() || `Hello! 👋\n\nI'm the virtual assistant for **${WL.brand || 'us'}**.`;
+  if (mode === 'b2b') { WL.b2bStep = 'phone'; WL.b2bToken = null; WL.b2bPhone = ''; WL.b2bPeriod = 'this_month'; input.placeholder = 'Enter registered mobile number'; statusEl.textContent = 'B2B sign-in'; }
+  const tail = mode === 'b2c' ? wlT('b2cTail') : (mode === 'b2b' ? (cfg.b2b_notice || wlT('b2bDefault')) : wlT('needCode'));
+  setTimeout(() => addMessage(hello + '\n\n' + tail, 'bot'), 100);
+  showSuggestions(mode === 'b2c' || mode === 'b2b' ? [] : [{ label: wlT('enterCode'), send: 'Enter activation code' }]);
+  document.body.classList.add('wl-modern'); document.body.style.setProperty('--wl-primary', primary); wlQuickRender();
+
+  wlReveal();
+  if (window.parent && window.parent !== window) {      // let the loader recolour the floating bubble
+    window.parent.postMessage({ type: 'sahasra-brand', name: WL.brand, primary_color: /^#[0-9a-fA-F]{6}$/.test(b.primary_color || '') ? b.primary_color : '' }, '*');
+  }
+}
+
+window.addEventListener('load', function () { if (WL.isWhite) { wlStart(); } else { start(); } });
+
+</script>
+
+<script src="premium.js?v=1792061513" defer></script>
+</body>
+</html>

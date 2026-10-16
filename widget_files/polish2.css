@@ -1,0 +1,23 @@
+/* polish layer 2 - see polish2.js */
+.sx-stop,.sx-retry,.sx-close{font:600 13px/1 system-ui,sans-serif;border-radius:999px;cursor:pointer;min-height:36px;padding:8px 14px;border:1px solid var(--w-accent,#6a5cf6);background:transparent;color:var(--w-accent,#6a5cf6)}
+.sx-stop{margin-top:8px;display:block}.sx-retry{margin-top:10px;display:inline-block}.sx-retry[disabled]{opacity:.5}
+.sx-close{background:var(--w-accent,#6a5cf6);color:var(--w-on-accent,#fff);margin-top:14px;border-color:transparent}
+.sx-stop:hover,.sx-retry:hover{background:var(--w-accent-soft,rgba(106,92,246,.12))}
+.sx-num{text-align:right!important;font-variant-numeric:tabular-nums}
+.md table tbody tr:nth-child(even){background:rgba(127,127,127,.07)}
+.sx-understood{margin-top:8px;font-size:12px;opacity:.7;font-style:italic}
+.sx-modal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.sx-box{background:var(--w-surface,#fff);color:var(--w-text,#1b1b25);max-width:420px;width:100%;border-radius:18px;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.4);font:14px/1.5 system-ui,sans-serif}
+html[data-theme=dark] .sx-box{background:#171a24;color:#eceef6}
+.sx-box h3{margin:0 0 8px;font-size:17px}.sx-box p{margin:6px 0}
+/* accessibility: visible focus, bigger tap targets, calmer motion */
+:focus-visible{outline:2px solid var(--w-accent,#6a5cf6)!important;outline-offset:2px}
+.suggestions button,.ans-actions button,.msg-actions button{min-height:40px}
+@media (pointer:coarse){.suggestions button{min-height:44px;padding-left:16px;padding-right:16px}.send{min-width:44px;min-height:44px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media (max-width:480px){.container{border-radius:0!important}.message{max-width:92%!important}}
+/* readable panel label + brand initial when a client has no logo */
+.wl-quick-label{color:var(--w-text,#cfd3e6)!important;opacity:1!important;font-weight:700!important}
+html[data-theme=light] .wl-quick-label{color:#1b1b25!important}
+.logo .sx-initial{font:800 18px system-ui,sans-serif;color:var(--w-on-accent,#fff);line-height:1}
+html.pz .logo svg,html.pz .logo .sx-initial{position:relative;z-index:2}
