@@ -1,0 +1,55 @@
+"""One small background thread for everything that has to happen 'by itself':
+  * ops alerts (observability.alerts) - every minute
+  * scheduled reports (reports.scheduled_reports) - every minute, each due report runs in its own worker
+  * optional nightly regression run: set SAHASRA_REGRESSION_NIGHTLY=HH:MM (server local time), e.g. 02:30
+A report is claimed in the database before it runs, so even if the service ever runs more than one worker it is sent once.
+Never raises; a failing job is logged and retried on the next tick."""
+import os
+import threading
+import time
+
+_started = False
+_lock = threading.Lock()
+_last_nightly = {"day": None}
+
+
+def _tick():
+    try:
+        from observability import alerts
+        alerts.evaluate()
+    except Exception as e:
+        print("[scheduler] alerts:", type(e).__name__)
+    try:
+        from reports import scheduled_reports as sr
+        sr.tick()
+    except ImportError:
+        pass
+    except Exception as e:
+        print("[scheduler] reports:", type(e).__name__, e)
+    try:
+        at = os.getenv("SAHASRA_REGRESSION_NIGHTLY", "").strip()
+        if at and time.strftime("%H:%M") == at and _last_nightly["day"] != time.strftime("%Y-%m-%d"):
+            _last_nightly["day"] = time.strftime("%Y-%m-%d")
+            from agent import regression
+            threading.Thread(target=regression.run_all, daemon=True, name="regression-nightly").start()
+    except Exception as e:
+        print("[scheduler] regression:", type(e).__name__)
+
+
+def _loop():
+    time.sleep(20)
+    while True:
+        t0 = time.time()
+        _tick()
+        time.sleep(max(5, 60 - (time.time() - t0)))
+
+
+def start():
+    global _started
+    with _lock:
+        if _started or os.getenv("SAHASRA_SCHEDULER", "1") == "0":
+            return False
+        _started = True
+    threading.Thread(target=_loop, daemon=True, name="sahasra-scheduler").start()
+    print("[startup] scheduler started (alerts, scheduled reports).")
+    return True
