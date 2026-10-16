@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Administrator\Desktop\Athentech-main\venv\Lib\site-packages\uvicorn\__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "C:\Users\Administrator\Desktop\Athentech-main\venv\Lib\site-packages\click\core.py", line 1631, in __call__
+    return self.main(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Administrator\Desktop\Athentech-main\venv\Lib\site-packages\click\core.py", line 1552, in main
+    rv = self.invoke(ctx)
