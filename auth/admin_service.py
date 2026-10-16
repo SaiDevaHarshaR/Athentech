@@ -15,7 +15,8 @@ from database.license_db import get_conn
 
 
 def _hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    from auth.pwhash import hash_password
+    return hash_password(password)
 
 
 def list_admins() -> list:
@@ -32,6 +33,8 @@ def create_admin(username: str, password: str, display_name: str = "") -> dict:
     username = username.strip()
     if not username:
         raise ValueError("Username is required")
+    if ":" in username:
+        raise ValueError("Username cannot contain ':'")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters")
 
@@ -100,11 +103,15 @@ def verify_admin_login(username: str, password: str) -> bool:
         conn.close()
         return False
 
-    expected_hash = row["password_hash"]
-    actual_hash = _hash_password(password)
-    ok = hmac.compare_digest(expected_hash, actual_hash)
+    from auth.pwhash import verify_password, is_legacy
+    ok = verify_password(row["password_hash"], password)
 
     if ok:
+        if is_legacy(row["password_hash"]):    # upgrade old unsalted hash to PBKDF2 on successful login
+            try:
+                conn.execute("UPDATE admins SET password_hash = ? WHERE username = ?", (_hash_password(password), username))
+            except Exception:
+                pass
         conn.execute(
             "UPDATE admins SET last_login_at = ? WHERE username = ?",
             (datetime.utcnow().isoformat(), username)

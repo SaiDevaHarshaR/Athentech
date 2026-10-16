@@ -44,27 +44,45 @@ def _sign(payload: str) -> str:
     ).hexdigest()
 
 
-def create_admin_token(username: str) -> str:
+def create_admin_token(username: str, ttl: int = None) -> str:
     issued_at = str(int(time.time()))
-    payload = f"{username}:{issued_at}"
+    # 'Remember me' sessions carry their own lifetime (capped at 30 days); plain sessions keep the old 8h format.
+    payload = f"{username}:{issued_at}:{min(int(ttl), 3650 * 86400)}" if ttl and int(ttl) != TOKEN_TTL_SECONDS else f"{username}:{issued_at}"
     sig = _sign(payload)
     raw = f"{payload}:{sig}"
     return base64.urlsafe_b64encode(raw.encode()).decode()
 
 
 def verify_admin_token(token: str) -> str:
+    ttl = TOKEN_TTL_SECONDS
     try:
         raw = base64.urlsafe_b64decode(token.encode()).decode()
-        username, issued_at, sig = raw.rsplit(":", 2)
+        parts = raw.split(":")
+        if len(parts) >= 4 and parts[-2].isdigit() and parts[-3].isdigit():
+            username, issued_at, ttl_s, sig = ":".join(parts[:-3]), parts[-3], parts[-2], parts[-1]
+            ttl = min(int(ttl_s), 3650 * 86400)
+            signed = f"{username}:{issued_at}:{ttl_s}"
+        else:
+            username, issued_at, sig = raw.rsplit(":", 2)
+            signed = f"{username}:{issued_at}"
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid admin session")
 
-    expected_sig = _sign(f"{username}:{issued_at}")
+    expected_sig = _sign(signed)
     if not hmac.compare_digest(sig, expected_sig):
         raise HTTPException(status_code=401, detail="Invalid admin session")
 
-    if time.time() - int(issued_at) > TOKEN_TTL_SECONDS:
+    if time.time() - int(issued_at) > ttl:
         raise HTTPException(status_code=401, detail="Admin session expired, please log in again")
+
+    try:   # a password change signs out older sessions
+        from auth.admin_account import token_still_valid
+        if not token_still_valid(username, int(issued_at)):
+            raise HTTPException(status_code=401, detail="Your session has ended - please sign in again")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     return username
 
