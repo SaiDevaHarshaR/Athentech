@@ -1,0 +1,203 @@
+"""Self-checking accuracy bank.
+
+For each client: ask the real agent a fixed set of plain questions, run a reference SQL on the same client database,
+and compare the number in the answer with the number from the database. Read-only. Results: logs/accuracy_bank.json.
+Note: several questions are served by fixed reports, so those checks mainly prove routing, period and rounding are right;
+the reference SQL is written here, separately from the report code.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import threading
+from datetime import date, datetime, timedelta, timezone
+
+_LOCK = threading.Lock()
+STATE = {"running": False, "done": 0, "total": 0, "client": ""}
+_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs", "accuracy_bank.json")
+
+PERIODS = ["today", "yesterday", "this month", "last month"]
+
+# kind -> (question template, reference SQL builder(profile) -> sql with 2 date params)
+BANK = [
+    ("bills", "how many bills {p}", lambda p: "SELECT COUNT(DISTINCT BILLNO) FROM trninvlabpri WHERE BILLDATE >= ? AND BILLDATE < ?"),
+    ("patients", "how many patients registered {p}",
+     lambda p: "SELECT COUNT(*) FROM mstpatientregistration WHERE %s >= ? AND %s < ?" % (p.get("pat_date", "REGDATE"), p.get("pat_date", "REGDATE"))),
+    ("collection", "total collection {p} across all branches", None),   # built with coll_amt below
+    ("authenticated", "how many reports were authenticated {p}",
+     lambda p: "SELECT COUNT(*) FROM trninvstatus WHERE STATUS = 'Authenticated' AND AUTHENTICATEDATE >= ? AND AUTHENTICATEDATE < ?"),
+]
+
+
+def _dates(period):
+    t = date.today()
+    if period == "today":
+        return t, t + timedelta(days=1)
+    if period == "yesterday":
+        return t - timedelta(days=1), t
+    if period == "this month":
+        return t.replace(day=1), t + timedelta(days=1)
+    first = t.replace(day=1)
+    return (first - timedelta(days=1)).replace(day=1), first
+
+
+_NUM = re.compile(r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)\s*(cr|crore|l|lakh|lac|k)?\b", re.I)
+_MULT = {"cr": 1e7, "crore": 1e7, "l": 1e5, "lakh": 1e5, "lac": 1e5, "k": 1e3}
+
+
+def numbers_in(text):
+    """[(value, tolerance)] for every figure in an answer (understands 1,23,456 and 1.2L / 3.4Cr / 5K)."""
+    out = []
+    for m in _NUM.finditer(text or ""):
+        try:
+            v = float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        suf = (m.group(2) or "").lower()
+        if suf in _MULT:
+            v *= _MULT[suf]
+            out.append((v, v * 0.006))
+        else:
+            out.append((v, max(0.5, abs(v) * 0.0005)))
+    return out
+
+
+def matches(ref, answer):
+    return any(abs(v - float(ref)) <= max(tol, 0.5) for v, tol in numbers_in(answer))
+
+
+def _store():
+    try:
+        with open(_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save(d):
+    try:
+        os.makedirs(os.path.dirname(_FILE), exist_ok=True)
+        with open(_FILE, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+    except Exception:
+        pass
+
+
+def results():
+    d = _store()
+    return {"running": dict(STATE), "clients": d}
+
+
+def _reference(conn, profile, kind, builder, period):
+    a, b = _dates(period)
+    if kind == "collection":
+        from agent.schema_ctx import coll_amt
+        sql = "SELECT SUM(%s) FROM trnmodeofcollectionsdet WHERE DATEOFBILL >= ? AND DATEOFBILL < ?" % coll_amt(profile)
+    else:
+        sql = builder(profile)
+    cur = conn.cursor()
+    cur.execute(sql, (a.isoformat(), b.isoformat()))
+    r = cur.fetchone()
+    return float(r[0] or 0) if r else 0.0
+
+
+def run_client(client, ask=None, connect=None, profile_fn=None, periods=None):
+    """Returns {'ts','passed','failed','skipped','results':[...]}. `ask(question)->answer text` and `connect()->conn` are injectable."""
+    from agent import heal
+    creds = None
+    if ask is None or connect is None:
+        creds = heal._client_creds(client)
+        if not creds:
+            return {"error": "client connection details unavailable"}
+    if ask is None:
+        from agent import regression
+        ask = lambda q: regression._ask(creds, client, q)[0]
+    if connect is None:
+        from database.connection import get_hospital_connection
+        connect = lambda: get_hospital_connection(creds["db_name"], creds["db_server"], creds["db_user"], creds["db_password"])
+    if profile_fn is None:
+        from agent.schema_ctx import get_profile
+        profile_fn = lambda c: get_profile(c, creds["db_name"], creds["db_server"]) if creds else {}
+    out = []
+    conn = connect()
+    if not conn:
+        return {"error": "could not connect to the client database"}
+    try:
+        prof = profile_fn(conn) or {}
+        for kind, tmpl, builder in BANK:
+            for per in (periods or PERIODS):
+                q = tmpl.format(p=per)
+                row = {"kind": kind, "period": per, "question": q}
+                try:
+                    ref = _reference(conn, prof, kind, builder, per)
+                except Exception as e:
+                    row.update(status="skipped", note="reference query not possible on this database: " + type(e).__name__)
+                    out.append(row)
+                    continue
+                row["expected"] = ref
+                if ref == 0:
+                    row.update(status="skipped", note="no data in this period")
+                    out.append(row)
+                    continue
+                try:
+                    ans = ask(q) or ""
+                except Exception as e:
+                    row.update(status="fail", note="agent error: " + type(e).__name__)
+                    out.append(row)
+                    continue
+                row["answer"] = re.sub(r"```.*?```", lambda m: m.group(0)[:300], ans, flags=re.S)[:300]
+                if matches(ref, ans):
+                    row["status"] = "pass"
+                else:
+                    got = [v for v, _ in numbers_in(ans)][:3]
+                    row.update(status="fail", note="answer shows %s, database says %s" % (", ".join("%g" % g for g in got) or "no number", "%g" % ref))
+                out.append(row)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    p = sum(1 for r in out if r["status"] == "pass")
+    f = sum(1 for r in out if r["status"] == "fail")
+    s = sum(1 for r in out if r["status"] == "skipped")
+    return {"ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds"), "passed": p, "failed": f, "skipped": s,
+            "accuracy": round(100.0 * p / (p + f), 1) if (p + f) else None, "results": out}
+
+
+def _clients():
+    try:
+        from database.license_db import get_conn
+        c = get_conn()
+        try:
+            return [str(dict(r.items()) .get("client_prefix") if hasattr(r, "items") else r[0]) for r in c.execute(
+                "SELECT client_prefix FROM institutions WHERE client_prefix IS NOT NULL AND client_prefix<>''").fetchall()]
+        finally:
+            c.close()
+    except Exception:
+        return []
+
+
+def run_bg(client=None):
+    if not _LOCK.acquire(blocking=False):
+        return False
+
+    def work():
+        try:
+            cl = [client] if client else _clients()
+            STATE.update(running=True, done=0, total=len(cl))
+            for c in cl:
+                STATE["client"] = c
+                try:
+                    res = run_client(c)
+                except Exception as e:
+                    res = {"error": type(e).__name__}
+                d = _store()
+                d[c] = res
+                _save(d)
+                STATE["done"] += 1
+        finally:
+            STATE.update(running=False, client="")
+            _LOCK.release()
+    threading.Thread(target=work, daemon=True, name="accuracy-bank").start()
+    return True

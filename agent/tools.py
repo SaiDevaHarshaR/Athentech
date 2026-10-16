@@ -121,6 +121,17 @@ def describe_table(
         except Exception:
             pass
 
+def _closest_column(col: str, cols) -> str:
+    """Best real column for a wrongly named one: containment first (TOTALCHARGES ~ CHARGE), then fuzzy match."""
+    import difflib
+    c = (col or "").lower()
+    cand = [x for x in cols if len(x) >= 3 and (c in x or x in c)]
+    if cand:
+        return sorted(cand, key=lambda x: (abs(len(x) - len(c)), x))[0]
+    m = difflib.get_close_matches(c, list(cols), n=1, cutoff=0.6)
+    return m[0] if m else ""
+
+
 def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
     """
     Validate table-qualified column references against the real MSSQL schema.
@@ -224,8 +235,10 @@ def _validate_sql_columns(cursor, query: str) -> tuple[bool, str]:
                 sorted(table_info[table])
             )
 
+            _best = _closest_column(column_lower, table_info[table])
+            _hint = f" -> this client's column is probably '{_best}'" if _best else ""
             invalid.append(
-                f"{qualifier}.{column} "
+                f"{qualifier}.{column}{_hint} "
                 f"(valid columns: {valid_columns})"
             )
 

@@ -1308,7 +1308,8 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
     noise = [
         "collection", "day collection", "today", "yesterday", "this month", "last month",
         "this week", "last week", "cash", "upi", "card", "at", "for", "show", "me", "the",
-        "total", "branch", "location", "centre", "center",
+        "total", "branch", "location", "centre", "center", "collections", "collected", "collect",
+        "amount", "how", "much", "what", "is", "was", "are", "of", "in", "a", "tell", "give", "entha", "enti",
     ]
     loc = q
     for w in sorted(noise, key=len, reverse=True):
@@ -1316,6 +1317,8 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
     loc = re.sub(r"\d{4}-\d{2}-\d{2}", " ", loc)
     loc = loc.strip()
     if not loc or len(loc) < 3:
+        if re.search(r"\b(today|yesterday|this month|last month|this week|last week)\b", q):
+            return _handle_all_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword)
         return None  # fall through to LLM
 
     if "yesterday" in q:
@@ -1333,6 +1336,8 @@ def _handle_day_collection_branch(q, role, db_name, db_server, db_user, db_passw
 
     result = get_day_collection(loc, d0, d1, db_name, db_server, db_user, db_password)
     if result.get("error"):
+        if "No location found" in str(result["error"]):
+            return None  # not a branch name - let the all-branches report or the AI answer
         return f"Error: {result['error']}"
     if result.get("ambiguous"):
         return f"Multiple locations match '{loc}': {', '.join(result['candidates'])}."

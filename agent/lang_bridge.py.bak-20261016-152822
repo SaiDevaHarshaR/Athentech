@@ -1,0 +1,51 @@
+"""Telugu / Hindi (and Telglish / Hinglish) -> plain English for the questions the assistant already understands.
+Word-list based: no AI call, no cost, no delay. Unknown words are left as typed. Returns (text, changed)."""
+import re
+
+# distinctive words: if one of these (or any Telugu/Devanagari letter) is present the question is rewritten
+_PHRASES = [
+    # periods
+    ("ee roju", "today"), ("eroju", "today"), ("ee rojuki", "today"), ("ivala", "today"), ("ivvala", "today"), ("aaj ka", "today"), ("aaj", "today"), ("aj ka", "today"),
+    ("ninna", "yesterday"), ("ninne", "yesterday"), ("kal ka", "yesterday"), ("kal", "yesterday"),
+    ("gata nela", "last month"), ("pichhle mahine", "last month"), ("pichle mahine", "last month"), ("pichhle mahine ka", "last month"), ("last mahine", "last month"),
+    ("ee nela", "this month"), ("is mahine", "this month"), ("is mahine ka", "this month"),
+    ("gata vaaram", "last week"), ("pichhle hafte", "last week"), ("pichle hafte", "last week"),
+    ("ee vaaram", "this week"), ("is hafte", "this week"), ("is hafte ka", "this week"),
+    # asking
+    ("enni", "how many"), ("kitne", "how many"), ("kitni", "how many"), ("entha", "total"), ("kitna", "total"), ("kitna hua", "total"),
+    ("chupinchu", "show"), ("chupinchandi", "show"), ("cheppu", "show"), ("cheppandi", "show"), ("dikhao", "show"), ("dikhaiye", "show"), ("batao", "show"), ("bataiye", "show"),
+    # things
+    ("rogulu", "patients"), ("mareez", "patients"), ("marij", "patients"), ("patients ki", "patients"),
+    ("billulu", "bills"), ("bills ki", "bills"), ("amdani", "revenue"), ("adayam", "revenue"), ("collection ki", "collection"),
+    ("reportlu", "reports"), ("pending ga", "pending"), ("baaki", "pending"), ("bakaya", "dues"),
+    # native script
+    ("ఈ రోజు", "today"), ("నిన్న", "yesterday"), ("గత నెల", "last month"), ("ఈ నెల", "this month"), ("గత వారం", "last week"), ("ఈ వారం", "this week"),
+    ("ఎన్ని", "how many"), ("ఎంత", "total"), ("రోగులు", "patients"), ("పేషెంట్లు", "patients"), ("బిల్లులు", "bills"), ("కలెక్షన్", "collection"), ("రిపోర్టులు", "reports"),
+    ("చూపించు", "show"), ("చెప్పు", "show"), ("డాక్టర్లు", "doctors"),
+    ("आज", "today"), ("कल", "yesterday"), ("पिछले महीने", "last month"), ("इस महीने", "this month"), ("पिछले हफ्ते", "last week"), ("इस हफ्ते", "this week"),
+    ("कितने", "how many"), ("कितनी", "how many"), ("कितना", "total"), ("मरीज", "patients"), ("बिल", "bills"), ("कलेक्शन", "collection"), ("रिपोर्ट", "reports"),
+    ("डॉक्टर", "doctors"), ("दिखाओ", "show"), ("बताओ", "show"), ("दिखाइए", "show"), ("बताइए", "show"),
+]
+_FILLER = {"aaye", "aaya", "aayi", "hue", "hui", "vachaaru", "vachayi", "ka", "ki", "ke", "ko", "hai", "hain", "hua", "ayyindi", "ayyayi", "undi", "unnayi", "vachindi", "me", "mein", "lo", "yokka", "ni", "ku",
+           "का", "की", "के", "को", "है", "हैं", "हुआ", "में", "కి", "లో", "ఉంది", "ఉన్నాయి", "ఎంత"}
+_NATIVE = re.compile("[ऀ-ॿఀ-౿]")
+_PH = sorted(_PHRASES, key=lambda p: -len(p[0]))
+_RX = [(re.compile(r"(?<![\w])" + re.escape(a) + r"(?![\w])", re.I), b) for a, b in _PH]
+_MARK = re.compile(r"(?<![\w])(" + "|".join(re.escape(a) for a, _ in _PHRASES if a.isascii() and a not in ("kal", "aaj", "enni")) + r"|aaj|enni)(?![\w])", re.I)
+
+
+def to_english(text):
+    try:
+        t = (text or "").strip()
+        if not t or not (_NATIVE.search(t) or _MARK.search(t)):
+            return t, False
+        out = t
+        for rx, rep in _RX:
+            out = rx.sub(rep, out)
+        words = [w for w in re.split(r"\s+", out) if w and w.lower() not in _FILLER]
+        out = re.sub(r"\s+", " ", " ".join(words)).strip(" ?.,")
+        if not out or out.lower() == t.lower():
+            return t, False
+        return out, True
+    except Exception:
+        return text, False

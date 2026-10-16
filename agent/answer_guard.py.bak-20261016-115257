@@ -1,0 +1,175 @@
+"""Answer guard - the "can I trust this number?" layer around the agent.
+
+  * guard_numbers(): if an answer contains figures that are not in the database results, re-ask ONCE with an exact
+    instruction (compute totals in SQL, use only returned numbers). Still unverified -> a visible caution line is added.
+  * clarify(): a vague one/two word question ("collection", "revenue") gets one short question + tap-to-answer chips
+    instead of a guess. Never fires when a fixed quick report already handles the question, or in a follow-up.
+  * Answer cache: identical question, same client + role, no chat history, verified answer -> served for a short time.
+  * Progress: friendly "what I'm doing now" labels pushed to a queue (used by /ask/stream).
+Never raises into the caller: every public function degrades to "do nothing".
+"""
+from __future__ import annotations
+
+import contextvars
+import os
+import re
+import threading
+import time
+
+ENABLED = os.getenv("SAHASRA_NUMBER_GUARD", "1") != "0"
+CLARIFY_ENABLED = os.getenv("SAHASRA_CLARIFY", "1") != "0"
+CACHE_TTL = int(os.getenv("SAHASRA_ANSWER_CACHE_SECONDS", "90") or 0)
+CACHE_MAX = 400
+
+# ----------------------------------------------------------------------------- progress (for streaming)
+PROGRESS = contextvars.ContextVar("sahasra_progress", default=None)
+LAST_INFO = contextvars.ContextVar("sahasra_guard_info", default=None)   # {"retried","unverified"} of the current request
+
+
+def emit(label: str) -> None:
+    try:
+        q = PROGRESS.get()
+        if q is not None and label:
+            q.put_nowait(("status", str(label)[:120]))
+    except Exception:
+        pass
+
+
+_TOOL_LABELS = {
+    "search_schema": "Finding the right tables…",
+    "describe_table": "Reading the table layout…",
+    "his_describe_table": "Reading the table layout…",
+    "run_sql_query": "Querying your database…",
+    "his_run_sql_query": "Querying your database…",
+    "get_verified_day_collection": "Adding up the day's collection…",
+    "get_lab_day_collection": "Adding up the day's collection…",
+    "get_department_dashboard": "Building the department view…",
+    "get_tat_compliance_dashboard": "Checking turnaround times…",
+    "run_report": "Preparing the report…",
+    "web_search": "Looking that up…",
+}
+
+
+def tool_progress(name, args=None) -> None:
+    emit(_TOOL_LABELS.get(str(name), "Working on it…"))
+
+
+# ----------------------------------------------------------------------------- number guard
+def _fmt(v: float) -> str:
+    return f"{v:,.0f}" if float(v).is_integer() else f"{v:,.2f}"
+
+
+def guard_numbers(ask_fn, question: str, answer: str, tokens: int, conf):
+    """ask_fn(question_text) -> (answer, tokens). conf = agent.confidence module (or None).
+    Returns (answer, tokens, info) where info = {'retried': bool, 'unverified': [numbers still unmatched]}."""
+    info = {"retried": False, "unverified": []}
+    if not ENABLED or conf is None:
+        return answer, tokens, info
+    try:
+        missing = conf.unverified()
+        if not missing:
+            return answer, tokens, info
+        info["retried"] = True
+        shown = ", ".join(_fmt(v) for v in missing[:6])
+        note = (f"{question}\n\n[Verification note from the system: your previous answer contained figures that do NOT appear "
+                f"in the database results ({shown}). Query again. Use ONLY numbers returned by the queries; if a total, count "
+                f"or average is needed, compute it inside the SQL (SUM/COUNT/AVG) instead of adding up by hand. If a value "
+                f"cannot be obtained from the data, say so instead of estimating.]")
+        conf.begin(question)
+        a2, t2 = ask_fn(note)
+        tokens = (tokens or 0) + (t2 or 0)
+        if a2 and str(a2).strip():
+            answer = a2
+        missing2 = conf.unverified()
+        info["unverified"] = missing2
+        if missing2:
+            answer = (str(answer).rstrip() + "\n\n⚠️ Some figures here could not be matched to your database results ("
+                      + ", ".join(_fmt(v) for v in missing2[:4]) + "). Please double-check them before relying on this answer.")
+        return answer, tokens, info
+    except Exception:
+        return answer, tokens, info
+
+
+# ----------------------------------------------------------------------------- clarifying questions
+_VAGUE = {
+    "collection": "Which period should I show the collection for?",
+    "collections": "Which period should I show the collection for?",
+    "revenue": "Which period should I show the revenue for?",
+    "income": "Which period should I show the income for?",
+    "sales": "Which period should I show sales for?",
+    "report": "Which report, and for which period?",
+    "reports": "Which report, and for which period?",
+    "summary": "A summary of what, and for which period?",
+    "bills": "Which period should I count bills for?",
+    "patients": "Which period should I count patients for?",
+    "tests": "Which period should I show tests for?",
+}
+_PERIOD_CHIPS = ["Today", "Yesterday", "This week", "This month", "Last month"]
+
+
+def clarify(question: str, history_len: int = 0):
+    """None, or {'answer': text, 'suggestions': [chips]} for a vague bare question."""
+    if not CLARIFY_ENABLED or history_len:
+        return None
+    try:
+        q = re.sub(r"[^a-z ]", " ", (question or "").lower()).strip()
+        words = [w for w in q.split() if w not in ("show", "me", "the", "my", "get", "give", "total", "all", "please", "what", "is", "whats")]
+        if not words or len(words) > 2:
+            return None
+        if not all(w in _VAGUE for w in words):      # any other word (a period, a name, a branch) = not vague
+            return None
+        key = words[0]
+        try:        # a fixed, tested quick report already handles this wording -> let it answer
+            from agent import intents as _i
+            ql = (question or "").lower().strip()
+            if ql in _i._CUSTOM_EXACT or ql.rstrip(" ?.!") in _i._CUSTOM_EXACT:
+                return None
+            for kws, _h in _i._INTENTS:
+                if any(k.strip() and k.strip() == ql for k in kws):
+                    return None
+        except Exception:
+            pass
+        return {"answer": _VAGUE[key], "suggestions": [f"{key.capitalize()} {c.lower()}" for c in _PERIOD_CHIPS]}
+    except Exception:
+        return None
+
+
+# ----------------------------------------------------------------------------- short-lived answer cache
+_CACHE: dict = {}
+_LOCK = threading.Lock()
+_LIVE_WORDS = re.compile(r"\b(now|live|right now|just now|latest|current(ly)?|real[- ]?time|refresh)\b", re.I)
+
+
+def _key(client, role, question):
+    return (str(client or "").upper(), str(role or ""), re.sub(r"\s+", " ", (question or "").strip().lower()))
+
+
+def cache_get(client, role, question, history_len=0):
+    if CACHE_TTL <= 0 or history_len or _LIVE_WORDS.search(question or ""):
+        return None
+    with _LOCK:
+        hit = _CACHE.get(_key(client, role, question))
+        if hit and time.time() - hit[0] <= CACHE_TTL:
+            return dict(hit[1])
+        if hit:
+            _CACHE.pop(_key(client, role, question), None)
+    return None
+
+
+def cache_put(client, role, question, payload: dict, history_len=0):
+    if CACHE_TTL <= 0 or history_len or _LIVE_WORDS.search(question or ""):
+        return
+    with _LOCK:
+        if len(_CACHE) >= CACHE_MAX:
+            for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:CACHE_MAX // 4]:
+                _CACHE.pop(k, None)
+        _CACHE[_key(client, role, question)] = (time.time(), dict(payload))
+
+
+def cache_clear(client=None):
+    with _LOCK:
+        if client is None:
+            _CACHE.clear()
+        else:
+            for k in [k for k in _CACHE if k[0] == str(client).upper()]:
+                _CACHE.pop(k, None)

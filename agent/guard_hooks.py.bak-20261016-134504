@@ -1,0 +1,570 @@
+"""One-line hook for main.py:   from agent.guard_hooks import install; install(app)
+
+Everything "trust + speed" and "scheduled reports" is attached here at STARTUP, after main.py has registered all its routes,
+so main.py itself needs only that single line (no fragile edits inside /ask):
+  * /ask  gets: vague-question clarification, a short verified-answer cache, ops counters, and the number guard
+    (figures not found in the database results -> re-ask once -> visible caution line)
+  * /ask/stream  live progress (server-sent events) - the widget falls back to /ask if it is unavailable
+  * Guardian API: regression tests, recent alerts
+  * Admin API: scheduled reports        * background scheduler (alerts, scheduled reports)
+Every piece is wrapped so a problem in one never stops the app from starting. Off switch: SAHASRA_GUARD_HOOKS=0
+"""
+import os
+import sys
+import threading
+
+_done = False
+
+
+def _log(msg):
+    try:
+        print("[guard-hooks] " + msg, flush=True)
+    except Exception:
+        pass
+
+
+def install(app):
+    if os.getenv("SAHASRA_GUARD_HOOKS", "1") == "0":
+        return
+    try:
+        from agent import hardening
+        hardening.install(app)
+    except Exception as e:
+        _log("hardening skipped: %s" % type(e).__name__)
+    hooked = False
+    for attach in (lambda: app.add_event_handler("startup", lambda: _late_install(app)),
+                   lambda: app.router.on_startup.append(lambda: _late_install(app))):
+        try:
+            attach()
+            hooked = True
+            break
+        except Exception:
+            continue
+    # safety net for FastAPI/Starlette versions that ignore startup handlers (lifespan apps): run once shortly after import
+    t = threading.Timer(4.0, lambda: _late_install(app))
+    t.daemon = True
+    t.start()
+
+
+def _find_route(app, path, method):
+    for r in app.router.routes:
+        if getattr(r, "path", None) == path and method in (getattr(r, "methods", None) or ()):
+            return r
+    return None
+
+
+def _guard_ask_agent(fn):
+    """ask_agent(**kw) -> same result, plus the number guard for premium (client-data) answers."""
+    if getattr(fn, "_sahasra_guarded", False):
+        return fn
+    from agent import answer_guard as ag, confidence as conf
+
+    def guarded(*a, **kw):
+        ans, tok = fn(*a, **kw)
+        try:
+            ag.LAST_INFO.set({"unverified": []})
+            if kw.get("is_premium") and "question" in kw:
+                def again(q):
+                    k2 = dict(kw)
+                    k2["question"] = q
+                    return fn(*a, **k2)
+                ans, tok, info = ag.guard_numbers(again, kw["question"], ans, tok, conf)
+                ag.LAST_INFO.set(info)
+        except Exception as e:
+            _log("number guard skipped: %s" % type(e).__name__)
+        return ans, tok
+    guarded._sahasra_guarded = True
+    guarded.__wrapped__ = fn
+    return guarded
+
+
+def _late_install(app):
+    global _done
+    if _done:
+        return
+    _done = True
+    _runtime_patches()
+    ask_route = _find_route(app, "/ask", "POST")
+    orig = None
+    if ask_route is not None:
+        try:
+            orig = ask_route.endpoint
+            g = orig.__globals__
+            if "ask_agent" in g:
+                g["ask_agent"] = _guard_ask_agent(g["ask_agent"])
+            _wrap_ask(app, ask_route, orig)
+        except Exception as e:
+            _log("/ask wrapper not installed: %s" % type(e).__name__)
+    else:
+        _log("/ask route not found - guard/cache/stream skipped")
+
+    for name, fn in (("regression + alerts API", _admin_api), ("scheduled reports API", _reports_api), ("scheduler", _scheduler)):
+        try:
+            fn(app)
+        except Exception as e:
+            _log("%s not installed: %s %s" % (name, type(e).__name__, e))
+
+
+# ----------------------------------------------------------------------------- runtime patches (no edits inside your other files)
+def _runtime_patches():
+    """Adds the small hooks the guard needs to confidence / heal / ops_lite while the app runs, so none of those files
+    has to be edited (they differ per server). Each one is skipped silently-but-logged if the target is not as expected."""
+    try:       # confidence.unverified(): figures in an LLM answer that are not in the database results
+        from agent import confidence as c
+        if not hasattr(c, "unverified"):
+            def unverified():
+                try:
+                    h = c._h()
+                    if h is None or h.kind != "llm" or not h.ok:
+                        return []
+                    pool = []
+                    for r in h.ok:
+                        pool += c._numbers(r)
+                    qn = set(c._numbers(h.question))
+                    return [v for v in c._numbers(h.answer) if v not in qn and not c._grounded(v, pool)]
+                except Exception:
+                    return []
+            c.unverified = unverified
+        if hasattr(c, "note_tool_call") and not getattr(c.note_tool_call, "_sg", False):
+            _orig = c.note_tool_call
+
+            def note_tool_call(*a, **k):
+                try:
+                    from agent import answer_guard as _ag
+                    _ag.tool_progress(a[0] if a else "", a[1] if len(a) > 1 else None)
+                except Exception:
+                    pass
+                return _orig(*a, **k)
+            note_tool_call._sg = True
+            c.note_tool_call = note_tool_call
+    except Exception as e:
+        _log("confidence hooks skipped: %s" % type(e).__name__)
+    try:       # Heal approve/revert: clear cached answers; an approved fix becomes a saved regression test
+        from agent import heal as h
+        if hasattr(h, "decide") and not getattr(h.decide, "_sg", False):
+            _d = h.decide
+
+            def decide(*a, **k):
+                try:       # refuse to approve a fix that fails the plain-language safety checks
+                    pid0 = a[0] if a else k.get("pid")
+                    act0 = a[1] if len(a) > 1 else k.get("action")
+                    if act0 == "approve" and os.getenv("SAHASRA_HEAL_ENFORCE", "1") != "0":
+                        from agent.heal_verdict import verdict
+                        v = verdict(h.get_proposal(pid0))
+                        if v["level"] == "block":
+                            why = " ".join(c["text"] for c in v["checks"] if c["status"] == "block")
+                            return {"error": "Not approved - " + why[:400] + " Reject it, or ask AthenTech support."}
+                except Exception:
+                    pass
+                res = _d(*a, **k)
+                try:
+                    pid = a[0] if a else k.get("pid")
+                    action = a[1] if len(a) > 1 else k.get("action")
+                    if isinstance(res, dict) and not res.get("error"):
+                        _audit(k.get("actor") or (a[2] if len(a) > 2 else "admin"), "Heal fix %s" % action, "proposal #%s (%s)" % (pid, (res.get("client") or "")))
+                    if action in ("approve", "revert"):
+                        from agent import answer_guard, regression
+                        answer_guard.cache_clear(None)
+                        if action == "approve":
+                            p = h.get_proposal(pid) or {}
+                            regression.add_case(p.get("client"), (p.get("before_json") or {}).get("question"), int(pid))
+                except Exception:
+                    pass
+                return res
+            decide._sg = True
+            h.decide = decide
+    except Exception as e:
+        _log("heal hook skipped: %s" % type(e).__name__)
+    try:       # Heal preview: remember whether the 'After' answer contains numbers that are not in the database results
+        from agent import heal as h, agent as ag_mod, confidence as c2
+        import contextvars
+        PV = contextvars.ContextVar("sg_preview_unverified", default=None)
+        if hasattr(ag_mod, "ask_agent") and not getattr(ag_mod.ask_agent, "_sg", False):
+            _aa = ag_mod.ask_agent
+
+            def ask_agent(*a, **k):
+                try:
+                    if h.PREVIEW.get() and hasattr(c2, "begin"):
+                        c2.begin(k.get("question") or (a[0] if a else ""))     # fresh tracking for the preview question
+                except Exception:
+                    pass
+                res = _aa(*a, **k)
+                try:
+                    if h.PREVIEW.get() and hasattr(c2, "unverified"):
+                        PV.set([float(v) for v in c2.unverified()][:8])
+                except Exception:
+                    pass
+                return res
+            ask_agent._sg = True
+            ag_mod.ask_agent = ask_agent
+        if hasattr(h, "create_proposal") and not getattr(h.create_proposal, "_sg", False):
+            _cp = h.create_proposal
+
+            def create_proposal(*a, **k):
+                PV.set(None)
+                res = _cp(*a, **k)
+                try:
+                    un = PV.get()
+                    if un is not None and isinstance(res, dict) and res.get("id") and not res.get("error"):
+                        import json as _j
+                        after = dict(res.get("after_json") or {})
+                        after["unverified"] = un
+                        conf = res.get("confidence")
+                        if un and isinstance(conf, (int, float)):
+                            conf = min(int(conf), 40)
+                        with h._LOCK:
+                            cx = h._conn()
+                            try:
+                                cx.execute("UPDATE heal_proposals SET after_json=?, confidence=? WHERE id=?",
+                                           (_j.dumps(after), conf, int(res["id"])))
+                                cx.commit()
+                            finally:
+                                cx.close()
+                        res = h.get_proposal(res["id"]) or res
+                except Exception:
+                    pass
+                return res
+            create_proposal._sg = True
+            h.create_proposal = create_proposal
+    except Exception as e:
+        _log("heal preview check skipped: %s" % type(e).__name__)
+    try:       # B2B login codes over WhatsApp (Pinnacle) when B2B_OTP_PROVIDER=pinnacle
+        from auth import b2b_otp_pinnacle
+        if b2b_otp_pinnacle.install():
+            _log("B2B login codes are sent through Pinnacle WhatsApp")
+    except Exception as e:
+        _log("pinnacle B2B otp skipped: %s" % type(e).__name__)
+    try:       # ops counters used by the new events
+        from observability import ops_lite as o
+        extra = {"guardrail", "ask", "report_pdf", "report_excel", "scheduled_report", "regression", "alert"}
+        if hasattr(o, "_ALLOWED_EVENTS"):
+            o._ALLOWED_EVENTS = frozenset(set(o._ALLOWED_EVENTS) | extra)
+    except Exception as e:
+        _log("ops hook skipped: %s" % type(e).__name__)
+    try:       # strict guardrails: code-level checks on every question and every answer
+        from agent import guard_strict as gs
+        from agent import guardrails as g
+        import agent.agent as ag
+        if not getattr(g.check_input, "_strict", False):
+            _oi, _oo = g.check_input, g.check_output
+
+            def check_input(text):
+                ok, msg = _oi(text)
+                if not ok:
+                    _ops("guardrail", "denied")
+                    return ok, msg
+                ok, msg = gs.screen_input(text)
+                if not ok:
+                    _ops("guardrail", "denied")
+                    _log("blocked question: %r" % (str(text)[:80],))
+                return ok, msg
+
+            def check_output(text):
+                return gs.screen_output(_oo(text))
+            check_input._strict = check_output._strict = True
+            g.check_input, g.check_output = check_input, check_output
+            ag.check_input, ag.check_output = check_input, check_output
+            _log("strict guardrails on")
+            try:   # latency: tighter, tunable limits on the tool loop (env SAHASRA_LLM_BUDGET / SAHASRA_MAX_ROUNDS)
+                import os as _os
+                ag.LLM_BUDGET_SECONDS = int(_os.getenv("SAHASRA_LLM_BUDGET", "45"))
+                ag.MAX_TOOL_ROUNDS = int(_os.getenv("SAHASRA_MAX_ROUNDS", "5"))
+            except Exception:
+                pass
+    except Exception as e:
+        _log("strict guardrails skipped: %s" % type(e).__name__)
+
+
+# ----------------------------------------------------------------------------- /ask wrapper + /ask/stream
+def _wrap_ask(app, route, orig):
+    from fastapi import Request
+    from fastapi.responses import StreamingResponse
+    from agent import answer_guard as ag
+    QueryRequest = orig.__annotations__.get("req") or orig.__globals__["QueryRequest"]
+
+    def ask_wrapped(req: QueryRequest, request: Request):      # sync: FastAPI runs it in the worker pool, like the original
+        from agent import followup as fu
+        code = (getattr(req, "activation_code", None) or "").strip().upper()
+        question = req.question or ""
+        hist = len(getattr(req, "chat_history", None) or [])
+        ping = question.strip().lower() in ("validate", "athentech mode", "about athentech", "about-us")
+        understood = None
+        if code and not ping and hist >= 2:
+            try:        # "and last month?" -> "collection last month"
+                rw = fu.rewrite(question, getattr(req, "chat_history", None))
+                if rw and rw != question:
+                    understood, question = rw, rw
+                    req.question = rw
+            except Exception:
+                pass
+        if code and not ping:
+            cl = ag.clarify(question, hist)
+            if cl:
+                return {"status": "success", "answer": cl["answer"], "mode": "premium", "suggestions": cl["suggestions"], "clarify": True}
+            hit = ag.cache_get(code, "-", question, hist)
+            if hit:
+                hit["cached"] = True
+                return hit
+        ag.LAST_INFO.set({"unverified": []})
+        try:
+            res = orig(req, request)
+        except Exception as e:
+            _ops("ask", "failure")
+            try:
+                from fastapi import HTTPException as _HE
+                if isinstance(e, _HE) and e.status_code < 500:
+                    raise
+            except ImportError:
+                pass
+            msg, ref = fu.friendly_error(repr(e))
+            _log("ask error ref %s: %s" % (ref, repr(e)[:300]))
+            return {"status": "error", "answer": msg}
+        try:
+            conf = (res or {}).get("confidence") or {}
+            _ops("ask", "success" if (not conf or conf.get("ok")) else "denied")
+            try:
+                from agent.agent import _BYOK_USER_MESSAGES
+                if res.get("answer") in _BYOK_USER_MESSAGES.values():
+                    _ops("ai_provider", "failure")
+            except Exception:
+                pass
+            # --- polish: friendly errors, no table names, plain explain, contextual chips, "understood as"
+            if isinstance(res, dict):
+                ans = res.get("answer") or ""
+                if fu.looks_technical(ans) or (res.get("status") == "error" and fu.looks_technical(str(res.get("message") or ""))):
+                    msg, ref = fu.friendly_error(ans or res.get("message"))
+                    _log("ask answer replaced, ref %s: %s" % (ref, ans[:300]))
+                    res["answer"], res["status"] = msg, "error"
+                elif res.get("mode") == "premium":
+                    res["answer"] = fu.sanitize_answer(ans)
+                    if res.get("explain"):
+                        res["explain"] = fu.plain_explain(res["explain"], bool(conf.get("ok", True)))
+                    ctx = fu.contextual(question)
+                    if ctx and isinstance(res.get("suggestions"), list):
+                        res["suggestions"] = (ctx + [x for x in res["suggestions"] if x not in ctx])[:3]
+                if understood:
+                    res["understood_as"] = understood
+            if (code and not ping and res.get("status") == "success" and res.get("mode") == "premium" and conf.get("ok")
+                    and not (ag.LAST_INFO.get() or {}).get("unverified") and res.get("answer_id")):
+                ag.cache_put(code, "-", question, res, hist)
+        except Exception:
+            pass
+        return res
+
+    # swap the route's handler: remove the original, register the wrapper at the same path
+    app.router.routes[:] = [r for r in app.router.routes if r is not route]
+    app.add_api_route("/ask", ask_wrapped, methods=["POST"])
+
+    async def ask_stream(req: QueryRequest, request: Request):
+        import asyncio
+        import json as _json
+        import queue as _queue
+        q = _queue.Queue()
+
+        def _sse(kind, data):
+            return "event: %s\ndata: %s\n\n" % (kind, _json.dumps(data, default=str))
+
+        def _work():
+            ag.PROGRESS.set(q)
+            try:
+                return ask_wrapped(req, request)
+            except Exception:
+                return {"status": "error", "answer": "Something went wrong while answering. Please try again."}
+
+        async def _gen():
+            loop = asyncio.get_running_loop()
+            fut = loop.run_in_executor(None, _work)
+            yield _sse("status", "Understanding your question…")
+            idle = 0.0
+            while not fut.done():
+                try:
+                    kind, val = q.get_nowait()
+                    idle = 0.0
+                    yield _sse(kind, val)
+                except _queue.Empty:
+                    await asyncio.sleep(0.15)
+                    idle += 0.15
+                    if idle >= 10:
+                        idle = 0.0
+                        yield ": ping\n\n"
+            res = await fut
+            yield _sse("done", res)
+
+        return StreamingResponse(_gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
+    app.add_api_route("/ask/stream", ask_stream, methods=["POST"])
+    _log("/ask wrapped (clarify, cache, number guard, ops) and /ask/stream added")
+
+
+def _audit(admin, action, target=""):
+    """Writes to the same audit log the Audit Logs screen reads (event 'admin_action')."""
+    try:
+        from audit.log import audit
+        audit(event="admin_action", role=None, code=None, question="%s: %s" % (action, target),
+              meta={"actor": str(admin), "action": action, "target": str(target)})
+    except Exception:
+        pass
+
+
+def _ops(kind, result):
+    try:
+        from observability.ops_lite import record_event
+        record_event(kind, result)
+    except Exception:
+        pass
+
+
+# ----------------------------------------------------------------------------- Guardian: regression + alerts
+def _admin_api(app):
+    from fastapi import Depends, HTTPException
+    from auth.admin_auth import require_admin
+
+    def reg_list(client: str = "", admin: str = Depends(require_admin)):
+        from agent import regression
+        return {"status": "success", "rows": regression.list_cases(client or None)}
+
+    def reg_run(client: str = "", admin: str = Depends(require_admin)):
+        from agent import regression
+        res = regression.run_all(client or None)
+        if res.get("error"):
+            return {"status": "error", "message": res["error"]}
+        return {"status": "success", **res}
+
+    def reg_case(case_id: int, action: str, admin: str = Depends(require_admin)):
+        from agent import regression
+        if action == "delete":
+            regression.delete_case(case_id)
+        elif action in ("enable", "disable"):
+            regression.set_enabled(case_id, action == "enable")
+        else:
+            raise HTTPException(status_code=404, detail="Unknown action.")
+        return {"status": "success"}
+
+    def alerts_list(admin: str = Depends(require_admin)):
+        from observability import alerts
+        return {"status": "success", "alerts": alerts.recent()}
+
+    def heal_verdict(pid: int, admin: str = Depends(require_admin)):
+        from agent import heal
+        from agent.heal_verdict import verdict
+        p = heal.get_proposal(pid)
+        if not p:
+            raise HTTPException(status_code=404, detail="Proposal not found.")
+        return {"status": "success", "verdict": verdict(p)}
+
+    def proof(answer_id: int, admin: str = Depends(require_admin)):
+        """Re-runs the answer's logged read-only queries and returns the raw rows - the evidence behind the numbers."""
+        from agent import heal
+        row = heal._answer_row(answer_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Answer not found.")
+        creds = heal._client_creds(row["client"])
+        if not creds:
+            return {"status": "error", "message": "Client connection details are unavailable."}
+        out = []
+        for q in [q for q in (row.get("sql_json") or []) if heal.safe_select(q)][:3]:
+            r = heal._run_readonly(creds, q)
+            out.append({"sql": q[:700], "ok": r.get("ok"), "cols": r.get("cols"), "rows": r.get("rows"), "error": r.get("error")})
+        return {"status": "success", "question": row.get("question"), "queries": out}
+
+    def readiness_get(admin: str = Depends(require_admin)):
+        from auth import readiness
+        return {"status": "success", **readiness.summary()}
+
+    def readiness_run(client: str = "", admin: str = Depends(require_admin)):
+        from auth import readiness
+        started = readiness.start(client or None)
+        return {"status": "success", "started": started}
+
+    # ---- accuracy checks / usage insights / backups (auth/admin_extras.py)
+    from fastapi import Body
+    from fastapi.responses import Response
+
+    def acc_get(admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        return {"status": "success", "config": x.get_cfg(), "regression": x.last_run("regression"), "consistency": x.last_run("consistency"),
+                "running": {"regression": x.STATE["regression"]["running"], **x.STATE["consistency"]}}
+
+    def acc_put(body: dict = Body(...), admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        try:
+            cfg = x.set_cfg(body)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        _audit(admin, "Changed accuracy-check settings", "nightly=%s at %s" % (cfg["nightly_enabled"], cfg["nightly_time"]))
+        return {"status": "success", "config": cfg}
+
+    def acc_run(admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        _audit(admin, "Started accuracy check", "all clients")
+        return {"status": "success", "started": x.run_regression_bg(None, notify=False)}
+
+    def acc_cons(body: dict = Body(...), admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        c = str(body.get("client") or "").strip()
+        if not c:
+            raise HTTPException(status_code=400, detail="Choose a client.")
+        _audit(admin, "Started consistency check", c)
+        return {"status": "success", "started": x.run_consistency_bg(c, body.get("n", 8), body.get("k", 3))}
+
+    def usage_get(days: int = 30, admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        return {"status": "success", **x.usage_insights(max(1, min(int(days), 365)))}
+
+    def bk_list(admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        return {"status": "success", "backups": x.list_backups(), "config": x.get_cfg()}
+
+    def bk_make(admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        n = x.make_backup("manual")
+        _audit(admin, "Created settings backup", n)
+        return {"status": "success", "name": n}
+
+    def bk_dl(name: str, admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        try:
+            data = x.backup_bytes(name)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return Response(data, media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="%s"' % name})
+
+    def bk_restore(name: str, body: dict = Body(default={}), admin: str = Depends(require_admin)):
+        from auth import admin_extras as x
+        if str(body.get("confirm") or "") != "RESTORE":
+            raise HTTPException(status_code=400, detail="Type RESTORE to confirm.")
+        try:
+            done = x.restore(name, str(admin))
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        _audit(admin, "Restored settings backup", name)
+        return {"status": "success", "restored": done}
+
+    app.add_api_route("/admin/accuracy", acc_get, methods=["GET"])
+    app.add_api_route("/admin/accuracy", acc_put, methods=["PUT"])
+    app.add_api_route("/admin/accuracy/run", acc_run, methods=["POST"])
+    app.add_api_route("/admin/accuracy/consistency", acc_cons, methods=["POST"])
+    app.add_api_route("/admin/usage-insights", usage_get, methods=["GET"])
+    app.add_api_route("/admin/backups", bk_list, methods=["GET"])
+    app.add_api_route("/admin/backups", bk_make, methods=["POST"])
+    app.add_api_route("/admin/backups/{name}/download", bk_dl, methods=["GET"])
+    app.add_api_route("/admin/backups/{name}/restore", bk_restore, methods=["POST"])
+
+    app.add_api_route("/admin/readiness", readiness_get, methods=["GET"])
+    app.add_api_route("/admin/readiness/run", readiness_run, methods=["POST"])
+    app.add_api_route("/admin/guardian/api/heal-verdict/{pid}", heal_verdict, methods=["GET"])
+    app.add_api_route("/admin/guardian/api/proof/{answer_id}", proof, methods=["GET"])
+    app.add_api_route("/admin/guardian/api/regression", reg_list, methods=["GET"])
+    app.add_api_route("/admin/guardian/api/regression/run", reg_run, methods=["POST"])
+    app.add_api_route("/admin/guardian/api/regression/{case_id}/{action}", reg_case, methods=["POST"])
+    app.add_api_route("/admin/guardian/api/alerts", alerts_list, methods=["GET"])
+
+
+def _reports_api(app):
+    from auth.report_schedules_api import router
+    app.include_router(router)
+
+
+def _scheduler(app):
+    from scheduler.runner import start
+    start()

@@ -1,0 +1,240 @@
+"""One-line hook for main.py:   from agent.guard_hooks import install; install(app)
+
+Everything "trust + speed" and "scheduled reports" is attached here at STARTUP, after main.py has registered all its routes,
+so main.py itself needs only that single line (no fragile edits inside /ask):
+  * /ask  gets: vague-question clarification, a short verified-answer cache, ops counters, and the number guard
+    (figures not found in the database results -> re-ask once -> visible caution line)
+  * /ask/stream  live progress (server-sent events) - the widget falls back to /ask if it is unavailable
+  * Guardian API: regression tests, recent alerts
+  * Admin API: scheduled reports        * background scheduler (alerts, scheduled reports)
+Every piece is wrapped so a problem in one never stops the app from starting. Off switch: SAHASRA_GUARD_HOOKS=0
+"""
+import os
+import sys
+import threading
+
+_done = False
+
+
+def _log(msg):
+    try:
+        print("[guard-hooks] " + msg, flush=True)
+    except Exception:
+        pass
+
+
+def install(app):
+    if os.getenv("SAHASRA_GUARD_HOOKS", "1") == "0":
+        return
+    hooked = False
+    for attach in (lambda: app.add_event_handler("startup", lambda: _late_install(app)),
+                   lambda: app.router.on_startup.append(lambda: _late_install(app))):
+        try:
+            attach()
+            hooked = True
+            break
+        except Exception:
+            continue
+    # safety net for FastAPI/Starlette versions that ignore startup handlers (lifespan apps): run once shortly after import
+    t = threading.Timer(4.0, lambda: _late_install(app))
+    t.daemon = True
+    t.start()
+
+
+def _find_route(app, path, method):
+    for r in app.router.routes:
+        if getattr(r, "path", None) == path and method in (getattr(r, "methods", None) or ()):
+            return r
+    return None
+
+
+def _guard_ask_agent(fn):
+    """ask_agent(**kw) -> same result, plus the number guard for premium (client-data) answers."""
+    if getattr(fn, "_sahasra_guarded", False):
+        return fn
+    from agent import answer_guard as ag, confidence as conf
+
+    def guarded(*a, **kw):
+        ans, tok = fn(*a, **kw)
+        try:
+            ag.LAST_INFO.set({"unverified": []})
+            if kw.get("is_premium") and "question" in kw:
+                def again(q):
+                    k2 = dict(kw)
+                    k2["question"] = q
+                    return fn(*a, **k2)
+                ans, tok, info = ag.guard_numbers(again, kw["question"], ans, tok, conf)
+                ag.LAST_INFO.set(info)
+        except Exception as e:
+            _log("number guard skipped: %s" % type(e).__name__)
+        return ans, tok
+    guarded._sahasra_guarded = True
+    guarded.__wrapped__ = fn
+    return guarded
+
+
+def _late_install(app):
+    global _done
+    if _done:
+        return
+    _done = True
+    ask_route = _find_route(app, "/ask", "POST")
+    orig = None
+    if ask_route is not None:
+        try:
+            orig = ask_route.endpoint
+            g = orig.__globals__
+            if "ask_agent" in g:
+                g["ask_agent"] = _guard_ask_agent(g["ask_agent"])
+            _wrap_ask(app, ask_route, orig)
+        except Exception as e:
+            _log("/ask wrapper not installed: %s" % type(e).__name__)
+    else:
+        _log("/ask route not found - guard/cache/stream skipped")
+
+    for name, fn in (("regression + alerts API", _admin_api), ("scheduled reports API", _reports_api), ("scheduler", _scheduler)):
+        try:
+            fn(app)
+        except Exception as e:
+            _log("%s not installed: %s %s" % (name, type(e).__name__, e))
+
+
+# ----------------------------------------------------------------------------- /ask wrapper + /ask/stream
+def _wrap_ask(app, route, orig):
+    from fastapi import Request
+    from fastapi.responses import StreamingResponse
+    from agent import answer_guard as ag
+    QueryRequest = orig.__annotations__.get("req") or orig.__globals__["QueryRequest"]
+
+    def ask_wrapped(req: QueryRequest, request: Request):      # sync: FastAPI runs it in the worker pool, like the original
+        code = (getattr(req, "activation_code", None) or "").strip().upper()
+        question = req.question or ""
+        hist = len(getattr(req, "chat_history", None) or [])
+        ping = question.strip().lower() in ("validate", "athentech mode", "about athentech", "about-us")
+        if code and not ping:
+            cl = ag.clarify(question, hist)
+            if cl:
+                return {"status": "success", "answer": cl["answer"], "mode": "premium", "suggestions": cl["suggestions"], "clarify": True}
+            hit = ag.cache_get(code, "-", question, hist)
+            if hit:
+                hit["cached"] = True
+                return hit
+        ag.LAST_INFO.set({"unverified": []})
+        try:
+            res = orig(req, request)
+        except Exception:
+            _ops("ask", "failure")
+            raise
+        try:
+            conf = (res or {}).get("confidence") or {}
+            _ops("ask", "success" if (not conf or conf.get("ok")) else "denied")
+            try:
+                from agent.agent import _BYOK_USER_MESSAGES
+                if res.get("answer") in _BYOK_USER_MESSAGES.values():
+                    _ops("ai_provider", "failure")
+            except Exception:
+                pass
+            if (code and not ping and res.get("status") == "success" and res.get("mode") == "premium" and conf.get("ok")
+                    and not (ag.LAST_INFO.get() or {}).get("unverified") and res.get("answer_id")):
+                ag.cache_put(code, "-", question, res, hist)
+        except Exception:
+            pass
+        return res
+
+    # swap the route's handler: remove the original, register the wrapper at the same path
+    app.router.routes[:] = [r for r in app.router.routes if r is not route]
+    app.add_api_route("/ask", ask_wrapped, methods=["POST"])
+
+    async def ask_stream(req: QueryRequest, request: Request):
+        import asyncio
+        import json as _json
+        import queue as _queue
+        q = _queue.Queue()
+
+        def _sse(kind, data):
+            return "event: %s\ndata: %s\n\n" % (kind, _json.dumps(data, default=str))
+
+        def _work():
+            ag.PROGRESS.set(q)
+            try:
+                return ask_wrapped(req, request)
+            except Exception:
+                return {"status": "error", "answer": "Something went wrong while answering. Please try again."}
+
+        async def _gen():
+            loop = asyncio.get_running_loop()
+            fut = loop.run_in_executor(None, _work)
+            yield _sse("status", "Understanding your question…")
+            idle = 0.0
+            while not fut.done():
+                try:
+                    kind, val = q.get_nowait()
+                    idle = 0.0
+                    yield _sse(kind, val)
+                except _queue.Empty:
+                    await asyncio.sleep(0.15)
+                    idle += 0.15
+                    if idle >= 10:
+                        idle = 0.0
+                        yield ": ping\n\n"
+            res = await fut
+            yield _sse("done", res)
+
+        return StreamingResponse(_gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
+    app.add_api_route("/ask/stream", ask_stream, methods=["POST"])
+    _log("/ask wrapped (clarify, cache, number guard, ops) and /ask/stream added")
+
+
+def _ops(kind, result):
+    try:
+        from observability.ops_lite import record_event
+        record_event(kind, result)
+    except Exception:
+        pass
+
+
+# ----------------------------------------------------------------------------- Guardian: regression + alerts
+def _admin_api(app):
+    from fastapi import Depends, HTTPException
+    from auth.admin_auth import require_admin
+
+    def reg_list(client: str = "", admin: str = Depends(require_admin)):
+        from agent import regression
+        return {"status": "success", "rows": regression.list_cases(client or None)}
+
+    def reg_run(client: str = "", admin: str = Depends(require_admin)):
+        from agent import regression
+        res = regression.run_all(client or None)
+        if res.get("error"):
+            return {"status": "error", "message": res["error"]}
+        return {"status": "success", **res}
+
+    def reg_case(case_id: int, action: str, admin: str = Depends(require_admin)):
+        from agent import regression
+        if action == "delete":
+            regression.delete_case(case_id)
+        elif action in ("enable", "disable"):
+            regression.set_enabled(case_id, action == "enable")
+        else:
+            raise HTTPException(status_code=404, detail="Unknown action.")
+        return {"status": "success"}
+
+    def alerts_list(admin: str = Depends(require_admin)):
+        from observability import alerts
+        return {"status": "success", "alerts": alerts.recent()}
+
+    app.add_api_route("/admin/guardian/api/regression", reg_list, methods=["GET"])
+    app.add_api_route("/admin/guardian/api/regression/run", reg_run, methods=["POST"])
+    app.add_api_route("/admin/guardian/api/regression/{case_id}/{action}", reg_case, methods=["POST"])
+    app.add_api_route("/admin/guardian/api/alerts", alerts_list, methods=["GET"])
+
+
+def _reports_api(app):
+    from auth.report_schedules_api import router
+    app.include_router(router)
+
+
+def _scheduler(app):
+    from scheduler.runner import start
+    start()
