@@ -58,6 +58,10 @@ _CREDIT = re.compile(
     r"payment required|balance is too low|quota (exceeded|exhausted)|"
     r"resource_exhausted|not enough (credit|balance)|top.?up|add (a )?payment|"
     r"exhausted (balance|credits?|quota)|insufficient funds", re.I)
+_PERIOD_QUOTA = re.compile(
+    r"(?:per[ _-]?day|per[ _-]?month|daily|monthly|\bTPD\b|\bRPD\b|"
+    r"quota[_ -]?(?:per[_ -]?)?(?:day|month)|free[_ -]?tier.{0,30}(?:limit|exhausted))", re.I)
+_AMBIGUOUS_EXHAUSTED = re.compile(r"resource_exhausted", re.I)
 _BADKEY = re.compile(
     r"invalid[_ -]?(api[_ -]?)?key|incorrect api key|invalid x-api-key|"
     r"api key not valid|api_key_invalid|authentication[_ -]?(error|failed)|"
@@ -72,8 +76,9 @@ _ACCESS = re.compile(r"permission[_ -]?denied|not authorized to (use|access)|"
 MESSAGES = {
     "ok": "API key validated successfully. Live model inference works.",
     "invalid_key": "Authentication failed. Confirm the key belongs to the selected provider.",
-    "no_credits": "The provider reports insufficient credits or quota. Check the account billing and quotas.",
-    "rate_limited": "The provider is rate-limiting requests. Wait for its retry window, then test again.",
+    "no_credits": "Provider credits or quota unavailable. Check the account plan and limits; payment is not always required.",
+    "rate_limited": "Provider usage limit (HTTP 429). This can be a brief rate limit or a longer quota limit; check the provider dashboard or Retry-After.",
+    "quota_exhausted": "The provider explicitly reports a daily or monthly quota limit. Check its reset time in the provider dashboard.",
     "bad_model": "The selected model is unavailable or not recognized. Try an available model ID for this account.",
     "access_denied": "The provider denied this model or account access. Check project permissions, region and model access.",
     "unreachable": "The Sahasra SERVER could not connect to the provider. Check outbound HTTPS, DNS, proxy and TLS.",
@@ -160,6 +165,10 @@ def _classify(status, body, provider_code="", provider_type=""):
     text = " ".join((str(body or ""), str(provider_code or ""), str(provider_type or "")))
     if status in (200, 201):
         return "ok"
+    if status == 429 and _PERIOD_QUOTA.search(text):
+        return "quota_exhausted"
+    if status == 429 and _AMBIGUOUS_EXHAUSTED.search(text) and not re.search(r"billing|credit balance|insufficient[_ -]?quota", text, re.I):
+        return "rate_limited"
     if status == 402 or _CREDIT.search(text):
         return "no_credits"
     if status == 429:
@@ -275,6 +284,10 @@ def classify_runtime_error(exc):
     """Keep the existing BYOK runtime policy and avoid treating generic 403 as invalid keys."""
     text = f"{type(exc).__name__}: {exc}"
     st = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    if (st == 429 or re.search(r"\b429\b", text)) and _PERIOD_QUOTA.search(text):
+        return "quota_exhausted"
+    if (st == 429 or re.search(r"\b429\b", text)) and _AMBIGUOUS_EXHAUSTED.search(text) and not re.search(r"billing|credit balance|insufficient[_ -]?quota", text, re.I):
+        return "rate_limited"
     if _CREDIT.search(text):
         return "no_credits"
     if st == 429 or re.search(r"\b429\b|rate.?limit|too many requests", text, re.I):

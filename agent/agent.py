@@ -1006,6 +1006,11 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
 
         from datetime import date as _date
         real_today = _date.today().isoformat()
+        try:
+            from agent.heal import notes_for as _heal_notes_for
+            _heal_notes = _heal_notes_for(institution_code, question)
+        except Exception:
+            _heal_notes = ""
 
         system_prompt = f"""
 You are Sahasra AI Assistant for {hospital_name}. Answer ONLY using data
@@ -1037,7 +1042,7 @@ accessible, the tool says so plainly.
 
 ### Schema guidance
 {schema_hints}
-Lab/radiology/laboratory dashboard questions → call get_department_dashboard
+{_heal_notes}Lab/radiology/laboratory dashboard questions → call get_department_dashboard
 (department=radiology|laboratory|all, period=today|yesterday|this_month|
 this_year|any_year). Don't write raw SQL for these.
 

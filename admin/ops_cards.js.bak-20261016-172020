@@ -1,0 +1,245 @@
+/* Admin extra cards (additive): Settings > "Accuracy checks", "Backups & restore", "Onboard a client"; Usage & Analytics > "Answer quality".
+   All server text goes in with textContent. */
+(function () {
+  'use strict';
+  function api(path, opt) {
+    var base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '', tok = (typeof getAdminToken === 'function') ? getAdminToken() : '';
+    opt = opt || {}; opt.headers = Object.assign({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }, opt.headers || {});
+    return fetch(base + path, opt).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401) throw new Error('Your session has ended - please sign in again.');
+        if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : (j.message || ('Request failed (' + r.status + ')')));
+        if (j.status === 'error') throw new Error(j.message || 'Failed');
+        return j;
+      });
+    });
+  }
+  function h(tag, a) {
+    var e = document.createElement(tag), i = 2; a = a || {};
+    Object.keys(a).forEach(function (k) {
+      if (k === 'class') e.className = a[k]; else if (k === 'text') e.textContent = a[k];
+      else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), a[k]);
+      else if (a[k] !== false && a[k] != null) e.setAttribute(k, a[k] === true ? '' : a[k]);
+    });
+    (function add(list) { list.forEach(function (c) { if (c == null || c === false) return; if (Array.isArray(c)) return add(c); e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); }); })(Array.prototype.slice.call(arguments, 2));
+    return e;
+  }
+  var CSS = '.ox-card{grid-column:1/-1;padding:0!important;overflow:hidden;min-width:0;max-width:100%}.ox-card *{min-width:0}\
+.ox-head{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:14px;width:100%;padding:20px 22px;cursor:pointer}\
+.ox-head:focus-visible{outline:2px solid var(--primary,#6a5cf6);outline-offset:-2px;border-radius:12px}\
+.ox-ico{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:linear-gradient(135deg,rgba(124,108,255,.22),rgba(34,211,238,.18))}\
+.ox-title{flex:1}.ox-title b{display:block;font:650 15px var(--font,system-ui);color:var(--ink,#111)}.ox-title small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted,#667);overflow-wrap:anywhere}\
+.ox-badge{flex:none;font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--accent-soft,#eeeaff);color:var(--accent-ink,#4a3dd1)}\
+.ox-body{display:none;padding:6px 22px 22px;border-top:1px solid var(--border,#e6e6ec);color:var(--ink,#111)}.ox-card.open .ox-body{display:block}\
+.ox-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}\
+.ox-btn{border:0;border-radius:10px;padding:10px 16px;font:650 13px var(--font,system-ui);cursor:pointer;background:var(--primary,#6a5cf6);color:#fff}.ox-btn.ghost{background:transparent;color:var(--primary,#6a5cf6);border:1px solid var(--primary,#6a5cf6)}.ox-btn[disabled]{opacity:.5;cursor:wait}\
+.ox-in,.ox-sel{height:38px;padding:0 10px;border:1px solid var(--border-strong,#d4d4dd);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#111);font:inherit;max-width:100%}\
+.ox-h{font:700 13px var(--font,system-ui);margin:16px 0 6px}.ox-sm{font-size:12.5px;color:var(--muted,#667);overflow-wrap:anywhere}\
+.ox-t{width:100%;border-collapse:collapse;font-size:13px}.ox-t th,.ox-t td{padding:7px 9px;border-bottom:1px solid var(--border,#e6e6ec);text-align:left;vertical-align:top;overflow-wrap:anywhere}.ox-t th{font-weight:700;color:var(--muted,#667)}\
+.ox-ok{color:#16a34a;font-weight:700}.ox-bad{color:#dc2626;font-weight:700}.ox-warn{color:#d97706;font-weight:700}\
+.ox-step{display:flex;gap:8px;margin:10px 0 4px}.ox-dot{flex:1;height:6px;border-radius:9px;background:var(--border,#e6e6ec)}.ox-dot.on{background:var(--primary,#6a5cf6)}\
+.ox-msg{margin:8px 0;font-size:13px}@media(max-width:640px){.ox-t,.ox-t tbody,.ox-t tr,.ox-t td{display:block;width:100%}.ox-t thead{display:none}.ox-t tr{border:1px solid var(--border,#e6e6ec);border-radius:10px;margin:8px 0;padding:6px}.ox-t td{border:0;padding:3px 6px}.ox-t td[data-label]:not([data-label=""])::before{content:attr(data-label)": ";font-weight:700;color:var(--muted,#667)}}';
+  function addCss() { if (!document.getElementById('ox-style')) document.head.appendChild(h('style', { id: 'ox-style', text: CSS })); }
+  function card(id, ico, title, sub, badge, onOpen, parent) {
+    var bd = h('span', { class: 'ox-badge', text: badge }), body = h('div', { class: 'ox-body' }), root;
+    var head = h('button', { type: 'button', class: 'ox-head', 'aria-expanded': 'false' }, h('span', { class: 'ox-ico', text: ico }), h('span', { class: 'ox-title' }, h('b', { text: title }), h('small', { text: sub })), bd);
+    root = h('div', { class: 'settings-section ox-card', id: id }, head, body);
+    head.addEventListener('click', function () { root.classList.toggle('open'); head.setAttribute('aria-expanded', root.classList.contains('open')); if (root.classList.contains('open')) onOpen(body, bd); });
+    parent.appendChild(root); return { root: root, body: body, badge: bd };
+  }
+  function msg(el, text, bad) { var m = el.querySelector('.ox-msg'); if (!m) { m = h('div', { class: 'ox-msg' }); el.prepend(m); } m.textContent = text || ''; m.className = 'ox-msg ' + (bad ? 'ox-bad' : 'ox-ok'); }
+  function fld(label, input) { return h('label', { class: 'ox-sm', style: 'display:flex;flex-direction:column;gap:4px' }, label, input); }
+  function when(ts) { try { return new Date(ts).toLocaleString(); } catch (e) { return ts || ''; } }
+
+  /* ============================== Accuracy checks (nightly + consistency) */
+  function accuracy(body, badge) {
+    var timer;
+    function load() {
+      api('/admin/accuracy').then(function (d) {
+        body.replaceChildren(); var c = d.config, rg = d.regression, cs = d.consistency, run = d.running || {};
+        var en = h('input', { type: 'checkbox', id: 'oxEn' }); en.checked = !!c.nightly_enabled;
+        var tm = h('input', { class: 'ox-in', type: 'time', value: c.nightly_time }); var em = h('input', { class: 'ox-in', type: 'text', value: c.notify_email || '', placeholder: 'owner@company.com', style: 'min-width:240px' });
+        body.appendChild(h('div', { class: 'ox-h', text: 'Nightly accuracy check' }));
+        body.appendChild(h('div', { class: 'ox-sm', text: 'Every night the system asks again every question you fixed with Heal and confirms the answers are still right. If any fail, you get an email.' }));
+        body.appendChild(h('div', { class: 'ox-row' }, h('label', { class: 'ox-sm' }, en, ' Run every night'), fld('At (server time)', tm), fld('Email me failures', em),
+          h('button', { class: 'ox-btn', type: 'button', text: 'Save', onclick: function () { api('/admin/accuracy', { method: 'PUT', body: JSON.stringify({ nightly_enabled: en.checked, nightly_time: tm.value, notify_email: em.value }) }).then(function () { msg(body, 'Saved.'); }).catch(function (e) { msg(body, e.message, 1); }); } })));
+        var runBtn = h('button', { class: 'ox-btn ghost', type: 'button', text: run.regression ? 'Running…' : 'Run accuracy check now', onclick: function () { api('/admin/accuracy/run', { method: 'POST' }).then(function () { msg(body, 'Started - results appear below in a few minutes.'); poll(); }).catch(function (e) { msg(body, e.message, 1); }); } });
+        if (run.regression) runBtn.disabled = true;
+        body.appendChild(h('div', { class: 'ox-row' }, runBtn));
+        if (rg) {
+          body.appendChild(h('div', { class: 'ox-sm', text: 'Last check: ' + when(rg.ts) + (rg.error ? ' - ' + rg.error : ' - ' + rg.passed + ' of ' + rg.ran + ' still correct') }));
+          var bad = (rg.results || []).filter(function (r) { return !r.ok; });
+          if (bad.length) body.appendChild(table(['Question', 'Client', 'Problem'], bad.map(function (r) { return [r.question, r.client, r.note]; })));
+          badge.textContent = rg.failed ? rg.failed + ' failing' : 'All passing';
+        }
+        body.appendChild(h('div', { class: 'ox-h', text: 'Consistency test' }));
+        body.appendChild(h('div', { class: 'ox-sm', text: 'Takes the questions this hospital asks most and asks each one 3 times. The same question must always give the same figures.' }));
+        var cl = h('select', { class: 'ox-sel' }, h('option', { value: '', text: 'Choose a client…' }));
+        api('/admin/whitelabel/clients').then(function (r) { (r.clients || []).forEach(function (x) { if (x.client_prefix) cl.appendChild(h('option', { value: x.client_prefix, text: x.name + ' (' + x.client_prefix + ')' })); }); }).catch(function () {});
+        var cb = h('button', { class: 'ox-btn ghost', type: 'button', text: run.running ? 'Running ' + run.done + '/' + run.total : 'Run consistency test', onclick: function () { if (!cl.value) return msg(body, 'Choose a client first.', 1); api('/admin/accuracy/consistency', { method: 'POST', body: JSON.stringify({ client: cl.value, n: 8, k: 3 }) }).then(function (r) { msg(body, r.started ? 'Started - this takes a few minutes.' : 'A consistency test is already running.'); poll(); }).catch(function (e) { msg(body, e.message, 1); }); } });
+        if (run.running) cb.disabled = true;
+        body.appendChild(h('div', { class: 'ox-row' }, cl, cb));
+        if (cs) {
+          body.appendChild(h('div', { class: 'ox-sm', text: 'Last test (' + (cs.client || '') + '): ' + when(cs.ts) + (cs.error ? ' - ' + cs.error : ' - ' + cs.stable + ' of ' + cs.asked + ' gave identical figures every time') }));
+          var un = (cs.results || []).filter(function (r) { return !r.stable; });
+          if (un.length) body.appendChild(table(['Question that changed its answer', 'Figures seen across the runs'], un.map(function (r) { return [r.question, r.runs.map(function (x) { return x.join(', ') || '-'; }).join('  |  ')]; })));
+        }
+        if (run.regression || run.running) poll();
+      }).catch(function (e) { msg(body, e.message, 1); });
+    }
+    function poll() { clearTimeout(timer); timer = setTimeout(load, 4000); }
+    load();
+  }
+  function table(cols, rows) {
+    var t = h('table', { class: 'ox-t' }, h('thead', {}, h('tr', {}, cols.map(function (c) { return h('th', { text: c }); }))), h('tbody', {}));
+    rows.forEach(function (r) { t.lastChild.appendChild(h('tr', {}, r.map(function (v, i) { var td = h('td', { text: v == null ? '' : String(v) }); td.setAttribute('data-label', cols[i]); return td; }))); });
+    return h('div', { style: 'overflow:auto' }, t);
+  }
+
+  /* ============================== Backups & restore */
+  function backups(body, badge) {
+    function load() {
+      api('/admin/backups').then(function (d) {
+        body.replaceChildren(); var c = d.config;
+        body.appendChild(h('div', { class: 'ox-sm', text: 'Snapshots of your Heal rules, scheduled reports, accuracy settings and every client’s white-label settings. No passwords or API keys are stored. The last 14 are kept, and one is taken automatically every night.' }));
+        body.appendChild(h('div', { class: 'ox-row' }, h('button', { class: 'ox-btn', type: 'button', text: 'Back up now', onclick: function () { api('/admin/backups', { method: 'POST' }).then(function (r) { load(); setTimeout(function () { msg(body, 'Backup created: ' + r.name); }, 400); }).catch(function (e) { msg(body, e.message, 1); }); } })));
+        badge.textContent = (d.backups || []).length + ' saved';
+        if (!(d.backups || []).length) { body.appendChild(h('p', { class: 'ox-sm', text: 'No backups yet.' })); return; }
+        var rows = h('tbody', {});
+        d.backups.forEach(function (b) {
+          var dl = h('button', { class: 'ox-btn ghost', type: 'button', text: 'Download', onclick: function () { var tok = (typeof getAdminToken === 'function') ? getAdminToken() : ''; fetch(((typeof API_BASE !== 'undefined' && API_BASE) || '') + '/admin/backups/' + encodeURIComponent(b.name) + '/download', { headers: { Authorization: 'Bearer ' + tok } }).then(function (r) { return r.blob(); }).then(function (bl) { var a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = b.name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000); }); } });
+          var rs = h('button', { class: 'ox-btn ghost', type: 'button', text: 'Restore', onclick: function () { var t = prompt('This replaces your current Heal rules, scheduled reports and white-label settings with this backup (a safety backup is taken first).\n\nType RESTORE to continue:'); if (t !== 'RESTORE') return; api('/admin/backups/' + encodeURIComponent(b.name) + '/restore', { method: 'POST', body: JSON.stringify({ confirm: 'RESTORE' }) }).then(function (r) { load(); setTimeout(function () { msg(body, 'Restored: ' + (r.restored || []).join(', ')); }, 400); }).catch(function (e) { msg(body, e.message, 1); }); } });
+          var tr = h('tr', {}, h('td', { text: when(b.ts), 'data-label': 'When' }), h('td', { text: b.size_kb + ' KB', 'data-label': 'Size' }), h('td', { 'data-label': '' }, dl, ' ', rs)); rows.appendChild(tr);
+        });
+        body.appendChild(h('div', { style: 'overflow:auto' }, h('table', { class: 'ox-t' }, h('thead', {}, h('tr', {}, h('th', { text: 'When' }), h('th', { text: 'Size' }), h('th', { text: '' }))), rows)));
+      }).catch(function (e) { msg(body, e.message, 1); });
+    }
+    load();
+  }
+
+  /* ============================== Onboard a client (guided) */
+  function wizard(body) {
+    var S = { step: 0, client: null, cfg: null, res: null };
+    var steps = ['Choose client', 'Test connection', 'Choose features', 'First B2B contact', 'Final check'];
+    function bar() { var b = h('div', { class: 'ox-step' }); steps.forEach(function (_, i) { b.appendChild(h('div', { class: 'ox-dot' + (i <= S.step ? ' on' : '') })); }); return b; }
+    function draw() {
+      body.replaceChildren(bar(), h('div', { class: 'ox-h', text: 'Step ' + (S.step + 1) + ' of ' + steps.length + ' - ' + steps[S.step] }));
+      var back = h('button', { class: 'ox-btn ghost', type: 'button', text: 'Back', onclick: function () { S.step = Math.max(0, S.step - 1); draw(); } });
+      if (S.step === 0) {
+        var sel = h('select', { class: 'ox-sel' }, h('option', { value: '', text: 'Choose a client…' }));
+        api('/admin/whitelabel/clients').then(function (r) { (r.clients || []).forEach(function (x) { sel.appendChild(h('option', { value: x.id, text: x.name + ' (' + x.client_prefix + ')' })); S.list = r.clients; }); });
+        body.append(h('div', { class: 'ox-sm', text: 'Pick the hospital or lab you are setting up. Its database details must already be added under Institutions.' }), h('div', { class: 'ox-row' }, sel, h('button', { class: 'ox-btn', type: 'button', text: 'Next', onclick: function () { if (!sel.value) return msg(body, 'Choose a client.', 1); S.client = (S.list || []).filter(function (x) { return String(x.id) === sel.value; })[0]; S.step = 1; draw(); } })));
+      } else if (S.step === 1) {
+        var out = h('div', { class: 'ox-sm', text: 'Checking ' + S.client.name + '…' }); body.appendChild(out);
+        api('/admin/readiness/run?client=' + encodeURIComponent(S.client.client_prefix), { method: 'POST' }).then(function () { return wait(); });
+        function wait() { api('/admin/readiness').then(function (d) { if (d.running) return setTimeout(wait, 1500); var r = (d.clients || []).filter(function (c) { return String(c.prefix).toUpperCase() === String(S.client.client_prefix).toUpperCase(); })[0]; S.res = r; show(r); }); }
+        function show(r) { out.replaceChildren(); if (!r) { out.textContent = 'No result yet.'; return; } r.checks.forEach(function (c) { out.appendChild(h('div', { class: 'ox-msg' }, h('span', { class: c.status === 'ok' ? 'ox-ok' : (c.status === 'warn' ? 'ox-warn' : 'ox-bad'), text: (c.status === 'ok' ? '✔ ' : c.status === 'warn' ? '⚠ ' : '✖ ') }), c.text)); });
+          var blocked = r.checks.some(function (c) { return c.status === 'fail' && (c.key === 'db' || c.key === 'license'); });
+          out.appendChild(h('div', { class: 'ox-row' }, back, h('button', { class: 'ox-btn', type: 'button', text: blocked ? 'Fix the red items first' : 'Next', disabled: blocked, onclick: function () { S.step = 2; draw(); } }))); }
+      } else if (S.step === 2) {
+        api('/admin/whitelabel/' + S.client.id).then(function (r) {
+          S.cfg = r.config; var c = S.cfg;
+          function cb(k, label) { var i = h('input', { type: 'checkbox' }); i.checked = !!c[k]; i.dataset.k = k; return h('label', { class: 'ox-sm', style: 'display:block;margin:6px 0' }, i, ' ' + label); }
+          var kn = h('textarea', { class: 'ox-in', rows: 4, style: 'width:100%;height:auto;padding:8px', placeholder: 'Public information visitors can ask about: timings, address, services, contact numbers…' }); kn.value = c.b2c_knowledge || '';
+          var boxes = [cb('enabled', 'Chatbot on for this client'), cb('b2c_enabled', 'B2C - public visitors (uses the information below)'), cb('b2b_enabled', 'B2B - corporate customers log in with WhatsApp code'), cb('admin_enabled', 'Admin - staff with activation code')];
+          body.append.apply(body, boxes); body.append(h('div', { class: 'ox-h', text: 'Public information for B2C' }), kn);
+          body.appendChild(h('div', { class: 'ox-row' }, back, h('button', { class: 'ox-btn', type: 'button', text: 'Save and continue', onclick: function () { var p = {}; boxes.forEach(function (b) { var i = b.querySelector('input'); p[i.dataset.k] = i.checked ? 1 : 0; }); p.b2c_knowledge = kn.value; api('/admin/whitelabel/' + S.client.id, { method: 'PUT', body: JSON.stringify(p) }).then(function (r) { S.cfg = r.config; S.step = p.b2b_enabled ? 3 : 4; draw(); }).catch(function (e) { msg(body, e.message, 1); }); } })));
+        });
+      } else if (S.step === 3) {
+        var org = h('input', { class: 'ox-in', placeholder: 'Organisation code (as in the LIS)' }), nm = h('input', { class: 'ox-in', placeholder: 'Contact name' }), ph = h('input', { class: 'ox-in', placeholder: '+919876543210' });
+        body.append(h('div', { class: 'ox-sm', text: 'Add the first corporate contact who may log in. The organisation code is checked against the hospital’s own database.' }), h('div', { class: 'ox-row' }, org, nm, ph));
+        body.appendChild(h('div', { class: 'ox-row' }, back, h('button', { class: 'ox-btn', type: 'button', text: 'Add contact', onclick: function () { api('/admin/b2b/contacts', { method: 'POST', body: JSON.stringify({ institution_id: S.client.id, organisation_code: org.value, contact_name: nm.value, phone: ph.value }) }).then(function (r) { msg(body, 'Added ' + (r.organisation || '') + '.'); }).catch(function (e) { msg(body, e.message, 1); }); } }), h('button', { class: 'ox-btn ghost', type: 'button', text: 'Skip / continue', onclick: function () { S.step = 4; draw(); } })));
+      } else {
+        var out2 = h('div', { class: 'ox-sm', text: 'Final check…' }); body.appendChild(out2);
+        api('/admin/readiness/run?client=' + encodeURIComponent(S.client.client_prefix), { method: 'POST' }).then(function () { return w2(); });
+        function w2() { api('/admin/readiness').then(function (d) { if (d.running) return setTimeout(w2, 1500); var r = (d.clients || []).filter(function (c) { return String(c.prefix).toUpperCase() === String(S.client.client_prefix).toUpperCase(); })[0]; out2.replaceChildren(); (r ? r.checks : []).forEach(function (c) { out2.appendChild(h('div', { class: 'ox-msg' }, h('span', { class: c.status === 'ok' ? 'ox-ok' : (c.status === 'warn' ? 'ox-warn' : 'ox-bad'), text: (c.status === 'ok' ? '✔ ' : c.status === 'warn' ? '⚠ ' : '✖ ') }), c.text)); });
+          out2.appendChild(h('div', { class: 'ox-msg ' + (r && r.level === 'ok' ? 'ox-ok' : 'ox-warn'), text: r && r.level === 'ok' ? '✔ ' + S.client.name + ' is ready to go live.' : 'Fix the points above, then run this check again.' }));
+          out2.appendChild(h('div', { class: 'ox-row' }, back, h('button', { class: 'ox-btn ghost', type: 'button', text: 'Onboard another', onclick: function () { S = { step: 0 }; draw(); } }))); }); }
+      }
+    }
+    draw();
+  }
+
+  /* ============================== Usage & Analytics > Answer quality */
+  function usage(body, badge) {
+    var days = h('select', { class: 'ox-sel' }, [7, 30, 90].map(function (d) { return h('option', { value: d, text: 'Last ' + d + ' days', selected: d === 30 ? true : false }); }));
+    var area = h('div', {});
+    function load() {
+      api('/admin/usage-insights?days=' + days.value).then(function (d) {
+        area.replaceChildren();
+        area.appendChild(h('div', { class: 'ox-h', text: 'By hospital' }));
+        area.appendChild(table(['Hospital', 'Questions', 'AI-answered', 'Low confidence', '👎 Thumbs down', '👍 Thumbs up'], (d.clients || []).map(function (c) { return [c.client, c.answers, c.ai_pct + '%', c.low_pct + '%', c.down, c.up]; })));
+        area.appendChild(h('div', { class: 'ox-h', text: 'Most asked questions' }));
+        area.appendChild(table(['Question', 'Times', 'Hospital'], (d.top || []).map(function (c) { return [c.question, c.n, c.client]; })));
+        area.appendChild(h('div', { class: 'ox-h', text: 'Questions that most often failed or got a thumbs-down' }));
+        area.appendChild(table(['Question', 'Times', 'Hospital', 'Avg confidence'], (d.problem || []).map(function (c) { return [c.question, c.n, c.client, c.score == null ? '-' : c.score]; })));
+        badge.textContent = (d.clients || []).reduce(function (a, c) { return a + c.answers; }, 0) + ' answers';
+      }).catch(function (e) { msg(area, e.message, 1); });
+    }
+    days.addEventListener('change', load);
+    body.replaceChildren(h('div', { class: 'ox-row' }, days), area); load();
+  }
+
+  /* ============================== Accuracy test (agent answer vs database) */
+  function bank(body, badge) {
+    var timer;
+    function load() {
+      api('/admin/accuracy/bank').then(function (d) {
+        body.replaceChildren(); var run = d.running || {}, cl = d.clients || {}, keys = Object.keys(cl).sort();
+        var go = h('button', { class: 'ox-btn', type: 'button', text: run.running ? 'Running ' + run.done + '/' + run.total + '...' : 'Run accuracy test now', onclick: function () {
+          api('/admin/accuracy/bank/run', { method: 'POST', body: '{}' }).then(function () { load(); }).catch(function (e) { msg(body, e.message, 1); }); } });
+        if (run.running) go.disabled = true;
+        body.appendChild(h('div', { class: 'ox-row' }, go, h('span', { class: 'ox-sm', text: 'Asks the assistant standard questions and compares each figure with the hospital database.' })));
+        var rows = keys.map(function (k) { var r = cl[k] || {}; return [k, r.error ? 'Could not run: ' + r.error : (r.accuracy == null ? 'no data to test' : r.accuracy + '%'), r.passed == null ? '' : r.passed, r.failed == null ? '' : r.failed, r.ts ? when(r.ts) : '']; });
+        body.appendChild(table(['Hospital', 'Accuracy', 'Correct', 'Wrong', 'Last run'], rows));
+        var bad = [];
+        keys.forEach(function (k) { ((cl[k] || {}).results || []).forEach(function (r) { if (r.status === 'fail') bad.push([k, r.question, r.note]); }); });
+        if (bad.length) { body.appendChild(h('div', { class: 'ox-h', text: 'Answers that did not match the database' })); body.appendChild(table(['Hospital', 'Question', 'What happened'], bad)); }
+        var tot = keys.reduce(function (a, k) { return a + ((cl[k] || {}).passed || 0); }, 0), wr = keys.reduce(function (a, k) { return a + ((cl[k] || {}).failed || 0); }, 0);
+        badge.textContent = (tot + wr) ? Math.round(100 * tot / (tot + wr)) + '%' : 'Test';
+        clearTimeout(timer); if (run.running) timer = setTimeout(load, 5000);
+      }).catch(function (e) { msg(body, e.message, 1); });
+    }
+    load();
+  }
+
+  /* ============================== Privacy & data retention */
+  function privacy(body, badge) {
+    api('/admin/privacy').then(function (d) {
+      body.replaceChildren(); var c = d.config || {}, n = d.counts || {};
+      var cd = h('input', { class: 'ox-in', type: 'number', min: '7', max: '3650', value: c.chat_days }), ad = h('input', { class: 'ox-in', type: 'number', min: '7', max: '3650', value: c.audit_days }),
+        rd = h('input', { class: 'ox-in', type: 'number', min: '7', max: '3650', value: c.refused_days }), mr = h('input', { class: 'ox-in', value: c.mask_roles_full || '' }),
+        ap = h('input', { type: 'checkbox' }); ap.checked = !!c.auto_purge;
+      body.appendChild(h('div', { class: 'ox-row' }, fld('Keep answer logs (days)', cd), fld('Keep patient-lookup audit (days)', ad), fld('Keep refused questions (days)', rd), fld('Roles that see full phone numbers', mr),
+        h('label', { class: 'ox-sm' }, ap, ' Delete old data automatically every night')));
+      body.appendChild(h('div', { class: 'ox-row' },
+        h('button', { class: 'ox-btn', type: 'button', text: 'Save', onclick: function () {
+          api('/admin/privacy', { method: 'PUT', body: JSON.stringify({ chat_days: +cd.value, audit_days: +ad.value, refused_days: +rd.value, mask_roles_full: mr.value, auto_purge: ap.checked }) })
+            .then(function () { msg(body, 'Saved.'); }).catch(function (e) { msg(body, e.message, 1); }); } }),
+        h('button', { class: 'ox-btn ghost', type: 'button', text: 'Delete old data now', onclick: function () {
+          if (!confirm('Delete data older than these limits now?')) return;
+          api('/admin/privacy/purge', { method: 'POST', body: '{}' }).then(function () { msg(body, 'Old data deleted.'); }).catch(function (e) { msg(body, e.message, 1); }); } })));
+      body.appendChild(h('div', { class: 'ox-sm', text: 'Other roles see phone numbers hidden (like ******3210). Every question about a specific patient is written to the audit list below.' }));
+      body.appendChild(h('div', { class: 'ox-h', text: 'Patient look-ups (latest 50)' }));
+      body.appendChild(table(['When', 'Hospital', 'Role', 'Type', 'Question'], (d.lookups || []).map(function (r) { return [when(r.ts), r.client, r.role, r.kind, r.question]; })));
+      body.appendChild(h('div', { class: 'ox-h', text: 'Refused questions (latest 50)' }));
+      body.appendChild(table(['When', 'Why', 'Question'], (d.refused || []).map(function (r) { return [when(r.ts), r.reason, r.question]; })));
+      badge.textContent = (n.lookups || 0) + ' look-ups';
+    }).catch(function (e) { msg(body, e.message, 1); });
+  }
+
+  function mount() {
+    if (document.getElementById('oxAcc')) return;
+    var grid = document.querySelector('#settingsPage .settings-grid'); addCss();
+    if (grid) {
+      card('oxAcc', '🎯', 'Accuracy checks', 'Nightly re-test of every fixed answer, and a same-question-same-figures test', 'Check', accuracy, grid);
+      card('oxBank', '✅', 'Accuracy test', 'Compares the assistant\'s figures with the hospital database', 'Test', bank, grid);
+      card('oxPriv', '🔒', 'Privacy & data retention', 'Phone masking by role, patient look-up audit, refused questions, auto-delete', 'Review', privacy, grid);
+      card('oxBk', '💾', 'Backups & restore', 'Daily snapshots of your Heal rules, scheduled reports and white-label settings', 'Back up', backups, grid);
+      card('oxWiz', '🧭', 'Onboard a client', 'Guided setup: connection test, features, first B2B contact, final check', 'Start', wizard, grid);
+    }
+    var an = document.querySelector('#analyticsPage .analytics-grid') || document.querySelector('#analyticsPage');
+    if (an) card('oxUse', '📈', 'Answer quality by hospital', 'Questions, AI share, low-confidence answers, top and failing questions', 'View', usage, an);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+})();

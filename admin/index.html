@@ -6,6 +6,7 @@
   <title>Sahasra AI - Admin Panel</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="premium.css">
     <script>try{var t=localStorage.getItem("adminTheme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
   <link rel="icon" type="image/x-icon" href="Favicon.ico">
   <style>
@@ -67,6 +68,7 @@
     .topbar-dropdown-footer:hover, .topbar-dropdown-item:hover { background: #f8fafc; }
     .topbar-empty { padding: 14px; font-size: 13px; color: #94a3b8; }
   </style>
+<link rel="stylesheet" href="mobile.css">
 </head>
 <body>
 <div id="adminLoginOverlay">
@@ -276,6 +278,7 @@
           <div class="settings-section"><h3>Guardrails</h3><div class="setting"><div><strong>Blocked Patterns</strong><small>Comma-separated patterns rejected by the agent.</small></div><input id="blockedPatterns" class="setting-input"></div><div class="setting"><div><strong>Sensitive Data Redaction</strong><small>Redact sensitive fields from generated responses.</small></div><label class="switch"><input id="redaction" type="checkbox"><span></span></label></div></div>
           <div class="settings-section"><h3>Admin Alert Notifications</h3><div class="setting"><div><strong>Email alerts for expiring licenses</strong><small>Notify administrators before license expiry.</small></div><label class="switch"><input id="emailAlerts" type="checkbox"><span></span></label></div><div class="setting"><div><strong>SMTP Host</strong><small>e.g. smtp.gmail.com</small></div><input id="alertSmtpHost" class="setting-input" placeholder="smtp.example.com"></div><div class="setting"><div><strong>SMTP Port</strong><small>Usually 587 (TLS)</small></div><input class="small-input" id="alertSmtpPort" type="number" min="1"></div><div class="setting"><div><strong>SMTP Username</strong><small>Login for the sending mailbox.</small></div><input id="alertSmtpUser" class="setting-input" placeholder="bot@yourdomain.com"></div><div class="setting"><div><strong>SMTP Password</strong><small>App password, not stored in audit logs.</small></div><input id="alertSmtpPassword" type="password" class="setting-input"></div><div class="setting"><div><strong>Alert Recipient Email</strong><small>Where expiry alerts get sent.</small></div><input id="alertEmailTo" class="setting-input" placeholder="ops@yourdomain.com"></div><div class="setting"><div><strong>Slack / WhatsApp webhook</strong><small>Optional notification endpoint.</small></div><input id="webhook" class="setting-input" placeholder="https://..."></div><div class="setting"><div><strong>Test your setup</strong><small>Sends a real test email/webhook right now, using whatever's saved above.</small></div><button class="secondary-btn" id="testNotifications">Send Test Alert</button></div></div>
 
+<div class="settings-section"><h3>My Account</h3><div class="setting"><div><strong>Password, username &amp; recovery</strong><small>Change your sign-in details, and set the email / mobile used by "Forgot password".</small></div><button class="secondary-btn" type="button" onclick="SahasraAccount.openAccount()">Manage account</button></div></div>
 <div class="settings-section"><h3>Verification Email (OTP) SMTP</h3><div class="setting"><div><strong>SMTP Host</strong><small>Used to send activation verification codes.</small></div><input id="otpSmtpHost" class="setting-input" placeholder="smtp.example.com"></div><div class="setting"><div><strong>SMTP Port</strong><small>Usually 587 (TLS)</small></div><input class="small-input" id="otpSmtpPort" type="number" min="1"></div><div class="setting"><div><strong>SMTP Username</strong><small>Login for the sending mailbox.</small></div><input id="otpSmtpUser" class="setting-input" placeholder="verify@yourdomain.com"></div><div class="setting"><div><strong>SMTP Password</strong><small>App password, not stored in audit logs.</small></div><input id="otpSmtpPassword" type="password" class="setting-input"></div></div>
           <div class="settings-section"><h3>Admin Users</h3><div id="adminUsers"></div><button class="secondary-btn" id="addAdmin">+ Add Admin User</button></div>
           <div class="form-group">
@@ -335,9 +338,15 @@
 <!-- institution/license modal -->
 <div class="modal-overlay" id="modalOverlay"><div class="modal"><div class="modal-header"><div><div class="eyebrow" id="modalEyebrow">INSTITUTION</div><h2 id="modalTitle">Add Institution</h2></div><button class="modal-close" id="closeModal">×</button></div><form id="modalForm"><div id="modalFields"></div><div class="modal-footer"><button type="button" class="secondary-btn" id="cancelModal">Cancel</button><button type="submit" class="primary-btn">Save</button></div></form></div></div>
 <div id="toast" class="toast"></div>
+    <script src="account_kit.js"></script>
     <script src="app.js"></script>
     <script src="whitelabel.js"></script>
     <script src="row-actions.js"></script>
     <script src="polish.js"></script>
+    <script src="premium.js"></script>
+<script src="report_schedules.js"></script>
+<script src="mobile.js"></script>
+<script src="readiness.js"></script>
+<script src="ops_cards.js"></script>
 </body>
 </html>

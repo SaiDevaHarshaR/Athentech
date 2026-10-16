@@ -108,3 +108,25 @@ def record_usage(hospital_id: str, tokens_used: int) -> dict:
 
 def get_usage_today(hospital_id: str) -> dict:
     return check_budget(hospital_id)
+
+
+def get_all_institutions_usage(institutions) -> list:
+    """Usage rows for the admin table. Keyed by client_prefix (same key the agent uses). Never raises."""
+    out = []
+    for inst in institutions or []:
+        code = inst.get("client_prefix") or ""
+        try:
+            b = check_budget(code) if code else {"used": 0, "limit": _DEFAULT_TOKEN_LIMIT, "remaining": _DEFAULT_TOKEN_LIMIT}
+        except Exception:
+            b = {"used": 0, "limit": _DEFAULT_TOKEN_LIMIT, "remaining": _DEFAULT_TOKEN_LIMIT}
+        limit = int(b.get("limit") or 0)
+        used = int(b.get("used") or 0)
+        out.append({
+            "institution_name": inst.get("name") or code or "Unknown",
+            "institution_code": code,
+            "used": used,
+            "limit": limit,
+            "remaining": int(b.get("remaining") if b.get("remaining") is not None else max(0, limit - used)),
+            "pct_used": min(100, round(used * 100 / limit)) if limit else 0,
+        })
+    return out

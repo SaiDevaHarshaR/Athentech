@@ -5,15 +5,20 @@ const API_BASE = "https://api.athentech.in";
 const TOKEN_KEY = 'sahasraAdminToken';
 
 function getAdminToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 }
 
 function setAdminToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
+  // 'Remember me' ticked -> survives closing the browser; otherwise this tab/session only.
+  const rem = document.getElementById('sahasra-remember');
+  const keep = rem ? rem.checked : !!localStorage.getItem(TOKEN_KEY);
+  (keep ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  (keep ? sessionStorage : localStorage).removeItem(TOKEN_KEY);
 }
 
 function clearAdminToken() {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 function showLoginOverlay(message) {
@@ -80,6 +85,7 @@ async function handleAdminLogin(e) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.SahasraAccount) SahasraAccount.init({ api: API_BASE, getToken: getAdminToken, setToken: setAdminToken });
   const form = document.getElementById('adminLoginForm');
   if (form) form.addEventListener('submit', handleAdminLogin);
 
