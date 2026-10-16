@@ -15,6 +15,7 @@ _START = time.monotonic()
 _LOCK = Lock()
 _TOTAL = Counter()
 _LATENCY = deque(maxlen=2500)
+_LAT_BY = {}
 _EVENTS = Counter()
 
 _ALLOWED_EVENTS = frozenset({"b2b_otp", "b2b_query", "report_download", "ai_provider"})
@@ -29,7 +30,7 @@ def route_group(path: str) -> str:
     if path.startswith("/widget") or path.startswith("/static/"): return "widget"
     if path.startswith("/public/"): return "public"
     if path in ("/ask", "/chat") or path.startswith("/chat/"): return "chat"
-    if path.startswith("/report") or path.startswith("/reports/"): return "report"
+    if path.startswith("/report") or path.startswith("/reports/") or path in ("/generate-excel", "/generate-pdf", "/generate-patient-report"): return "report"
     return "other"
 
 
@@ -49,6 +50,7 @@ def record_http(path: str, status_code: int, seconds: float) -> None:
     with _LOCK:
         _TOTAL[group, f"{status_code // 100}xx"] += 1
         _LATENCY.append(min(max(float(seconds), 0), 3600))
+        _LAT_BY.setdefault(group, deque(maxlen=800)).append(min(max(float(seconds), 0), 3600))
 
 
 def snapshot() -> dict:
@@ -56,6 +58,7 @@ def snapshot() -> dict:
         group_counts = sorted(({"group": g, "status": s, "count": n} for (g, s), n in _TOTAL.items()), key=lambda v: (v["group"], v["status"]))
         event_counts = sorted(({"kind": k, "result": r, "count": n} for (k, r), n in _EVENTS.items()), key=lambda v: (v["kind"], v["result"]))
         samples = sorted(_LATENCY)
+        by = {g: sorted(d) for g, d in _LAT_BY.items()}
     count = sum(r["count"] for r in group_counts)
     errors = sum(r["count"] for r in group_counts if r["status"] == "5xx")
     p95 = samples[max(0, min(len(samples) - 1, int((len(samples) - 1) * .95)))] if samples else None
@@ -64,6 +67,11 @@ def snapshot() -> dict:
         "http_requests": count, "http_5xx": errors,
         "http_p95_seconds": round(p95, 4) if p95 is not None else None,
         "http_groups": group_counts, "backend_events": event_counts,
+        "areas": [{"area": g, "requests": sum(r["count"] for r in group_counts if r["group"] == g),
+                   "errors_5xx": sum(r["count"] for r in group_counts if r["group"] == g and r["status"] == "5xx"),
+                   "avg_s": round(sum(v) / len(v), 3) if v else None,
+                   "p95_s": round(v[max(0, min(len(v) - 1, int((len(v) - 1) * .95)))], 3) if v else None}
+                  for g, v in sorted(by.items())],
         "notice": "Event outcomes appear only after explicitly connecting trusted backend hooks; counters reset after restart."
     }
 
