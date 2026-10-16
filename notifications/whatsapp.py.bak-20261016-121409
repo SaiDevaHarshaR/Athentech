@@ -1,0 +1,85 @@
+"""WhatsApp delivery through Pinnacle (Pinbot) - AthenTech's WhatsApp Business API vendor.
+Server environment variables (get the values from your Pinnacle console / account manager):
+  PINNACLE_WA_URL            the full "send message" API URL Pinnacle gave you   (required)
+  PINNACLE_WA_APIKEY         your Pinnacle API key                               (required)
+  PINNACLE_WA_FROM           your registered WhatsApp Business (WABA) number     (required)
+  PINNACLE_WA_AUTH_HEADER    header name that carries the key (default: apikey)
+  PINNACLE_WA_TEMPLATE_ID    an APPROVED template id. REQUIRED to reach anyone who has not messaged you in the last 24 h
+                             (WhatsApp rule). Without it, a plain text session message is sent.
+  PINNACLE_WA_TEMPLATE_VARS  how many {{variables}} the template has: 1 (default: whole report) or 2 (title, report)
+  PINNACLE_WA_TO_PLUS        set to 1 to send numbers as +91...; default sends 91... (digits only)
+Request shape follows Pinnacle's published plugin docs:
+  text     {"from": WABA, "to": number, "type": "text", "message": {"text": "..."}}
+  template {"from": WABA, "to": number, "type": "template", "message": {"templateid": "...", "placeholders": ["..."]}}
+Template variables cannot contain line breaks (WhatsApp rule), so the report is flattened with " | " in template mode.
+Never raises; the API key is never returned in any message.
+"""
+import json
+import os
+import re
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+PHONE_RX = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def configured() -> bool:
+    return bool(os.environ.get("PINNACLE_WA_URL") and os.environ.get("PINNACLE_WA_APIKEY") and os.environ.get("PINNACLE_WA_FROM"))
+
+
+def _flat(text, limit=1000):
+    t = re.sub(r"\s*\n\s*", " | ", str(text or "").strip())
+    t = re.sub(r" {2,}", " ", t).replace("\t", " ")
+    return t[:limit]
+
+
+def _body(num, title, text):
+    frm = os.environ["PINNACLE_WA_FROM"].strip().lstrip("+")
+    to = num if os.environ.get("PINNACLE_WA_TO_PLUS") == "1" else num.lstrip("+")
+    tmpl = os.environ.get("PINNACLE_WA_TEMPLATE_ID", "").strip()
+    if tmpl:
+        two = os.environ.get("PINNACLE_WA_TEMPLATE_VARS", "1").strip() == "2"
+        ph = [_flat(title, 200), _flat(text, 800)] if two else [_flat(title + " - " + text)]
+        return {"from": frm, "to": to, "type": "template", "message": {"templateid": tmpl, "placeholders": ph}}
+    return {"from": frm, "to": to, "type": "text", "message": {"text": (("*%s*\n\n" % title) + str(text))[:3500]}}
+
+
+def send(to_list, text, title="Sahasra AI report"):
+    """-> (ok, detail). One message per number; ok only if every number was accepted."""
+    if not configured():
+        return False, "WhatsApp is not set up on this server (PINNACLE_WA_URL / PINNACLE_WA_APIKEY / PINNACLE_WA_FROM)."
+    url = os.environ["PINNACLE_WA_URL"].strip()
+    if not url.lower().startswith("https://"):
+        return False, "PINNACLE_WA_URL must start with https://"
+    key = os.environ["PINNACLE_WA_APIKEY"].strip()
+    hdr = os.environ.get("PINNACLE_WA_AUTH_HEADER", "apikey").strip() or "apikey"
+    good, bad = [], []
+    for num in to_list or []:
+        if not PHONE_RX.match(num or ""):
+            bad.append(str(num)[:20] + " (invalid number)"); continue
+        try:
+            req = Request(url, data=json.dumps(_body(num, title, text)).encode("utf-8"), method="POST",
+                          headers={"Content-Type": "application/json", hdr: key})
+            with urlopen(req, timeout=20) as r:
+                raw = r.read(4096).decode("utf-8", "replace")
+            try:
+                j = json.loads(raw)
+            except Exception:
+                j = {}
+            st = str(j.get("status", "")).lower() if isinstance(j, dict) else ""
+            if isinstance(j, dict) and (j.get("error") or st in ("error", "failed", "failure")):
+                msg = str(j.get("error") or j.get("message") or raw)[:120].replace(key, "***")
+                bad.append("%s (provider said: %s)" % (num, msg))
+            else:
+                good.append(num)
+        except HTTPError as e:
+            try:
+                snippet = e.read(300).decode("utf-8", "replace").replace(key, "***")[:120]
+            except Exception:
+                snippet = ""
+            bad.append("%s (provider error %s%s)" % (num, e.code, ": " + snippet if snippet else ""))
+        except Exception as e:
+            bad.append("%s (%s)" % (num, type(e).__name__))
+    if bad:
+        return False, ("sent to %d; failed: " % len(good)) + "; ".join(bad)
+    return bool(good), "sent to " + ", ".join(good)
