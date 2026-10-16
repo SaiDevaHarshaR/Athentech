@@ -1,0 +1,16 @@
+import sys,os,sqlite3,types; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); os.environ['GROQ_API_KEY']='x'
+sys.modules['pyodbc']=types.ModuleType('pyodbc')
+from datetime import date,datetime
+from agent import accuracy_bank as ab
+c=sqlite3.connect(':memory:')
+c.executescript("create table trninvlabpri(BILLNO,BILLDATE);create table mstpatientregistration(REGDATE);create table trnmodeofcollectionsdet(DATEOFBILL,AMT);create table trninvstatus(STATUS,AUTHENTICATEDATE);")
+t=date.today().isoformat()
+for i in range(7): c.execute("insert into trninvlabpri values(?,?)",(i,t))
+for i in range(3): c.execute("insert into mstpatientregistration values(?)",(t,))
+c.execute("insert into trnmodeofcollectionsdet values(?,?)",(t,78200.0)); c.execute("insert into trnmodeofcollectionsdet values(?,?)",(t,1000.0))
+import agent.schema_ctx as sc; sc.coll_amt=lambda p,alias="":"AMT"
+ans={"how many bills today":"🧾 Bills · Today: **7**","how many patients registered today":"Patients: 4","total collection today across all branches":"Total ₹79,200","how many reports were authenticated today":"x"}
+r=ab.run_client("T",ask=lambda q:ans.get(q,"none"),connect=lambda:c,profile_fn=lambda cn:{"pat_date":"REGDATE"},periods=["today","yesterday"])
+for x in r["results"]: print(x["kind"],x["period"],x["status"],x.get("note",""))
+print(r["accuracy"],r["passed"],r["failed"],r["skipped"])
+print(ab.matches(1200000,"₹12.0L"),ab.matches(1200000,"₹12L"),ab.matches(78200,"78,200"),ab.matches(78200,"78,900"))
