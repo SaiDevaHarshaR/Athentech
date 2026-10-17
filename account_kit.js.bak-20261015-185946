@@ -1,0 +1,205 @@
+/* Sahasra account kit - shared by Admin panel, Guardian console and Answer Review.
+   Adds: Remember me (longer session; password saving is left to the browser's own password manager),
+   Forgot password (email / mobile code), and an Account dialog (change password, username, recovery contacts).
+   No passwords are ever stored by this script. */
+(function () {
+  'use strict';
+  var KEY = 'sahasra_remember_session', USER = 'sahasra_last_user', REM = 'sahasra_remember_on';
+  var cfg = { api: '', getToken: function () { return ''; }, setToken: function () {}, onUser: function () {} };
+
+  function ls(fn) { try { return fn(localStorage); } catch (e) { return null; } }
+  function el(tag, css, text, attrs) {
+    var e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (text != null) e.textContent = text;
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function url(p) { return (cfg.api || '') + p; }
+  async function call(path, body, auth) {
+    var h = { 'Content-Type': 'application/json' };
+    if (auth) h.Authorization = 'Bearer ' + cfg.getToken();
+    var r = await fetch(url(path), { method: body === undefined ? 'GET' : 'POST', headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.detail || j.message || ('Request failed (' + r.status + ')'));
+    if (j.status === 'error') throw new Error(j.message || 'Request failed');
+    return j;
+  }
+
+  /* ---------- remember me: wraps the login request so no site code has to change ---------- */
+  var _fetch = window.fetch.bind(window);
+  window.fetch = async function (input, init) {
+    var u = typeof input === 'string' ? input : (input && input.url) || '';
+    var isLogin = /\/admin\/(guardian\/api\/)?login$/.test(u.split('?')[0]) && init && String(init.method || '').toUpperCase() === 'POST';
+    var cb = isLogin ? document.getElementById('sahasra-remember') : null;
+    if (isLogin && cb) {
+      try { var b = JSON.parse(init.body); b.remember = !!cb.checked; init = Object.assign({}, init, { body: JSON.stringify(b) }); } catch (e) {}
+    }
+    var res = await _fetch(input, init);
+    if (isLogin && cb && res.ok) {
+      try {
+        var j = await res.clone().json();
+        var b2 = JSON.parse(init.body);
+        if (cb.checked && j.token) {
+          ls(function (s) { s.setItem(KEY, JSON.stringify({ t: j.token, exp: Date.now() + 29 * 864e5, u: b2.username })); s.setItem(USER, b2.username); s.setItem(REM, '1'); });
+        } else {
+          ls(function (s) { s.removeItem(KEY); s.setItem(REM, '0'); });
+        }
+      } catch (e) {}
+    }
+    return res;
+  };
+
+  function savedSession() {
+    var v = ls(function (s) { return s.getItem(KEY); });
+    if (!v) return null;
+    try { var o = JSON.parse(v); return o.exp > Date.now() ? o : null; } catch (e) { return null; }
+  }
+  async function resume() {
+    var s = savedSession();
+    if (!s) return null;
+    try {
+      var r = await _fetch(url('/admin/account'), { headers: { Authorization: 'Bearer ' + s.t } });
+      if (!r.ok) throw 0;
+      return s.t;
+    } catch (e) { forget(); return null; }
+  }
+  function forget() { ls(function (s) { s.removeItem(KEY); }); }
+  function remember(token) { var s = savedSession(); if (s) ls(function (st) { s.t = token; st.setItem(KEY, JSON.stringify(s)); }); }
+
+  /* ---------- login form enhancements ---------- */
+  function enhanceLogin() {
+    var pw = document.querySelector('input[type=password][autocomplete=current-password]');
+    if (!pw || document.getElementById('sahasra-remember')) return;
+    var user = document.querySelector('input[autocomplete=username]');
+    var row = el('div', 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0 2px;font-size:12px;color:inherit');
+    var lab = el('label', 'display:flex;align-items:center;gap:7px;cursor:pointer;opacity:.85');
+    var cb = el('input', 'width:auto;margin:0;accent-color:#176f58', null, { type: 'checkbox', id: 'sahasra-remember' });
+    lab.appendChild(cb); lab.appendChild(document.createTextNode('Remember me on this device'));
+    var fg = el('a', 'cursor:pointer;text-decoration:underline;opacity:.85', 'Forgot password?', { href: '#', role: 'button' });
+    fg.addEventListener('click', function (e) { e.preventDefault(); openForgot(user && user.value.trim()); });
+    row.appendChild(lab); row.appendChild(fg);
+    pw.parentNode.insertBefore(row, pw.nextSibling);
+    if (ls(function (s) { return s.getItem(REM); }) === '1') {
+      cb.checked = true;
+      var last = ls(function (s) { return s.getItem(USER); });
+      if (user && last && !user.value) user.value = last;
+    }
+  }
+
+  /* ---------- dialog scaffold ---------- */
+  function modal(title) {
+    var old = document.getElementById('sahasra-acct'); if (old) old.remove();
+    var ov = el('div', 'position:fixed;inset:0;background:rgba(10,14,12,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:2147483000;padding:16px', null, { id: 'sahasra-acct', role: 'dialog', 'aria-modal': 'true' });
+    var card = el('div', 'background:#fff;color:#18221d;width:min(440px,100%);max-height:92vh;overflow:auto;border-radius:16px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.35);font:14px/1.45 system-ui,Segoe UI,Arial,sans-serif');
+    var head = el('div', 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px');
+    head.appendChild(el('h3', 'margin:0;font-size:17px', title));
+    var x = el('button', 'border:0;background:none;font-size:22px;cursor:pointer;color:#77827b;line-height:1', '×', { type: 'button', 'aria-label': 'Close' });
+    x.onclick = function () { ov.remove(); };
+    head.appendChild(x); card.appendChild(head); ov.appendChild(card);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) ov.remove(); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc); } });
+    document.body.appendChild(ov);
+    return { card: card, close: function () { ov.remove(); } };
+  }
+  var INP = 'width:100%;box-sizing:border-box;border:1px solid #d9e0da;border-radius:10px;padding:10px 12px;font:inherit;margin:4px 0 10px;background:#fff;color:#18221d';
+  var BTN = 'border:0;border-radius:10px;padding:11px 16px;font:600 14px inherit;cursor:pointer;background:#176f58;color:#fff;width:100%';
+  var BTN2 = 'border:1px solid #d9e0da;border-radius:10px;padding:9px 14px;font:600 13px inherit;cursor:pointer;background:#fff;color:#385341';
+  function field(card, label, type, ac, ph) {
+    card.appendChild(el('label', 'font-size:12px;font-weight:600;color:#54826d', label));
+    var i = el('input', INP, null, { type: type || 'text', autocomplete: ac || 'off', placeholder: ph || '' });
+    card.appendChild(i); return i;
+  }
+  function msg(card) { var m = el('div', 'min-height:18px;font-size:13px;margin:2px 0 8px;font-weight:600'); card.appendChild(m); return function (t, ok) { m.textContent = t || ''; m.style.color = ok ? '#176f58' : '#b84d41'; }; }
+  function strength(pw) { var n = 0; if (pw.length >= 8) n++; if (pw.length >= 12) n++; if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) n++; if (/\d/.test(pw)) n++; if (/[^A-Za-z0-9]/.test(pw)) n++; return n; }
+  function meter(card, input) {
+    var bar = el('div', 'height:5px;background:#e5e9e5;border-radius:9px;overflow:hidden;margin:-4px 0 4px'); var f = el('div', 'height:100%;width:0;transition:width .2s'); bar.appendChild(f);
+    var hint = el('div', 'font-size:11px;color:#77827b;margin-bottom:8px', 'At least 8 characters, with a letter and a number.');
+    card.appendChild(bar); card.appendChild(hint);
+    input.addEventListener('input', function () { var s = strength(input.value); f.style.width = (s * 20) + '%'; f.style.background = s < 3 ? '#b84d41' : s < 4 ? '#b6782a' : '#176f58'; });
+  }
+  async function busy(btn, fn) { var t = btn.textContent; btn.disabled = true; btn.textContent = 'Please wait…'; try { await fn(); } finally { btn.disabled = false; btn.textContent = t; } }
+
+  /* ---------- forgot password ---------- */
+  function openForgot(prefill) {
+    var m = modal('Reset your password'), c = m.card, state = { channel: 'email' };
+    c.appendChild(el('p', 'margin:0 0 12px;color:#77827b;font-size:13px', 'We will send a 6-digit code to the recovery email or mobile number saved on your admin account.'));
+    var id = field(c, 'Username or recovery email', 'text', 'username'); if (prefill) id.value = prefill;
+    var row = el('div', 'display:flex;gap:16px;margin:0 0 12px;font-size:13px');
+    [['email', 'Email me a code'], ['sms', 'Text me a code']].forEach(function (o, i) {
+      var l = el('label', 'display:flex;gap:6px;align-items:center;cursor:pointer'); var r = el('input', 'margin:0', null, { type: 'radio', name: 'sh-ch' });
+      r.checked = i === 0; r.onchange = function () { state.channel = o[0]; }; l.appendChild(r); l.appendChild(document.createTextNode(o[1])); row.appendChild(l);
+    });
+    c.appendChild(row);
+    var say = msg(c), send = el('button', BTN, 'Send code', { type: 'button' }); c.appendChild(send);
+    var step2 = el('div', 'display:none;margin-top:14px;border-top:1px solid #e5e9e5;padding-top:12px'); c.appendChild(step2);
+    var code = field(step2, 'Code', 'text', 'one-time-code', '123456'); code.setAttribute('inputmode', 'numeric'); code.maxLength = 10;
+    var np = field(step2, 'New password', 'password', 'new-password'); meter(step2, np);
+    var np2 = field(step2, 'Repeat new password', 'password', 'new-password');
+    var say2 = msg(step2), go = el('button', BTN, 'Change password', { type: 'button' }); step2.appendChild(go);
+    send.onclick = function () {
+      busy(send, async function () {
+        say('');
+        try { var j = await call('/admin/forgot/request', { identifier: id.value.trim(), channel: state.channel }); say(j.message, true); step2.style.display = 'block'; code.focus(); }
+        catch (e) { say(e.message); }
+      });
+    };
+    go.onclick = function () {
+      if (np.value !== np2.value) return say2('The two passwords do not match.');
+      busy(go, async function () {
+        say2('');
+        try {
+          var j = await call('/admin/forgot/confirm', { identifier: id.value.trim(), code: code.value.trim(), new_password: np.value, channel: state.channel });
+          say2(j.message, true); forget();
+          var u = document.querySelector('input[autocomplete=username]'); if (u && !u.value && id.value.indexOf('@') < 0) u.value = id.value.trim();
+          setTimeout(m.close, 1600);
+        } catch (e) { say2(e.message); }
+      });
+    };
+  }
+
+  /* ---------- account dialog ---------- */
+  async function openAccount() {
+    var m = modal('My account'), c = m.card, info;
+    try { info = await call('/admin/account', undefined, true); } catch (e) { c.appendChild(el('p', 'color:#b84d41', e.message)); return; }
+    var tabs = el('div', 'display:flex;gap:6px;margin-bottom:14px'), body = el('div'); c.appendChild(tabs); c.appendChild(body);
+    c.insertBefore(el('div', 'font-size:12px;color:#77827b;margin:-6px 0 12px', 'Signed in as ' + info.username), tabs);
+    var views = {
+      Password: function () {
+        var cur = field(body, 'Current password', 'password', 'current-password'), np = field(body, 'New password', 'password', 'new-password'); meter(body, np);
+        var np2 = field(body, 'Repeat new password', 'password', 'new-password'), say = msg(body), b = el('button', BTN, 'Change password', { type: 'button' }); body.appendChild(b);
+        b.onclick = function () {
+          if (np.value !== np2.value) return say('The two passwords do not match.');
+          busy(b, async function () { try { var j = await call('/admin/account/password', { current_password: cur.value, new_password: np.value }, true); cfg.setToken(j.token); remember(j.token); say(j.message, true); cur.value = np.value = np2.value = ''; } catch (e) { say(e.message); } });
+        };
+      },
+      Username: function () {
+        var nu = field(body, 'New username', 'text', 'off', info.username), cur = field(body, 'Current password', 'password', 'current-password');
+        body.appendChild(el('div', 'font-size:11px;color:#77827b;margin:-4px 0 10px', '3-60 characters: letters, numbers and . _ @ -'));
+        var say = msg(body), b = el('button', BTN, 'Change username', { type: 'button' }); body.appendChild(b);
+        b.onclick = function () {
+          busy(b, async function () { try { var j = await call('/admin/account/username', { current_password: cur.value, new_username: nu.value.trim() }, true); cfg.setToken(j.token); remember(j.token); cfg.onUser(j.username); ls(function (s) { if (s.getItem(USER)) s.setItem(USER, j.username); }); say(j.message + ' You are now ' + j.username + '.', true); info.username = j.username; cur.value = ''; } catch (e) { say(e.message); } });
+        };
+      },
+      Recovery: function () {
+        body.appendChild(el('p', 'margin:0 0 10px;color:#77827b;font-size:13px', 'Used only for "Forgot password" codes. Mobile needs the country code, e.g. +919876543210.'));
+        var em = field(body, 'Recovery email', 'email', 'email', info.email_masked || 'name@example.com'); em.value = info.email || '';
+        var ph = field(body, 'Recovery mobile', 'tel', 'tel', info.phone_masked || '+91…'); ph.value = info.phone || '';
+        var cur = field(body, 'Current password', 'password', 'current-password'), say = msg(body), b = el('button', BTN, 'Save recovery details', { type: 'button' }); body.appendChild(b);
+        b.onclick = function () { busy(b, async function () { try { var j = await call('/admin/account/recovery', { current_password: cur.value, email: em.value.trim(), phone: ph.value.trim() }, true); say(j.message, true); cur.value = ''; } catch (e) { say(e.message); } }); };
+      }
+    };
+    function show(name) {
+      body.replaceChildren();
+      Array.prototype.forEach.call(tabs.children, function (t) { var on = t.textContent === name; t.style.background = on ? '#eaf4ef' : '#fff'; t.style.borderColor = on ? '#176f58' : '#d9e0da'; t.style.color = on ? '#176f58' : '#385341'; });
+      views[name]();
+    }
+    Object.keys(views).forEach(function (n) { var t = el('button', BTN2, n, { type: 'button' }); t.onclick = function () { show(n); }; tabs.appendChild(t); });
+    show('Password');
+  }
+
+  window.SahasraAccount = {
+    init: function (o) { cfg = Object.assign(cfg, o || {}); enhanceLogin(); document.addEventListener('DOMContentLoaded', enhanceLogin); setTimeout(enhanceLogin, 300); },
+    resume: resume, forget: forget, openAccount: openAccount, openForgot: openForgot, enhance: enhanceLogin
+  };
+})();
