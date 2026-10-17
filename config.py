@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Comma-separated list of origins allowed to call this API.
     # Add your production website origin(s) here, e.g.:
     # "https://athentech.in,https://www.athentech.in,http://127.0.0.1:5500"
-    allowed_origins: str = "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5501,http://localhost:5501"
+    allowed_origins: str = "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5501,http://localhost:5501,http://YOUR_SERVER_IP,http://YOUR_SERVER_IP:5500"
 
     class Config:
         env_file = ".env"

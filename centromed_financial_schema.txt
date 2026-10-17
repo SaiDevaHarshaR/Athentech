@@ -1,0 +1,1033 @@
+========== FINANCIAL TABLES ==========
+dbo.CC_Invoice | BASE TABLE
+dbo.CC_InvoiceNew | BASE TABLE
+dbo.DayCollection_MobileApp | BASE TABLE
+dbo.DrC_Cash_OP | VIEW
+dbo.DueDays | VIEW
+dbo.DUES | VIEW
+dbo.mstAppAdditionalCharges | BASE TABLE
+dbo.mstAppPaymentParams | BASE TABLE
+dbo.mstAppPaymentParams_Backup | BASE TABLE
+dbo.mstDocDeptInvDiscount | BASE TABLE
+dbo.mstInvoiceSlipText | BASE TABLE
+dbo.mstMemPlansWiseAdditionalCharges | BASE TABLE
+dbo.mstOrgDeptDiscount | BASE TABLE
+dbo.mstPaymentDetails | BASE TABLE
+dbo.mstPaymentGateway | BASE TABLE
+dbo.mstPaymentGateWayResponse | BASE TABLE
+dbo.mstPaymentGatewayTemp | BASE TABLE
+dbo.mstPaymentMethod | BASE TABLE
+dbo.mstTempAppPaymentdtls | BASE TABLE
+dbo.NotgeneratedInvoices | VIEW
+dbo.NotgenetratedInvoices_3 | VIEW
+dbo.PaymentGatewayResponse | BASE TABLE
+dbo.tblAppAgentAssignBill | BASE TABLE
+dbo.tblAppRepoCharges | BASE TABLE
+dbo.tblInvoiceSms | BASE TABLE
+dbo.TempBills | BASE TABLE
+dbo.TempBillsDataImport | BASE TABLE
+dbo.TempPayments | BASE TABLE
+dbo.TempTableBills | BASE TABLE
+dbo.trnBillingCycleInvoiceGeneration | BASE TABLE
+dbo.trnBillingCycleRates | BASE TABLE
+dbo.trnBillingCycleRates_Log | BASE TABLE
+dbo.trnCC_CshCryPayments | BASE TABLE
+dbo.trnCCInvoiceGeneration | BASE TABLE
+dbo.trnCCPayments | BASE TABLE
+dbo.trnCompPayments | BASE TABLE
+dbo.trnCompWiseConcessions | BASE TABLE
+dbo.trnCRBillNo | BASE TABLE
+dbo.trnDelCreditBill | BASE TABLE
+dbo.trnExecutiveCashPayment | BASE TABLE
+dbo.trnGRNConcession | BASE TABLE
+dbo.trnHVAdditionalCharges | BASE TABLE
+dbo.trnInvoiceGeneration | BASE TABLE
+dbo.trnInvoicePayments | BASE TABLE
+dbo.trnLabReceipts | BASE TABLE
+dbo.trnMergedDocBillDtls | BASE TABLE
+dbo.trnMergedDocBillDtls_Referral | BASE TABLE
+dbo.trnMODEOFCOLLECTIONSDET | BASE TABLE
+dbo.trnParamResult_InchargeAudit | BASE TABLE
+dbo.trnReferalMgmtBillDtls | BASE TABLE
+dbo.trnReferalPayments | BASE TABLE
+dbo.trnRejBillsCancellationLog | BASE TABLE
+dbo.trnStoresMODEOFCOLLECTIONSDET | BASE TABLE
+dbo.trnTempRejBills | BASE TABLE
+dbo.vw_TargetAmount | VIEW
+
+========== FINANCIAL COLUMNS ==========
+dbo.Capm_data_Excel.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.Capm_data_Excel.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.CC_Invoice.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.CC_InvoiceNew.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.ClientWiseTrnInvDetails.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.ClientWiseTrnInvDetails.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.ClientWiseTrnInvDetails.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.ClientWiseTrnInvDetails.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.Company_Oustanding_Reports.TotalSales | type=numeric | max=None | precision=38 | scale=2
+dbo.Company_Oustanding_Reports.TotalReceipt | type=numeric | max=None | precision=38 | scale=2
+dbo.Company_Oustanding_Reports.TotalBalance | type=numeric | max=None | precision=38 | scale=2
+dbo.Credit_Notes_Paymodes.TotalSales | type=decimal | max=None | precision=10 | scale=2
+dbo.CreditNotes.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.DayCollection_MobileApp.GRANDTOTAL | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.TOTALCASH | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.TOTALCREDITS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.DUES | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.CONCESSIONS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.CARDTOTAL | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.CHEQUETOTAL | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.REFUNDS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PREVREFUNDS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.EXPTOTAL | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PREVDUECASH | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PREVDUECARD | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PREVDUECHEQUE | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PREVDUEDD | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.TOTALCASHREC | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PAIDBUSINESS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.TOTALLABCLIENTS | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.CCCONCESSION | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.TOTALBUSINESS_CC | type=numeric | max=None | precision=18 | scale=2
+dbo.DayCollection_MobileApp.PAIDBUSINESS_CC | type=numeric | max=None | precision=18 | scale=3
+dbo.DrC_Cash_OP.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.DrC_Cash_OP.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.DrC_Cash_OP.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.DrC_Cash_OP.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DrC_Cash_OP.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DrC_Cash_OP.CONCESSIONAMT | type=numeric | max=None | precision=10 | scale=2
+dbo.DrC_Credit.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.DrC_Credit.CREDITBILL | type=bit | max=None | precision=None | scale=None
+dbo.DrC_Credit.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.DrC_Credit.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.DrC_Credit.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DrC_Credit.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DrC_Credit.CONCESSIONAMT | type=numeric | max=None | precision=10 | scale=2
+dbo.DueDays.PAIDDATE | type=datetime | max=None | precision=None | scale=None
+dbo.DueDays.PaidAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.DueDays.DueAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.DUES.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.DUES.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.DUES.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.DUES.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DUES.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.DUES.CONCESSIONAMT | type=numeric | max=None | precision=10 | scale=2
+dbo.DUES.DUEREASON | type=varchar | max=200 | precision=None | scale=None
+dbo.Duplicate_INvestigations.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.EmployeeWiseCredits.totals | type=numeric | max=None | precision=38 | scale=2
+dbo.EmployeeWiseCredits.Paid | type=decimal | max=None | precision=38 | scale=2
+dbo.GetParamValues.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.GetParamValues.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.Inv_Tariff_CT.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.Investtigations_Master_Tariff.OPRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.Investtigations_Master_Tariff.IPRATE | type=numeric | max=None | precision=9 | scale=2
+dbo.Investtigations_Master_Tariff.NETRATE | type=numeric | max=None | precision=9 | scale=2
+dbo.LDSL_Outstanding(Rec).TotalSales | type=numeric | max=None | precision=38 | scale=2
+dbo.LDSL_Outstanding(Rec).TotalReceipt | type=decimal | max=None | precision=38 | scale=2
+dbo.LDSL_Outstanding(Rec).TotalBalance | type=numeric | max=None | precision=38 | scale=2
+dbo.MachineLog_Query.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.MachineLog_Query.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.MarketingWiseMonthlySales.BillsCount | type=int | max=None | precision=10 | scale=0
+dbo.mdata.rate | type=numeric | max=None | precision=18 | scale=0
+dbo.mstAppAdditionalCharges.ChargeType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstAppAdditionalCharges.ChargeDescription | type=varchar | max=50 | precision=None | scale=None
+dbo.mstAppAdditionalCharges.Charges | type=numeric | max=None | precision=9 | scale=2
+dbo.mstAppAdditionalCharges.MinBillAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.mstAppAgentAssignDispatchOrders.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.mstAppDocuments.BillSatus | type=bit | max=None | precision=None | scale=None
+dbo.mstAppEcommercePrices.NetPrice | type=numeric | max=None | precision=18 | scale=2
+dbo.mstAppEcommercePrices.WalkInPrice | type=numeric | max=None | precision=18 | scale=2
+dbo.mstAppParameters.onlineServiceChargePercent | type=numeric | max=None | precision=18 | scale=2
+dbo.mstAuthorisations.SUBINCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.mstCCInvestigationRates.RATE | type=numeric | max=None | precision=10 | scale=2
+dbo.mstCCINVPACKAGES.PACKAGERATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstCCINVPACKAGES.ACTUALRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstCCINVPACKAGES.APPRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstCCReg.PaidBy | type=varchar | max=50 | precision=None | scale=None
+dbo.mstCCReg.RatesDisplay | type=bit | max=None | precision=None | scale=None
+dbo.mstCoupons.Price | type=numeric | max=None | precision=9 | scale=2
+dbo.mstCoupons.BillAmtLimit | type=numeric | max=None | precision=9 | scale=2
+dbo.mstCoupons.isOnCompltBill | type=bit | max=None | precision=None | scale=None
+dbo.mstCoupons.DiscountUpto | type=decimal | max=None | precision=9 | scale=2
+dbo.mstCoupons.DiscountType | type=varchar | max=20 | precision=None | scale=None
+dbo.mstDocDeptInvDiscount.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.mstDocDeptInvDiscount.DISCOUNTPERC | type=numeric | max=None | precision=12 | scale=2
+dbo.mstDocDeptInvDiscount.RATEAFTERDISC | type=numeric | max=None | precision=12 | scale=2
+dbo.mstEmpAdvances.Amount | type=decimal | max=None | precision=9 | scale=2
+dbo.mstEmpExpenditure.Amount | type=decimal | max=None | precision=9 | scale=2
+dbo.mstFiles.Billno | type=varchar | max=50 | precision=None | scale=None
+dbo.MstInvDisease.Price | type=numeric | max=None | precision=9 | scale=2
+dbo.MstInvestigatioins_IPTariff.IPRate | type=numeric | max=None | precision=9 | scale=2
+dbo.MstInvestigatioins_IPTariff.OPRate | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigations.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigations.LASTRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsCLUBBED.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsCLUBBED.LASTRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsDtls.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsDtls_Audit.NewRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsDtls_Audit.OldRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsDtlsExport.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsDtlsLog.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsExport.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsExport.LASTRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsLog.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvestigationsLog.LASTRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackages.PACKAGERATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackages.ACTUALRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackages.APPRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackagesLog.PACKAGERATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackagesLog.ACTUALRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstInvPackagesLog.APPRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstItems.TaxCode | type=varchar | max=8 | precision=None | scale=None
+dbo.mstItems.Rate | type=numeric | max=None | precision=18 | scale=2
+dbo.mstItems.OpeningStock | type=decimal | max=None | precision=18 | scale=2
+dbo.MstLabInvestigations.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstLabMachine.BAUDRATE | type=varchar | max=20 | precision=None | scale=None
+dbo.mstLocation.FreeBillMsgNo | type=varchar | max=30 | precision=None | scale=None
+dbo.mstLocation.IsDue | type=bit | max=None | precision=None | scale=None
+dbo.mstLocation.GSTTinNo | type=varchar | max=50 | precision=None | scale=None
+dbo.mstLocation.CreditReqWithRate | type=bit | max=None | precision=None | scale=None
+dbo.mstLocation.IsBillSentonWhatsApp | type=bit | max=None | precision=None | scale=None
+dbo.mstLuxaryTax.LTAX | type=numeric | max=None | precision=10 | scale=2
+dbo.mstLuxaryTax.LTAXAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.mstMachine.RATETYPE | type=varchar | max=20 | precision=None | scale=None
+dbo.mstMachine.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstMachineOrg.RATETYPE | type=varchar | max=15 | precision=None | scale=None
+dbo.mstMachineOrg.RATE | type=numeric | max=None | precision=10 | scale=2
+dbo.mstManufacturers.TaxCode | type=varchar | max=8 | precision=None | scale=None
+dbo.MstMasterInvestigations_Tatiff-2017.OPPRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.MstMasterInvestigations_Tatiff-2017.IPPRICE | type=numeric | max=None | precision=9 | scale=2
+dbo.MstMasterInvestigations_Tatiff-2017.NETPRICE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstMemPlansWiseAdditionalCharges.ChargeID | type=varchar | max=50 | precision=None | scale=None
+dbo.mstMemPlansWiseAdditionalCharges.Charges | type=numeric | max=None | precision=9 | scale=2
+dbo.mstMemPlansWiseAdditionalCharges.MinBillAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.mstOLClients.BillURL | type=varchar | max=90 | precision=None | scale=None
+dbo.mstOrganisation.RATEDISPLAY | type=varchar | max=30 | precision=None | scale=None
+dbo.mstOrganisation.RateDisplayInSlip | type=bit | max=None | precision=None | scale=None
+dbo.mstOrganisation.BILLINGCYCLE | type=int | max=None | precision=10 | scale=0
+dbo.mstOrganisation_Audit.RATEDISPLAY | type=varchar | max=30 | precision=None | scale=None
+dbo.mstOrganisation_Audit.RateDisplayInSlip | type=bit | max=None | precision=None | scale=None
+dbo.mstOrganisation_Audit.BILLINGCYCLE | type=int | max=None | precision=10 | scale=0
+dbo.mstOrgDeptDiscount.DISCOUNTPERC | type=numeric | max=None | precision=12 | scale=2
+dbo.mstOrgInvestigationRates.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstOrgInvestigationRates_Audit.OldRATE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstOrgInvestigationRates_Audit.NewRATE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstOrgInvestigationRates_Log.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstOrgInvestigationRatesLogistics.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.MSTORGINVNETBNG.RATE | type=numeric | max=None | precision=9 | scale=2
+dbo.mstOutSourceInvMapping.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.mstOutSourceInvMapping.OutSourceRATE | type=numeric | max=None | precision=12 | scale=2
+dbo.mstPaymentDetails.PaymentId | type=int | max=None | precision=10 | scale=0
+dbo.mstPaymentDetails.Amount | type=numeric | max=None | precision=9 | scale=2
+dbo.mstPaymentDetails.ServiceCharge | type=numeric | max=None | precision=9 | scale=2
+dbo.mstPaymentDetails.PaymentDate | type=datetime | max=None | precision=None | scale=None
+dbo.mstPaymentDetails.PaymentType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGateway.PaymentMode | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGateway.TxnAmount | type=decimal | max=None | precision=18 | scale=2
+dbo.mstPaymentGateway.BillNo | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateway.PaymentGatewayType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGateway.ISCCPAYMENT | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGateway.BillStatus | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGateway.IsWACPayment | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGateway.IsAgentPayment | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGateway.PaymentType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.paymentMode | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.amount | type=numeric | max=None | precision=18 | scale=0
+dbo.mstPaymentGateWayResponse.BillNo | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.mcpAmount | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.offerExchangeRate | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.dccAmount | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGateWayResponse.requestedAmount | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.PaymentMode | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.TxnAmount | type=decimal | max=None | precision=18 | scale=2
+dbo.mstPaymentGatewayTemp.BillNo | type=varchar | max=100 | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.PaymentGatewayType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.ISCCPAYMENT | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.BillStatus | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.IsWACPayment | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.IsAgentPayment | type=bit | max=None | precision=None | scale=None
+dbo.mstPaymentGatewayTemp.PaymentType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentMethod.PaymentMethod | type=varchar | max=50 | precision=None | scale=None
+dbo.mstPaymentMethod.ServiceCharges | type=numeric | max=None | precision=9 | scale=2
+dbo.mstPaymentMethod.GSTPer | type=numeric | max=None | precision=9 | scale=2
+dbo.mstPaymentMethod.PaymentDescription | type=varchar | max=750 | precision=None | scale=None
+dbo.mstPayumoneyGatewayResponse.amount | type=varchar | max=200 | precision=None | scale=None
+dbo.mstPayumoneyGatewayResponse.discount | type=varchar | max=200 | precision=None | scale=None
+dbo.mstRefDocAmtMapping.ACTUALRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.mstRefDocAmtMapping.AMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.mstRefdocMapping.AMOUNT | type=numeric | max=None | precision=10 | scale=10
+dbo.mstReportStatus.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.mstReportStatus.BillDate | type=datetime | max=None | precision=None | scale=None
+dbo.mstSettings.IsPrintDue | type=bit | max=None | precision=None | scale=None
+dbo.mstSMSTemplate.BILLINGFROM | type=varchar | max=50 | precision=None | scale=None
+dbo.mstSMSTemplateParameters.BILLINGFROM | type=varchar | max=50 | precision=None | scale=None
+dbo.mstSuppliers.APGSTNo | type=varchar | max=50 | precision=None | scale=None
+dbo.mstSuppliers.GSTTINO | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.Dues | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.CreditDues | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.Concession | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.Refund | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.PurchaseGST | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.SalesGST | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.SGST | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.CGST | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTallyLedgerMaster.IGST | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTallyRegLedger.BillType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTallyRegLedger.BillNO | type=varchar | max=20 | precision=None | scale=None
+dbo.mstTallyRegLedger.BillAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTallyRegLedger.BillsType | type=varchar | max=250 | precision=None | scale=None
+dbo.mstTallyRegLedger.TaxPer | type=numeric | max=None | precision=9 | scale=2
+dbo.msttariffUpdations.RATE | type=numeric | max=None | precision=18 | scale=0
+dbo.msttariffUpdations.NEWPRICE | type=numeric | max=None | precision=18 | scale=0
+dbo.msttariffUpdations_StorecProc.RATE | type=numeric | max=None | precision=18 | scale=0
+dbo.msttariffUpdations_StorecProc.NEWPRICE | type=numeric | max=None | precision=18 | scale=0
+dbo.mstTaxCategory.TaxID | type=int | max=None | precision=10 | scale=0
+dbo.mstTaxCategory.TaxCode | type=varchar | max=8 | precision=None | scale=None
+dbo.mstTaxCategory.TaxCatName | type=varchar | max=100 | precision=None | scale=None
+dbo.mstTempAppInvDtls.Rate | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppInvDtls.Concession | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.TxnAmount | type=decimal | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.PaymentGatewayType | type=varchar | max=30 | precision=None | scale=None
+dbo.mstTempAppPaymentdtls.PaymentStatus | type=bit | max=None | precision=None | scale=None
+dbo.mstTempAppPaymentdtls.PaymentMode | type=varchar | max=20 | precision=None | scale=None
+dbo.mstTempAppPaymentdtls.TotalAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.PaidAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.Concession | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.CreditAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.mstTempAppPaymentdtls.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.mstTempAppPaymentdtls.IsAgentPayment | type=bit | max=None | precision=None | scale=None
+dbo.mstTempAppPaymentdtls.PaymentType | type=varchar | max=50 | precision=None | scale=None
+dbo.msttempTallyRegLedger.BillType | type=varchar | max=50 | precision=None | scale=None
+dbo.msttempTallyRegLedger.BillNO | type=varchar | max=20 | precision=None | scale=None
+dbo.msttempTallyRegLedger.BillAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.msttempTallyRegLedger.BillsType | type=varchar | max=50 | precision=None | scale=None
+dbo.mstUsers.DUEPERC | type=int | max=None | precision=10 | scale=0
+dbo.mstUsers.DuePrint | type=bit | max=None | precision=None | scale=None
+dbo.mstUsers_Log.DUEPERC | type=int | max=None | precision=10 | scale=0
+dbo.mstUsers_Log.DuePrint | type=bit | max=None | precision=None | scale=None
+dbo.mstUSP.isBillAuth | type=bit | max=None | precision=None | scale=None
+dbo.Outstanding_Client_Legders.TotalSales | type=numeric | max=None | precision=38 | scale=2
+dbo.Outstanding_Client_Legders.TotalReceipt | type=decimal | max=None | precision=38 | scale=2
+dbo.Outstanding_Client_Legders.TotalBalance | type=numeric | max=None | precision=38 | scale=2
+dbo.PARAMRESULTS_COMPANY.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.PARAMRESULTS_COMPANY.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.ParamResults_Excel.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.ParamResults_Excel.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.PatientGetData_Feedback.BillDate | type=datetime | max=None | precision=None | scale=None
+dbo.PaymentGatewayResponse.PaymentGatewayResponseId | type=bigint | max=None | precision=19 | scale=0
+dbo.PaymentGatewayResponse.billNumber | type=varchar | max=30 | precision=None | scale=None
+dbo.PaymentGatewayResponse.Amount | type=varchar | max=20 | precision=None | scale=None
+dbo.PaymentGatewayResponse.BILLSTATUS | type=bit | max=None | precision=None | scale=None
+dbo.R_CPAY_MNTH_YR.PAID | type=decimal | max=None | precision=38 | scale=2
+dbo.RejectedSamples.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.RejectedSamples.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.TableSizeGrowthHistory.TotalRows | type=bigint | max=None | precision=19 | scale=0
+dbo.TableSizeGrowthHistory.TotalUsedMB | type=decimal | max=None | precision=18 | scale=2
+dbo.TableSizeGrowthHistory.TotalUsedGB | type=decimal | max=None | precision=18 | scale=3
+dbo.TableSizeGrowthHistory.TotalAllocatedMB | type=decimal | max=None | precision=18 | scale=2
+dbo.TableSizeGrowthHistory.TotalAllocatedGB | type=decimal | max=None | precision=18 | scale=3
+dbo.TARIFFTABLE.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.TARIFFTABLE.OFFERPRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.tblAppAgentAssignBill.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.tblAppAgentNotification.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.tblAppAgentTrack.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.tblAppAgentTrack.billAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.tblAppAgentTrack.HandlingCharges | type=numeric | max=None | precision=18 | scale=0
+dbo.tblAppCart.invActualRate | type=numeric | max=None | precision=18 | scale=2
+dbo.tblAppCart.invRateAfterDiscount | type=numeric | max=None | precision=18 | scale=2
+dbo.tblAppRepoCharges.chargeType | type=varchar | max=50 | precision=None | scale=None
+dbo.tblAppRepoCharges.charges | type=numeric | max=None | precision=9 | scale=2
+dbo.tblAppRepoCharges.chargeDescription | type=varchar | max=50 | precision=None | scale=None
+dbo.tblAppRepoCharges.MinBillAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.tblCCInvDetails.RATE | type=numeric | max=None | precision=15 | scale=2
+dbo.tblCreditPeriodGen.PaidAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.tblCreditPeriodGen.DueAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.tblInvcodes.Rate | type=varchar | max=50 | precision=None | scale=None
+dbo.tblInvcodes.Rate1 | type=varchar | max=50 | precision=None | scale=None
+dbo.tblShipmentMst.WeightRate | type=numeric | max=None | precision=9 | scale=2
+dbo.tblTempLedger.TotalSales | type=decimal | max=None | precision=10 | scale=2
+dbo.tblTempLedger.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.tblTempLedgerOrg.TotalSales | type=decimal | max=None | precision=10 | scale=2
+dbo.tblTempLedgerOrg.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.TempBills.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.TempBillsDataImport.BillDate | type=datetime | max=None | precision=None | scale=None
+dbo.TempBillsDataImport.InvestigationCharges | type=numeric | max=None | precision=18 | scale=2
+dbo.TempBillsDataImport.TotalAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.TempBillsDataImport.IsBilled | type=bit | max=None | precision=None | scale=None
+dbo.tempCCInvRates.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.TempCreditDebitNotes.Amount | type=numeric | max=None | precision=18 | scale=2
+dbo.TempDebitNotes.Amount | type=numeric | max=None | precision=18 | scale=2
+dbo.tempLocInvRates.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.TempPayments.amount | type=numeric | max=None | precision=18 | scale=2
+dbo.TempTableBills.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.TempTableGenReports.Total | type=numeric | max=None | precision=9 | scale=2
+dbo.TempTableGenReports.Paid | type=numeric | max=None | precision=9 | scale=2
+dbo.Test.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trn_SampleLogisAcknow.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trn_SampleLogisAcknow.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trn_SampleLogisAcknow.RATE | type=decimal | max=None | precision=10 | scale=2
+dbo.trn_SampleLogisDet.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trn_SampleLogisDet.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trn_SampleLogisDet.RATE | type=decimal | max=None | precision=10 | scale=2
+dbo.trnAcntVouPaymntModeOfColctnDetails.RTGSTrnNo | type=varchar | max=15 | precision=None | scale=None
+dbo.trnAcntVouPaymntModeOfColctnDetails.RTGSToAcntNo | type=varchar | max=25 | precision=None | scale=None
+dbo.trnAppInvPRI.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnAppInvPRI.paymentType | type=char | max=30 | precision=None | scale=None
+dbo.trnAppInvPRI.billStatus | type=varchar | max=30 | precision=None | scale=None
+dbo.trnAppInvPRI.additionalCharges | type=numeric | max=None | precision=9 | scale=2
+dbo.trnAppInvPRI.chargesType | type=varchar | max=10 | precision=None | scale=None
+dbo.trnAppInvPRI.SampleCollCharge | type=decimal | max=None | precision=9 | scale=2
+dbo.trnAppSampleTracking.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.trnAuthDeletionTrack.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnAuthDeletionTrack.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnBarcodeNoModification.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnBillingCycleInvoiceGeneration.ACTUALPRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnBillingCycleInvoiceGeneration.OFFERPRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnBillingCycleInvoiceGeneration.TOTALAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnBillingCycleRates.PRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnBillingCycleRates_Log.PRICE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnBranchIssueDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnBranchIssueDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnBranchReturnDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnBranchReturnDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnBulkCancelLog.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnBulkCancelLog.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnBulkCancelLog.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.trnCC_ClubbedParamResult.BillNo | type=numeric | max=None | precision=13 | scale=0
+dbo.trnCC_ClubbedParamResult.BillDate | type=datetime | max=None | precision=None | scale=None
+dbo.trnCC_ClubbedReport.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCC_CshCryPayments.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCC_DescResult.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCC_DescResult.INCHARGEID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCC_InvLabDet.CHARGE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnCC_InvLabPri.PaidAmt | type=numeric | max=None | precision=12 | scale=2
+dbo.trnCC_ParamResult.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCC_ParamResult.InchargeID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCC_ParamResult.SUBINCHARGE | type=varchar | max=150 | precision=None | scale=None
+dbo.trnCCInvoiceGeneration.PaidAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnCCInvoiceGeneration.DueAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnCCInvoiceGeneration.ConcessionAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnCCPayments.TotalSales | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCCPayments.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCCPayments.Concession | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCCPayments.TotalPymt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCCPayments.OnlineServiceCharges | type=numeric | max=None | precision=12 | scale=2
+dbo.trnCCPayments.TotalConcAmt | type=decimal | max=None | precision=18 | scale=2
+dbo.trnCCPayments.TotalTDSAmt | type=decimal | max=None | precision=18 | scale=2
+dbo.trnClientIssueDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnClientIssueDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnClubbed.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnClubbed.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnClubbedReport.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCompModificationLog.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnCompPayments.TotalSales | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCompPayments.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCompPayments.Concession | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCompPayments.TotalPymt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnCompPayments.OnlineServiceCharges | type=numeric | max=None | precision=9 | scale=2
+dbo.trnCompTempINVLABPRI.BILLNO | type=bigint | max=None | precision=19 | scale=0
+dbo.trnCompTempINVLABPRI.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnCompTempLabInvDetails.BillNo | type=bigint | max=None | precision=19 | scale=0
+dbo.trnCompTempLabInvDetails.Billdate | type=datetime | max=None | precision=None | scale=None
+dbo.trnCompTempLabInvDetails.Rate | type=numeric | max=None | precision=10 | scale=2
+dbo.trnCompWiseConcessions.CONCESSIONAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnConsignmentDtls.TaxPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnConsignmentDtls.UnitTaxMRP | type=decimal | max=None | precision=10 | scale=2
+dbo.trnConsumtionDetails.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnConsumtionDetails.BILLEDQTY | type=int | max=None | precision=10 | scale=0
+dbo.trnCRBillNo.CRBillNoId | type=int | max=None | precision=10 | scale=0
+dbo.trnCRBillNo.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnDailyConsumptionDtls.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnDashBoard.AMOUNT | type=decimal | max=None | precision=18 | scale=2
+dbo.trnDateChanges_Log.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDelCreditBill.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnDelCreditBill.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnDeptConsumptionDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnDeptConsumptionDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnDeptPharmaIssueDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnDeptPharmaIssueDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnDeptPharmaReturnDET.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnDeptPharmaReturnDET.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnDescResult.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnDescResult.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult.INCHARGEID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult.SUBINCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Audit.Billno | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Audit.Billdate | type=datetime | max=None | precision=None | scale=None
+dbo.trnDescResult_Audit1.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Audit1.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnDescResult_Audit1.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Audit1.INCHARGEID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Audit1.SUBINCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResult_Temp.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnDescResultFiles.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnEvolkoLab.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnEvolkoLab.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnEvolkoResults.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnEvolkoResults.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnExecutiveCashPayment.transAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnExecutiveCashPayment.AmountPaidTo | type=varchar | max=50 | precision=None | scale=None
+dbo.trnExecutiveDenomination.Amount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnFormInvDeduction.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnFormInvDeduction.RATE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnFormInvDeduction.TAXPERCENT | type=numeric | max=None | precision=10 | scale=2
+dbo.trnGRNConcession.PrevOverAllDisAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNConcession.OverAllDisAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNConcession.PrevPaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNConcession.CurPaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.UnitRate | type=decimal | max=None | precision=10 | scale=3
+dbo.trnGRNDetails.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.UnitTaxRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.UnitTaxMRP | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.TaxableAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.SGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.SGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.CGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.CGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.IGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNDetails.IGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNFreeQtyDetails.RatePerQty | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNFreeQtyDetails.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNFreeQtyDetails.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnGRNFreeQtyDetails.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNFreeQtyDetails.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.FreightCharges | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.DueAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGRNMaster.duedate | type=datetime | max=None | precision=None | scale=None
+dbo.trnGrnReturns.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturns.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturns.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturns.DueAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.UnitRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.TaxPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.UnitTaxRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.UnitTaxMRP | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.TaxableAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.SGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.SGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.CGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.CGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.IGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnGrnReturnsDetails.IGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnHVAdditionalCharges.TECHNICIANCHARGES | type=numeric | max=None | precision=18 | scale=2
+dbo.trnHVAdditionalCharges.TRANSPOPTATIONCHARGES | type=numeric | max=None | precision=18 | scale=2
+dbo.trnHVAdditionalCharges.TAX | type=numeric | max=None | precision=18 | scale=2
+dbo.trnHVAdditionalCharges.MinBillAmt | type=decimal | max=None | precision=9 | scale=2
+dbo.trnInventoryConsumption.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.trnInventSupplierPaymts.PAYMENTRECEIPTNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnInventSupplierPaymts.TotalPymt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnInventSupplierPaymts.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnInventSupplierPaymts.BalDueAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnInventSupplierPaymts.Concession | type=decimal | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnINVLABDET.CHARGE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.CONCESSION | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.CONCESSION1 | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.CONCESSIONREASON | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnINVLABDET.CONCESSIONREASON1 | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnINVLABDET.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnINVLABDET.CREDITCHARGE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.RefundAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABDET.REFUNDDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnINVLABDET.REFUNDNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnINVLABDET.REFUNDUSER | type=varchar | max=50 | precision=None | scale=None
+dbo.trnINVLABPRI.CREDITBILL | type=bit | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnINVLABPRI.SERTAX | type=numeric | max=None | precision=5 | scale=2
+dbo.trnINVLABPRI.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.trnINVLABPRI.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABPRI.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABPRI.CONCESSIONAMT | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABPRI.CONCESSIONREASON | type=varchar | max=-1 | precision=None | scale=None
+dbo.trnINVLABPRI.DUEREASON | type=varchar | max=200 | precision=None | scale=None
+dbo.trnINVLABPRI.DUEGIVENBY | type=varchar | max=50 | precision=None | scale=None
+dbo.trnINVLABPRI.DUEPERSON | type=varchar | max=50 | precision=None | scale=None
+dbo.trnINVLABPRI.RefundAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.trnINVLABPRI.BILLEDUSER | type=varchar | max=20 | precision=None | scale=None
+dbo.trnINVLABPRI.INVOICEGENERATED | type=bit | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.BILLPDFGENERATED | type=bit | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.IsMemDiscount | type=bit | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.BulkBilling | type=bit | max=None | precision=None | scale=None
+dbo.trnINVLABPRI.IsOLBillPost | type=bit | max=None | precision=None | scale=None
+dbo.trnInvoiceGeneration.PaidAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnInvoiceGeneration.DueAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnInvoiceGeneration.ConcessionAmt | type=numeric | max=None | precision=9 | scale=2
+dbo.trnInvoicePayments.PAYMENTID | type=bigint | max=None | precision=19 | scale=0
+dbo.trnInvoicePayments.PAIDDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnInvoicePayments.BILLAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvoicePayments.PAIDAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvoicePayments.DUEAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvoicePayments.CONCESSIONAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvoicePayments.CONCESSION | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvPayDetails.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnInvPayDetails.PREVIOUSBILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnInvPayDetails.MOCBILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnInvStatus.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnInvStatus.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnInvStatus.DISPATCHCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.trnInvStatusUpdateLog.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnItemTrack.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnItemTrack.ORate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnITUtilities_Temp.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnITUtilities_Temp.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnITUtilities_Temp.ACTUALRATE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnITUtilities_Temp.REPLACERATE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnLabReceipts.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnlifeberries.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnlifeberries.CHARGE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnlifeberries.CONCESSION | type=numeric | max=None | precision=10 | scale=2
+dbo.trnlifeberries.CONCESSION1 | type=numeric | max=None | precision=10 | scale=2
+dbo.trnlifeberries.CONCESSIONREASON | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnlifeberries.CONCESSIONREASON1 | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnlifeberries.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnlifeberries.CREDITCHARGE | type=numeric | max=None | precision=10 | scale=2
+dbo.trnlifeberries.RefundAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.trnlifeberries.REFUNDDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnlifeberries.REFUNDNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnMachineAutoAuthLog.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnMergedDocBillDtls.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnMergedDocBillDtls.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.MOCBILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.DATEOFBILL | type=datetime | max=None | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.PREVIOUSBILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.PAIDAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnMODEOFCOLLECTIONSDET.TOTALAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnMODEOFCOLLECTIONSDET.CONCESSIONAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnMODEOFCOLLECTIONSDET.DUEAMOUNT | type=numeric | max=None | precision=12 | scale=2
+dbo.trnMODEOFCOLLECTIONSDET.REGAMOUNT | type=numeric | max=None | precision=6 | scale=2
+dbo.trnMODEOFCOLLECTIONSDET.REGSTATUS | type=varchar | max=1 | precision=None | scale=None
+dbo.trnMODEOFCOLLECTIONSDET.PHARMABILLNO | type=numeric | max=None | precision=18 | scale=0
+dbo.trnMODEOFCOLLECTIONSDET.ACTUALREFUNDUSER | type=varchar | max=50 | precision=None | scale=None
+dbo.TrnModiInvDetails.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.TrnModiInvDetails.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.TrnModiInvDetails.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.TrnModiInvDetails.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.TrnModiInvDetails.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.trnNABLStatusUpdate_Log.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnOLAPILogDtls.PostingStatus | type=varchar | max=50 | precision=None | scale=None
+dbo.trnOLReportsLogDtls.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnOLStatusLogDtls.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnOPConsultationDetails.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnOPConsultationDetails.MODEOFPAYMENT | type=varchar | max=15 | precision=None | scale=None
+dbo.trnOPConsultationDetails.CONCESSION | type=numeric | max=None | precision=6 | scale=2
+dbo.trnOPConsultationDetails.PAIDAMOUNT | type=numeric | max=None | precision=6 | scale=2
+dbo.trnOPConsultationDetails.BILLEDUSER | type=varchar | max=20 | precision=None | scale=None
+dbo.trnOpeningStock.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnOpeningStock.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnOutSrcSamplesDtls.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.trnOutSrcSamplesDtls.OutSrcRate | type=decimal | max=None | precision=9 | scale=2
+dbo.trnOutSrcSamplesPRI.TotalAmount | type=decimal | max=None | precision=9 | scale=2
+dbo.trnOutwards.BillNo | type=bigint | max=None | precision=19 | scale=0
+dbo.trnOutwards.Total | type=numeric | max=None | precision=18 | scale=3
+dbo.trnParamResult.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnParamResult.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult.InchargeID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult.SUBINCHARGE | type=varchar | max=150 | precision=None | scale=None
+dbo.trnParamResult_InchargeAudit.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult_InchargeAudit.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnParamResult_InchargeAudit.INCHARGE | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult_InchargeAudit.InchargeID | type=varchar | max=50 | precision=None | scale=None
+dbo.trnParamResult_InchargeAudit.SUBINCHARGE | type=varchar | max=150 | precision=None | scale=None
+dbo.trnPatDtlsModificationLog.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnPatDtlsModificationLog.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnPatientResultsTemp.BILLNO | type=varchar | max=130 | precision=None | scale=None
+dbo.trnPaymntGtAcknowledgement.Amount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnPayModeChangeLog.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnPayTypeConversion_Log.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnPayTypeConversion_Log.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnPayTypeConversion_Log.TOTALAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnPayTypeConversion_Log.PAIDAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnPayTypeConversion_Log.CONCESSIONAMT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnPayTypeConversion_Log.DUEAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnPOFreeQtyDetails.RatePerQty | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPOFreeQtyDetails.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPOFreeQtyDetails.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnPOFreeQtyDetails.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPOFreeQtyDetails.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPOTermsConditions.ModeOfPayment | type=varchar | max=500 | precision=None | scale=None
+dbo.trnPOTermsConditions.PaymentTerms | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnPurchase.OverAllDisAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchase.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchase.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrder.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrder.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrder.ModeOfPayment | type=varchar | max=50 | precision=None | scale=None
+dbo.trnPurchaseOrderDtls.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.UnitRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.UnitTaxRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.UnitTaxMRP | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.SGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.SGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.CGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.CGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.IGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderDtls.IGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.UnitRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.UnitTaxRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.UnitTaxMRP | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.SGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.SGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.CGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.CGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.IGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.IGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseOrderPendingDtls.PendingStatus | type=bit | max=None | precision=None | scale=None
+dbo.trnPurchaseReturnDetails.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.FreeItemTaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.FreePackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.RatePerQty | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.TaxAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.SubTotAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturnDetails.NetAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturns.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurchaseReturns.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurcPaymnt.PaidAmount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurcPaymntModeOfColctnDetails.RTGSTrnNo | type=varchar | max=15 | precision=None | scale=None
+dbo.trnPurcPaymntModeOfColctnDetails.RTGSToAcntNo | type=varchar | max=25 | precision=None | scale=None
+dbo.trnPurcRetPaymntModeOfColctnDetails.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnPurcRetPaymntModeOfColctnDetails.ModeOfPayment | type=varchar | max=50 | precision=None | scale=None
+dbo.trnPurcRetPaymntModeOfColctnDetails.RTGSTrnNo | type=varchar | max=15 | precision=None | scale=None
+dbo.trnPurcRetPaymntModeOfColctnDetails.RTGSToAcntNo | type=varchar | max=25 | precision=None | scale=None
+dbo.trnQuotation.TotalAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotation.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.PackRate | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.UnitRate | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.TaxPer | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.TaxAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.UnitTaxRate | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.UnitTaxMRP | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.Amount | type=numeric | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.SGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.SGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.CGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.CGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.IGSTPer | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationDetails.IGSTAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationFreeQtyDetails.RatePerQty | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationFreeQtyDetails.PackRate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationFreeQtyDetails.TaxPercent | type=decimal | max=None | precision=5 | scale=2
+dbo.trnQuotationFreeQtyDetails.TaxAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationFreeQtyDetails.Amount | type=decimal | max=None | precision=10 | scale=2
+dbo.trnQuotationTermsConditions.ModeOfPayment | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnQuotationTermsConditions.PaymentTerms | type=varchar | max=1000 | precision=None | scale=None
+dbo.trnReferalManagementDET.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnReferalManagementDET.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnReferalManagementDET.DUE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnReferalManagementDET.REFUNDAMT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnReferalManagementDET.PAIDAMT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnReferalManagementDET.PAID | type=bit | max=None | precision=None | scale=None
+dbo.trnReferalManagementDET.PREVDUES | type=bit | max=None | precision=None | scale=None
+dbo.trnReferalManagementPRI.TotalAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalManagementPRI.PaidAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalManagementPRI.ConcAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalManagementPRI.RefAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalManagementPRI.PAID | type=bit | max=None | precision=None | scale=None
+dbo.trnReferalMgmtBillDtls.BillNo | type=varchar | max=50 | precision=None | scale=None
+dbo.trnReferalMgmtBillDtls.TotalAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalMgmtBillDtls.PaidAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalMgmtBillDtls.ConcAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalMgmtBillDtls.RefAmount | type=numeric | max=None | precision=9 | scale=2
+dbo.trnReferalPayments.PAYMENTID | type=bigint | max=None | precision=19 | scale=0
+dbo.trnReferalPayments.PAIDDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnRefGroupInvMapping.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.trnRefGroupInvMapping.REFRATE | type=numeric | max=None | precision=12 | scale=2
+dbo.trnRefGroupInvMapping_Audit.OLDRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnRefGroupInvMapping_Audit.NEWRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnRefGroupInvMapping_Audit.OLDREFRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnRefGroupInvMapping_Audit.NEWREFRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnRejBillsCancellationLog.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnReportPrintDtls.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnReportViewTrack.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnResultwithheld.BillNo | type=varchar | max=15 | precision=None | scale=None
+dbo.trnResultWithHeldDoc.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnRptEmailSentLog.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnRptEmailSentLogNew.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnSampleLogisAcknow.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnSampleLogisAcknow.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnSampleLogisAcknow.RATE | type=numeric | max=None | precision=12 | scale=2
+dbo.trnSampleLogisAcknow.B2BPRICE | type=numeric | max=None | precision=12 | scale=2
+dbo.trnSampleLogisDet.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnSampleLogisDet.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnStatusTracking.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnStatusTracking.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnStock.TaxPercent | type=decimal | max=None | precision=10 | scale=2
+dbo.trnStock.Rate | type=decimal | max=None | precision=10 | scale=2
+dbo.trnStoresLedger.RATE | type=decimal | max=None | precision=18 | scale=0
+dbo.trnStoresMODEOFCOLLECTIONSDET.PaidDate | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempAbnormalReport.BILLNO | type=varchar | max=30 | precision=None | scale=None
+dbo.trnTempAbnormalReport.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempAutoAuthentication.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnTempBranchWiseColl.totBills | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempBranchWiseColl.GrossAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempBranchWiseColl.ReceivedAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempBranchWiseColl.RefundAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempBranchWiseColl.NetReceivedAmount | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempDayCollAll.GTOTALCREDITS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCASH | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCREDITS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALDUES | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCONCESSIONS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCREDITCARDS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCHEQUE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALUPI | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALREFUND | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALREFUNDSPREV | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.PREVDUE_CASH | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.PREVDUE_CREDITS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.PREVDUE_CHEQUE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.PREVDUE_DD | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.PREVDUE_UPI | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALONLINEUPI | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCOREBUSINESSCASH | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCASHRECEIVED | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCCRECEIVED | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCHQONLINEUPI | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCASHINHAND | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCCINHAND | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALCHQINHAND | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempDayCollAll.TOTALONLINEUPIINHAND | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempInvDET.RATE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempINVLABPRI.BILLNO | type=bigint | max=None | precision=19 | scale=0
+dbo.trnTempINVLABPRI.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempInvPRI.TOTALAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempInvStatus.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnTempInvStatus.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempInvStatus.DISPATCHCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.trnTempLabInvDetails.BillNo | type=bigint | max=None | precision=19 | scale=0
+dbo.trnTempLabInvDetails.Billdate | type=datetime | max=None | precision=None | scale=None
+dbo.trnTempLabInvDetails.Rate | type=numeric | max=None | precision=10 | scale=2
+dbo.trnTempMonColl.TOTALAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.TOTALCASH | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.CASHPAID | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.CCPAID | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.CHEQUEPAID | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.DDPAID | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.CONCESSION | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.REFUNDAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.DUEAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.PREVDUE_CASH | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.PREVDUE_CREDITS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.PREVDUE_CHEQUE | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.PREVDUE_DD | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.PREVREFUNDS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.TOTALCASH_CC | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.CCADVPAYMENTS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempMonColl.COMPADVPAYMENTS | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempRejBills.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnTempShiftCollecRpt.BILLNO | type=varchar | max=20 | precision=None | scale=None
+dbo.trnTempShiftCollecRpt.TOTALAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempShiftCollecRpt.PAIDAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempShiftCollecRpt.CONCESSIONAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempShiftCollecRpt.DUEAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTempShiftCollecRpt.REFUNDAMOUNT | type=numeric | max=None | precision=18 | scale=2
+dbo.trnTrackCreditAmts.PaidBy | type=varchar | max=50 | precision=None | scale=None
+dbo.trnVoucherGen.PaidAmt | type=decimal | max=None | precision=10 | scale=2
+dbo.trnWhatsAppLog.BILLNO | type=varchar | max=50 | precision=None | scale=None
+dbo.trnWhatsAppStatusTrack.BILLNO | type=varchar | max=100 | precision=None | scale=None
+dbo.View_4.BILLNO | type=varchar | max=15 | precision=None | scale=None
+dbo.View_4.BILLDATE | type=datetime | max=None | precision=None | scale=None
+dbo.View_4.TOTALCHARGES | type=numeric | max=None | precision=12 | scale=2
+dbo.View_4.PAIDAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.View_4.CREDITAMOUNT | type=numeric | max=None | precision=10 | scale=2
+dbo.View_4.CONCESSIONAMT | type=numeric | max=None | precision=10 | scale=2
+dbo.View_4.RefundAmt | type=numeric | max=None | precision=10 | scale=2
+dbo.View_4.BILLEDUSER | type=varchar | max=20 | precision=None | scale=None
+dbo.View_4.INVOICEGENERATED | type=bit | max=None | precision=None | scale=None
+dbo.View_Package.PACKAGERATE | type=numeric | max=None | precision=18 | scale=2
+dbo.vw_CCOutstandingDaily.totals | type=numeric | max=None | precision=38 | scale=2
+dbo.vw_CCOutstandingDaily.Paid | type=numeric | max=None | precision=38 | scale=2
+dbo.vw_FactKPI.BillYear | type=int | max=None | precision=10 | scale=0
+dbo.vw_FactKPI.BillMonth | type=int | max=None | precision=10 | scale=0
+dbo.vw_FactKPI.TotalSales | type=numeric | max=None | precision=38 | scale=2
+dbo.Vw_Package.PACKAGERATE | type=numeric | max=None | precision=18 | scale=2
+dbo.Vw_Package.ACTUALRATE | type=numeric | max=None | precision=18 | scale=2
+dbo.vw_SampleCount.BillYear | type=int | max=None | precision=10 | scale=0
+dbo.vw_SampleCount.BillMonth | type=int | max=None | precision=10 | scale=0
+dbo.vw_TargetAmount.BillYear | type=int | max=None | precision=10 | scale=0
+dbo.vw_TargetAmount.BillMonth | type=int | max=None | precision=10 | scale=0
+dbo.vw_TotalSales.BillYear | type=int | max=None | precision=10 | scale=0
+dbo.vw_TotalSales.BillMonth | type=int | max=None | precision=10 | scale=0
+dbo.vw_TotalSales.TotalSales | type=numeric | max=None | precision=38 | scale=2
+dbo.WhatsAppLog.BillNO | type=varchar | max=50 | precision=None | scale=None
+
+========== trnMODEOFCOLLECTIONSDET ==========
+ID | bigint
+MOCBILLNO | varchar
+DATEOFBILL | datetime
+BILLNO | varchar
+PREVIOUSBILLNO | varchar
+TYPE | varchar
+UHID | varchar
+MODE | varchar
+PAIDAMOUNT | numeric
+TOTALAMOUNT | numeric
+CONCESSIONAMOUNT | numeric
+DUEAMOUNT | numeric
+REFNAME | varchar
+REFNUMBER | varchar
+REFDATE | datetime
+AUTH_CODE | varchar
+PATTYPE | varchar
+STATUS | varchar
+USERID | varchar
+ORGANISATIONCODE | varchar
+LOGINID | varchar
+SCROLLNO | numeric
+EDITUSER | varchar
+EDITDATE | datetime
+TRANSACTIONID | varchar
+REGAMOUNT | numeric
+REGSTATUS | varchar
+REMARKS | varchar
+LOCATIONID | varchar
+TERMINALID | varchar
+PRINTCOUNT | int
+CASHIERSTATUS | varchar
+PHARMABILLNO | numeric
+PATIENTID | bigint
+ACTUALREFUNDUSER | varchar
+
+--- SAMPLE ROWS ---
+['ID', 'MOCBILLNO', 'DATEOFBILL', 'BILLNO', 'PREVIOUSBILLNO', 'TYPE', 'UHID', 'MODE', 'PAIDAMOUNT', 'TOTALAMOUNT', 'CONCESSIONAMOUNT', 'DUEAMOUNT', 'REFNAME', 'REFNUMBER', 'REFDATE', 'AUTH_CODE', 'PATTYPE', 'STATUS', 'USERID', 'ORGANISATIONCODE', 'LOGINID', 'SCROLLNO', 'EDITUSER', 'EDITDATE', 'TRANSACTIONID', 'REGAMOUNT', 'REGSTATUS', 'REMARKS', 'LOCATIONID', 'TERMINALID', 'PRINTCOUNT', 'CASHIERSTATUS', 'PHARMABILLNO', 'PATIENTID', 'ACTUALREFUNDUSER']
+(1760790, '2610112307', datetime.datetime(2026, 10, 8, 16, 41, 53, 167000), 'BNG26112488', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('500.00'), Decimal('0.00'), Decimal('500.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0948', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760789, '261078177', datetime.datetime(2026, 10, 8, 16, 41, 48, 750000), 'DEL2678190', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('220.00'), Decimal('0.00'), Decimal('220.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP2620', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760788, '261078176', datetime.datetime(2026, 10, 8, 16, 41, 26, 543000), 'DEL2678189', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('190.00'), Decimal('0.00'), Decimal('190.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP2620', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760787, '2610112306', datetime.datetime(2026, 10, 8, 16, 41, 7, 747000), 'BNG26112487', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('535.00'), Decimal('0.00'), Decimal('535.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0387', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760786, '261022755', datetime.datetime(2026, 10, 8, 16, 40, 54, 843000), 'BZA2622755', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('940.00'), Decimal('0.00'), Decimal('940.00'), None, None, None, None, 'OP', 'P', 'naveen', 'COMP0870', None, Decimal('116'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC03', '49.207.44.149', None, 'N', None, None, None)
+(1760785, '261078175', datetime.datetime(2026, 10, 8, 16, 40, 50, 773000), 'DEL2678188', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('240.00'), Decimal('0.00'), Decimal('240.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP2613', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760784, '2610112305', datetime.datetime(2026, 10, 8, 16, 40, 33, 860000), 'BNG26112486', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('1700.00'), Decimal('0.00'), Decimal('1700.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0387', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760783, '261078174', datetime.datetime(2026, 10, 8, 16, 40, 2, 737000), 'DEL2678187', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('235.00'), Decimal('0.00'), Decimal('235.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1497', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760782, '261012476', datetime.datetime(2026, 10, 8, 16, 39, 56, 237000), 'PHC2612618', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('730.00'), Decimal('0.00'), Decimal('730.00'), None, None, None, None, 'OP', 'P', 'ananth', 'COMP1724', None, Decimal('154'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC16', '49.206.195.214', None, 'N', None, None, None)
+(1760781, '2610112304', datetime.datetime(2026, 10, 8, 16, 39, 51, 673000), 'BNG26112485', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('1700.00'), Decimal('0.00'), Decimal('1700.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0390', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760780, '261022754', datetime.datetime(2026, 10, 8, 16, 39, 15, 440000), 'BZA2622754', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('60.00'), Decimal('0.00'), Decimal('60.00'), None, None, None, None, 'OP', 'P', 'naveen', 'COMP0870', None, Decimal('116'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC03', '49.207.44.149', None, 'N', None, None, None)
+(1760779, '2610112303', datetime.datetime(2026, 10, 8, 16, 39, 11, 470000), 'BNG26112484', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('500.00'), Decimal('0.00'), Decimal('500.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0748', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760778, '2610112302', datetime.datetime(2026, 10, 8, 16, 38, 40, 903000), 'BNG26112483', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('40.00'), Decimal('0.00'), Decimal('40.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP2367', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760777, '261022753', datetime.datetime(2026, 10, 8, 16, 38, 36, 63000), 'BZA2622753', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('60.00'), Decimal('0.00'), Decimal('60.00'), None, None, None, None, 'OP', 'P', 'naveen', 'COMP0870', None, Decimal('116'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC03', '49.207.44.149', None, 'N', None, None, None)
+(1760776, '2610181218', datetime.datetime(2026, 10, 8, 16, 37, 33, 193000), 'SMN26181435', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('100.00'), Decimal('0.00'), Decimal('100.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760775, '261022752', datetime.datetime(2026, 10, 8, 16, 37, 30, 523000), 'BZA2622752', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('700.00'), Decimal('0.00'), Decimal('700.00'), None, None, None, None, 'OP', 'P', 'naveen', 'COMP0636', None, Decimal('116'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC03', '49.207.44.149', None, 'N', None, None, None)
+(1760774, '2610181217', datetime.datetime(2026, 10, 8, 16, 37, 7, 113000), 'SMN26181434', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760773, '2610112301', datetime.datetime(2026, 10, 8, 16, 36, 46, 690000), 'BNG26112482', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('1000.00'), Decimal('0.00'), Decimal('1000.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0456', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760772, '2610181216', datetime.datetime(2026, 10, 8, 16, 36, 40, 390000), 'SMN26181433', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760771, '2610181215', datetime.datetime(2026, 10, 8, 16, 36, 24, 853000), 'SMN26181432', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('130.00'), Decimal('0.00'), Decimal('130.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760770, '2610112300', datetime.datetime(2026, 10, 8, 16, 35, 59, 903000), 'BNG26112481', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('40.00'), Decimal('0.00'), Decimal('40.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP1440', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760769, '2610181214', datetime.datetime(2026, 10, 8, 16, 35, 51, 280000), 'SMN26181431', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760768, '261022751', datetime.datetime(2026, 10, 8, 16, 35, 42, 803000), 'BZA2622751', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('200.00'), Decimal('0.00'), Decimal('200.00'), None, None, None, None, 'OP', 'P', 'naveen', 'COMP0722', None, Decimal('116'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC03', '49.207.44.149', None, 'N', None, None, None)
+(1760767, '2610112299', datetime.datetime(2026, 10, 8, 16, 35, 39, 647000), 'BNG26112480', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0456', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760766, '2610181213', datetime.datetime(2026, 10, 8, 16, 35, 37, 487000), 'SMN26181430', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760765, '2610181212', datetime.datetime(2026, 10, 8, 16, 35, 24, 530000), 'SMN26181429', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('250.00'), Decimal('0.00'), Decimal('250.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760764, '2610112298', datetime.datetime(2026, 10, 8, 16, 35, 9, 40000), 'BNG26112479', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0757', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760763, '261012475', datetime.datetime(2026, 10, 8, 16, 34, 53, 553000), 'PHC2612617', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('855.00'), Decimal('0.00'), Decimal('855.00'), None, None, None, None, 'OP', 'P', 'ananth', 'COMP1724', None, Decimal('154'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC16', '49.206.195.214', None, 'N', None, None, None)
+(1760762, '2610181211', datetime.datetime(2026, 10, 8, 16, 34, 48, 427000), 'SMN26181428', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('100.00'), Decimal('0.00'), Decimal('100.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760761, '2610112297', datetime.datetime(2026, 10, 8, 16, 34, 32, 433000), 'BNG26112478', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('45.00'), Decimal('0.00'), Decimal('45.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP0396', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760760, '2610181210', datetime.datetime(2026, 10, 8, 16, 34, 2, 693000), 'SMN26181427', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('30.00'), Decimal('0.00'), Decimal('30.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0552', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760759, '261017578', datetime.datetime(2026, 10, 8, 16, 33, 57, 213000), 'KMG2617592', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('60.00'), Decimal('0.00'), Decimal('60.00'), None, None, None, None, 'OP', 'P', 'BHARATH A', 'COMP1896', None, Decimal('18'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC08', '45.117.66.86', None, 'N', None, None, None)
+(1760758, '2610112296', datetime.datetime(2026, 10, 8, 16, 33, 56, 613000), 'BNG26112477', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('160.00'), Decimal('0.00'), Decimal('160.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP0726', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760757, '2610112295', datetime.datetime(2026, 10, 8, 16, 33, 11, 633000), 'BNG26112476', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('255.00'), Decimal('0.00'), Decimal('255.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP0445', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760756, '2610112294', datetime.datetime(2026, 10, 8, 16, 33, 10, 770000), 'BNG26112475', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('150.00'), Decimal('0.00'), Decimal('150.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1752', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760755, '2610112293', datetime.datetime(2026, 10, 8, 16, 32, 30, 550000), 'BNG26112474', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760754, '261012474', datetime.datetime(2026, 10, 8, 16, 32, 26, 23000), 'PHC2612616', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('730.00'), Decimal('0.00'), Decimal('730.00'), None, None, None, None, 'OP', 'P', 'ananth', 'COMP1724', None, Decimal('154'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC16', '49.206.195.214', None, 'N', None, None, None)
+(1760753, '2610112292', datetime.datetime(2026, 10, 8, 16, 31, 54, 930000), 'BNG26112473', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760752, '2610112291', datetime.datetime(2026, 10, 8, 16, 31, 28, 277000), 'BNG26112472', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760751, '2610112290', datetime.datetime(2026, 10, 8, 16, 30, 58, 970000), 'BNG26112471', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760750, '2610112289', datetime.datetime(2026, 10, 8, 16, 30, 38, 143000), 'BNG26112470', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('150.00'), Decimal('0.00'), Decimal('150.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP0445', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760749, '2610112288', datetime.datetime(2026, 10, 8, 16, 30, 28, 893000), 'BNG26112469', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760748, '2610112287', datetime.datetime(2026, 10, 8, 16, 29, 57, 517000), 'BNG26112468', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP1526', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760747, '2610112286', datetime.datetime(2026, 10, 8, 16, 29, 46, 490000), 'BNG26112467', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760746, '2610112285', datetime.datetime(2026, 10, 8, 16, 29, 13, 623000), 'BNG26112466', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760745, '261012473', datetime.datetime(2026, 10, 8, 16, 28, 59, 740000), 'PHC2612615', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('850.00'), Decimal('0.00'), Decimal('850.00'), None, None, None, None, 'OP', 'P', 'ananth', 'COMP1724', None, Decimal('154'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC16', '49.206.195.214', None, 'N', None, None, None)
+(1760744, '261017577', datetime.datetime(2026, 10, 8, 16, 28, 53, 140000), 'KMG2617591', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('100.00'), Decimal('0.00'), Decimal('100.00'), None, None, None, None, 'OP', 'P', 'BHARATH A', 'COMP1743', None, Decimal('18'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC08', '45.117.66.86', None, 'N', None, None, None)
+(1760743, '261017576', datetime.datetime(2026, 10, 8, 16, 28, 29, 603000), 'KMG2617590', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('165.00'), Decimal('0.00'), Decimal('165.00'), None, None, None, None, 'OP', 'P', 'BHARATH A', 'COMP1813', None, Decimal('18'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC08', '45.117.66.86', None, 'N', None, None, None)
+(1760742, '2610112284', datetime.datetime(2026, 10, 8, 16, 28, 19, 267000), 'BNG26112465', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('825.00'), Decimal('0.00'), Decimal('825.00'), None, None, None, None, 'OP', 'P', 'SHANTHI', 'COMP1440', None, Decimal('233'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760741, '2610112283', datetime.datetime(2026, 10, 8, 16, 28, 15, 323000), 'BNG26112464', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1751', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760740, '26109811', datetime.datetime(2026, 10, 8, 16, 27, 16, 897000), 'KOL269811', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('705.00'), Decimal('0.00'), Decimal('705.00'), None, None, None, None, 'OP', 'P', 'DEBYARK', 'COMP2713', None, Decimal('246'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC11', '115.187.60.213', None, 'N', None, None, None)
+(1760739, '2610181209', datetime.datetime(2026, 10, 8, 16, 26, 40, 783000), 'SMN26181426', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('100.00'), Decimal('0.00'), Decimal('100.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0619', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760738, '2610181208', datetime.datetime(2026, 10, 8, 16, 26, 12, 73000), 'SMN26181425', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('1035.00'), Decimal('0.00'), Decimal('1035.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0926', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760737, '2610112282', datetime.datetime(2026, 10, 8, 16, 25, 21, 203000), 'BNG26112463', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0726', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760736, '2610181207', datetime.datetime(2026, 10, 8, 16, 24, 35, 577000), 'SMN26181424', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('820.00'), Decimal('0.00'), Decimal('820.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0926', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760735, '2610112281', datetime.datetime(2026, 10, 8, 16, 24, 16, 380000), 'BNG26112462', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('45.00'), Decimal('0.00'), Decimal('45.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0556', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760734, '2610181206', datetime.datetime(2026, 10, 8, 16, 23, 36, 427000), 'SMN26181423', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('620.00'), Decimal('0.00'), Decimal('620.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0027', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760733, '2610112280', datetime.datetime(2026, 10, 8, 16, 23, 30, 780000), 'BNG26112461', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('910.00'), Decimal('0.00'), Decimal('910.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0422', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760732, '261078173', datetime.datetime(2026, 10, 8, 16, 23, 1, 303000), 'DEL2678186', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1250', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760731, '2610112279', datetime.datetime(2026, 10, 8, 16, 22, 59, 410000), 'BNG26112460', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('300.00'), Decimal('0.00'), Decimal('300.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1526', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760730, '2610181205', datetime.datetime(2026, 10, 8, 16, 22, 47, 640000), 'SMN26181422', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('290.00'), Decimal('0.00'), Decimal('290.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0820', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760729, '261078172', datetime.datetime(2026, 10, 8, 16, 22, 44, 920000), 'DEL2678185', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('120.00'), Decimal('0.00'), Decimal('120.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1250', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760728, '2610112278', datetime.datetime(2026, 10, 8, 16, 22, 40, 410000), 'BNG26112459', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1525', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760727, '261078171', datetime.datetime(2026, 10, 8, 16, 22, 19, 97000), 'DEL2678184', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('500.00'), Decimal('0.00'), Decimal('500.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1250', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760726, '2610181204', datetime.datetime(2026, 10, 8, 16, 22, 14, 663000), 'SMN26181421', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('125.00'), Decimal('0.00'), Decimal('125.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0257', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760725, '2610112277', datetime.datetime(2026, 10, 8, 16, 22, 5, 197000), 'BNG26112458', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('90.00'), Decimal('0.00'), Decimal('90.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1525', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760724, '2610181203', datetime.datetime(2026, 10, 8, 16, 21, 49, 500000), 'SMN26181420', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('140.00'), Decimal('0.00'), Decimal('140.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP2317', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760723, '261078170', datetime.datetime(2026, 10, 8, 16, 21, 48, 360000), 'DEL2678183', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1250', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760722, '261078169', datetime.datetime(2026, 10, 8, 16, 21, 27, 530000), 'DEL2678182', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('600.00'), Decimal('0.00'), Decimal('600.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1194', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760721, '2610181202', datetime.datetime(2026, 10, 8, 16, 21, 10, 877000), 'SMN26181419', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('430.00'), Decimal('0.00'), Decimal('430.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0793', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760720, '2610112276', datetime.datetime(2026, 10, 8, 16, 21, 5, 363000), 'BNG26112457', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('120.00'), Decimal('0.00'), Decimal('120.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1531', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760719, '261078168', datetime.datetime(2026, 10, 8, 16, 21, 1, 83000), 'DEL2678181', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1181', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760718, '2610112275', datetime.datetime(2026, 10, 8, 16, 20, 46, 750000), 'BNG26112456', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('800.00'), Decimal('0.00'), Decimal('800.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1526', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760717, '261078167', datetime.datetime(2026, 10, 8, 16, 20, 27, 213000), 'DEL2678180', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('1000.00'), Decimal('0.00'), Decimal('1000.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1132', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760716, '2610112274', datetime.datetime(2026, 10, 8, 16, 20, 25, 27000), 'BNG26112455', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('400.00'), Decimal('0.00'), Decimal('400.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1526', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760715, '2610112273', datetime.datetime(2026, 10, 8, 16, 20, 7, 470000), 'BNG26112454', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('90.00'), Decimal('0.00'), Decimal('90.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1531', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760714, '2610112272', datetime.datetime(2026, 10, 8, 16, 19, 48, 787000), 'BNG26112453', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('160.00'), Decimal('0.00'), Decimal('160.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1526', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760713, '2610181201', datetime.datetime(2026, 10, 8, 16, 19, 44, 873000), 'SMN26181418', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('270.00'), Decimal('0.00'), Decimal('270.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0280', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760712, '261078166', datetime.datetime(2026, 10, 8, 16, 19, 30, 360000), 'DEL2678179', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('200.00'), Decimal('0.00'), Decimal('200.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1132', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760711, '2610112271', datetime.datetime(2026, 10, 8, 16, 19, 25, 967000), 'BNG26112452', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('125.00'), Decimal('0.00'), Decimal('125.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0422', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760710, '2610112270', datetime.datetime(2026, 10, 8, 16, 19, 8, 420000), 'BNG26112451', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('120.00'), Decimal('0.00'), Decimal('120.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1531', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760709, '2610112269', datetime.datetime(2026, 10, 8, 16, 18, 48, 890000), 'BNG26112450', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('130.00'), Decimal('0.00'), Decimal('130.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0726', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760708, '2610181200', datetime.datetime(2026, 10, 8, 16, 18, 48, 500000), 'SMN26181417', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('330.00'), Decimal('0.00'), Decimal('330.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0007', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760707, '2610112268', datetime.datetime(2026, 10, 8, 16, 18, 10, 700000), 'BNG26112449', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('210.00'), Decimal('0.00'), Decimal('210.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP1479', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760706, '2610181199', datetime.datetime(2026, 10, 8, 16, 18, 3, 733000), 'SMN26181416', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('125.00'), Decimal('0.00'), Decimal('125.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0633', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760705, '2610181198', datetime.datetime(2026, 10, 8, 16, 17, 34, 150000), 'SMN26181415', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('70.00'), Decimal('0.00'), Decimal('70.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0619', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760704, '2610112267', datetime.datetime(2026, 10, 8, 16, 17, 22, 887000), 'BNG26112448', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('80.00'), Decimal('0.00'), Decimal('80.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0726', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760703, '2610181197', datetime.datetime(2026, 10, 8, 16, 17, 15, 873000), 'SMN26181414', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('545.00'), Decimal('0.00'), Decimal('545.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0619', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760702, '2610112266', datetime.datetime(2026, 10, 8, 16, 17, 7, 263000), 'BNG26112447', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('500.00'), Decimal('0.00'), Decimal('500.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0726', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760701, '261078165', datetime.datetime(2026, 10, 8, 16, 16, 54, 13000), 'DEL2678178', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('200.00'), Decimal('0.00'), Decimal('200.00'), None, None, None, None, 'OP', 'P', 'dhanya', 'COMP1833', None, Decimal('211'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC05', '183.83.220.31', None, 'N', None, None, None)
+(1760700, '2610181196', datetime.datetime(2026, 10, 8, 16, 16, 42, 693000), 'SMN26181413', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('545.00'), Decimal('0.00'), Decimal('545.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0619', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760699, '2610112265', datetime.datetime(2026, 10, 8, 16, 16, 39, 507000), 'BNG26112446', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('300.00'), Decimal('0.00'), Decimal('300.00'), None, None, None, None, 'OP', 'P', 'MAHENDER', 'COMP0422', None, Decimal('228'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC02', '106.51.159.129', None, 'N', None, None, None)
+(1760698, '2610181195', datetime.datetime(2026, 10, 8, 16, 16, 7, 57000), 'SMN26181412', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('250.00'), Decimal('0.00'), Decimal('250.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0130', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760697, '2610181194', datetime.datetime(2026, 10, 8, 16, 15, 13, 213000), 'SMN26181411', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('125.00'), Decimal('0.00'), Decimal('125.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP1283', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760696, '261018679', datetime.datetime(2026, 10, 8, 16, 15, 0, 103000), 'VSP2618680', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('125.00'), Decimal('0.00'), Decimal('125.00'), None, None, None, None, 'OP', 'P', 'somu', 'COMP1817', None, Decimal('155'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC10', '124.123.27.151', None, 'N', None, None, None)
+(1760695, '2610181193', datetime.datetime(2026, 10, 8, 16, 14, 37, 573000), 'SMN26181410', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('805.00'), Decimal('0.00'), Decimal('805.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0220', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760694, '2610181192', datetime.datetime(2026, 10, 8, 16, 13, 50, 77000), 'SMN26181409', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('845.00'), Decimal('0.00'), Decimal('845.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0320', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760693, '2610181191', datetime.datetime(2026, 10, 8, 16, 13, 19, 103000), 'SMN26181408', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('200.00'), Decimal('0.00'), Decimal('200.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0320', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760692, '2610181190', datetime.datetime(2026, 10, 8, 16, 12, 47, 660000), 'SMN26181407', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('120.00'), Decimal('0.00'), Decimal('120.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0320', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+(1760691, '2610181189', datetime.datetime(2026, 10, 8, 16, 12, 8, 900000), 'SMN26181406', None, 'OPLAB', '', 'Cash', Decimal('0.00'), Decimal('180.00'), Decimal('0.00'), Decimal('180.00'), None, None, None, None, 'OP', 'P', 'Susmitha', 'COMP0258', None, Decimal('203'), None, None, None, Decimal('0.00'), 'Y', None, 'LOC01', '49.206.195.214', None, 'N', None, None, None)
+
+========== COLLECTION AGGREGATES ==========
+MODE | TYPE | STATUS | LOCATION | COUNT | TOTAL | PAID | DUE | CONCESSION | REG
+('Cash', 'OPLAB', 'C', 'LOC01', 18, Decimal('7990.00'), Decimal('0.00'), Decimal('7990.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC01', 6306, Decimal('1667720.00'), Decimal('0.00'), Decimal('1665782.00'), Decimal('1938.00'), Decimal('0.00'))
+('CONCESSION', 'LabConcession2', 'P', 'LOC01', 4, Decimal('0.00'), Decimal('0.00'), Decimal('0.00'), Decimal('3312.00'), Decimal('0.00'))
+('UPI', 'DUE PAYMENT', 'P', 'LOC01', 2, Decimal('425.00'), Decimal('425.00'), Decimal('0.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC02', 6, Decimal('1680.00'), Decimal('0.00'), Decimal('1680.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC02', 4407, Decimal('1237262.50'), Decimal('0.00'), Decimal('1237262.50'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC03', 646, Decimal('151705.00'), Decimal('0.00'), Decimal('151705.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC05', 2, Decimal('700.00'), Decimal('0.00'), Decimal('700.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC05', 2746, Decimal('828815.00'), Decimal('0.00'), Decimal('828815.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC08', 2, Decimal('1050.00'), Decimal('0.00'), Decimal('1050.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC08', 681, Decimal('152745.00'), Decimal('0.00'), Decimal('152745.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC10', 2, Decimal('2400.00'), Decimal('0.00'), Decimal('2400.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC10', 688, Decimal('204930.00'), Decimal('0.00'), Decimal('204930.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC11', 1, Decimal('550.00'), Decimal('0.00'), Decimal('550.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC11', 375, Decimal('94209.00'), Decimal('0.00'), Decimal('94209.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC13', 86, Decimal('37883.00'), Decimal('0.00'), Decimal('37883.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC15', 58, Decimal('30265.00'), Decimal('0.00'), Decimal('30265.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'C', 'LOC16', 4, Decimal('680.00'), Decimal('0.00'), Decimal('680.00'), Decimal('0.00'), Decimal('0.00'))
+('Cash', 'OPLAB', 'P', 'LOC16', 215, Decimal('131998.00'), Decimal('0.00'), Decimal('131998.00'), Decimal('0.00'), Decimal('0.00'))
