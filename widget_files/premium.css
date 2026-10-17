@@ -63,7 +63,7 @@ html.pz .header::after { content: ""; position: absolute; left: 0; right: 0; bot
 html.pz .logo { position: relative; background: var(--pz-logo-bg) !important; box-shadow: 0 0 0 1px var(--w-border-strong), 0 6px 22px color-mix(in srgb, var(--w-accent) 55%, transparent) !important; }
 html.pz .logo::before { content: ""; position: absolute; inset: -40%; background: conic-gradient(from 0deg, var(--w-accent), var(--pz-teal), transparent 40%, var(--w-accent)); animation: pz-spin 5s linear infinite; z-index: 0; }
 html.pz .logo::after { content: ""; position: absolute; inset: 2px; border-radius: 9px; background: var(--pz-logo-bg); z-index: 1; }
-html.pz .logo img { position: relative; z-index: 2; width: 70% !important; height: 70% !important; }
+html.pz .logo img { position: relative; z-index: 2; width: 86% !important; height: 86% !important; object-fit: contain !important; object-position: center; padding: 0 !important; }
 @keyframes pz-spin { to { transform: rotate(360deg); } }
 html.pz .header-info h1 { background: linear-gradient(92deg, var(--w-ink) 20%, var(--w-accent) 75%, var(--pz-teal)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent !important; color: transparent !important; font-weight: 700 !important; letter-spacing: -.02em; }
 html.pz .header-info p, html.pz #status { color: var(--w-muted) !important; opacity: 1 !important; }

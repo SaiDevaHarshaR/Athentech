@@ -46,7 +46,7 @@ button, input { font-family: var(--w-font); }
 .logo { width: 38px !important; height: 38px !important; border-radius: 11px !important; display: grid !important; place-items: center; flex: none; overflow: hidden;
   background: linear-gradient(140deg, var(--w-accent), var(--w-accent-2)) !important; box-shadow: 0 4px 12px var(--w-ring), inset 0 1px 0 rgba(255, 255, 255, .3); color: #fff; }
 .logo svg { width: 20px; height: 20px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.logo img { width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 0 !important; }
+.logo img { width: 100% !important; height: 100% !important; object-fit: contain; object-position: center; padding: 4px; box-sizing: border-box; border-radius: 0 !important; display: block; }
 .header-info { flex: 1; min-width: 0; }
 .header-info h1 { font: 650 15px/1.25 var(--w-font) !important; color: var(--w-ink) !important; letter-spacing: -.01em; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-info p { font-size: 12px !important; color: var(--w-muted) !important; margin: 2px 0 0 !important; display: flex; align-items: center; gap: 6px; }
