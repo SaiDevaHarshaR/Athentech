@@ -1,0 +1,35 @@
+ATHENTECH BYOK + RECONCILIATION RELEASE v6 - AUDIT RECORD
+Source: uploaded athentech-release-v5.zip, compared with available GitHub source snapshot,
+and original uploaded SQL procedure text (Pasted text.txt), including LabDayCollection_All.
+
+CORRECTED IN THIS RELEASE
+- V5 omitted COMPADVCASH from TOTALCASHINHAND (revenue/cash could be understated).
+- V5 omitted COMPADVCC from TOTALCCINHAND and COMPADVCHQ/PREVDUE_CHEQUE from TOTALCHQINHAND.
+- V5 omitted PREVDUE_DD and COMPADVUPI from TOTALONLINEUPIINHAND.
+- V5 incorrectly included previous-due UPI in TOTALCHQONLINEUPI; the original procedure does not.
+- V5 used COUNT(DISTINCT BILLNO) for TOTALBILLS; source procedure uses COUNT(*).
+- V5 returned only 20 of 32 numeric source fields.
+- V5 previous-refund comparison bound an ISO string to a VARCHAR converted bill date;
+  the original procedure compares to a DATETIME parameter. Date comparisons are now typed.
+- V5 parity tool EXECUTED a WRITE-capable procedure inside a rollback; removed that path.
+- V5 parity tool ignored missing fields/branches and could PASS empty procedure output;
+  now compares 32 columns, enforces exact branch coverage, and fails if there is no saved reference.
+
+TEST RESULTS
+- 32 local provider/migration/reconciliation tests passed on the merged offline project snapshot.
+- Python compilation passed; Admin Panel JavaScript syntax passed.
+- 6 BYOK isolation tests cannot be collected in this runtime (missing langchain_core dependency).
+- No live SQL Server, institution API keys, server startup or financial parity was tested.
+- Not certified for production until client-by-client manual verification.
+
+SOURCE QUIRKS NOT SILENTLY CHANGED
+- Original procedure's COMPADVCC compares payment date to 19 FEB 2022, not report date.
+- Original procedure's TOTALCHQONLINEUPI does NOT include previous-due UPI.
+- Original uses dbo.DUEREC, dbo.SEC_CONC and dbo.CCDUEAMT scalar functions.
+- Read-only report fails visibly when required tables/functions are missing.
+
+CLIENT DATABASE POLICY
+- The application reports implementation calls SELECT-only calculations; no LabDayCollection_All EXEC.
+- The verification tool also uses SELECT-only historical snapshots or pre-exported original CSV.
+- Admin database BYOK migration is authorized DDL on the application-owned database, not any LIS client database.
+- DB-enforced reader-only permission remains necessary; static tests cannot certify all code paths.
