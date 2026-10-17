@@ -63,6 +63,15 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 from observability.metrics import metrics_middleware
 from observability.ops_summary import summary as ops_summary
 app = FastAPI(title="Sahasra AI Agent")
+try:
+    from agent.guard_hooks import install as _install_guard_hooks; _install_guard_hooks(app)
+except Exception as _e:
+    print('[guard-hooks] not installed:', _e)
+from observability.ops_lite import install as install_ops_lite
+os.environ.setdefault("SAHASRA_OPS_LITE_ENABLED", "1")
+install_ops_lite(app, require_admin)
+from auth.admin_account import router as _admin_account_router
+app.include_router(_admin_account_router)
 app.middleware("http")(metrics_middleware)
 #print(f"[DEBUG] Loaded ALLOWED_ORIGINS: {settings.allowed_origins_list}")
 # CORS: restrict to known origins (set ALLOWED_ORIGINS in .env), not "*".
@@ -125,9 +134,23 @@ async def security_middleware(request: Request, call_next):
 
     # Security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cache-Control"] = "no-store"
+
+    # Widget pages must be embeddable on athentech.co.in (iframe).
+    # X-Frame-Options: DENY causes "refused to connect" in the parent site.
+    path = request.url.path or ""
+    if path.startswith("/widget"):
+        response.headers["Content-Security-Policy"] = (
+            "frame-ancestors 'self' https://www.athentech.co.in https://athentech.co.in "
+            "https://*.athentech.co.in http://localhost:* http://127.0.0.1:*"
+        )
+        try:
+            del response.headers["x-frame-options"]
+        except KeyError:
+            pass
+    else:
+        response.headers["X-Frame-Options"] = "DENY"
 
     return response
 
@@ -260,6 +283,7 @@ class PatientReportRequest(BaseModel):
 class AdminLoginRequest(BaseModel):
     username: str
     password: str
+    remember: bool = False
 
 
 class AdminCreateRequest(BaseModel):
@@ -334,7 +358,10 @@ def home():
 # ---------- Admin auth ----------
 
 @app.post("/admin/login")
-def api_admin_login(req: AdminLoginRequest):
+def api_admin_login(req: AdminLoginRequest, request: Request = None):
+    from auth import admin_account as _acct
+    _ip = request.client.host if request is not None and request.client else "unknown"
+    _acct.login_guard(_ip, req.username)
     try:
         ok = check_admin_credentials(req.username, req.password)
     except RuntimeError as e:
@@ -342,9 +369,10 @@ def api_admin_login(req: AdminLoginRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     if not ok:
+        _acct.login_failed(_ip, req.username)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_admin_token(req.username)
+    token = create_admin_token(req.username, _acct.REMEMBER_TTL if req.remember else None)
     audit(event="admin_login", role=None, code=None, question=None, meta={"actor": req.username})
     return {"status": "success", "token": token}
 
@@ -1104,6 +1132,13 @@ async def generate_pdf(req: PDFRequest):
         "content_lines": req.content_lines,
     }
 
+    from reports.pdf_generator import build_findings_from_content_lines as _bf
+    if not _bf(req.content_lines):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=422, content={
+            "code": "nothing_to_report",
+            "detail": "There is nothing to put in a report yet. Ask a data question first, then request the PDF."})
+
     # generate_smart_report uses Playwright's sync API (launches a real
     # browser to render) — that's a ~0.7s blocking call. Running it
     # directly here would freeze the whole async event loop for that
@@ -1176,10 +1211,23 @@ async def generate_patient_report(req: PatientReportRequest):
     try:
         import contextvars
         _ctx = contextvars.copy_context()      # carries the "own AI key" flag into the worker thread (no shared-AI fallback)
-        report_data = await loop.run_in_executor(
-            None, _ctx.run, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
-            db_server, db_user, db_password,
-        )
+        for _attempt in (1, 2):
+            report_data = await loop.run_in_executor(
+                None, _ctx.run, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
+                db_server, db_user, db_password,
+            )
+            if report_data.get("all_findings") or not report_data.get("_has_lab_data"):
+                break
+            print(f"[patient-report] empty report although lab data exists (attempt {_attempt})", flush=True)
+        if report_data.get("_has_lab_data") and not report_data.get("all_findings"):
+            try:
+                guardian.record_event(db_name, "pdf", "smart report empty although lab data exists")
+            except Exception:
+                pass
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=502, content={
+                "code": "report_failed_retryable",
+                "detail": "I couldn't build this report just now, even though the patient's results are available. That's my fault, not your data."})
     except PatientNotFound:
         raise HTTPException(status_code=404, detail=f"No patient found matching '{req.patient_identifier}'.")
     except PatientAmbiguous as e:
@@ -1531,11 +1579,69 @@ def api_answer_review_resolve(answer_id: int, req: ResolveRequest, admin: str = 
     return {"status": "success" if answer_log.resolve(answer_id, req.note) else "error"}
 
 
+@app.get("/Favicon.ico", include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
+def _favicon():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "Favicon.ico"), media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/admin/account-kit.js", include_in_schema=False)
+def account_kit_js():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "account_kit.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/admin/answer-review/console", include_in_schema=False)
 def answer_review_console():
     from fastapi.responses import FileResponse
     return FileResponse(os.path.join(os.path.dirname(__file__), "answer_review.html"),
                         media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+# ---------------- Self-heal (human-approved) ----------------
+class HealDecision(BaseModel):
+    scope: str = "client"
+    note: str = ""
+    rule_text: str | None = None
+
+
+@app.post("/admin/answer-review/{answer_id}/heal")
+def api_answer_heal(answer_id: int, admin: str = Depends(require_admin)):
+    """Diagnose a flagged answer and create a PENDING fix proposal. Nothing goes live until approved."""
+    from agent import heal
+    res = heal.create_proposal(answer_id, actor=str(admin))
+    if not res or res.get("error"):
+        return {"status": "error", "message": (res or {}).get("error", "Could not create a proposal.")}
+    return {"status": "success", "proposal_id": res["id"], "confidence": res["confidence"]}
+
+
+@app.get("/admin/guardian/api/heal")
+def api_heal_list(status: str = "", admin: str = Depends(require_admin)):
+    from agent import heal
+    return {"status": "success", "rows": heal.list_proposals(status or None)}
+
+
+@app.get("/admin/guardian/api/heal/{pid}")
+def api_heal_get(pid: int, admin: str = Depends(require_admin)):
+    from agent import heal
+    p = heal.get_proposal(pid)
+    if not p:
+        raise HTTPException(status_code=404, detail="Proposal not found.")
+    return {"status": "success", "proposal": p}
+
+
+@app.post("/admin/guardian/api/heal/{pid}/{action}")
+def api_heal_decide(pid: int, action: str, req: HealDecision, admin: str = Depends(require_admin)):
+    from agent import heal
+    if action not in ("approve", "reject", "revert"):
+        raise HTTPException(status_code=404, detail="Unknown action.")
+    res = heal.decide(pid, action, actor=str(admin), scope=req.scope, note=req.note, rule_text=req.rule_text)
+    if res.get("error"):
+        return {"status": "error", "message": res["error"]}
+    return {"status": "success", "proposal": res}
 
 
 @app.on_event("startup")
@@ -1551,6 +1657,17 @@ async def warm_athentech_cache():
             print(f"[startup] AthenTech cache warm failed (non-fatal): {e}")
 
     asyncio.get_event_loop().run_in_executor(None, _warm)
+
+
+@app.post("/athentech-demo-request")
+def athentech_demo_request(req: dict):
+    """Public demo-booking form from AthenTech-only widget → email via SMTP settings."""
+    from auth.athentech_demo import send_demo_request
+    ok, message = send_demo_request(req or {})
+    if not ok:
+        return {"status": "error", "message": message}
+    return {"status": "success", "message": message}
+
 
 @app.post("/athentech-info")
 def athentech_info_endpoint(req: dict):
@@ -1585,8 +1702,33 @@ app.include_router(build_chip_router(require_admin))
 # Guardian-specific API aliases: keep all console requests inside the IIS rewrite
 # prefix /admin/guardian/*, without changing the existing admin dashboard URLs.
 @app.post('/admin/guardian/api/login')
-def guardian_api_login(req: AdminLoginRequest):
-    return api_admin_login(req)
+def guardian_api_login(req: AdminLoginRequest, request: Request):
+    return api_admin_login(req, request)
+
+@app.get('/admin/guardian/api/ops')
+def guardian_api_ops(admin: str = Depends(require_admin)):
+    from observability.ops_lite import snapshot
+    out = snapshot()
+    q = {}
+    try:
+        from agent import answer_log
+        q = answer_log.stats()
+    except Exception:
+        pass
+    try:
+        from agent import heal
+        q['heal_pending'] = len(heal.list_proposals('pending'))
+        q['heal_live'] = len(heal.list_proposals('approved'))
+    except Exception:
+        pass
+    try:
+        g = guardian.status()
+        q['clients_with_errors'] = g.get('clients_with_errors', 0)
+        q['circuit_open'] = sum(1 for c in g.get('clients', []) if c.get('circuit_open'))
+    except Exception:
+        pass
+    out['quality'] = q
+    return out
 
 @app.get('/admin/guardian/api/status')
 def guardian_api_status(admin: str = Depends(require_admin)):
