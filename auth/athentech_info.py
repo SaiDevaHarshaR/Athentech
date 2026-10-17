@@ -480,6 +480,16 @@ Brand names: ATHEN TECH / Athentech; product family Sahasra / Sahasra-Infini.
 def answer_athentech_question(question: str, llm) -> str:
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    # Instant FAQ path — no scrape, no LLM (contact / about / modules / demo …)
+    try:
+        from auth.athentech_intents import try_athentech_intent
+        hit = try_athentech_intent(question)
+        if hit:
+            print(f"[athentech_info] intent hit for: {(question or '')[:80]!r}")
+            return hit
+    except Exception as e:
+        print(f"[athentech_info] intent layer error (non-fatal): {e}")
+
     context = ""
     try:
         context = get_athentech_context(question) or ""
