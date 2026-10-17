@@ -997,6 +997,59 @@ def _handle_collection_by_location(q, role, db_name, db_server, db_user, db_pass
         conn.close()
 
 
+
+# ---------- B2B (company / credit) clients ----------
+def _handle_b2b(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
+    """Client-wise B2B reports: bills, billed amount, credit. B2B = bills billed to an organisation (PAYTYPE 'Company')."""
+    if role not in _ALLOWED_ROLES:
+        return "Error: your role does not have access to this data."
+    ql = q.lower()
+    if any(x in ql for x in ("compar", " vs ", "versus", "growth", "trend")):
+        return None
+    try:
+        date_from, date_to, label = _period_dates(q)
+    except _UnrecognizedPeriod:
+        date_from, date_to, label = _period_dates(q + " this month")
+    conn = _conn(db_name, db_server, db_user, db_password)
+    if not conn:
+        return "Error: could not connect to the database."
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COALESCE(o.ORGANISATIONNAME, p.ORGANISATIONCODE, 'Unknown') AS Client, COUNT(DISTINCT p.BILLNO) AS Bills, "
+            "SUM(p.TOTALCHARGES) AS Charges, SUM(p.CREDITAMOUNT) AS Credit "
+            "FROM trnINVLABPRI p LEFT JOIN mstOrganisation o ON o.ORGANISATIONCODE = p.ORGANISATIONCODE "
+            "WHERE p.BILLDATE >= ? AND p.BILLDATE < ? AND p.PAYTYPE = 'Company' "
+            "GROUP BY COALESCE(o.ORGANISATIONNAME, p.ORGANISATIONCODE, 'Unknown') ORDER BY SUM(p.TOTALCHARGES) DESC",
+            (date_from, date_to),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return None
+        tb = sum(int(r[1] or 0) for r in rows)
+        tc = sum(float(r[2] or 0) for r in rows)
+        tcr = sum(float(r[3] or 0) for r in rows)
+        if "dues" in ql or "outstanding" in ql or "credit" in ql:
+            rows = sorted(rows, key=lambda r: float(r[3] or 0), reverse=True)
+            return _list_card(icon="🏢", title=f"B2B Credit Billed by Client · {label}",
+                              intro=f"Credit billed {len(rows)} clients · total ₹{tcr:,.0f} (before payments received)",
+                              items=[{"primary": str(r[0]).strip(), "fields": [f"₹{float(r[3] or 0):,.0f}", f"{int(r[1] or 0):,} bills"]} for r in rows[:15]])
+        if "bills" in ql and not any(x in ql for x in ("client wise", "clientwise", "by client", "per client", "top")):
+            return _dashboard_card(icon="🏢", title="B2B Bills", subtitle=label,
+                                   stats=[{"label": "BILLS", "value": f"{tb:,}"}, {"label": "BILLED", "value": f"₹{tc:,.0f}"},
+                                          {"label": "CLIENTS", "value": f"{len(rows):,}"}])
+        if "top" in ql and "bill" in ql and "amount" not in ql and "revenue" not in ql and "collection" not in ql:
+            rows = sorted(rows, key=lambda r: int(r[1] or 0), reverse=True)
+        title = "Top B2B Clients" if "top" in ql else "B2B Client-wise Billing"
+        return _list_card(icon="🏢", title=f"{title} · {label}",
+                          intro=f"{len(rows)} clients · {tb:,} bills · total ₹{tc:,.0f}",
+                          items=[{"primary": str(r[0]).strip(), "fields": [f"₹{float(r[2] or 0):,.0f}", f"{int(r[1] or 0):,} bills"]} for r in rows[:15]])
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
 # ---------- bill_finance ----------
 def _handle_bill_finance(q, role, db_name, db_server, db_user, db_password, matched_keyword=None):
     if role not in _ALLOWED_ROLES:
@@ -1758,7 +1811,7 @@ _INTENTS = [
       "average tat", "radiology tat", "lab tat", "turnaround time"],
      _handle_tat),
     (["lab procedures", "how many lab procedures", "how many tests done",
-      "sample rejected", "rejection count", "pending tests",
+      "sample rejected", "rejection count", "pending tests", "pending reports",
       "tests awaiting result", "lab workload"],
      _handle_lab_volume),
     (["list all packages", "list packages", "what packages", "which packages",
@@ -1782,7 +1835,9 @@ _INTENTS = [
       "collection by payment mode", "upi total", "today's collection data",
       "todays collection data", "overall collection", "grand total collection",
       "all branches collection", "payment mode wise collection",
-      "cash vs upi", "total cash collected", "total upi"],
+      "cash vs upi", "total cash collected", "total upi",
+      "month collection", "collection this month", "collection last month", "last month collection",
+      "week collection", "collection this week", "collection last week", "collection for the month"],
      _handle_all_collection),
     (["stuck samples", "sample collected pending", "still sample collected"],
      _handle_stuck_samples),
@@ -1832,7 +1887,7 @@ _INTENTS = [
     (["due payment", "previous due", "outstanding due"], 
     _handle_due_payments),
     (["collection by branch", "collection by location", "top branches by collection",
-      "best branch", "top performing", "performing the best", "performing best",
+      "best branch", "branch wise collection", "branchwise collection", "branch-wise collection", "top performing", "performing the best", "performing best",
       "which branch", "top branch", "branch performance", "best performing"],
      _handle_collection_by_location),
     (["bill finance", "money for bill", "finance for bill"],
@@ -2008,6 +2063,21 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
     # 1) Collection growth / branch-vs-branch ONLY when the question is purely about collection.
     #    "doctors this month vs last month", "refunds by branch compared with last month",
     #    "radiology vs lab revenue" etc. are NOT collection growth -> LLM.
+    if re.search(r"\b(b2b|client[\s-]?wise|by client|per client|dues by client|outstanding dues)\b", q):
+        try:
+            r2 = _handle_b2b(q, role, db_name, db_server, db_user, db_password)
+            if r2:
+                return r2
+        except _UnrecognizedPeriod:
+            return None
+    # early cash/upi route (before the comparison gate)
+    if "cash" in q and "upi" in q and "collection" in q:
+        try:
+            r0 = _handle_all_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword="cash vs upi")
+            if r0:
+                return r0
+        except _UnrecognizedPeriod:
+            return None
     if _is_comparison_question(q) and _is_ranking_or_filtered(q):
         return None  # ranking / per-branch / odd period -> LLM with real SQL
     if _is_comparison_question(q):
@@ -2025,6 +2095,20 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
     if _needs_llm(q):
         return None
 
+    if re.search(r"\b(branch[\s-]?wise|by branch|by location|location[\s-]?wise|per branch|each branch|which branch|top branch|best branch|highest branch|branch with the highest|branch has the highest)\b", q) and "collection" in q:
+        try:
+            r1 = _handle_collection_by_location(q, role, db_name, db_server, db_user, db_password, matched_keyword="collection by branch")
+            if r1:
+                return r1
+        except _UnrecognizedPeriod:
+            return None
+    if "cash" in q and "upi" in q and "collection" in q:
+        try:
+            r0 = _handle_all_collection(q, role, db_name, db_server, db_user, db_password, matched_keyword="cash vs upi")
+            if r0:
+                return r0
+        except _UnrecognizedPeriod:
+            return None
     for keywords, handler in _INTENTS:
         matched = next((kw for kw in keywords if kw in q), None)
         if matched:
@@ -2032,6 +2116,8 @@ def try_intent(question: str, role: str, db_name: str, db_server=None, db_user=N
                 result = handler(q, role, db_name, db_server, db_user, db_password, matched_keyword=matched)
             except _UnrecognizedPeriod:
                 return None
+            if isinstance(result, str) and "No location found matching" in result:
+                return None  # a word like 'cash' or 'vs' is not a branch - let the AI answer instead of showing this error
             return result  # None → LLM; do not try another intent
     fixed = _fix_typos(q)
     if fixed != q:
