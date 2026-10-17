@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>Sahasra Answer Review</title>
+<link rel="icon" type="image/x-icon" href="/Favicon.ico">
 <style>
 :root{
   --bg:#05060a; --bg2:#0a0c14; --panel:rgba(255,255,255,.045); --panel-2:rgba(255,255,255,.07);
@@ -167,7 +168,7 @@ pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.45)
 <div id="appView" class="hidden">
   <div class="top"><div class="top-in">
     <div class="brand"><span class="mark"><i></i></span><span>Sahasra <span style="color:var(--muted);font-weight:500">/ Answer Review</span></span></div>
-    <div class="who"><span class="mono live"><b></b>Live</span><span class="mono" id="who"></span><button class="btn sm" id="signout" type="button">Sign out</button></div>
+    <div class="who"><span class="mono live"><b></b>Live</span><span class="mono" id="who"></span><button class="btn sm" id="acct" type="button">Account</button><button class="btn sm" id="signout" type="button">Sign out</button></div>
   </div></div>
 
   <div class="wrap">
@@ -204,6 +205,7 @@ pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.45)
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="https://api.athentech.in/admin/account-kit.js"></script><script>window.SahasraAccount||document.write('<script src="/admin/account-kit.js"><\/script>')</script>
 <script>
 (function () {
   'use strict';
@@ -351,6 +353,7 @@ pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.45)
     finally { $('loginBtn').disabled = false; }
   }
   function signOut() {
+    if (window.SahasraAccount) SahasraAccount.forget();
     token = ''; $('appView').classList.add('hidden'); $('loginView').classList.remove('hidden');
     $('list').textContent = ''; $('who').textContent = ''; loginOrb.redraw();
   }
@@ -417,13 +420,22 @@ pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.45)
     }
     if (!r.resolved && (r.ok === 0 || r.vote === 'down')) {
       var a = el('div', 'actions'), note = el('input', 'inp'); note.placeholder = 'What was fixed? (optional)'; note.maxLength = 300; note.setAttribute('aria-label', 'Resolution note');
+      var hb = el('button', 'btn sm', '✨ Heal'); hb.type = 'button'; hb.title = 'Diagnose this answer and propose a fix for human review';
+      hb.addEventListener('click', async function () {
+        hb.disabled = true; hb.textContent = 'Diagnosing…';
+        try {
+          var j = await api('/admin/answer-review/' + r.id + '/heal', { method: 'POST' });
+          if (j.status === 'success') { toast('Proposal ready — opening Guardian'); setTimeout(function () { location.href = '/admin/guardian/console#heal-' + j.proposal_id; }, 600); }
+          else { toast(j.message || 'Could not diagnose this answer'); hb.disabled = false; hb.textContent = '✨ Heal'; }
+        } catch (e) { toast('Heal failed'); hb.disabled = false; hb.textContent = '✨ Heal'; }
+      });
       var b = el('button', 'btn pri sm', 'Mark resolved'); b.type = 'button';
       b.addEventListener('click', async function () {
         b.disabled = true;
         try { await api('/admin/answer-review/' + r.id + '/resolve', { method: 'POST', body: JSON.stringify({ note: note.value }) }); toast('Marked as resolved'); await load(true); }
         catch (e) { b.disabled = false; toast(e.message); }
       });
-      a.appendChild(note); a.appendChild(b); body.appendChild(a);
+      a.appendChild(note); a.appendChild(hb); a.appendChild(b); body.appendChild(a);
     }
     grid.appendChild(body); card.appendChild(grid); tilt(card);
     return card;
@@ -445,6 +457,16 @@ pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.45)
   function safeLoad(reset) { load(reset).catch(function (e) { $('list').textContent = ''; toast(e.message); }); }
 
   /* ------------------------------------------------ wire up */
+  window.SahasraAccount=window.SahasraAccount||{init(){},resume(){return Promise.resolve(null)},forget(){},openAccount(){alert('Account tools could not load - refresh the page.')},openForgot(){}};var __kitApi=(location.hostname==='api.athentech.in'||location.hostname==='localhost'||location.hostname==='127.0.0.1')?'':'https://api.athentech.in';
+  SahasraAccount.init({ api: __kitApi, getToken: function () { return token; }, setToken: function (t) { token = t; }, onUser: function (u) { $('who').textContent = u; } });
+  $('acct').addEventListener('click', function () { SahasraAccount.openAccount(); });
+  SahasraAccount.resume().then(function (t) {
+    if (!t) return; token = t;
+    try { $('who').textContent = (JSON.parse(localStorage.getItem('sahasra_remember_session') || '{}').u) || ''; } catch (e) {}
+    $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden');
+    if (!orb) orb = Orb($('orb'), { n: 150, scale: 0.4 }); else orb.redraw();
+    load(true);
+  });
   $('loginForm').addEventListener('submit', login);
   $('signout').addEventListener('click', signOut);
   $('reload').addEventListener('click', function () { safeLoad(true); });
