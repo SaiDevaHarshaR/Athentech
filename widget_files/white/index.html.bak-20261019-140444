@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Assistant</title>
+  <style>
+    :root {
+      --at-orange: #0e7490;
+      --at-orange-2: #155e75;
+      --at-orange-soft: #ecfeff;
+      --at-navy: #0f172a;
+      --at-ink: #1e293b;
+      --at-muted: #64748b;
+      --at-line: #e2e8f0;
+      --at-bg: #f8fafc;
+      --at-card: #ffffff;
+      --at-green: #16a34a;
+      --at-top: #0b1f3a;
+      --at-radius: 16px;
+      --brand-rgb: 14,116,144;
+      --at-border-soft: #a5f3fc;
+      --at-focus: #67e8f9;
+      --at-wash: #cffafe;
+      --at-font: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      font-family: var(--at-font);
+      background: var(--at-bg);
+      color: var(--at-ink);
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(900px 420px at 10% -10%, var(--at-wash) 0%, transparent 55%),
+        radial-gradient(700px 380px at 100% 0%, #e0f2fe 0%, transparent 50%),
+        var(--at-bg);
+    }
+
+    /* Header — matches site navy + orange accent */
+    .at-header {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, #ffffff 0%, #fffbf7 100%);
+      border-bottom: 1px solid var(--at-line);
+      min-height: 64px;
+    }
+    .at-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--at-border-soft);
+      box-shadow: 0 4px 14px rgba(var(--brand-rgb), 0.18);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      flex: none;
+    }
+    .at-logo img {
+      width: 86%;
+      height: 86%;
+      object-fit: contain;
+    }
+    .at-header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--at-navy);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .at-header p {
+      font-size: 12px;
+      color: var(--at-muted);
+      margin-top: 2px;
+    }
+    .at-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--at-orange-2);
+      background: var(--at-orange-soft);
+      border: 1px solid var(--at-border-soft);
+      padding: 5px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* Messages */
+    .at-chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 14px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .at-msg {
+      max-width: 92%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .at-msg.bot {
+      align-self: flex-start;
+      background: var(--at-card);
+      border: 1px solid var(--at-line);
+      color: var(--at-ink);
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+      border-bottom-left-radius: 6px;
+    }
+    .at-msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--at-orange), var(--at-orange-2));
+      color: #fff;
+      border-bottom-right-radius: 6px;
+      box-shadow: 0 6px 16px rgba(var(--brand-rgb), 0.25);
+    }
+    .at-msg .at-time {
+      display: block;
+      margin-top: 8px;
+      font-size: 11px;
+      opacity: 0.55;
+      text-align: right;
+    }
+    .at-msg a { color: var(--at-orange-2); font-weight: 600; }
+    .at-msg strong { color: var(--at-navy); }
+
+    /* Typing */
+    .at-typing {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid var(--at-line);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      gap: 5px;
+    }
+    .at-typing span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--at-orange);
+      opacity: 0.35;
+      animation: at-bounce 1.2s infinite ease-in-out;
+    }
+    .at-typing span:nth-child(2) { animation-delay: 0.15s; }
+    .at-typing span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes at-bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+      40% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* Suggestion chips */
+    .at-chips {
+      flex: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 4px 14px 10px;
+    }
+    .at-chip {
+      border: 1px solid var(--at-border-soft);
+      background: #fff;
+      color: var(--at-ink);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: 0.15s ease;
+      font-family: inherit;
+    }
+    .at-chip:hover {
+      background: var(--at-orange-soft);
+      border-color: var(--at-orange);
+      color: var(--at-orange-2);
+    }
+
+    /* Composer */
+    .at-composer {
+      flex: none;
+      padding: 10px 12px 12px;
+      background: #fff;
+      border-top: 1px solid var(--at-line);
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .at-composer textarea {
+      flex: 1;
+      resize: none;
+      border: 1px solid var(--at-line);
+      border-radius: 12px;
+      padding: 11px 12px;
+      font: 14px/1.4 var(--at-font);
+      color: var(--at-ink);
+      min-height: 44px;
+      max-height: 120px;
+      outline: none;
+      background: var(--at-bg);
+    }
+    .at-composer textarea:focus {
+      border-color: var(--at-focus);
+      box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.15);
+      background: #fff;
+    }
+    .at-send {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--at-orange), var(--at-orange-2));
+      color: #fff;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex: none;
+      box-shadow: 0 6px 14px rgba(var(--brand-rgb), 0.3);
+    }
+    .at-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .at-send svg { width: 18px; height: 18px; }
+
+    .at-footer {
+      flex: none;
+      text-align: center;
+      font-size: 11px;
+      color: var(--at-muted);
+      padding: 0 12px 10px;
+      background: #fff;
+    }
+    .at-footer a { color: var(--at-orange-2); text-decoration: none; font-weight: 600; }
+  
+    /* ---- white-label additions ---- */
+    .at-logo .at-initial { font-weight: 800; color: var(--at-orange-2); font-size: 18px; }
+    .at-hbtn { margin-left: auto; font: 600 12px var(--at-font); color: var(--at-orange-2); background: var(--at-orange-soft);
+      border: 1px solid var(--at-border-soft); padding: 7px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .at-hbtn:hover { filter: brightness(.97); }
+    .at-chips { flex: none; display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding: 6px 14px 8px; scrollbar-width: none; }
+    .at-chips::-webkit-scrollbar { display: none; }
+    .at-chip { flex: none; font: 600 12.5px var(--at-font); color: var(--at-orange-2); background: #fff; border: 1px solid var(--at-border-soft);
+      padding: 7px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .at-chip:hover { background: var(--at-orange-soft); }
+    .at-login { flex: none; margin: 0 14px 8px; padding: 14px; background: #fff; border: 1px solid var(--at-line); border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(15,23,42,.06); display: none; }
+    .at-login.open { display: block; }
+    .at-login h3 { font-size: 14px; color: var(--at-navy); margin-bottom: 4px; }
+    .at-login p { font-size: 12px; color: var(--at-muted); margin-bottom: 10px; line-height: 1.5; }
+    .at-login input { width: 100%; padding: 10px 12px; border: 1px solid var(--at-line); border-radius: 10px; font: 14px var(--at-font);
+      margin-bottom: 8px; outline: none; background: var(--at-bg); }
+    .at-login input:focus { border-color: var(--at-focus); background: #fff; }
+    .at-login .row { display: flex; gap: 8px; }
+    .at-login button { flex: 1; padding: 10px; border: none; border-radius: 10px; color: #fff; font: 600 13px var(--at-font); cursor: pointer;
+      background: linear-gradient(135deg, var(--at-orange), var(--at-orange-2)); }
+    .at-login button.ghost { background: #fff; color: var(--at-muted); border: 1px solid var(--at-line); flex: 0 0 auto; padding: 10px 14px; }
+    .at-login .err { color: #dc2626; font-size: 12px; min-height: 16px; margin-top: 2px; }
+    .at-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+    .at-table th { text-align: left; color: var(--at-muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--at-line); }
+    .at-table td { padding: 5px 6px; border-bottom: 1px solid #f1f5f9; }
+    .at-dl { display: inline-block; margin-top: 8px; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--at-border-soft);
+      background: var(--at-orange-soft); color: var(--at-orange-2); font: 600 12.5px var(--at-font); cursor: pointer; }
+    .at-note { align-self: center; font-size: 11.5px; color: var(--at-muted); background: #fff; border: 1px dashed var(--at-line);
+      padding: 6px 12px; border-radius: 999px; }
+</style>
+</head>
+<body>
+  <header class="at-header">
+    <div class="at-logo" id="logo"><span class="at-initial" id="initial"></span></div>
+    <div>
+      <h1 id="brand">Assistant</h1>
+      <p id="sub">Services &middot; Timings &middot; Contact</p>
+    </div>
+    <button class="at-hbtn" id="hbtn" type="button" style="display:none">Corporate login</button>
+  </header>
+  <section class="at-login" id="login" aria-label="Corporate login">
+    <h3>Corporate login</h3>
+    <p id="loginMsg">Enter your registered mobile number. We will send a verification code.</p>
+    <div id="step1">
+      <input id="phone" type="tel" inputmode="tel" placeholder="Registered mobile number" autocomplete="tel" />
+      <div class="row"><button type="button" id="sendOtp">Send code</button><button type="button" class="ghost" id="cancelLogin">Cancel</button></div>
+    </div>
+    <div id="step2" style="display:none">
+      <input id="code" type="text" inputmode="numeric" maxlength="10" placeholder="Verification code" autocomplete="one-time-code" />
+      <div class="row"><button type="button" id="verifyOtp">Verify</button><button type="button" class="ghost" id="backLogin">Back</button></div>
+    </div>
+    <div class="err" id="loginErr"></div>
+  </section>
+  <main class="at-chat" id="chat" aria-live="polite"></main>
+  <div class="at-chips" id="chips"></div>
+  <form class="at-composer" id="form">
+    <textarea id="input" rows="1" placeholder="Ask anything&hellip;" maxlength="500"></textarea>
+    <button class="at-send" type="submit" id="send" aria-label="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </button>
+  </form>
+  <div class="at-footer" id="footer"></div>
+<script>
+(function () {
+  var P = new URLSearchParams(location.search);
+  var CLIENT = (P.get("client") || "").trim();
+  var API = (function () { var q = P.get("api"); return (q && /^https?:\/\//i.test(q)) ? q.replace(/\/$/, "") : (/^api\./i.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname) ? location.origin : "https://api.athentech.in"); })();
+  var $ = function (id) { return document.getElementById(id); };
+  var chat = $("chat"), chipsEl = $("chips"), form = $("form"), input = $("input"), sendBtn = $("send");
+  var cfg = null, busy = false, history = [], token = null, orgName = "", phoneNo = "";
+  try { token = sessionStorage.getItem("wl_b2b_" + CLIENT); orgName = sessionStorage.getItem("wl_org_" + CLIENT) || ""; } catch (e) {}
+
+  var B2C_CHIPS = [
+    { label: "Our services", q: "What tests and services do you offer?" },
+    { label: "Timings & location", q: "What are your opening hours and location?" },
+    { label: "Preparing for tests", q: "How should I prepare for a blood test?" },
+    { label: "Contact & support", q: "How can I contact you?" }
+  ];
+  var B2B_CHIPS = [
+    { label: "Invoices this month", q: "How many invoices this month?" },
+    { label: "Report status", q: "What is the status of my reports?" },
+    { label: "Outstanding balance", q: "How much is pending against our account?" },
+    { label: "Payment status", q: "Has our payment been received?" },
+    { label: "Credit limit", q: "What is our available credit limit?" },
+    { label: "Billing statement", q: "Can you provide the monthly billing statement?" },
+    { label: "Pending tests", q: "Which tests are still pending?" },
+    { label: "Delayed orders", q: "Which orders are likely to be delayed?" },
+    { label: "TAT performance", q: "What percentage of reports met TAT this month?" },
+    { label: "Top tests", q: "Which tests were ordered most frequently?" },
+    { label: "Rejection rate", q: "What is our sample rejection percentage?" },
+    { label: "3-month trend", q: "Compare our last three months' invoices." },
+    { label: "Test price / TAT", q: "What is the price and report time for CBC?" },
+    { label: "Health packages", q: "What health-check packages are available?" },
+    { label: "Pickup request", q: "Can you arrange sample pickup tomorrow?" },
+    { label: "Talk to lab manager", q: "Can I speak with the lab manager?" },
+    { label: "Download Excel", q: "Download Excel" }
+  ];
+  function timeNow() { try { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function fmt(text) {
+    var t = esc(text || "");
+    t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1<\/a>');
+    t = t.replace(/(\+?91[\s\-]?[6-9][0-9]{4}[\s\-]?[0-9]{5})/g, '<a href="tel:$1">$1<\/a>');
+    return t;
+  }
+  function addMsg(text, who, extraEl) {
+    var el = document.createElement("div");
+    el.className = "at-msg " + who;
+    if (who === "bot") el.innerHTML = fmt(text); else el.textContent = text;
+    if (extraEl) el.appendChild(extraEl);
+    var tm = document.createElement("span"); tm.className = "at-time"; tm.textContent = timeNow(); el.appendChild(tm);
+    chat.appendChild(el); chat.scrollTop = chat.scrollHeight; return el;
+  }
+  function addNote(text) { var n = document.createElement("div"); n.className = "at-note"; n.textContent = text; chat.appendChild(n); chat.scrollTop = chat.scrollHeight; }
+  function showChips() {
+    chipsEl.innerHTML = "";
+    (token ? B2B_CHIPS : B2C_CHIPS).forEach(function (c) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "at-chip"; b.textContent = c.label;
+      b.addEventListener("click", function () { ask(c.q); }); chipsEl.appendChild(b);
+    });
+  }
+  var FOLLOW = { "Request invoice copy": "Request GST invoice copy", "Raise renewal request": "Raise renewal request", "Raise recollection request": "Raise recollection request" };
+  function showFollow(list) {
+    chipsEl.innerHTML = "";
+    list.forEach(function (l) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "at-chip"; b.textContent = l;
+      b.addEventListener("click", function () { ask(FOLLOW[l] || l); }); chipsEl.appendChild(b);
+    });
+    var back = document.createElement("button"); back.type = "button"; back.className = "at-chip"; back.textContent = "More options";
+    back.addEventListener("click", showChips); chipsEl.appendChild(back);
+  }
+  function setBusy(v) { busy = v; sendBtn.disabled = v; input.disabled = v; if (!v) input.focus(); }
+  function autoSize() { input.style.height = "auto"; input.style.height = Math.min(120, Math.max(44, input.scrollHeight)) + "px"; }
+  function typingOn() { var t = document.createElement("div"); t.className = "at-typing"; t.innerHTML = "<span></span><span></span><span></span>"; chat.appendChild(t); chat.scrollTop = chat.scrollHeight; return t; }
+  function inr(n) { try { return "\u20b9" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 }); } catch (e) { return "\u20b9" + n; } }
+
+  function applyBrand(c) {
+    var b = c.brand || {}, name = b.name || "Assistant";
+    document.title = name + " Assistant";
+    $("brand").textContent = name;
+    $("sub").textContent = (c.subtitle || "Services \u00b7 Timings \u00b7 Contact");
+    var col = /^#[0-9a-f]{6}$/i.test(b.primary_color || "") ? b.primary_color : "#0e7490";
+    var r = parseInt(col.substr(1, 2), 16), g = parseInt(col.substr(3, 2), 16), bl = parseInt(col.substr(5, 2), 16);
+    function dk(v) { return Math.max(0, Math.round(v * 0.78)); }
+    function mix(v) { return Math.round(v + (255 - v) * 0.88); }
+    var rs = document.documentElement.style;
+    rs.setProperty("--at-orange", col);
+    rs.setProperty("--at-orange-2", "rgb(" + dk(r) + "," + dk(g) + "," + dk(bl) + ")");
+    rs.setProperty("--at-orange-soft", "rgb(" + mix(r) + "," + mix(g) + "," + mix(bl) + ")");
+    rs.setProperty("--brand-rgb", r + "," + g + "," + bl);
+    rs.setProperty("--at-border-soft", "rgb(" + Math.round(r + (255 - r) * 0.7) + "," + Math.round(g + (255 - g) * 0.7) + "," + Math.round(bl + (255 - bl) * 0.7) + ")");
+    rs.setProperty("--at-focus", "rgb(" + Math.round(r + (255 - r) * 0.5) + "," + Math.round(g + (255 - g) * 0.5) + "," + Math.round(bl + (255 - bl) * 0.5) + ")");
+    rs.setProperty("--at-wash", "rgb(" + Math.round(r + (255 - r) * 0.8) + "," + Math.round(g + (255 - g) * 0.8) + "," + Math.round(bl + (255 - bl) * 0.8) + ")");
+    var logo = $("logo");
+    if (b.logo_url) { var im = new Image(); im.alt = name; im.onload = function () { logo.innerHTML = ""; logo.appendChild(im); }; im.src = b.logo_url; }
+    $("initial").textContent = name.trim().charAt(0).toUpperCase();
+    $("footer").innerHTML = "General information only. Personal reports and patient details need a verified login.";
+    if (c.modes && c.modes.b2b) $("hbtn").style.display = ""; 
+  }
+  function welcome() {
+    var b = (cfg && cfg.brand) || {}, name = b.name || "our team";
+    if (token) {
+      addMsg("Welcome" + (orgName ? ", **" + orgName + "**" : "") + ". You are signed in. I can show **your organisation's** invoices, billed amount, Excel reports and patient report PDFs. I cannot see any other organisation's data.", "bot");
+    } else {
+      addMsg(b.welcome_message || ("Hello! I'm the **" + name + " Assistant**.\n\nAsk me about our tests and services, timings, locations, how to prepare for a test, or how to contact us."), "bot");
+    }
+    refreshHeaderBtn(); showChips();
+  }
+  function refreshHeaderBtn() {
+    var h = $("hbtn");
+    if (!(cfg && cfg.modes && cfg.modes.b2b)) { h.style.display = "none"; return; }
+    h.style.display = ""; h.textContent = token ? "Log out" : "Corporate login";
+  }
+
+  // ---------------- B2C (public) ----------------
+  async function askPublic(q) {
+    var res = await fetch(API + "/public/whitelabel-ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client: CLIENT, question: q, lang: "en", chat_history: history.slice(-6) }) });
+    var d = {}; try { d = await res.json(); } catch (e) {}
+    return (d && d.answer) || "Sorry, I could not answer that right now.";
+  }
+  // ---------------- B2B (verified) ----------------
+  async function askBusiness(q) {
+    var res = await fetch(API + "/public/b2b/chat", { method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ client: CLIENT, message: q, chat_history: history.slice(-6) }) });
+    if (res.status === 401) { signOut(true); return null; }
+    var d = {}; try { d = await res.json(); } catch (e) {}
+    var extra = null;
+    if (d.table && d.table.rows && d.table.rows.length) {
+      extra = document.createElement("div");
+      extra.innerHTML = tableHtml(d.table) + (d.table2 ? tableHtml(d.table2) : "");
+    } else if (d.bills && d.bills.length) {
+      extra = document.createElement("div");
+      var h = "<table class='at-table'><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th></tr>";
+      d.bills.forEach(function (b) { h += "<tr><td>" + esc(b.bill_no) + "</td><td>" + esc(String(b.bill_date || "").slice(0, 10)) + "</td><td>" + inr(b.billed_amount) + "</td><td>" + esc(b.status || "") + "</td></tr>"; });
+      extra.innerHTML = h + "</table>";
+    } else if (d.summary) {
+      extra = document.createElement("div");
+      var s = d.summary, rows = "";
+      Object.keys(s).forEach(function (k) { if (typeof s[k] !== "object") rows += "<tr><td>" + esc(k.replace(/_/g, " ")) + "</td><td>" + (/total|amount/i.test(k) ? inr(s[k]) : esc(String(s[k]))) + "</td></tr>"; });
+      extra.innerHTML = "<table class='at-table'>" + rows + "</table>";
+    }
+    if (d.action === "download_excel") {
+      extra = extra || document.createElement("div");
+      var btn = document.createElement("button"); btn.type = "button"; btn.className = "at-dl"; btn.textContent = "Download Excel";
+      btn.onclick = function () { downloadExcel(d.period || "this_month", btn); }; extra.appendChild(btn);
+    }
+    return { text: d.answer || d.detail || "Done.", extra: extra, suggestions: d.suggestions || [] };
+  }
+  function tableHtml(t) {
+    var h = "<div style='overflow-x:auto;margin-top:8px'>" + (t.title ? "<div style='font-weight:700;font-size:12px;color:var(--at-muted);margin-bottom:2px'>" + esc(t.title) + "</div>" : "") + "<table class='at-table'><tr>";
+    (t.columns || []).forEach(function (c) { h += "<th>" + esc(c) + "</th>"; });
+    h += "</tr>";
+    (t.rows || []).forEach(function (r) { h += "<tr>"; r.forEach(function (c) { h += "<td>" + esc(c) + "</td>"; }); h += "</tr>"; });
+    return h + "</table></div>";
+  }
+  async function downloadExcel(period, btn) {
+    btn.disabled = true; btn.textContent = "Preparing\u2026";
+    try {
+      var r = await fetch(API + "/public/b2b/download-excel?client=" + encodeURIComponent(CLIENT) + "&period=" + encodeURIComponent(period), { headers: { "Authorization": "Bearer " + token } });
+      if (!r.ok) { var e = {}; try { e = await r.json(); } catch (x) {} addMsg(e.detail || "Could not prepare the Excel file.", "bot"); }
+      else { var bl = await r.blob(); var a = document.createElement("a"); a.href = URL.createObjectURL(bl); a.download = "invoices_" + period + ".xlsx"; document.body.appendChild(a); a.click(); a.remove(); }
+    } catch (x) { addMsg("Could not download the file. Please try again.", "bot"); }
+    btn.disabled = false; btn.textContent = "Download Excel";
+  }
+
+  var regWait = false;
+  async function doRegister(q) {
+    addMsg(q, "user"); input.value = ""; autoSize();
+    var toks = q.replace(/^\s*\/register/i, "").split(/[\s,]+/).filter(Boolean), ph = "", org = "";
+    toks.forEach(function (x) { if (!ph && /^\+?\d{8,15}$/.test(x)) ph = x; else if (!org && /^[A-Za-z][A-Za-z0-9_.-]+$/.test(x)) org = x; });
+    if (!ph || !org) { regWait = true; addMsg("Test registration. Send your **mobile number** and **organisation code** in one message, for example: 9876543210 COMP0432", "bot"); return; }
+    regWait = false; setBusy(true); var t = typingOn();
+    try {
+      var d = await post("/public/b2b/test-register", { client: CLIENT, phone: ph, org_code: org, name: "Test user" });
+      t.remove(); phoneNo = d.phone || ph;
+      addMsg("Registered **" + (d.organisation || org) + "**. Your test verification code is **" + d.test_code + "** (valid 5 minutes). Press Verify in the login box.", "bot");
+      openLogin(true); $("step1").style.display = "none"; $("step2").style.display = ""; $("code").value = d.test_code; $("loginMsg").textContent = "Test code filled in. Press Verify.";
+    } catch (e) { t.remove(); addMsg(e.message || "Registration failed.", "bot"); }
+    setBusy(false);
+  }
+  async function ask(question) {
+    var q = String(question || "").trim();
+    if (!q || busy) return;
+    if (/^\/register\b/i.test(q) || regWait) { return doRegister(q); }
+    addMsg(q, "user"); input.value = ""; autoSize(); setBusy(true);
+    var t = typingOn();
+    try {
+      if (token) {
+        var rm = q.match(/^\s*report\s*pdf\s+([A-Za-z0-9\-\/]+)/i);
+        if (rm) {
+          var r = await fetch(API + "/public/b2b/patient-report/" + encodeURIComponent(rm[1]) + "?client=" + encodeURIComponent(CLIENT), { headers: { "Authorization": "Bearer " + token } });
+          t.remove();
+          if (r.ok) { var bl = await r.blob(); var a = document.createElement("a"); a.href = URL.createObjectURL(bl); a.download = "report_" + rm[1] + ".pdf"; document.body.appendChild(a); a.click(); a.remove(); addMsg("Your report PDF for **" + rm[1] + "** has been downloaded.", "bot"); }
+          else { var e = {}; try { e = await r.json(); } catch (x) {} addMsg(e.detail || "No approved report is available for that invoice.", "bot"); }
+        } else {
+          var out = await askBusiness(q); t.remove();
+          if (out) { history.push({ role: "user", content: q }, { role: "assistant", content: String(out.text || "").slice(0, 400) }); addMsg(out.text, "bot", out.extra); if (out.suggestions && out.suggestions.length) showFollow(out.suggestions); }
+        }
+      } else {
+        var ans = await askPublic(q); t.remove();
+        history.push({ role: "user", content: q }, { role: "assistant", content: ans });
+        addMsg(ans, "bot");
+      }
+    } catch (err) { t.remove(); addMsg("Network error. Please try again in a moment.", "bot"); }
+    setBusy(false);
+  }
+
+  // ---------------- login ----------------
+  function loginErr(m) { $("loginErr").textContent = m || ""; }
+  function openLogin(v) { $("login").classList.toggle("open", v); loginErr(""); if (v) { $("step1").style.display = ""; $("step2").style.display = "none"; $("phone").focus(); } }
+  async function post(path, body) {
+    var r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    var d = {}; try { d = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error(d.detail || d.message || "Something went wrong.");
+    return d;
+  }
+  $("sendOtp").onclick = async function () {
+    var ph = $("phone").value.trim(); if (ph.length < 8) { loginErr("Enter your registered mobile number."); return; }
+    this.disabled = true; loginErr("");
+    try { var d = await post("/public/b2b/request-otp", { client: CLIENT, phone: ph }); phoneNo = ph;
+      $("loginMsg").textContent = d.test_code ? ("Test code: " + d.test_code) : (d.message || "If this number is registered, a verification code has been sent.");
+      if (d.test_code) $("code").value = d.test_code;
+      $("step1").style.display = "none"; $("step2").style.display = ""; $("code").focus();
+    } catch (e) { loginErr(e.message); }
+    this.disabled = false;
+  };
+  $("verifyOtp").onclick = async function () {
+    var c = $("code").value.trim(); if (c.length < 4) { loginErr("Enter the verification code."); return; }
+    this.disabled = true; loginErr("");
+    try { var d = await post("/public/b2b/verify-otp", { client: CLIENT, phone: phoneNo, code: c });
+      token = d.access_token; orgName = d.contact_name || d.organisation || "";
+      try { sessionStorage.setItem("wl_b2b_" + CLIENT, token); sessionStorage.setItem("wl_org_" + CLIENT, orgName); } catch (e) {}
+      openLogin(false); $("loginMsg").textContent = "Enter your registered mobile number. We will send a verification code.";
+      $("phone").value = ""; $("code").value = "";
+      addNote("Signed in"); welcome();
+    } catch (e) { loginErr(e.message); }
+    this.disabled = false;
+  };
+  $("cancelLogin").onclick = function () { openLogin(false); };
+  $("backLogin").onclick = function () { openLogin(true); };
+  function signOut(expired) {
+    var t = token; token = null; orgName = "";
+    try { sessionStorage.removeItem("wl_b2b_" + CLIENT); sessionStorage.removeItem("wl_org_" + CLIENT); } catch (e) {}
+    if (t && !expired) { fetch(API + "/public/b2b/logout?client=" + encodeURIComponent(CLIENT), { method: "POST", headers: { "Authorization": "Bearer " + t } }).catch(function () {}); }
+    addNote(expired ? "Session expired. Please log in again." : "Signed out"); refreshHeaderBtn(); showChips();
+  }
+  $("hbtn").onclick = function () { if (token) signOut(false); else openLogin(!$("login").classList.contains("open")); };
+
+  form.addEventListener("submit", function (e) { e.preventDefault(); ask(input.value); });
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(input.value); } });
+  input.addEventListener("input", autoSize);
+
+  async function boot() {
+    if (!CLIENT) { addMsg("This chat link is missing its client code.", "bot"); return; }
+    try {
+      var r = await fetch(API + "/public/whitelabel-config?client=" + encodeURIComponent(CLIENT));
+      if (!r.ok) throw new Error("x");
+      cfg = await r.json(); applyBrand(cfg);
+    } catch (e) { addMsg("This chat is not available right now.", "bot"); sendBtn.disabled = true; input.disabled = true; return; }
+    welcome();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

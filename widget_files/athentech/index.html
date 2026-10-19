@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>AthenTech Assistant</title>
+<link rel="icon" href="logo.png"/>
+<style>
+:root{
+  --or:#f97316;--or2:#ea580c;--navy:#0f172a;--ink:#1e293b;--muted:#64748b;
+  --line:#e2e8f0;--bg:#f8fafc;--card:#fff;
+  --font:"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:var(--font);color:var(--ink)}
+body{display:flex;flex-direction:column;min-height:100%;background:radial-gradient(900px 420px at 10% -10%,#ffedd5 0%,transparent 55%),radial-gradient(700px 380px at 100% 0%,#e0f2fe 0%,transparent 50%),#f8fafc}
+.at-header{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg,#fff,#fffbf7);border-bottom:1px solid var(--line);min-height:64px}
+.at-logo{width:40px;height:40px;border-radius:12px;background:#fff;border:1px solid #fed7aa;box-shadow:0 4px 14px rgba(249,115,22,.18);display:grid;place-items:center;overflow:hidden;flex:none}
+.at-logo img{width:86%;height:86%;object-fit:contain}
+.at-header h1{font-size:15px;font-weight:700;color:var(--navy)}
+.at-header p{font-size:12px;color:var(--muted);margin-top:2px}
+.at-chat{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:16px;display:flex;flex-direction:column;gap:12px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#fdba74 transparent}
+.at-chat::-webkit-scrollbar{width:8px}
+.at-chat::-webkit-scrollbar-thumb{background:#fdba74;border-radius:8px}
+.at-msg{max-width:92%;font-size:14px;line-height:1.55;word-break:break-word}
+.at-msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--or),var(--or2));color:#fff;padding:12px 14px;border-radius:14px;border-bottom-right-radius:6px;box-shadow:0 6px 16px rgba(249,115,22,.25);white-space:pre-wrap}
+.at-msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-radius:14px;border-bottom-left-radius:6px;box-shadow:0 2px 12px rgba(15,23,42,.06)}
+.at-card-head{background:linear-gradient(135deg,#fff7ed,#ffedd5);border-bottom:1px solid #fed7aa;padding:10px 14px;font-weight:700;font-size:13.5px;color:var(--navy)}
+.at-card-body{padding:12px 14px 14px;color:var(--ink);white-space:pre-wrap}
+.at-card-body a{color:var(--or2);font-weight:600;text-decoration:none}
+.at-card-link{display:block;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.5px;font-weight:600;color:var(--or2)}
+.at-time{display:block;margin-top:8px;font-size:11px;opacity:.5;text-align:right}
+.at-msg.user .at-time{opacity:.75}
+.at-typing{align-self:flex-start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 18px;display:flex;gap:6px}
+.at-typing span{width:8px;height:8px;border-radius:50%;background:var(--or);opacity:.35;animation:atb 1.2s infinite ease-in-out}
+.at-typing span:nth-child(2){animation-delay:.15s}
+.at-typing span:nth-child(3){animation-delay:.3s}
+@keyframes atb{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}
+.at-composer{flex:0 0 auto;padding:10px 12px 8px;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end}
+.at-composer textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:14px/1.4 var(--font);color:var(--ink);min-height:44px;max-height:120px;outline:none;background:var(--bg)}
+.at-composer textarea:focus{border-color:#fdba74;box-shadow:0 0 0 3px rgba(249,115,22,.15);background:#fff}
+.at-send{width:44px;height:44px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--or),var(--or2));color:#fff;cursor:pointer;display:grid;place-items:center;flex:none}
+.at-send:disabled{opacity:.5;cursor:not-allowed}
+.at-footer{flex:0 0 auto;text-align:center;font-size:11px;color:var(--muted);padding:0 12px 10px;background:#fff}
+.at-footer a{color:var(--or2);text-decoration:none;font-weight:600}
+.at-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.at-overlay.show{display:flex}
+.at-modal{width:100%;max-width:400px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.25)}
+.at-modal-head{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px}
+.at-modal-head img{width:32px;height:32px;border-radius:8px;background:#fff;object-fit:contain}
+.at-modal-head h2{font-size:15px;font-weight:700;flex:1}
+.at-modal-head button{background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px}
+.at-modal-body{padding:16px;max-height:70vh;overflow-y:auto}
+.at-modal-body p{font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.45}
+.at-field{margin-bottom:12px}
+.at-field label{display:block;font-size:12px;font-weight:600;color:var(--navy);margin-bottom:5px}
+.at-field input,.at-field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:13.5px var(--font);outline:none;background:var(--bg)}
+.at-field textarea{min-height:80px;resize:vertical}
+.at-submit{width:100%;border:none;border-radius:10px;padding:12px;font:600 14px var(--font);color:#fff;background:linear-gradient(135deg,var(--or),var(--or2));cursor:pointer}
+.at-submit:disabled{opacity:.55}
+.at-form-status{font-size:12.5px;margin-top:10px;text-align:center;min-height:18px}
+.at-form-status.ok{color:#16a34a}
+.at-form-status.err{color:#dc2626}
+</style>
+</head>
+<body>
+<header class="at-header">
+  <div class="at-logo"><img src="logo.png" alt="AthenTech"/></div>
+  <div>
+    <h1>AthenTech Assistant</h1>
+    <p>Company · Products · Demo</p>
+  </div>
+</header>
+<main class="at-chat" id="chat" aria-live="polite"></main>
+<form class="at-composer" id="form">
+  <textarea id="input" rows="1" placeholder="Ask about athentech or book a demo" maxlength="1000"></textarea>
+  <button class="at-send" type="submit" id="send" aria-label="Send">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+  </button>
+</form>
+<div class="at-footer">Powered by <a href="https://www.athentech.co.in/" target="_blank" rel="noopener">AthenTech</a> · <a href="tel:+919705480699">+91 970 5480 699</a></div>
+
+<div class="at-overlay" id="demoOverlay" role="dialog" aria-modal="true">
+  <div class="at-modal">
+    <div class="at-modal-head">
+      <img src="logo.png" alt=""/>
+      <div><h2>Book a demo</h2><div style="font-size:12px;opacity:.9">AthenTech · Sahasra</div></div>
+      <button type="button" id="demoClose" aria-label="Close">×</button>
+    </div>
+    <div class="at-modal-body">
+      <p>Share your details and requirements — our team will contact you.</p>
+      <form id="demoForm">
+        <div class="at-field"><label for="dName">Name *</label><input id="dName" required autocomplete="name" placeholder="Your full name"/></div>
+        <div class="at-field"><label for="dEmail">Email *</label><input id="dEmail" type="email" required autocomplete="email" placeholder="you@company.com"/></div>
+        <div class="at-field"><label for="dPhone">Phone *</label><input id="dPhone" required autocomplete="tel" placeholder="+91 …"/></div>
+        <div class="at-field"><label for="dOrg">Organization</label><input id="dOrg" placeholder="Hospital / Lab / Clinic"/></div>
+        <div class="at-field"><label for="dAbout">What do you want the demo about? *</label>
+          <textarea id="dAbout" required placeholder="e.g. HIS 150-bed, LIS multi-branch, ABDM…"></textarea>
+        </div>
+        <button class="at-submit" type="submit" id="demoSubmit">Submit demo request</button>
+        <div class="at-form-status" id="demoStatus"></div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+
+(function(){
+  var API = (function(){
+    try {
+      var q = new URLSearchParams(location.search).get("api");
+      if (q && /^https?:\/\//i.test(q)) return q.replace(/\/$/, "");
+    } catch (e) {}
+    return location.origin;
+  })();
+  var chat = document.getElementById("chat");
+  var form = document.getElementById("form");
+  var input = document.getElementById("input");
+  var sendBtn = document.getElementById("send");
+  var busy = false;
+  var userMsgCount = 0;
+  var hasDetails = false;
+  var formMode = "demo";
+
+  var DEMO_RE = new RegExp(
+    "\\b(book\\s*(a\\s*)?demo|request\\s*(a\\s*)?demo|schedule\\s*(a\\s*)?demo|demo\\s*booking|want\\s*(a\\s*)?demo|need\\s*(a\\s*)?demo|get\\s*(a\\s*)?demo|book\\s*me\\s*(a\\s*)?demo|i\\s*want\\s*to\\s*book|demo\\s*please)\\b",
+    "i"
+  );
+  var CONTACT_RE = new RegExp(
+    "\\b(contact\\s*us|contact|phone\\s*number|email|call\\s*you|reach\\s*you|get\\s*in\\s*touch)\\b",
+    "i"
+  );
+
+  var CONTACT =
+    "📞 **Contact AthenTech**\n\n" +
+    "You can reach AthenTech through sales, support, or the website contact form.\n\n" +
+    "• **Sales:** +91 970 5480 699 · sales@athentech.co.in\n" +
+    "• **Support / IVR:** +91 8096 247 365 · support@athentech.co.in\n" +
+    "• **Head office:** Flat No. 102, Shiva Sai Sannidhi, Opp. Sai Baba Temple, Dwarakapuri, Punjagutta, Hyderabad, Telangana 500082\n" +
+    "• **Cities:** Hyderabad · Bangalore · Vijayawada · Vizag\n\n" +
+    "🔗 https://www.athentech.co.in/contact/";
+
+  function timeNow() {
+    try { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+    catch (e) { return ""; }
+  }
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function formatBody(text) {
+    var t = esc(text || "");
+    t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    t = t.replace(/(\+91[\s\-]?[0-9]{5}[\s\-]?[0-9]{5})/g, '<a href="tel:$1">$1</a>');
+    return t;
+  }
+  function parseCard(text) {
+    var raw = String(text || "").replace(/\r/g, "");
+    var lines = raw.split("\n");
+    var title = (lines[0] || "AthenTech").trim();
+    var rest = lines.slice(1).join("\n").replace(/^\n+/, "").trim();
+    var link = "";
+    var m = rest.match(/🔗\s*(https?:\/\/\S+)\s*$/);
+    if (m) {
+      link = m[1];
+      rest = rest.replace(/🔗\s*https?:\/\/\S+\s*$/, "").trim();
+    }
+    if (!rest) rest = " ";
+    return { title: title, body: rest, link: link };
+  }
+  function addUser(text) {
+    var el = document.createElement("div");
+    el.className = "at-msg user";
+    el.textContent = text;
+    var tm = document.createElement("span");
+    tm.className = "at-time";
+    tm.textContent = timeNow();
+    el.appendChild(tm);
+    chat.appendChild(el);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function addBot(text) {
+    var c = parseCard(text);
+    var el = document.createElement("div");
+    el.className = "at-msg bot";
+    var linkHtml = c.link
+      ? ('<a class="at-card-link" href="' + esc(c.link) + '" target="_blank" rel="noopener">' + esc(c.link) + "</a>")
+      : "";
+    el.innerHTML =
+      '<div class="at-card-head">' + formatBody(c.title) + "</div>" +
+      '<div class="at-card-body">' + formatBody(c.body) + linkHtml +
+      '<span class="at-time">' + timeNow() + "</span></div>";
+    chat.appendChild(el);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function typing(on) {
+    var old = document.getElementById("typing");
+    if (old) old.remove();
+    if (!on) return;
+    var t = document.createElement("div");
+    t.id = "typing";
+    t.className = "at-typing";
+    t.innerHTML = "<span></span><span></span><span></span>";
+    chat.appendChild(t);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function openDemo(mode) {
+    formMode = mode || "demo";
+    var title = document.querySelector("#demoOverlay h2");
+    var sub = document.querySelector("#demoOverlay .at-modal-head div div");
+    var intro = document.querySelector("#demoOverlay .at-modal-body > p");
+    var btn = document.getElementById("demoSubmit");
+    var ra = document.getElementById("dAbout");
+    if (formMode === "details") {
+      if (title) title.textContent = "Share your details";
+      if (sub) sub.textContent = "So we can help you better";
+      if (intro) intro.textContent = "After a couple of questions, please leave your contact details.";
+      if (btn) btn.textContent = "Submit details";
+      if (ra) ra.placeholder = "What are you looking for? (HIS, LIS, demo, pricing…)";
+    } else {
+      if (title) title.textContent = "Book a demo";
+      if (sub) sub.textContent = "AthenTech · Sahasra";
+      if (intro) intro.textContent = "Share your details and requirements — our team will contact you.";
+      if (btn) btn.textContent = "Submit demo request";
+      if (ra) ra.placeholder = "e.g. HIS 150-bed, LIS multi-branch, ABDM…";
+    }
+    document.getElementById("demoOverlay").classList.add("show");
+  }
+  function closeDemo() {
+    document.getElementById("demoOverlay").classList.remove("show");
+    document.getElementById("demoStatus").textContent = "";
+  }
+  function maybeAskDetails() {
+    if (hasDetails) return false;
+    if (userMsgCount > 0 && userMsgCount % 2 === 0) {
+      addBot(
+        "📋 **Quick details**\n\nBefore we continue, please share your name, email and phone so our team can follow up if needed.\nA short form is opening now — then you can keep chatting.\n\n🔗 https://www.athentech.co.in/contact/"
+      );
+      openDemo("details");
+      return true;
+    }
+    return false;
+  }
+
+  document.getElementById("demoClose").onclick = closeDemo;
+  document.getElementById("demoOverlay").addEventListener("click", function (e) {
+    if (e.target === this) closeDemo();
+  });
+
+  document.getElementById("demoForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var st = document.getElementById("demoStatus");
+    var btn = document.getElementById("demoSubmit");
+    var payload = {
+      name: document.getElementById("dName").value.trim(),
+      email: document.getElementById("dEmail").value.trim(),
+      phone: document.getElementById("dPhone").value.trim(),
+      organization: document.getElementById("dOrg").value.trim(),
+      requirements: document.getElementById("dAbout").value.trim(),
+      kind: formMode === "details" ? "lead" : "demo"
+    };
+    if (!payload.name || !payload.email || !payload.phone || !payload.requirements) {
+      st.className = "at-form-status err";
+      st.textContent = "Please fill required fields.";
+      return;
+    }
+    btn.disabled = true;
+    st.className = "at-form-status";
+    st.textContent = "Sending…";
+    try {
+      var res = await fetch(API + "/athentech-demo-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      var data = {};
+      try { data = await res.json(); } catch (x) {}
+      if (res.ok && data.status === "success") {
+        hasDetails = true;
+        st.className = "at-form-status ok";
+        st.textContent = "Thanks — details received.";
+        if (formMode === "details") {
+          addBot(
+            "👋 **Hello again**\n\nThanks " + payload.name +
+            "! We have your details.\nHow else can I help with AthenTech or Sahasra?\nAsk about modules, pricing, ABDM — or type book a demo.\n\n🔗 https://www.athentech.co.in/"
+          );
+        } else {
+          addBot(
+            "🚀 **Demo request received**\n\nThanks " + payload.name +
+            ". We have your details and requirements.\nSales will follow up on the number/email you shared.\nYou can also call +91 970 5480 699 anytime.\n\n🔗 https://www.athentech.co.in/contact/"
+          );
+        }
+        setTimeout(function () {
+          closeDemo();
+          document.getElementById("demoForm").reset();
+        }, 900);
+      } else {
+        st.className = "at-form-status err";
+        st.textContent = (data && data.message) || "Could not send. Call +91 970 5480 699.";
+      }
+    } catch (err) {
+      st.className = "at-form-status err";
+      st.textContent = "Network error. Call +91 970 5480 699.";
+    }
+    btn.disabled = false;
+  });
+
+  async function ask(q) {
+    q = String(q || "").trim();
+    if (!q || busy) return;
+    addUser(q);
+    userMsgCount += 1;
+    input.value = "";
+    autoSize();
+    busy = true;
+    sendBtn.disabled = true;
+    typing(true);
+
+    if (DEMO_RE.test(q)) {
+      await sleep(3200 + Math.random() * 800);
+      typing(false);
+      addBot(
+        "🚀 **Book a demo**\n\nGreat — let's capture a few details so sales can schedule the right walkthrough.\nA form is opening for your name, email, phone and requirements.\nYou can also reach sales at +91 970 5480 699 · sales@athentech.co.in.\n\n🔗 https://www.athentech.co.in/contact/"
+      );
+      openDemo("demo");
+      busy = false;
+      sendBtn.disabled = false;
+      return;
+    }
+
+    if (CONTACT_RE.test(q)) {
+      await sleep(3200 + Math.random() * 800);
+      typing(false);
+      addBot(CONTACT);
+      if (!hasDetails && userMsgCount % 2 === 0) maybeAskDetails();
+      busy = false;
+      sendBtn.disabled = false;
+      return;
+    }
+
+    try {
+      var res = await fetch(API + "/athentech-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q })
+      });
+      var data = {};
+      try { data = await res.json(); } catch (x) {}
+      await sleep(3200 + Math.random() * 800);
+      typing(false);
+      if (!res.ok) {
+        addBot(CONTACT);
+      } else {
+        var answer = (data && (data.answer || data.message)) || CONTACT;
+        if (CONTACT_RE.test(q) && (answer.match(/\n/g) || []).length < 3) answer = CONTACT;
+        addBot(answer);
+      }
+    } catch (err) {
+      await sleep(2500);
+      typing(false);
+      addBot(CONTACT);
+    }
+
+    if (!hasDetails && userMsgCount % 2 === 0) {
+      await sleep(500);
+      maybeAskDetails();
+    }
+
+    busy = false;
+    sendBtn.disabled = false;
+  }
+
+  function autoSize() {
+    input.style.height = "auto";
+    input.style.height = Math.min(120, Math.max(44, input.scrollHeight)) + "px";
+  }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    ask(input.value);
+  });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask(input.value);
+    }
+  });
+  input.addEventListener("input", autoSize);
+
+  addBot(
+    "👋 **Hello**\n\nI'm the AthenTech Assistant for AthenTech and the Sahasra healthcare platform.\nAsk about products, modules, ABDM, pricing, or locations.\nTo schedule a walkthrough, type \"book a demo\" or \"I want to book a demo\".\nSales: +91 970 5480 699 · support@athentech.co.in\n\n🔗 https://www.athentech.co.in/"
+  );
+})();
+
+</script>
+</body>
+</html>
