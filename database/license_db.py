@@ -44,9 +44,18 @@ _ADMIN_DB_PASSWORD = os.environ.get("ADMIN_DB_PASSWORD", "")
 class DictRow:
     def __init__(self, row, columns):
         self._data = dict(zip(columns, row))
+        self._vals = tuple(row)
 
     def __getitem__(self, key):
+        if isinstance(key, (int, slice)):          # positional access too (r[0], r[1], a, b = row); name access is unchanged
+            return self._vals[key]
         return self._data[key]
+
+    def __iter__(self):
+        return iter(self._vals)
+
+    def __len__(self):
+        return len(self._vals)
 
     def get(self, key, default=None):
         return self._data.get(key, default)
