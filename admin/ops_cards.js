@@ -252,6 +252,35 @@
     }).catch(function (e) { msg(body, e.message, 1); });
   }
 
+  /* ============================== B2B support tickets */
+  function tickets(body, badge) {
+    var sel = h('select', { class: 'ox-in' }, ['', 'Open', 'In progress', 'Resolved', 'Closed'].map(function (v) { return h('option', { value: v, text: v || 'All tickets' }); }));
+    var area = h('div', {});
+    function load() {
+      api('/admin/b2b/tickets' + (sel.value ? '?status=' + encodeURIComponent(sel.value) : '')).then(function (d) {
+        var rows = d.tickets || []; area.replaceChildren(); badge.textContent = rows.length + ' shown';
+        if (!rows.length) { area.appendChild(h('div', { class: 'ox-sm', text: 'No tickets.' })); return; }
+        var tb = table(['Ticket', 'Type', 'Organisation / contact', 'Details', 'Status', ''], rows.map(function (t) {
+          return [t.ticket_no + (t.priority === 'High' ? '  (high)' : ''), t.category, (t.organisation_name || t.organisation_code) + ' - ' + (t.contact_name || '') + ' ' + (t.phone || ''), (t.bill_no ? '[' + t.bill_no + '] ' : '') + (t.details || ''), t.status + ' - ' + when(t.created_at), ''];
+        }));
+        Array.prototype.forEach.call(tb.querySelectorAll('tbody tr'), function (tr, i) {
+          var td = tr.lastChild; td.textContent = '';
+          ['In progress', 'Resolved', 'Closed'].forEach(function (s2) {
+            td.appendChild(h('button', { class: 'ox-btn ghost', type: 'button', text: s2, onclick: function (ev) {
+              var note = prompt('Note for ' + rows[i].ticket_no + ' (optional)') || ''; ev.currentTarget.disabled = true;
+              api('/admin/b2b/tickets/' + encodeURIComponent(rows[i].ticket_no) + '/status', { method: 'POST', body: JSON.stringify({ status: s2, note: note }) }).then(load).catch(function (e) { msg(body, e.message, 1); });
+            } }));
+          });
+        });
+        area.appendChild(tb);
+      }).catch(function (e) { msg(body, e.message, 1); });
+    }
+    sel.addEventListener('change', load);
+    body.appendChild(h('div', { class: 'ox-sm', text: 'Requests raised by corporate (B2B) users in the chat: complaints, corrections, pickups, escalations, bulk bookings and more.' }));
+    body.appendChild(h('div', { class: 'ox-row' }, sel, h('button', { class: 'ox-btn', type: 'button', text: 'Refresh', onclick: load })));
+    body.appendChild(area); load();
+  }
+
   function mount() {
     if (document.getElementById('oxAcc')) return;
     var grid = document.querySelector('#settingsPage .settings-grid'); addCss();
@@ -259,6 +288,7 @@
       card('oxAcc', '🎯', 'Accuracy checks', 'Nightly re-test of every fixed answer, and a same-question-same-figures test', 'Check', accuracy, grid);
       card('oxBank', '✅', 'Accuracy test', 'Compares the assistant\'s figures with the hospital database', 'Test', bank, grid);
       card('oxPriv', '🔒', 'Privacy & data retention', 'Phone masking by role, patient look-up audit, refused questions, auto-delete', 'Review', privacy, grid);
+      card('oxTkt', '🎫', 'B2B support tickets', 'Complaints, corrections, pickups and escalations raised by corporate clients', 'View', tickets, grid);
       card('oxDev', '📱', 'Device locks', 'Log an activation code out of the device it is signed in on', 'Manage', devices, grid);
       card('oxBk', '💾', 'Backups & restore', 'Daily snapshots of your Heal rules, scheduled reports and white-label settings', 'Back up', backups, grid);
       card('oxWiz', '🧭', 'Onboard a client', 'Guided setup: connection test, features, first B2B contact, final check', 'Start', wizard, grid);

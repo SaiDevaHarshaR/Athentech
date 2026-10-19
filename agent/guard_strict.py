@@ -98,8 +98,8 @@ def _hit(pats, *texts):
     return None
 
 
-def screen_input(q):
-    """-> (ok, reply). Never raises."""
+def screen_input(q, public=False):
+    """-> (ok, reply). Never raises. public=True (website visitors): block injection / secret probing only; general questions are allowed."""
     try:
         raw = q if isinstance(q, str) else str(q or "")
         if len(raw) > 2000:
@@ -112,6 +112,8 @@ def screen_input(q):
             return False, R_INJECT
         if _hit(SECRET, t, lt):
             return False, R_SECRET
+        if public:
+            return True, ""
         if _hit(WRITE, t):
             return False, R_WRITE
         if _hit(OFFTOPIC, t) and not DOMAIN.search(t):

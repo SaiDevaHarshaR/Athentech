@@ -80,6 +80,75 @@
     }).join('');
   }
 
+  function b2bOrgsSection() {
+    var res = (S.orgRes || []).map(function (o) {
+      return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #edf2f7">' +
+        '<div style="min-width:0"><strong style="font-size:12px">' + esc(o.name) + '</strong><small style="display:block;font-size:11px;color:#64748b">' + esc(o.code) +
+        (o.contact_person ? ' \u00b7 ' + esc(o.contact_person) : '') + (o.active ? '' : ' \u00b7 inactive in LIS') + '</small></div>' +
+        (o.added ? '<small style="color:#16a34a">Added</small>' : '<button type="button" class="secondary-btn" data-wl-org-add="' + esc(o.code) + '">Add as B2B client</button>') + '</div>';
+    }).join('');
+    var list = (S.orgs || []).map(function (o) {
+      return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #edf2f7">' +
+        '<div style="min-width:0"><strong style="font-size:12px">' + esc(o.name || o.code) + '</strong><small style="display:block;font-size:11px;color:#64748b">' + esc(o.code) +
+        ' \u00b7 ' + esc(o.contacts) + ' people (' + esc(o.active_contacts) + ' enabled)</small></div>' +
+        '<div><button type="button" class="secondary-btn" data-wl-org-person="' + esc(o.code) + '">+ Person</button> ' +
+        '<button type="button" class="secondary-btn" data-wl-org-del="' + esc(o.code) + '">Delete client</button></div></div>';
+    }).join('');
+    return '<p style="font-size:11px;color:#64748b;margin:10px 0">A B2B client is one of this lab\u2019s customers (for example a hospital or collection partner) taken from the lab\u2019s own client list. ' +
+      'Its people log in with a code sent to their own mobile and see only that client\u2019s data.</p>' +
+      '<div style="display:flex;gap:8px"><input class="setting-input" id="wlOrgQ" maxlength="80" placeholder="Search client name or code, e.g. Yashoda" style="flex:1">' +
+      '<button type="button" class="secondary-btn" id="wlOrgSearch">Search</button></div>' +
+      '<div style="margin:6px 0 12px">' + res + '</div>' +
+      '<strong style="font-size:12px">Registered B2B clients</strong>' +
+      '<div style="margin-top:4px">' + (list || '<small style="color:#94a3b8">No B2B clients yet. Search above and add one.</small>') + '</div>';
+  }
+
+  function refreshOrgBox() {
+    var box = document.querySelector('[data-wl-card="b2borg"] .wl-card-b');
+    if (box) box.innerHTML = b2bOrgsSection();
+  }
+
+  function loadB2BOrgs() {
+    if (!S.clientId) return;
+    var cid = S.clientId;
+    api('/admin/b2b/orgs?institution_id=' + encodeURIComponent(cid)).then(function (d) {
+      if (S.clientId !== cid) return;
+      S.orgs = d.orgs || []; refreshOrgBox();
+    }).catch(function (e) { say('B2B clients: ' + e.message); });
+  }
+
+  function searchB2BOrgs() {
+    var el = document.getElementById('wlOrgQ'); var q = el ? el.value.trim() : '';
+    if (!S.clientId) return;
+    if (q.length < 2) return say('Type at least 2 letters of the client name or code.');
+    api('/admin/b2b/orgs/search?institution_id=' + encodeURIComponent(S.clientId) + '&q=' + encodeURIComponent(q)).then(function (d) {
+      S.orgRes = d.results || []; refreshOrgBox();
+      var e2 = document.getElementById('wlOrgQ'); if (e2) e2.value = q;
+      if (!S.orgRes.length) say('No client found for "' + q + '".');
+    }).catch(function (e) { say(e.message); });
+  }
+
+  function addB2BOrg(code) {
+    api('/admin/b2b/orgs', jsonOpts('POST', { institution_id: Number(S.clientId), organisation_code: code })).then(function () {
+      say('Client added'); (S.orgRes || []).forEach(function (o) { if (o.code === code) o.added = true; }); loadB2BOrgs();
+    }).catch(function (e) { say(e.message); });
+  }
+
+  function deleteB2BOrg(code) {
+    if (!window.confirm('Delete client ' + code + ' and ALL its people? Their sessions are revoked.')) return;
+    api('/admin/b2b/orgs/' + encodeURIComponent(code) + '?institution_id=' + encodeURIComponent(S.clientId), jsonOpts('DELETE')).then(function () {
+      say('Client removed'); loadB2BOrgs(); loadB2BContacts();
+    }).catch(function (e) { say(e.message); });
+  }
+
+  function addPersonToOrg(code) {
+    var name = window.prompt('Person name for ' + code); if (!name) return;
+    var ph = window.prompt('Mobile number with country code (the login code is sent here)', '+91'); if (!ph) return;
+    api('/admin/b2b/contacts', jsonOpts('POST', { institution_id: Number(S.clientId), organisation_code: code, contact_name: name.trim(), phone: ph.trim() })).then(function () {
+      say('Person added'); loadB2BContacts();
+    }).catch(function (e) { say(e.message); });
+  }
+
   function b2bContactsSection() {
     var rows = (S.contacts || []).map(function (c) {
       return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #edf2f7;">' +
@@ -87,7 +156,9 @@
         '<small style="display:block;font-size:11px;color:#64748b">Org: ' + esc(c.organisation_code) + ' · ' + esc(c.phone) +
         ' · ' + (c.active ? 'Enabled' : 'Disabled') + '</small></div>' +
         '<button type="button" class="secondary-btn" data-wl-contact-id="' + esc(c.id) + '" data-wl-contact-active="' + (c.active ? '0' : '1') + '">' +
-        (c.active ? 'Disable access' : 'Enable access') + '</button></div>';
+        (c.active ? 'Disable access' : 'Enable access') + '</button>' +
+        '<button type="button" class="secondary-btn" data-wl-contact-edit="' + esc(c.id) + '" data-n="' + esc(c.contact_name) + '" data-o="' + esc(c.organisation_code) + '" data-p="' + esc(c.phone) + '">Edit</button>' +
+        '<button type="button" class="secondary-btn" data-wl-contact-del="' + esc(c.id) + '">Delete</button></div>';
     }).join('');
     return '<p style="font-size:11px;color:#64748b;margin:10px 0">Only registered business contacts receive SMS verification. ' +
       'Organisation code must exist in this client’s LIS. Their sessions can access only that organisation’s invoices.</p>' +
@@ -187,6 +258,7 @@
 
     return top +
       wlCard('modes', 'Modes & access', 'B2C / B2B / Admin toggles', modesBody, true) +
+      wlCard('b2borg', 'B2B clients (organisations)', 'Search this lab\u2019s clients \u00b7 add \u00b7 remove', b2bOrgsSection(), true) +
       wlCard('b2b', 'B2B mobile verification & contacts', 'Corporate organisations · approved phones · OTP', b2bContactsSection(), false) +
       wlCard('brand', 'Brand & copy', 'Name, logo, welcome, knowledge', brandBody, true) +
       wlCard('appear', 'Appearance', 'Colours, size, footer', appearBody, false) +
@@ -242,13 +314,14 @@
 
   // ---------------------------------------------------------------- data
   function loadClient(id) {
-    S.clientId = id; S.cfg = null; S.client = null; S.embed = null; S.embedMode = ''; S.contacts = [];
+    S.clientId = id; S.cfg = null; S.client = null; S.embed = null; S.embedMode = ''; S.contacts = []; S.orgs = []; S.orgRes = [];
     if (!id) return render();
     api('/admin/whitelabel/' + encodeURIComponent(id)).then(function (d) {
       S.cfg = d.config; S.client = d.client;
       if (d.config.configured) { S.url = d.config.site_url || S.url; }
       render();
       loadB2BContacts();
+      loadB2BOrgs();
     }).catch(function (e) { say(e.message); render(); });
   }
 
@@ -261,6 +334,7 @@
       // Update only the contact list card content; do not lose unsaved white-label form edits.
       var box = document.querySelector('[data-wl-card="b2b"] .wl-card-b');
       if (box) box.innerHTML = b2bContactsSection();
+      loadB2BOrgs();
     }).catch(function (e) { say('B2B contacts: ' + e.message); });
   }
 
@@ -273,6 +347,21 @@
     api('/admin/b2b/contacts', jsonOpts('POST', body)).then(function () {
       say('Corporate contact authorised'); loadB2BContacts();
     }).catch(function (e) { say(e.message); });
+  }
+
+  function editB2BContact(btn) {
+    var id = btn.getAttribute('data-wl-contact-edit');
+    var name = window.prompt('Contact name', btn.getAttribute('data-n') || ''); if (name === null) return;
+    var org = window.prompt('Organisation code (must exist in this client\u2019s LIS)', btn.getAttribute('data-o') || ''); if (org === null) return;
+    var ph = window.prompt('Mobile number (with country code)', btn.getAttribute('data-p') || ''); if (ph === null) return;
+    api('/admin/b2b/contacts/' + encodeURIComponent(id), jsonOpts('PUT', { institution_id: Number(S.clientId), organisation_code: org.trim(), contact_name: name.trim(), phone: ph.trim() }))
+      .then(function () { say('Contact updated'); loadB2BContacts(); }).catch(function (e) { say(e.message); });
+  }
+
+  function deleteB2BContact(id) {
+    if (!window.confirm('Delete this contact? Their sessions are revoked and they can no longer log in.')) return;
+    api('/admin/b2b/contacts/' + encodeURIComponent(id) + '?institution_id=' + encodeURIComponent(S.clientId), jsonOpts('DELETE'))
+      .then(function () { say('Contact deleted'); loadB2BContacts(); }).catch(function (e) { say(e.message); });
   }
 
   function changeB2BContact(id, active) {
@@ -382,6 +471,12 @@
       return;
     }
     if (t.id === 'wlB2BAdd') return addB2BContact();
+    if (t.id === 'wlOrgSearch') return searchB2BOrgs();
+    var oa = t.closest && t.closest('[data-wl-org-add]'); if (oa) return addB2BOrg(oa.getAttribute('data-wl-org-add'));
+    var od = t.closest && t.closest('[data-wl-org-del]'); if (od) return deleteB2BOrg(od.getAttribute('data-wl-org-del'));
+    var op = t.closest && t.closest('[data-wl-org-person]'); if (op) return addPersonToOrg(op.getAttribute('data-wl-org-person'));
+    var eb = t.closest && t.closest('[data-wl-contact-edit]'); if (eb) return editB2BContact(eb);
+    var db = t.closest && t.closest('[data-wl-contact-del]'); if (db) return deleteB2BContact(db.getAttribute('data-wl-contact-del'));
     var contactBtn = t.closest && t.closest('[data-wl-contact-id]');
     if (contactBtn) return changeB2BContact(contactBtn.getAttribute('data-wl-contact-id'), contactBtn.getAttribute('data-wl-contact-active') === '1');
     if (t.id === 'wlSave') return saveWhite();

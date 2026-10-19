@@ -757,7 +757,7 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
         if not inst or str(inst.get("status", "Active")) != "Active":
             return {"status": "error", "answer": "This chat is not available."}
         cfg = get_config(int(inst["id"]))
-        if not (cfg["configured"] and cfg["enabled"] and cfg["b2c_enabled"]):
+        if not (cfg["configured"] and cfg["enabled"] and (cfg["b2c_enabled"] or cfg.get("b2b_enabled"))):
             return {"status": "error", "answer": "This chat is not available."}
 
         question = (req.question or "").strip()
@@ -774,12 +774,18 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
         try:
             from agent.agent import _get_provider_chain, _invoke_with_retry
             try:
-                from agent.agent import check_input
-                ok, msg = check_input(question)
+                from agent.guard_strict import screen_input as _public_screen
+                ok, msg = _public_screen(question, public=True)
                 if not ok:
                     return {"status": "success", "answer": msg}
             except ImportError:
-                pass
+                try:
+                    from agent.agent import check_input
+                    ok, msg = check_input(question)
+                    if not ok:
+                        return {"status": "success", "answer": msg}
+                except ImportError:
+                    pass
             from agent.agent import _data_chain, _OWN_KEY, _BYOK_USER_MESSAGES
             from agent.llm_providers import ByokUnavailable, classify_runtime_error
             try:
@@ -794,10 +800,18 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
             except Exception:
                 pass
 
+            knowledge = cfg["b2c_knowledge"] or ""
+            try:        # the client's own public website (read with BeautifulSoup, cached 12h)
+                from auth.site_info import context_for as _site_ctx
+                _sc = _site_ctx(cfg.get("site_url") or "", question)
+                if _sc:
+                    knowledge = (knowledge + "\n\nFROM THE WEBSITE:\n" + _sc).strip()
+            except Exception:
+                pass
             from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
             kinds = {"system": SystemMessage, "user": HumanMessage, "assistant": AIMessage}
             msgs = [kinds[r](content=t) for r, t in build_b2c_messages(
-                cfg["brand_name"] or inst.get("name") or "this provider", cfg["b2c_knowledge"], req.lang,
+                cfg["brand_name"] or inst.get("name") or "this provider", knowledge, req.lang,
                 question, req.chat_history)]
             resp = _invoke_with_retry(llm, msgs, retries=0, current_provider=name)
             text = (resp.content if hasattr(resp, "content") else str(resp or "")).strip() if resp else ""

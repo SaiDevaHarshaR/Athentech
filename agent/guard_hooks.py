@@ -117,7 +117,7 @@ def _late_install(app):
         warmup.start()
     except Exception as e:
         _log("warm-up not started: %s" % type(e).__name__)
-    for name, fn in (("regression + alerts API", _admin_api), ("scheduled reports API", _reports_api), ("scheduler", _scheduler)):
+    for name, fn in (("regression + alerts API", _admin_api), ("scheduled reports API", _reports_api), ("B2B tickets API", _tickets_api), ("B2B test register", _testreg_api), ("B2B contact edit", _contacts_edit_api), ("B2B clients", _orgs_api), ("scheduler", _scheduler)):
         try:
             fn(app)
         except Exception as e:
@@ -827,6 +827,26 @@ def _admin_api(app):
 
 def _reports_api(app):
     from auth.report_schedules_api import router
+    app.include_router(router)
+
+
+def _orgs_api(app):
+    from auth.b2b_orgs_api import router
+    app.include_router(router)
+
+
+def _contacts_edit_api(app):
+    from auth.b2b_contacts_api import router
+    app.include_router(router)
+
+
+def _testreg_api(app):
+    from auth.b2b_testreg import router
+    app.include_router(router)
+
+
+def _tickets_api(app):
+    from auth.b2b_tickets_api import router
     app.include_router(router)
 
 

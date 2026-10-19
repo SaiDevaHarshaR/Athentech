@@ -224,8 +224,16 @@ def _twilio(path, form):
         raise HTTPException(503, "SMS provider is temporarily unreachable.")
 
 
+def _testreg():
+    """Test-phase switch: B2B_TEST_REGISTER=1 enables /register and on-screen test codes. Never set in production."""
+    return (os.environ.get("B2B_TEST_REGISTER", "") == "1"
+            or os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "b2b_test_register.txt")))
+
+
 def _test_otp_mode():
     """Explicit staging-only feature gate; refuses to run in production."""
+    if _testreg():
+        return True
     environment = os.environ.get("SAHASRA_ENV", "").strip().lower()
     return (environment in ("development", "staging", "test")
             and os.environ.get("B2B_TEST_OTP_ENABLED", "") == "1")
@@ -261,6 +269,7 @@ def _make_test_otp(institution_id, contact_id):
         except Exception: pass
         raise
     finally: conn.close()
+    return code
 
 
 def _verify_test_otp(institution_id, contact_id, candidate):
@@ -465,6 +474,19 @@ class ChatRequest(BaseModel):
     client: str = Field(min_length=1, max_length=50)
     message: str = Field(min_length=1, max_length=700)
     period: str = Field(default="this_month", max_length=30)
+    chat_history: list = Field(default_factory=list, max_length=12)
+
+
+def _llm_try(inst, contact, body):
+    """AI answer from the org's own snapshot + client knowledge (no tools, no SQL). None = use the canned reply."""
+    try:
+        from auth.b2b_llm import answer
+        return answer(inst, contact, body.message, body.chat_history)
+    except HTTPException:
+        raise
+    except Exception as _e:
+        print("[b2b llm] skipped:", type(_e).__name__, str(_e)[:160], flush=True)
+        return None
 
 
 def _classify_business_question(question):
@@ -519,11 +541,23 @@ def _authorized_pdf(inst, org_code, bill_no):
     finally:
         conn.close()
     root = _pdf_configured_root(inst)
-    if root is None:
-        raise HTTPException(503, "Patient PDF exports are not configured for this institution yet.")
-    target = (root / (bill_no + ".pdf")).resolve()
-    if target.parent != root or not target.is_file() or target.is_symlink():
-        raise HTTPException(404, "No approved PDF export is available for this invoice.")
+    target = (root / (bill_no + ".pdf")).resolve() if root is not None else None
+    if target is None or target.parent != root or not target.is_file() or target.is_symlink():
+        # no exported signed report: give a clean, clearly-labelled status summary built from the client's own bill
+        try:
+            from auth.b2b_pdf import build_summary_pdf
+            from auth.whitelabel import get_config
+            cfg = get_config(int(inst["id"]))
+            conn2 = _lis(inst)
+            try:
+                return build_summary_pdf(conn2, org_code, bill_no, cfg.get("brand_name") or inst.get("name") or "Laboratory", cfg.get("primary_color") or "#F26B21")
+            finally:
+                conn2.close()
+        except HTTPException:
+            raise
+        except Exception as _e:
+            print("[b2b pdf] summary failed:", type(_e).__name__, str(_e)[:160], flush=True)
+            raise HTTPException(503, "The report PDF could not be prepared right now.")
     if target.stat().st_size > 25 * 1024 * 1024:
         raise HTTPException(413, "PDF exceeds the allowed size.")
     with target.open("rb") as handle:
@@ -624,18 +658,21 @@ def build_router(require_admin) -> APIRouter:
         ip = request.client.host if request.client else "unknown"
         _rate("start-ip", ip, inst["id"], "ip", 15)
         _rate("start-phone", "global", inst["id"], phone, 3)
-        mode = _otp_delivery()
+        mode = "test" if _testreg() else _otp_delivery()
+        _tc = None
         contact = _contact(int(inst["id"]), phone)
         # Same response for unknown numbers: no phone / organization enumeration.
         if contact:
             if mode == "test":
-                _make_test_otp(int(inst["id"]), int(contact["id"]))
+                _tc = _make_test_otp(int(inst["id"]), int(contact["id"]))
             else:
                 response = _twilio("Verifications", {"To": phone, "Channel": "sms"})
                 if response.get("status") not in ("pending", "approved"):
                     raise HTTPException(502, "SMS provider did not accept the verification request.")
         note = ("If registered, a test verification code is available to an authorized staging admin."
                 if mode == "test" else "If this number is registered, a verification SMS has been sent.")
+        if _tc and _testreg():
+            return {"status": "success", "message": note, "test_code": _tc}
         return {"status": "success", "message": note}
 
     @router.post("/public/b2b/verify-otp")
@@ -649,7 +686,7 @@ def build_router(require_admin) -> APIRouter:
         _rate("verify-phone", "global", inst["id"], phone, 8)
         contact = _contact(int(inst["id"]), phone)
         if not contact: raise HTTPException(401, "Invalid or expired verification code.")
-        mode = _otp_delivery()
+        mode = "test" if _testreg() else _otp_delivery()
         if mode == "test":
             verified = _verify_test_otp(int(inst["id"]), int(contact["id"]), body.code)
         else:
@@ -732,6 +769,16 @@ def build_router(require_admin) -> APIRouter:
         if _classify_business_question(body.message) == "forbidden":
             return {"status": "success", "intent": "forbidden", "answer":
                     "I can only access your verified organization's records."}
+        if decision.intent != "forbidden":
+            try:        # org-scoped lookups + support tickets (auth/b2b_assist.py); None = not one of its questions
+                from auth.b2b_assist import try_answer as _assist
+                _ans = _assist(inst, contact, body.message, body.period)
+                if _ans is not None:
+                    return _ans
+            except HTTPException:
+                raise
+            except Exception as _e:
+                print("[b2b assist] skipped:", type(_e).__name__, flush=True)
         if decision.intent == "forbidden":
             intent = "forbidden"
         elif decision.intent == "patient_report":
@@ -744,6 +791,9 @@ def build_router(require_admin) -> APIRouter:
             intent = "bills"
         elif decision.intent in ("invoice_status", "unsupported_clinical_status", "clarify"):
             # Do not silently return ALL invoices for a pending/completed filter.
+            _l = _llm_try(inst, contact, body)
+            if _l is not None:
+                return _l
             return {"status":"success", "intent":"status_mapping_required", "answer":
                     "Pending/completed status queries require approved LIS-specific status mapping. No unfiltered records were returned."}
         else:
@@ -807,6 +857,9 @@ def build_router(require_admin) -> APIRouter:
                                              organization_code=org)
             if faq_answer:
                 return {"status":"success", "intent":"approved_faq", "answer":faq_answer}
+        _l2 = _llm_try(inst, contact, body)
+        if _l2 is not None:
+            return _l2
         return {"status": "success", "intent": intent,
                 "answer": "You can ask: How many invoices this month? Show pending invoices. "
                           "What is our billed amount? Download Excel. Report PDF BILLNUMBER. "
