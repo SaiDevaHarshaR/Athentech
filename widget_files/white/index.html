@@ -308,8 +308,8 @@
   var API = (function () { var q = P.get("api"); return (q && /^https?:\/\//i.test(q)) ? q.replace(/\/$/, "") : (/^api\./i.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname) ? location.origin : "https://api.athentech.in"); })();
   var $ = function (id) { return document.getElementById(id); };
   var chat = $("chat"), chipsEl = $("chips"), form = $("form"), input = $("input"), sendBtn = $("send");
-  var cfg = null, busy = false, history = [], token = null, orgName = "", phoneNo = "";
-  try { token = sessionStorage.getItem("wl_b2b_" + CLIENT); orgName = sessionStorage.getItem("wl_org_" + CLIENT) || ""; } catch (e) {}
+  var cfg = null, busy = false, history = [], token = null, orgName = "", contactName = "", phoneNo = "";
+  try { token = sessionStorage.getItem("wl_b2b_" + CLIENT); orgName = sessionStorage.getItem("wl_org_" + CLIENT) || ""; contactName = sessionStorage.getItem("wl_cn_" + CLIENT) || ""; } catch (e) {}
 
   var B2C_CHIPS = [
     { label: "Our services", q: "What tests and services do you offer?" },
@@ -402,7 +402,8 @@
   function welcome() {
     var b = (cfg && cfg.brand) || {}, name = b.name || "our team";
     if (token) {
-      addMsg("Welcome" + (orgName ? ", **" + orgName + "**" : "") + ". You are signed in. I can show **your organisation's** invoices, billed amount, Excel reports and patient report PDFs. I cannot see any other organisation's data.", "bot");
+      var who = (contactName && contactName.toLowerCase() !== orgName.toLowerCase()) ? ", **" + contactName + "**" : "";
+      addMsg("Welcome" + who + (orgName ? (who ? " from **" + orgName + "**" : ", **" + orgName + "**") : "") + ". You are signed in" + (orgName ? " for **" + orgName + "**" : "") + ". I can show " + (orgName ? "its" : "your") + " test prices, packages, bill and report status, sample tracking, invoices, payments and balance, Excel reports and report PDFs. I cannot see any other organisation's data.", "bot");
     } else {
       addMsg(b.welcome_message || ("Hello! I'm the **" + name + " Assistant**.\n\nAsk me about our tests and services, timings, locations, how to prepare for a test, or how to contact us."), "bot");
     }
@@ -470,13 +471,14 @@
   var regWait = false;
   async function doRegister(q) {
     addMsg(q, "user"); input.value = ""; autoSize();
-    var toks = q.replace(/^\s*\/register/i, "").split(/[\s,]+/).filter(Boolean), ph = "", rest = [];
+    var segs = q.replace(/^\s*\/register/i, "").split("|"), pname = (segs[1] || "").trim();
+    var toks = segs[0].split(/[\s,]+/).filter(Boolean), ph = "", rest = [];
     toks.forEach(function (x) { if (!ph && /^\+?\d{8,15}$/.test(x)) ph = x; else rest.push(x); });
     var org = rest.join(" ").trim();
-    if (!ph || !org) { regWait = true; addMsg("Test registration. Send the client's **mobile number** and **organisation name or code** in one message, for example: 9876543210 Yashoda Labs", "bot"); return; }
+    if (!ph || !org) { regWait = true; addMsg("Test registration. Send the client's **mobile number** and **organisation name or code** in one message, for example: 9876543210 Yashoda Labs | Ravi Kumar (the name after | is optional)", "bot"); return; }
     regWait = false; setBusy(true); var t = typingOn();
     try {
-      var d = await post("/public/b2b/test-register", { client: CLIENT, phone: ph, org_code: org, name: "Test user" });
+      var d = await post("/public/b2b/test-register", { client: CLIENT, phone: ph, org_code: org, name: pname });
       t.remove(); phoneNo = d.phone || ph;
       addMsg("Registered **" + (d.organisation || org) + "**. Your test verification code is **" + d.test_code + "** (valid 5 minutes). Press Verify in the login box.", "bot");
       openLogin(true); $("step1").style.display = "none"; $("step2").style.display = ""; $("code").value = d.test_code; $("loginMsg").textContent = "Test code filled in. Press Verify.";
@@ -540,8 +542,8 @@
     var c = $("code").value.trim(); if (c.length < 4) { loginErr("Enter the verification code."); return; }
     this.disabled = true; loginErr("");
     try { var d = await post("/public/b2b/verify-otp", { client: CLIENT, phone: phoneNo, code: c });
-      token = d.access_token; orgName = d.contact_name || d.organisation || "";
-      try { sessionStorage.setItem("wl_b2b_" + CLIENT, token); sessionStorage.setItem("wl_org_" + CLIENT, orgName); } catch (e) {}
+      token = d.access_token; orgName = d.organisation_name || d.organisation || ""; contactName = d.contact_name || "";
+      try { sessionStorage.setItem("wl_b2b_" + CLIENT, token); sessionStorage.setItem("wl_org_" + CLIENT, orgName); sessionStorage.setItem("wl_cn_" + CLIENT, contactName); } catch (e) {}
       openLogin(false); $("loginMsg").textContent = "Enter your registered mobile number. We will send a verification code.";
       $("phone").value = ""; $("code").value = "";
       addNote("Signed in"); welcome();
@@ -551,8 +553,8 @@
   $("cancelLogin").onclick = function () { openLogin(false); };
   $("backLogin").onclick = function () { openLogin(true); };
   function signOut(expired) {
-    var t = token; token = null; orgName = "";
-    try { sessionStorage.removeItem("wl_b2b_" + CLIENT); sessionStorage.removeItem("wl_org_" + CLIENT); } catch (e) {}
+    var t = token; token = null; orgName = ""; contactName = "";
+    try { sessionStorage.removeItem("wl_b2b_" + CLIENT); sessionStorage.removeItem("wl_org_" + CLIENT); sessionStorage.removeItem("wl_cn_" + CLIENT); } catch (e) {}
     if (t && !expired) { fetch(API + "/public/b2b/logout?client=" + encodeURIComponent(CLIENT), { method: "POST", headers: { "Authorization": "Bearer " + t } }).catch(function () {}); }
     addNote(expired ? "Session expired. Please log in again." : "Signed out"); refreshHeaderBtn(); showChips();
   }
