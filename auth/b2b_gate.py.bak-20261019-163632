@@ -1,0 +1,99 @@
+"""Strict gate for the B2B assistant: the fixed (SQL) answers are used only when EVERY word of the question is a word the
+fixed handlers understand. Any unknown or misspelt word (a name, a typo, a test name) is returned by residual() so the caller
+can resolve it as an entity (patient / test) or hand the whole question to the AI - never guess an intent."""
+import ast
+import os
+import re
+
+_EXTRA = """hello hey hii hiya thanks thank please pls plz kindly sir madam team lab give tell show want need get let know can could would you your our
+we us me my the for and with about from into have has had was were been this that these those there here what which when where why how who whom whose
+also again now today yesterday tomorrow week month year last next previous current latest recent old new all any some each every more most least
+yes not none just only still already yet well okay ok done please check see find look tell view send provide share download open start stop
+b2b b2c neft rtgs upi imps gst tds pan api hl7 fhir cheque cheques utr trf mis tat nabl pdf xls excel otp sms whatsapp email invoice invoices ledger
+amount amounts number numbers percent percentage rupees rupee inr details detail data record records list lists summary summaries overview""".split()
+
+_V = None
+_EN = None
+
+
+def _english():
+    global _EN
+    if _EN is None:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "english_words.txt"), encoding="utf-8") as fh:
+                _EN = set(x.strip() for x in fh if x.strip())
+        except Exception:
+            _EN = set()
+    return _EN
+
+
+def _vocab():
+    global _V
+    if _V is not None:
+        return _V
+    words = set(_EXTRA)
+    here = os.path.dirname(os.path.abspath(__file__))
+    for fn in ("b2b_assist.py", "b2b_assist2.py"):
+        try:
+            with open(os.path.join(here, fn), encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+        except Exception:
+            continue
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                words.update(re.findall(r"[a-z]{2,}", n.value.lower()))
+    _V = words
+    return _V
+
+
+_SUF = ("s", "es", "ed", "d", "ing", "ly", "al", "er", "ers", "ion", "ions", "ation", "ment", "ments", "ies", "ness")
+
+
+def _known(t, V):
+    if t in V:
+        return True
+    for s in _SUF:
+        if t.endswith(s) and len(t) - len(s) >= 3 and t[:-len(s)] in V:
+            return True
+    if t.endswith("ies") and (t[:-3] + "y") in V:
+        return True
+    if t.endswith("ing") and (t[:-3] + "e") in V:
+        return True
+    # stems written in the handler patterns ('receiv', 'authent', 'reject' ...)
+    for w in V:
+        if len(w) >= 5 and t.startswith(w) and len(t) - len(w) <= 4 and t[len(w):] in ("", "e", "ed", "es", "ing", "ion", "ions", "ation", "ed", "s", "d", "ive", "ively", "ly", "al"):
+            return True
+    return False
+
+
+def residual(q, bill=None, original=None):
+    """Words of the question that neither a fixed handler nor ordinary English explains (a name, a typo, a test short name).
+    Bill numbers are ignored. A capitalised word that is not an acronym is always treated as a possible name."""
+    V, EN = _vocab(), _english()
+    t = q or ""
+    if bill:
+        t = t.replace(str(bill).lower(), " ")
+    t = re.sub(r"['\u2019]s\b", " ", t)
+    caps = set()
+    if original:
+        ws = re.findall(r"[A-Za-z][A-Za-z0-9]*", original)
+        for i, w in enumerate(ws):
+            if i > 0 and w[0].isupper() and not w.isupper() and w.lower() not in V:
+                caps.add(w.lower())
+    out = []
+    for w in re.findall(r"[a-z][a-z0-9]{2,}", t):
+        if w in out:
+            continue
+        if w in caps or not (_known(w, V) or w in EN or (w.endswith("s") and w[:-1] in EN) or (w.endswith("ed") and w[:-2] in EN) or (w.endswith("ing") and w[:-3] in EN)):
+            out.append(w)
+    return out
+
+
+_WRITE = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|merge|exec|execute|grant|revoke|into|xp_\w+|sp_\w+)\b", re.I)
+
+
+def check_readonly(sql):
+    """Every query the B2B assistant sends to a hospital / lab database must be a single read-only SELECT. Raises otherwise."""
+    t = re.sub(r"'[^']*'", "''", str(sql or "")).strip()
+    if not re.match(r"(?is)^(select|with)\b", t) or ";" in t.rstrip(";") or _WRITE.search(t):
+        raise PermissionError("Read-only: this assistant may only run SELECT queries.")

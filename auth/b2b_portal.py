@@ -189,6 +189,13 @@ def _org_name(inst, org_code):
         conn.close()
 
 
+def _org_name_safe(inst, org_code):
+    try:
+        return _org_name(inst, org_code)
+    except Exception:
+        return None
+
+
 def _contact(inst_id, phone):
     conn = _admin_conn()
     try:
@@ -704,7 +711,8 @@ def build_router(require_admin) -> APIRouter:
             conn.commit()
         finally: conn.close()
         return {"status": "success", "access_token": token, "expires_in": SESSION_HOURS * 3600,
-                "contact_name": contact["contact_name"], "organisation": contact["organisation_code"]}
+                "contact_name": contact["contact_name"], "organisation": contact["organisation_code"],
+                "organisation_name": _org_name_safe(inst, contact["organisation_code"])}
 
     @router.get("/public/b2b/overview")
     def overview(request: Request, client: str = Query(..., min_length=1, max_length=50), period: str = "this_month"):
@@ -772,7 +780,7 @@ def build_router(require_admin) -> APIRouter:
         if decision.intent != "forbidden":
             try:        # org-scoped lookups + support tickets (auth/b2b_assist.py); None = not one of its questions
                 from auth.b2b_assist import try_answer as _assist
-                _ans = _assist(inst, contact, body.message, body.period)
+                _ans = _assist(inst, contact, body.message, body.period, body.chat_history)
                 if _ans is not None:
                     return _ans
             except HTTPException:

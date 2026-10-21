@@ -1,0 +1,213 @@
+"""B2B assistant LLM fallback. Used when the fixed org-scoped lookups did not match (unknown / misspelt words, free questions).
+The model has NO SQL access. It sees a snapshot of the verified organisation's own figures, the client's knowledge text and website
+text, and may call a few fixed read-only tools that are bound server-side to the verified organisation (it cannot pass an
+organisation, and cannot see other organisations)."""
+import re
+import time
+from typing import Optional
+
+_SNAP = {}          # (institution_id, org) -> (time, text)
+_SNAP_TTL = 120
+_PORTAL_HELP = (
+    "HOW THIS CHAT / PORTAL WORKS: Corporate users sign in with a one-time code sent to their REGISTERED mobile number (no password exists). "
+    "A number that is not registered cannot log in: the lab's team must register it. Extra authorised users, a new mobile number, account activation, "
+    "order cancellation or modification, adding a test to an order, bulk patient upload, scanned TRF submission, urgent/priority processing, home collection, "
+    "appointments, special rates, report corrections and API / LIS-integration / HIS-sync problems are handled by the lab's staff: tell the user the request "
+    "needs staff and that they can raise it right here by typing it (for example 'raise a technical support request', 'sample pickup request', "
+    "'report correction request', 'special rate request') so a ticket number is issued. You can show: tests, prices on their rate list, packages, "
+    "report and sample status by bill number, pending/delayed tests, rejections, balances, credit limit, invoices, payments, trends and MIS Excel. "
+    "This chat cannot show live pickup-executive location, patient UHID lookups or patient personal details; do not pretend it can. "
+    "Test method, collection tube, sample volume, stability, storage and run frequency are only known if they appear in KNOWLEDGE; otherwise say the lab will confirm.")
+_PROBES = ("what is our outstanding balance and credit limit", "status of my reports this month",
+           "tests done this month", "contract agreement details", "which health packages are available")
+
+
+def _snapshot(inst, contact):
+    key = (inst.get("id"), str(contact.get("organisation_code")))
+    hit = _SNAP.get(key)
+    if hit and time.time() - hit[0] < _SNAP_TTL:
+        return hit[1]
+    from auth import b2b_assist as A
+    from auth.b2b_portal import _lis, _org_name
+
+    def Q(sql, params=()):
+        conn = _lis(inst)
+        try:
+            return conn.execute(sql, params).fetchall()
+        finally:
+            try: conn.close()
+            except Exception: pass
+    try:
+        name = _org_name(inst, contact.get("organisation_code"))
+    except Exception:
+        name = None
+    parts = []
+    for pr in _PROBES:
+        try:
+            r = A.route(Q, inst, contact, name, pr, "this_month", ticket_ok=False, strict=False)
+        except Exception:
+            r = None
+        if r and r.get("answer"):
+            t = str(r["answer"])
+            tb = r.get("table")
+            if tb and tb.get("rows"):
+                t += " | " + "; ".join(" / ".join(str(c) for c in row) for row in tb["rows"][:12])
+            parts.append(t[:700])
+    text = ("Organisation: %s (code %s)\n" % (name or "-", contact.get("organisation_code"))) + "\n".join("- " + p for p in parts)
+    _SNAP[key] = (time.time(), text[:3200])
+    return _SNAP[key][1]
+
+
+def _flat(r):
+    if not r:
+        return "Nothing found."
+    t = str(r.get("answer") or "")
+    tb = r.get("table")
+    if tb and tb.get("rows"):
+        t += "\nTABLE " + " | ".join(tb.get("columns", [])) + "\n" + "\n".join(" | ".join(str(c) for c in row) for row in tb["rows"][:25])
+    return t[:2800]
+
+
+def _make_tools(inst, contact, captured):
+    from langchain_core.tools import StructuredTool
+    from auth import b2b_assist as A
+    from auth import b2b_assist2 as A2
+    org = str(contact.get("organisation_code"))
+
+    def Q(sql, params=()):
+        from auth.b2b_portal import _lis
+        conn = _lis(inst)
+        try:
+            return conn.execute(sql, params).fetchall()
+        finally:
+            try: conn.close()
+            except Exception: pass
+
+    def done(r):
+        if isinstance(r, dict) and r.get("table"):
+            captured["table"] = r["table"]
+        return _flat(r)
+
+    def test_price(test_name: str) -> str:
+        """Look up a test or profile by name, short name or code (correct spelling first, e.g. CBC, HbA1c, lipid profile). Returns code, report time, fasting and THIS organisation's agreed price."""
+        r = A._test_answer(Q, org, (test_name or "") + " price", "info", soft=True, terms=[(test_name or "").strip().lower()[:60]])
+        return done(r) if r else "No test found with that name."
+
+    def package_contents(package_name: str) -> str:
+        """List what a health package / profile contains."""
+        return done(A._package_contents(Q, org, "what is included in " + (package_name or "") + " package"))
+
+    def package_list() -> str:
+        """List the health packages available to this organisation."""
+        return done(A._package_list(Q, org))
+
+    def bill_status(bill_no: str) -> str:
+        """Report status of every test in one bill number of this organisation (ready / pending stage)."""
+        b = A._bill_no(bill_no or "")
+        return done(A._status_for_bill(Q, org, b)) if b else "That is not a valid bill number."
+
+    def sample_tracking(bill_no: str) -> str:
+        """Where the sample of a bill is: collected, received at lab, rejected."""
+        b = A._bill_no(bill_no or "")
+        return done(A._sample_track(Q, org, "sample status " + (bill_no or ""), b)) if b else "That is not a valid bill number."
+
+    def find_patient(name: str) -> str:
+        """Find patients of THIS organisation by name (last 12 months): bills, dates, amounts, how many reports are ready."""
+        toks = [w for w in re.findall(r"[A-Za-z][A-Za-z.\-]{2,}", name or "")][:3]
+        if not toks:
+            return "Give the patient's name."
+        r = A._patient_lookup(Q, org, name, strict=False, toks=toks)
+        return done(r) if r else "No patient with that name in the last 12 months of this organisation's bills."
+
+    def account_summary() -> str:
+        """Outstanding balance, credit limit, available credit, payments, TDS of this organisation."""
+        return done(A._account_answer(Q, org, "outstanding balance credit limit", "this_month"))
+
+    def pending_tests() -> str:
+        """Tests still pending this month for this organisation."""
+        return done(A2._pending_list(Q, org, "this_month"))
+
+    fns = [test_price, package_contents, package_list, bill_status, sample_tracking, find_patient, account_summary, pending_tests]
+    return [StructuredTool.from_function(f, name=f.__name__, description=(f.__doc__ or f.__name__).strip()) for f in fns], {f.__name__: f for f in fns}
+
+
+def answer(inst, contact, message, history=None) -> Optional[dict]:
+    from agent.guard_strict import screen_input
+    ok, msg = screen_input(message, public=True)
+    if not ok:
+        return {"status": "success", "intent": "guard", "answer": msg}
+    from auth.whitelabel import get_config
+    cfg = get_config(int(inst["id"]))
+    brand = cfg.get("brand_name") or inst.get("name") or "the lab"
+    facts = _snapshot(inst, contact)
+    know = (cfg.get("b2c_knowledge") or "") + "\n" + (cfg.get("b2b_notice") or "")
+    try:
+        from auth.site_info import context_for
+        know += "\nFROM THE WEBSITE:\n" + context_for(cfg.get("site_url") or "", message)
+    except Exception:
+        pass
+    system = (
+        "You are the 24/7 corporate support assistant of %s, talking to a VERIFIED contact of one client organisation.\n"
+        "Answer ONLY from the FACTS and KNOWLEDGE below. Never invent prices, times, numbers, dates or policies. "
+        "If the answer is not there, say so briefly and offer to raise a support ticket (the user can type e.g. 'raise a complaint', "
+        "'sample pickup request', 'talk to the lab manager'). Never discuss other organisations or individual patients. "
+        "No medical advice. Be concise (under 120 words), plain text, Indian Rupee amounts as INR.\n"
+        "TOOLS: for any question about a test, price, package, bill, report status, sample, patient or balance you MUST call the matching tool first. "
+        "Silently correct obvious spelling mistakes before calling a tool (for example 'cbp' may mean CBC / complete blood picture). "
+        "A table of the tool result is shown to the user automatically: NEVER write tables, markdown or bullet lists of rows; give one or two plain sentences that summarise it. Quote prices, dates and counts exactly as the tool returned them. If a tool finds nothing, say plainly that nothing was found for that name in this organisation's records and suggest checking the spelling or giving the bill number; never invent a match.\n\n"
+        "FACTS ABOUT THIS ORGANISATION (live from the lab system):\n%s\n\n%s\n\nKNOWLEDGE:\n%s" % (brand, facts, _PORTAL_HELP, know[:5000]))
+    from agent.agent import _data_chain, _invoke_with_retry
+    chain = _data_chain(str(inst.get("client_prefix") or "").upper(), True, message)
+    if not chain:
+        return None
+    name, llm = chain[0]
+    try:
+        llm = llm.bind(max_tokens=450)
+    except Exception:
+        pass
+    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+    msgs = [SystemMessage(content=system)]
+    for h in (history or [])[-6:]:
+        try:
+            c = str(h.get("content", ""))[:500]
+            msgs.append((HumanMessage if h.get("role") == "user" else AIMessage)(content=c))
+        except Exception:
+            pass
+    msgs.append(HumanMessage(content=message))
+    captured = {}
+    resp = None
+    try:
+        tools, fmap = _make_tools(inst, contact, captured)
+        bound = llm.bind_tools(tools)
+        for _round in range(4):
+            resp = _invoke_with_retry(bound, msgs, retries=0, fallback_tools=tools, current_provider=name)
+            calls = (getattr(resp, "tool_calls", None) or []) if resp else []
+            if not calls:
+                break
+            msgs.append(resp)
+            for c in calls:
+                fn = fmap.get(c.get("name"))
+                try:
+                    out = fn(**(c.get("args") or {})) if fn else "Unknown tool."
+                except Exception as e:
+                    print("[b2b llm] tool", c.get("name"), type(e).__name__, str(e)[:120], flush=True)
+                    out = "That lookup failed."
+                msgs.append(ToolMessage(content=str(out)[:2800], tool_call_id=c.get("id") or "x"))
+        else:
+            resp = _invoke_with_retry(llm, msgs, retries=0, current_provider=name)
+    except Exception as e:
+        print("[b2b llm] tools unavailable, plain answer:", type(e).__name__, str(e)[:120], flush=True)
+        resp = _invoke_with_retry(llm, msgs, retries=0, current_provider=name)
+    if resp is None:        # the model failed to produce a valid tool call: answer once without tools
+        try:
+            resp = _invoke_with_retry(llm, msgs, retries=0, current_provider=name)
+        except Exception:
+            resp = None
+    text = (resp.content if hasattr(resp, "content") else str(resp or "")).strip() if resp else ""
+    if not text:
+        return None
+    text = "\n".join(l for l in text.splitlines() if not l.strip().startswith("|")).strip() or text
+    out = {"status": "success", "intent": "ai_support", "answer": text}
+    if captured.get("table"):
+        out["table"] = captured["table"]
+    return out

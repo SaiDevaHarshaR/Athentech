@@ -152,6 +152,12 @@ def _patient_count(Q, org, p):
 
 def route2(Q, org, q, p, bill):
     has_per = bool(re.search(r"today|yesterday|week|month|quarter|20\d\d", q))
+    if re.search(r"\bstatement|ledger\b", q):
+        return None                      # handled by the account answers
+    if re.search(r"\b(unpaid|pending|due|outstanding) invoices?\b|\binvoices? (are |that are |which are )?(unpaid|pending|due)\b", q):
+        return _invoices(Q, org)
+    if re.search(r"\bhow many (invoices|bills)\b", q) and not bill and not re.search(r"\bpending|unpaid|due\b", q):
+        return _billing_total(Q, org, p)
     if re.search(r"\b(delayed|overdue|likely to be delayed|running late|beyond tat|crossed tat|late reports?)\b", q) and not re.search(r"\b(complain|raise|register|escalate)\b", q):
         return _delayed(Q, org)
     if re.search(r"\bhow many\b.*\b(patients?|people|persons?|employees|staff|customers|walk-?ins?|visits?)\b", q) and not bill:
