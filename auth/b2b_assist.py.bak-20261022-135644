@@ -1,0 +1,1216 @@
+"""B2B assistant: fixed, organisation-scoped answers + support tickets for corporate / lab clients.
+
+Every lookup is a fixed read-only query bound to the verified organisation code (never typed by the user, never AI-written SQL).
+Requests that need a person (complaint, correction, pickup, escalation, bulk booking ...) become a support ticket in the admin database.
+try_answer() returns None when it has nothing to say, so the existing B2B flow (invoices, Excel, report PDF) still runs.
+"""
+from __future__ import annotations
+
+import re
+import secrets
+import time
+from datetime import date, timedelta
+from typing import Callable, Optional
+
+# ----------------------------------------------------------------------------------------------- helpers
+_PERIODS = (("last 3 months", "last_90_days"), ("past 3 months", "last_90_days"), ("last three months", "last_90_days"), ("3 months", "last_90_days"), ("three months", "last_90_days"),
+            ("last 6 months", "last_180_days"), ("past 6 months", "last_180_days"), ("6 months", "last_180_days"), ("last 12 months", "last_365_days"), ("last year", "last_365_days"),
+            ("last 30 days", "last_30_days"), ("past 30 days", "last_30_days"), ("last 15 days", "last_15_days"), ("last 90 days", "last_90_days"),
+            ("last 7 days", "last_7_days"), ("last seven days", "last_7_days"), ("this week", "last_7_days"), ("last month", "last_month"),
+            ("previous month", "last_month"), ("this month", "this_month"), ("yesterday", "yesterday"), ("today", "today"))
+
+
+def _inr(v) -> str:
+    try:
+        x = float(v or 0)
+    except Exception:
+        return "\u20b9" + str(v)
+    neg = x < 0
+    x = abs(x)
+    whole, frac = divmod(round(x * 100), 100)
+    s = str(int(whole))
+    if len(s) > 3:
+        head, tail = s[:-3], s[-3:]
+        parts = []
+        while len(head) > 2:
+            parts.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            parts.insert(0, head)
+        s = ",".join(parts) + "," + tail
+    return ("-" if neg else "") + "\u20b9" + s + (".%02d" % frac if frac else "")
+
+
+def _d(v) -> str:
+    return str(v)[:10] if v else ""
+
+
+def _period(q: str, default: str = "this_month") -> str:
+    for k, v in _PERIODS:
+        if k in q:
+            return v
+    m = re.search(r"\b(20\d{2}-\d{2}(?:-\d{2})?)\b", q)
+    return m.group(1) if m else default
+
+
+def _dates(p: str):
+    t = date.today()
+    if p == "today":
+        a, b = t, t + timedelta(days=1)
+    elif p == "yesterday":
+        a, b = t - timedelta(days=1), t
+    elif p == "last_7_days":
+        a, b = t - timedelta(days=6), t + timedelta(days=1)
+    elif p == "last_month":
+        b = t.replace(day=1)
+        a = (b - timedelta(days=1)).replace(day=1)
+    elif re.fullmatch(r"last_\d{1,3}_days", p):
+        a, b = t - timedelta(days=int(p.split("_")[1]) - 1), t + timedelta(days=1)
+    elif re.fullmatch(r"20\d{2}-\d{2}-\d{2}", p):
+        a = date.fromisoformat(p)
+        b = a + timedelta(days=1)
+    elif re.fullmatch(r"20\d{2}-\d{2}", p):
+        a = date.fromisoformat(p + "-01")
+        b = date(a.year + (a.month == 12), a.month % 12 + 1, 1)
+    else:
+        a, b = t.replace(day=1), t + timedelta(days=1)
+    return a.isoformat(), b.isoformat()
+
+
+_LABEL = {"last_90_days": "over the last 3 months", "last_180_days": "over the last 6 months", "last_365_days": "over the last 12 months", "last_30_days": "over the last 30 days", "last_15_days": "over the last 15 days", "today": "today", "yesterday": "yesterday", "last_7_days": "the last 7 days", "this_month": "this month", "last_month": "last month"}
+
+
+def _label(p: str) -> str:
+    return _LABEL.get(p, p)
+
+
+_BILL_STOP = set("status number details report reports amount pending date copy statement payment payments generated total please there which where about "
+                 "invoice invoices today yesterday month week sample samples ready completed delayed".split())
+
+
+def _bill_no(msg: str) -> Optional[str]:
+    _sp = re.fullmatch(r"\s*([A-Za-z]{2,5})\s?(\d{6,12})\s*", msg or "")
+    if _sp:
+        return (_sp.group(1) + _sp.group(2)).upper()
+    m = re.search(r"(?:bill|invoice|barcode|accession|sample)\s*(?:no\.?|number|id|#)?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-/]{4,24})", msg, re.I)
+    if m and re.search(r"\d", m.group(1)):
+        return m.group(1).upper()
+    if m and m.group(1).lower() not in _BILL_STOP and re.search(r"\b(bill|barcode)\s*(no\.?|number|id|#)?\s*[:\-]?\s*" + re.escape(m.group(1)), msg, re.I):
+        return m.group(1).upper()      # an explicit "bill XXXXX" even without digits; ownership is checked later
+    for t in re.findall(r"\b[A-Za-z0-9][A-Za-z0-9\-/]{5,24}\b", msg):
+        if re.search(r"\d", t) and re.search(r"[A-Za-z]", t) and not re.fullmatch(r"20\d{2}-\d{2}(-\d{2})?", t) and not re.match(r"(?i)pkg\d+$", t):
+            return t.upper()
+    return None
+
+
+def _out(intent, answer, table=None, suggestions=None, **extra):
+    r = {"status": "success", "intent": intent, "answer": answer}
+    if table:
+        r["table"] = table
+    if suggestions:
+        r["suggestions"] = suggestions
+    r.update(extra)
+    return r
+
+
+def _tbl(title, columns, rows):
+    return {"title": title, "columns": columns, "rows": [[("" if c is None else str(c)) for c in r] for r in rows]}
+
+
+# ----------------------------------------------------------------------------------------------- tickets (admin database)
+_TICKET_RULES = [
+    # (category, priority, regex, reply)
+    ("Escalation", "High", r"\b(lab manager|(concerned|operations|account|relationship) manager|connect me|human agent|speak (to|with)|talk to|call me|call back|callback|escalat|senior|supervisor|head of)\b",
+     "I have escalated this to the lab manager."),
+    ("Report correction", "Normal", r"\b(correct(ion|ed)?|change (the )?(patient )?(name|age|gender|details|mobile|phone)|wrong (patient )?(name|age|gender|details)|mistake in|spelling)\b",
+     "I have raised a correction request."),
+    ("Complaint / delay", "High", r"\b(complain|complaint|delay(ed)?|taking too long|not (yet )?(received|got)|late report|unhappy|dissatisfied|poor service)\b",
+     "I am sorry about this. I have registered your complaint."),
+    ("Special rate request", "Normal", r"\b(special rate|rate request|rate revision|new rate|quote|quotation|price request)\b",
+     "I have raised a rate request."),
+    ("Recollection", "Normal", r"\b(re-?collect(ion)?|collect again|recollect)\b", "I have raised a recollection request."),
+    ("Pickup request", "Normal", r"\b(pick ?up|pickup|arrange .*(collection|pickup)|collect (the |our )?samples?|sample collection (tomorrow|today)|when will (your team|you) collect|courier)\b",
+     "I have raised a sample pickup request."),
+    ("Bulk booking / health camp", "Normal", r"\b(bulk|register \d+|\d+ (employees|patients|staff)|health camp|employee list|upload (the |an )?(employee|list)|corporate camp|camp)\b",
+     "I have raised a bulk booking / health camp request."),
+    ("Contract renewal", "Normal", r"\brenew(al)?\b", "I have raised a contract renewal request."),
+    ("Client onboarding", "Normal", r"\b(new (b2b )?client|onboard|register (as )?(a )?new|add (a )?(new )?(client|branch|collection centre|center))\b",
+     "I have raised an onboarding request."),
+    ("Invoice copy", "Normal", r"\b(gst invoice|tax invoice|invoice copy|copy of (the )?invoice|send (me )?(the )?invoice|share (the )?invoice|duplicate invoice)\b",
+     "I have requested a copy of the invoice."),
+    ("Technical support", "Normal", r"\b(password|forgot|can'?t log ?in|cannot log ?in|login (issue|problem)|unable to (log ?in|upload)|upload (issue|problem|error)|portal (issue|problem|down)|hl7|fhir|\bapi\b|integration|lis connectivity|interface error)\b",
+     "I have raised a technical support request."),
+    ("Quality / accreditation", "Normal", r"\b(nabl|accredit|iso ?15189|incident|quality (issue|concern)|approved sample requirement|sop\b)",
+     "I have passed this to the quality team."),
+]
+_DDL = """
+IF OBJECT_ID('dbo.sahasra_b2b_tickets', 'U') IS NULL
+CREATE TABLE dbo.sahasra_b2b_tickets (
+    id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    ticket_no NVARCHAR(24) NOT NULL,
+    institution_id INT NOT NULL,
+    contact_id INT NULL,
+    organisation_code NVARCHAR(80) NOT NULL,
+    organisation_name NVARCHAR(200) NULL,
+    contact_name NVARCHAR(120) NULL,
+    phone NVARCHAR(30) NULL,
+    category NVARCHAR(60) NOT NULL,
+    priority NVARCHAR(10) NOT NULL DEFAULT 'Normal',
+    details NVARCHAR(1000) NULL,
+    bill_no NVARCHAR(60) NULL,
+    status NVARCHAR(20) NOT NULL DEFAULT 'Open',
+    note NVARCHAR(500) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NULL,
+    updated_by NVARCHAR(100) NULL
+)"""
+_ready = False
+_DAILY_LIMIT = 10
+
+
+def _admin():
+    from database.license_db import get_conn
+    return get_conn()
+
+
+def _ensure():
+    global _ready
+    if _ready:
+        return
+    c = _admin()
+    try:
+        cur = c.cursor()
+        cur.execute(_DDL)
+        c.commit()
+        _ready = True
+    finally:
+        c.close()
+
+
+def classify_ticket(msg: str):
+    q = (msg or "").lower()
+    for cat, pri, rx, reply in _TICKET_RULES:
+        if re.search(rx, q):
+            return cat, pri, reply
+    return None
+
+
+def _ticket_recipients():
+    """env B2B_TICKET_EMAIL, else the file b2b_ticket_email.txt in the app folder, else Admin > Settings alert recipient."""
+    import os
+    raw = os.getenv("B2B_TICKET_EMAIL", "")
+    if not raw:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "b2b_ticket_email.txt"), encoding="utf-8") as fh:
+                raw = fh.read()
+        except Exception:
+            raw = ""
+    if not raw:
+        try:
+            from auth.license_service import get_settings
+            raw = str(get_settings().get("alert_email_to") or "")
+        except Exception:
+            raw = ""
+    return [x.strip() for x in re.split(r"[,;\s]+", raw) if "@" in x]
+
+
+def _email_ticket(no, inst, contact, org_name, category, priority, message, bill_no):
+    """Background e-mail to the lab staff; never raises, never delays the chat."""
+    def run():
+        try:
+            to = _ticket_recipients()
+            if not to:
+                print("[b2b ticket] %s: no e-mail recipient set (create b2b_ticket_email.txt in the app folder)" % no, flush=True)
+                return
+            from notifications import mailer
+            from html import escape as E
+            brand, color = "Sahasra", "#F26B21"
+            try:
+                from auth.whitelabel import get_config
+                cfg = get_config(int(inst["id"]))
+                brand = cfg.get("brand_name") or inst.get("name") or brand
+                color = cfg.get("primary_color") or color
+            except Exception:
+                pass
+            if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(color)):
+                color = "#F26B21"
+            org = org_name or contact.get("organisation_code")
+            when = time.strftime("%d %b %Y, %I:%M %p")
+            pcol = {"High": "#C62828", "Normal": "#EF6C00"}.get(priority, "#546E7A")
+            rows = [("Client", "%s (%s)" % (org, contact.get("organisation_code"))), ("Contact", "%s  %s" % (contact.get("contact_name") or "-", contact.get("phone_e164") or "-")),
+                    ("Bill", bill_no or "-"), ("Raised", when)]
+            tr = "".join('<tr><td style="padding:8px 12px;color:#78909C;font-size:13px;width:90px">%s</td><td style="padding:8px 12px;color:#263238;font-size:14px">%s</td></tr>' % (E(k), E(str(v))) for k, v in rows)
+            html = ('<div style="background:#F4F6F8;padding:24px;font-family:Segoe UI,Arial,sans-serif">'
+                    '<div style="max-width:560px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E3E8EC">'
+                    '<div style="background:%s;color:#fff;padding:18px 22px"><div style="font-size:13px;opacity:.9">%s &middot; B2B support</div>'
+                    '<div style="font-size:20px;font-weight:600;margin-top:4px">%s</div></div>'
+                    '<div style="padding:18px 22px 6px"><span style="display:inline-block;background:%s;color:#fff;border-radius:12px;padding:3px 12px;font-size:12px;font-weight:600">%s priority</span>'
+                    '<span style="display:inline-block;margin-left:8px;color:#455A64;font-size:13px">Ticket <b>%s</b></span></div>'
+                    '<table style="width:100%%;border-collapse:collapse;margin:8px 10px 0">%s</table>'
+                    '<div style="margin:14px 22px;padding:14px;background:#F7F9FA;border-left:4px solid %s;border-radius:6px;color:#263238;font-size:14px;white-space:pre-wrap">%s</div>'
+                    '<div style="padding:4px 22px 20px;color:#90A4AE;font-size:12px">Handle it in Admin &rsaquo; White label &rsaquo; B2B support tickets. Reply to the client on the number above.</div>'
+                    '</div></div>') % (color, E(brand), E(category), pcol, E(priority), E(no), tr, color, E(message))
+            text = ("%s - B2B support\nTicket %s  |  %s priority  |  %s\n\n" % (brand, no, priority, category)) + "\n".join("%s: %s" % (k, v) for k, v in rows) + "\n\nMessage:\n" + message + \
+                   "\n\nHandle it in Admin > White label > B2B support tickets."
+            ok, d = mailer.send(to, "[%s] %s | %s | %s priority | %s" % (no, category, org, priority, brand), text, html)
+            print("[b2b ticket] %s e-mail: %s %s" % (no, ok, d), flush=True)
+        except Exception as e:
+            print("[b2b ticket] e-mail failed:", type(e).__name__, flush=True)
+    try:
+        import threading
+        threading.Thread(target=run, daemon=True).start()
+    except Exception:
+        pass
+
+
+def create_ticket(inst, contact, org_name, category, priority, message, bill_no=None):
+    """-> (ticket_no | None, error message | None)."""
+    try:
+        _ensure()
+        c = _admin()
+        try:
+            n = c.execute("SELECT COUNT(*) FROM dbo.sahasra_b2b_tickets WHERE contact_id=? AND created_at > DATEADD(hour,-24,SYSUTCDATETIME())",
+                          (contact.get("id"),)).fetchone()[0]
+            if int(n or 0) >= _DAILY_LIMIT:
+                return None, "You have reached today's limit for support requests. Please call us directly."
+            no = "TKT-%s-%s" % (time.strftime("%y%m%d"), "".join(secrets.choice("0123456789") for _ in range(4)))
+            c.execute("INSERT INTO dbo.sahasra_b2b_tickets (ticket_no, institution_id, contact_id, organisation_code, organisation_name, contact_name, phone, "
+                      "category, priority, details, bill_no) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      (no, int(inst["id"]), contact.get("id"), str(contact.get("organisation_code")), (org_name or "")[:200],
+                       str(contact.get("contact_name") or "")[:120], str(contact.get("phone_e164") or "")[:30], category, priority,
+                       (message or "")[:1000], bill_no))
+            c.commit()
+            print("[b2b ticket] %s %s org=%s" % (no, category, contact.get("organisation_code")), flush=True)
+            _email_ticket(no, inst, contact, org_name, category, priority, message, bill_no)
+            return no, None
+        finally:
+            c.close()
+    except Exception as e:
+        print("[b2b ticket] failed:", type(e).__name__, str(e)[:160], flush=True)
+        return None, "I could not register that right now. Please try again in a few minutes or call us."
+
+
+def list_tickets(status: str = "", limit: int = 200):
+    _ensure()
+    c = _admin()
+    try:
+        sql = ("SELECT TOP %d ticket_no, organisation_code, organisation_name, contact_name, phone, category, priority, details, bill_no, status, note, created_at "
+               "FROM dbo.sahasra_b2b_tickets" % max(1, min(int(limit), 500)))
+        args = ()
+        if status:
+            sql += " WHERE status = ?"
+            args = (status,)
+        rows = c.execute(sql + " ORDER BY id DESC", args).fetchall()
+        keys = ["ticket_no", "organisation_code", "organisation_name", "contact_name", "phone", "category", "priority", "details", "bill_no", "status", "note", "created_at"]
+        return [{k: (str(r[i]) if k == "created_at" and r[i] is not None else r[i]) for i, k in enumerate(keys)} for r in rows]
+    finally:
+        c.close()
+
+
+def set_ticket_status(ticket_no: str, status: str, note: str, admin: str):
+    if status not in ("Open", "In progress", "Resolved", "Closed"):
+        raise ValueError("Status must be Open, In progress, Resolved or Closed.")
+    _ensure()
+    c = _admin()
+    try:
+        c.execute("UPDATE dbo.sahasra_b2b_tickets SET status=?, note=?, updated_at=SYSUTCDATETIME(), updated_by=? WHERE ticket_no=?",
+                  (status, (note or "")[:500], (admin or "")[:100], ticket_no))
+        c.commit()
+    finally:
+        c.close()
+
+
+# ----------------------------------------------------------------------------------------------- test master lookups
+_STOP = set("""is are was were the a an of for to in on at by do does can could would will you your our we us my me i it this that these those
+what which who whom how when where why tell show give need want please kindly there any available availability avail test tests testing
+code codes tat turnaround time times ready report reports result results fasting fast required requirement requirements need needed
+prepare preparation prepared prepare price prices rate rates cost costs charge charges agreed b2b sample samples type processed processing
+in-house inhouse outsourced outsource done get have has had be been am so also and or with from about regarding enquiry inquiry details detail
+info information long take takes taking much many should before after if whether specific investigation investigations""".split())
+
+
+def _terms(q: str):
+    t = re.sub(r"[?!.:;()]", " ", q.lower())
+    t = re.sub(r"\b(is|are) (the )?(test|tests)\b", " ", t)
+    parts = re.split(r",|/|&|\band\b|\bor\b|\bplus\b", t)
+    out = []
+    for p in parts:
+        words = [w for w in p.split() if w not in _STOP and len(w) > 1]
+        s = " ".join(words).strip()
+        if s and s not in out:
+            out.append(s)
+    return out[:4]
+
+
+def _rate_txt(lo, hi):
+    """Rates are stored per branch: one price, or a range when branches differ."""
+    if lo is None:
+        return "No agreed rate on file"
+    try:
+        lo, hi = float(lo), float(hi if hi is not None else lo)
+    except Exception:
+        return "No agreed rate on file"
+    return _inr(lo) if abs(hi - lo) < 0.005 else "%s - %s (varies by branch)" % (_inr(lo), _inr(hi))
+
+
+_PKG = "CAST(i.ISPACKAGE AS VARCHAR(8)) IN ('Y','y','1','True','true','YES')"
+
+
+def _tat(tat, ttype, rep, rtype):
+    for v, ty in ((tat, ttype), (rep, rtype)):
+        v = str(v or "").strip()
+        if v and v not in ("0", "0.0"):
+            return (v + " " + str(ty or "").strip()).strip()
+    return "Not specified"
+
+
+_ALIAS = {"cbp": ["cbc", "complete blood count", "complete blood picture", "hemogram"], "cbc": ["cbp", "complete blood count", "complete blood picture", "hemogram"],
+          "hba1c": ["glycosylated hemoglobin", "glycated hemoglobin", "glycosylated haemoglobin"], "a1c": ["glycosylated hemoglobin", "glycated hemoglobin"],
+          "hb a1c": ["glycosylated hemoglobin", "glycated hemoglobin"], "vitamin d": ["25 hydroxy vitamin d", "25-hydroxy vitamin d"], "vit d": ["25 hydroxy vitamin d"],
+          "vitamin b12": ["vitamin b12", "b12"], "vit b12": ["vitamin b12"], "b12": ["vitamin b12"], "cue": ["complete urine analysis"], "urine routine": ["complete urine analysis"],
+          "hb": ["haemoglobin", "hemoglobin"], "sugar": ["glucose"], "fbs": ["glucose fasting"], "ppbs": ["glucose post"], "esr": ["erythrocyte sedimentation"]}
+
+
+def _own_txt(lo, hi):
+    if lo is None:
+        return "Not in your rate list"
+    try:
+        if float(lo) == 0 and float(hi if hi is not None else lo) == 0:
+            return "Listed as Rs 0 - confirm with the lab"
+    except Exception:
+        pass
+    return _rate_txt(lo, hi)
+
+
+def _std_txt(std):
+    try:
+        return _inr(float(std)) if std is not None and float(std) > 0 else "-"
+    except Exception:
+        return "-"
+
+
+def _price_txt(lo, hi, std):
+    """Agreed rate (own rate list / own package rate) first; otherwise the lab's standard rate, clearly labelled."""
+    if lo is not None:
+        try:
+            if float(lo) == 0 and float(hi if hi is not None else lo) == 0:
+                if std is not None and float(std) > 0:
+                    return "Listed as Rs 0 on your list - confirm with the lab (standard rate %s)" % _inr(float(std))
+                return "Listed as Rs 0 on your list - confirm with the lab"
+        except Exception:
+            pass
+        return _rate_txt(lo, hi) + " (your rate)"
+    try:
+        if std is not None and float(std) > 0:
+            return _inr(float(std)) + " (standard rate)"
+    except Exception:
+        pass
+    return "Not in your rate list - type \"special rate request\""
+
+
+def _prices_for(Q, org, codes):
+    """Prices for a SHORT list of codes (fast, indexed lookups; never joins the big rate tables to the whole test list).
+    -> {code: (lo, hi, generic_package_rate)}"""
+    out = {}
+    codes = [str(c) for c in dict.fromkeys(codes) if c]
+    if not codes:
+        return out
+    ph = ",".join("?" * len(codes))
+    try:
+        for c, lo, hi in Q("SELECT r.INVCODE, MIN(r.RATE), MAX(r.RATE) FROM mstOrgInvestigationRates r WHERE r.ORGCODE = ? AND r.ACTIVE = 1 AND r.INVCODE IN (" + ph + ") GROUP BY r.INVCODE",
+                           (org,) + tuple(codes)):
+            if lo is not None:
+                out[str(c)] = (lo, hi, None)
+    except Exception as e:
+        print("[b2b assist] rate list lookup:", type(e).__name__, str(e)[:100], flush=True)
+    rest = [c for c in codes if c not in out]
+    if rest:
+        ph2 = ",".join("?" * len(rest))
+        try:
+            mine, gen = {}, {}
+            for c, own, lo, hi in Q("SELECT p.PACKAGECODE, CASE WHEN p.ORGCODE = ? THEN 1 ELSE 0 END, MIN(p.PACKAGERATE), MAX(p.PACKAGERATE) FROM mstInvPackages p "
+                                    "WHERE p.PACKAGECODE IN (" + ph2 + ") AND p.ACTIVE = 1 AND p.PACKAGERATE > 0 AND (p.ORGCODE = ? OR p.ORGCODE IS NULL OR p.ORGCODE = '') "
+                                    "GROUP BY p.PACKAGECODE, CASE WHEN p.ORGCODE = ? THEN 1 ELSE 0 END", (org,) + tuple(rest) + (org, org)):
+                (mine if int(own or 0) else gen)[str(c)] = (lo, hi)
+            for c in rest:
+                if c in mine:
+                    out[c] = (mine[c][0], mine[c][1], None)
+                elif c in gen:
+                    out[c] = (None, None, gen[c][0])
+        except Exception as e:
+            print("[b2b assist] package rate lookup:", type(e).__name__, str(e)[:100], flush=True)
+    return out
+
+
+_SEPS = "-_(),/&:;"
+
+
+def _nsql(col):
+    """SQL: the name with punctuation turned into single spaces (so 'Vitamin - B12' matches 'vitamin b12')."""
+    e = col
+    for ch in _SEPS:
+        e = "REPLACE(" + e + ",'" + ch + "',' ')"
+    for _ in range(3):
+        e = "REPLACE(" + e + ",'  ',' ')"
+    return "LTRIM(RTRIM(" + e + "))"
+
+
+def _nterm(t):
+    t = str(t or "").lower()
+    for ch in _SEPS:
+        t = t.replace(ch, " ")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _find_tests(Q, org, term, limit=4):
+    """Row: 11 test columns, lo, hi (agreed rate), rk, std (standard rate).
+    rk: 0 = code / short name equals the term, 1 = name starts with it, 2 = only contains it (e.g. 'ACBP' for 'CBP')."""
+    term = term.replace("%", "").replace("[", "").strip()
+    like = "%" + term + "%"
+    cols = "i.INVCODE, i.INVNAME, i.SAMPLETYPE, i.TATTIME, i.TATTYPE, i.REPTIME, i.REPTIMETYPE, i.PATIENTPROCEDURE, i.IsFasting, i.OUTSOURCEID, i.ISPACKAGE, "
+    nsql = _nsql("i.INVNAME")
+    rk = "CASE WHEN i.INVCODE = ? OR i.ShortName = ? THEN 0 WHEN (' ' + " + nsql + " + ' ') LIKE ? THEN 1 ELSE 2 END"
+    where = "FROM mstInvestigations i WHERE i.ACTIVE = 1 AND (i.INVNAME LIKE ? OR i.ShortName LIKE ? OR " + nsql + " LIKE ? OR i.INVCODE = ?) "
+    order = "ORDER BY " + rk + ", CASE WHEN " + _PKG + " THEN 1 ELSE 0 END, LEN(i.INVNAME)"
+    nterm = _nterm(term)
+    nlike = "%" + nterm + "%"
+    wlike = "% " + nterm + " %"
+    prm = (term.upper(), term, wlike, like, like, nlike, term.upper(), term.upper(), term, wlike)
+    try:
+        cand = Q("SELECT TOP 12 " + cols + rk + " AS rk, i.RATE " + where + order, prm)
+    except Exception as e:      # a LIS without a RATE column on the test master
+        print("[b2b assist] test lookup without RATE:", type(e).__name__, str(e)[:100], flush=True)
+        cand = [tuple(r) + (None,) for r in Q("SELECT TOP 12 " + cols + rk + " AS rk " + where + order, prm)]
+    pr = _prices_for(Q, org, [r[0] for r in cand])
+    rows = []
+    for r in cand:
+        lo, hi, gen = pr.get(str(r[0]), (None, None, None))
+        std = r[12] if (r[12] is not None and str(r[12]).strip() not in ("", "0", "0.0", "0.00")) else gen
+        rows.append(tuple(r[:11]) + (lo, hi, int(r[11]), std))
+    rows.sort(key=lambda f: (f[13], 1 if re.match(r"(Y|y|1|True|true|YES)$", str(f[10])) else 0, 0 if f[11] is not None else (1 if not f[14] else 2)))
+    return rows[:limit]
+
+
+def _test_answer(Q, org, q, intent, soft=False, terms=None):
+    """soft=True: return None (instead of 'not found') so the caller can try something else / the AI."""
+    terms = list(terms) if terms else _terms(q)
+    if not terms:
+        return None if soft else _out("test_enquiry", "Which test do you mean? For example: \"Is CBC available?\", \"Test code for HbA1c\", \"Is fasting required for lipid profile?\"")
+    rows, missing, near = [], [], []
+    for t in terms:
+        found = list(_find_tests(Q, org, t))
+        for alt in _ALIAS.get(t, []):          # known other names of the same test (HbA1c = Glycosylated Hemoglobin): always searched, ranked as real matches
+            try:
+                found += [tuple(f[:13]) + (min(1, int(f[13])),) + tuple(f[14:]) for f in _find_tests(Q, org, alt, 2)]
+            except Exception:
+                pass
+        if found:
+            best = min(int(f[13]) for f in found)
+            if best < 2:
+                found = [f for f in found if int(f[13]) < 2]       # drop 'contains-only' hits such as ACBP when a real CBP exists
+            elif t in _ALIAS:
+                near.append(t)
+            found.sort(key=lambda f: (int(f[13]), 1 if re.match(r"(Y|y|1|True|true|YES)$", str(f[10])) else 0, 1 if (f[11] is None and not f[14]) else 0))
+        else:
+            missing.append(t)
+        rows += found[:4]
+    if not rows:
+        if soft:
+            return None
+        if re.search(r"\b(urgent|emergency|priority|prioriti[sz]e|home|pickup|appointment|camp|api|portal|login|password|integration|hl7|fhir|accredit|nabl|working hours|timing)\b", q):
+            return None          # a service / support question, not a test name: the AI answers from the client's knowledge
+        return _out("test_enquiry", "I could not find \"%s\" in the test list. Please check the spelling or give the test code." % ", ".join(missing))
+    want_price = bool(re.search(r"\b(price|prices|rate|rates|cost|charges?|how much|agreed|tariff|mrp)\b", q))
+    table_rows, seen = [], set()
+    for code, name, stype, tat, tty, rep, rty, prep, fast, outs, ispkg, lo, hi, rk, std in rows:
+        if code in seen:
+            continue
+        seen.add(code)
+        price = _price_txt(lo, hi, std)
+        if want_price:
+            table_rows.append([name, code, _own_txt(lo, hi), _std_txt(std), _tat(tat, tty, rep, rty)])
+        else:
+            prep_txt = ("Fasting required" if fast in (1, True) else "No fasting") + (" - " + re.sub(r"\s+", " ", str(prep))[:90] if prep and str(prep).strip() else "")
+            proc = "Outsourced" if (outs not in (None, "", 0, "0")) else "In-house"
+            table_rows.append([name, code, ("Not recorded in lab master" if str(stype or "").strip() in ("", "0") else stype), _tat(tat, tty, rep, rty), prep_txt, proc, price])
+    head = "Yes, " + ("these are" if len(table_rows) > 1 else "this is") + " available." if intent == "avail" else ("Here is the price." if want_price and len(table_rows) == 1 else "Here are the details.")
+    if want_price and len(table_rows) > 1:
+        head = "Here are the matching prices."
+    ans = head + (" Your agreed rate and the lab's standard rate (MRP) are both shown." if want_price else "")
+    if near:
+        ans += " I found no test called \"%s\"; these are the closest matches." % ", ".join(near)
+    if missing:
+        ans += " I could not find: %s." % ", ".join(missing)
+    cols = ["Test", "Code", "Your rate", "Standard rate (MRP)", "Report time"] if want_price else ["Test", "Code", "Sample", "Report time", "Preparation", "Processing", "Price"]
+    return _out("test_enquiry", ans, _tbl("Test prices" if want_price else "Test details", cols, table_rows))
+
+
+_PK_GENERIC = r"\b(profile|package|packages|panel|included|include|includes|contains?|inside|components?|parameters?|investigations?|what|which|is|are|in|the|of|tests?|list|show|me|give|details?|for|tell|about|whats)\b"
+
+
+def _name_words(q):
+    c = re.sub(_PK_GENERIC, " ", (q or "").lower())
+    c = re.sub(r"[-_]", " ", c)
+    ws = [w.strip(".") for w in re.split(r"[^a-z0-9.]+", c)]
+    return [w for w in ws if w and (len(w) > 1 or w.isdigit())][:6]
+
+
+_NORM = "REPLACE(REPLACE(%s,'-',' '),'_',' ')"
+
+
+def _package_contents(Q, org, q):
+    words = _name_words(q)
+    if not words:
+        return _out("package_contents", "Which profile or package? For example: \"What is included in the full body checkup package?\"")
+    cond = "".join(" AND " + (_NORM % "i.INVNAME") + " LIKE ?" for _ in words)
+    like = tuple("%" + w + "%" for w in words)
+    own = ("CASE WHEN EXISTS (SELECT 1 FROM mstInvPackages p WHERE p.PACKAGECODE COLLATE DATABASE_DEFAULT = i.INVCODE COLLATE DATABASE_DEFAULT "
+           "AND p.ORGCODE = ? AND p.ACTIVE = 1) THEN 0 ELSE 1 END")
+    pk = Q("SELECT TOP 8 i.INVCODE, i.INVNAME, " + own + " FROM mstInvestigations i WHERE i.ACTIVE = 1 AND (" + _PKG + " OR i.INVCODE LIKE 'PKG%')" + cond +
+           " ORDER BY " + own + ", LEN(i.INVNAME)", (org,) + like + (org,))
+    if not pk:
+        pk = Q("SELECT TOP 8 i.INVCODE, i.INVNAME, 1 FROM mstInvestigations i WHERE i.ACTIVE = 1" + cond + " ORDER BY LEN(i.INVNAME)", like)
+    if not pk:
+        return _out("package_contents", "I could not find a profile or package matching \"%s\". Ask \"show health packages\" to see yours." % " ".join(words))
+    code, name = pk[0][0], str(pk[0][1]).strip()
+    rows = []
+    for cond2, prm in (("p.ORGCODE = ?", (code, org)), ("(p.ORGCODE IS NULL OR p.ORGCODE = '')", (code,)), ("1 = 1", (code,))):
+        rows = Q("SELECT ISNULL(i.INVNAME, p.TESTCODE), MAX(p.ACTUALRATE), MAX(p.APPRATE), MAX(p.PACKAGERATE) FROM mstInvPackages p LEFT JOIN mstInvestigations i "
+                 "ON i.INVCODE COLLATE DATABASE_DEFAULT = p.TESTCODE COLLATE DATABASE_DEFAULT WHERE p.PACKAGECODE COLLATE DATABASE_DEFAULT = ? AND p.ACTIVE = 1 AND "
+                 + cond2 + " GROUP BY ISNULL(i.INVNAME, p.TESTCODE) ORDER BY ISNULL(i.INVNAME, p.TESTCODE)", prm)
+        if rows:
+            break
+    if not rows:
+        return _out("package_contents", "**%s** (%s) is in the list, but I could not read its included tests." % (name, code))
+    fr = [r for r in _find_tests(Q, org, code, 1) if str(r[0]) == str(code)]
+    price = (" Price: **%s**." % _price_txt(fr[0][11], fr[0][12], fr[0][14])) if fr else ""
+    if not fr:
+        pr = _prices_for(Q, org, [code]).get(str(code))
+        if pr:
+            price = " Price: **%s**." % _price_txt(*pr)
+    others = [str(r[1]).strip() for r in pk[1:4]]
+    more = (" Other close matches: " + "; ".join(others) + ".") if others else ""
+    def _m(v):
+        try:
+            return _inr(float(v)) if v is not None and float(v) > 0 else "-"
+        except Exception:
+            return "-"
+    return _out("package_contents", "**%s** (%s) includes %d tests.%s%s" % (name, code, len(rows), price, more),
+                _tbl("Included tests", ["#", "Test", "Normal test rate", "Share of package price"], [[k + 1, r[0], _m(r[1]), _m(r[2])] for k, r in enumerate(rows[:60])]))
+
+
+def _package_list(Q, org, q=""):
+    words = _name_words(re.sub(r"\b(all|my|our|do|you|have|are|there|any|and|please|available|offer|health|check|checks|checkup|checkups|corporate|packages?)\b", " ", (q or "").lower()))
+    cond = "".join(" AND " + (_NORM % "ISNULL(i.INVNAME, p.PACKAGECODE)") + " LIKE ?" for _ in words)
+    try:
+        rows = Q("SELECT TOP 80 ISNULL(i.INVNAME, p.PACKAGECODE), p.PACKAGECODE, MAX(p.PACKAGERATE), COUNT(*) FROM mstInvPackages p LEFT JOIN mstInvestigations i "
+                 "ON i.INVCODE COLLATE DATABASE_DEFAULT = p.PACKAGECODE COLLATE DATABASE_DEFAULT WHERE p.ORGCODE = ? AND p.ACTIVE = 1" + cond +
+                 " GROUP BY ISNULL(i.INVNAME, p.PACKAGECODE), p.PACKAGECODE ORDER BY ISNULL(i.INVNAME, p.PACKAGECODE)", (org,) + tuple("%" + w + "%" for w in words))
+    except Exception as e:
+        print("[b2b assist] org package list:", type(e).__name__, str(e)[:100], flush=True)
+        rows = []
+    if rows:
+        def _p(v):
+            try:
+                return _inr(float(v)) + " (your package price)" if v is not None and float(v) > 0 else "Not set - type \"special rate request\""
+            except Exception:
+                return "-"
+        try:
+            _own = _prices_for(Q, org, [r[1] for r in rows if not (r[2] is not None and float(r[2]) > 0)])
+        except Exception:
+            _own = {}
+        def _p2(r):
+            try:
+                if r[2] is not None and float(r[2]) > 0:
+                    return _p(r[2])
+            except Exception:
+                pass
+            lo, hi, gen = _own.get(str(r[1]), (None, None, None))
+            return _price_txt(lo, hi, gen) if (lo or gen) else "Not set - type \"special rate request\""
+        note = "%d package%s on your account%s." % (len(rows), "" if len(rows) == 1 else "s", (" matching \"" + " ".join(words) + "\"") if words else "")
+        if len(rows) >= 80:
+            note += " Showing the first 80 - name a package to narrow it down."
+        return _out("packages", note + " Ask \"what is included in <package name>\" for the tests inside.",
+                    _tbl("Your packages", ["Package", "Code", "Tests", "Price"], [[str(r[0]).strip(), r[1], r[3], _p2(r)] for r in rows]))
+    if words:
+        return _out("packages", "I found no package matching \"%s\" on your account. Ask \"show health packages\" to see all of yours." % " ".join(words))
+    return _package_list_old(Q, org)
+
+
+def _package_list_old(Q, org):
+    rows = []
+    try:        # packages on the client's own rate list (indexed lookup)
+        rows = Q("SELECT TOP 15 i.INVNAME, i.INVCODE FROM mstInvestigations i WHERE i.ACTIVE = 1 AND " + _PKG + " AND EXISTS (SELECT 1 FROM mstOrgInvestigationRates r WHERE "
+                 "r.INVCODE = i.INVCODE COLLATE DATABASE_DEFAULT AND r.ORGCODE = ? AND r.ACTIVE = 1) ORDER BY i.INVNAME", (org,))
+    except Exception as e:
+        print("[b2b assist] package list (rate list):", type(e).__name__, str(e)[:100], flush=True)
+    if len(rows) < 15:      # plus packages that carry the client's own package price
+        try:
+            more = Q("SELECT TOP 15 i.INVNAME, i.INVCODE FROM mstInvestigations i WHERE i.ACTIVE = 1 AND " + _PKG + " AND EXISTS (SELECT 1 FROM mstInvPackages p WHERE "
+                     "p.PACKAGECODE = i.INVCODE COLLATE DATABASE_DEFAULT AND p.ORGCODE = ? AND p.ACTIVE = 1 AND p.PACKAGERATE > 0) ORDER BY i.INVNAME", (org,))
+            have = {str(r[1]) for r in rows}
+            rows = list(rows) + [r for r in more if str(r[1]) not in have]
+            rows = rows[:15]
+        except Exception as e:
+            print("[b2b assist] package list (package rates):", type(e).__name__, str(e)[:100], flush=True)
+    note = "Packages on your rate list."
+    if not rows:
+        rows = Q("SELECT TOP 15 i.INVNAME, i.INVCODE FROM mstInvestigations i WHERE i.ACTIVE = 1 AND " + _PKG + " ORDER BY i.INVNAME", ())
+        note = "No packages are on your own rate list; these are the lab's standard packages."
+    if not rows:
+        return _out("packages", "I could not find any packages.")
+    pr = _prices_for(Q, org, [r[1] for r in rows])
+    table = []
+    for r in rows:
+        lo, hi, gen = pr.get(str(r[1]), (None, None, None))
+        table.append([str(r[0]).strip(), r[1], _price_txt(lo, hi, gen)])
+    return _out("packages", note + " Ask \"what is included in <package name>\" for the tests inside.", _tbl("Health-check packages", ["Package", "Code", "Price"], table))
+
+
+# ----------------------------------------------------------------------------------------------- account / billing
+def _outstanding(Q, org):
+    r = Q("SELECT TOP 1 BalAmt, PayDate FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 ORDER BY PayDate DESC, CompPayID DESC", (org,))
+    return (float(r[0][0] or 0), r[0][1]) if r else (None, None)
+
+
+def _per_txt(v):
+    s = str(v or "").strip()
+    return "Not set" if (not s or s.startswith("--") or s.lower() in ("select", "none")) else s
+
+
+def _account_answer(Q, org, q, p):
+    if re.search(r"\bcredit (limit|period)|available credit|credit available|credit is available|how much credit|credit days\b", q):
+        o = Q("SELECT TOP 1 ISCREDIT, CREDITLIMIT, CREDITPERIOD, GRACEPERIOD, BILLINGCYCLE FROM mstOrganisation WHERE ORGANISATIONCODE = ?", (org,))
+        if not o:
+            return _out("credit", "I could not read your credit terms.")
+        iscr, lim, per, grace, cyc = o[0]
+        bal, _ = _outstanding(Q, org)
+        rows = [["Credit account", "Yes" if iscr in (1, True) else "No"], ["Credit limit", _inr(lim) if float(lim or 0) > 1 else "Not set"], ["Credit period", _per_txt(per)], ["Grace period (days)", grace if grace is not None else "-"]]
+        ans = "Your credit limit is **%s**." % _inr(lim)
+        if float(lim or 0) <= 1:
+            ans = "**No credit limit is set** on your account (the limit is recorded as %s)." % _inr(lim)
+            if bal is not None:
+                rows += [["Current outstanding", _inr(bal)]]
+                ans += " Your current outstanding is **%s**. Please confirm your credit terms with the lab." % _inr(bal)
+            return _out("credit", ans, _tbl("Credit terms", ["Item", "Value"], rows))
+        if bal is not None:
+            avail = float(lim or 0) - bal
+            rows += [["Current outstanding", _inr(bal)], ["Available credit", _inr(avail) if avail > 0 else "None (over limit by " + _inr(-avail) + ")" if avail < 0 else "None"]]
+            if avail > 0:
+                ans += " Outstanding **%s**, so **%s** is available (limit minus outstanding)." % (_inr(bal), _inr(avail))
+            else:
+                ans += " Outstanding **%s**, so you have **no available credit**%s." % (_inr(bal), " (over the limit by **%s**)" % _inr(-avail) if avail < 0 else "")
+        return _out("credit", ans, _tbl("Credit terms", ["Item", "Value"], rows))
+    if re.search(r"\btds\b", q):
+        a, b = _dates(p)
+        r = Q("SELECT SUM(TDS), COUNT(*) FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 AND PayDate >= ? AND PayDate < ?", (org, a, b))
+        return _out("tds", "TDS recorded on your payments %s: **%s**." % (_label(p), _inr(r[0][0] if r else 0)))
+    if re.search(r"\b(credit note|debit note|credit adjustment|cancelled bill|removed bill|deleted bill)s?\b", q):
+        a, b = _dates(p if re.search(r"today|yesterday|month|week|20\d\d", q) else "last_month")
+        rows = Q("SELECT TOP 15 DELETEDATE, BILLNO, RATE, REASON FROM trnDelCreditBill WHERE ORGCODE = ? AND DELETEDATE >= ? AND DELETEDATE < ? ORDER BY DELETEDATE DESC",
+                 (org, (date.today() - timedelta(days=90)).isoformat() if not re.search(r"today|yesterday|month|week|20\d\d", q) else a, b if re.search(r"today|yesterday|month|week|20\d\d", q) else (date.today() + timedelta(days=1)).isoformat()))
+        if not rows:
+            return _out("credit_notes", "No credit adjustments (removed credit bills) found for your account in that period.")
+        return _out("credit_notes", "Credit adjustments on your account (tests/bills removed from credit):",
+                    _tbl("Credit adjustments", ["Date", "Bill", "Amount", "Reason"], [[_d(r[0]), r[1], _inr(r[2]), r[3] or ""] for r in rows]))
+    if re.search(r"\b(statement|reconcil|ledger|account summary|invoices? generated|invoice history|billing statement)\b", q):
+        inv = Q("SELECT TOP 12 INVOICENO, INVOICENODT, FromDate, ToDate, TotAmt, PaidAmt, DueAmt FROM trnInvoiceGeneration WHERE ORGCODE = ? ORDER BY INVOICENODT DESC", (org,))
+        pay = Q("SELECT TOP 8 PayDate, PaidAmt, Mode, TDS, Concession FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 ORDER BY PayDate DESC, CompPayID DESC", (org,))
+        bal, _ = _outstanding(Q, org)
+        ans = "Your account statement" + (": current outstanding **%s**." % _inr(bal) if bal is not None else ".")
+        t1 = _tbl("Invoices generated", ["Invoice", "Date", "Period", "Amount", "Paid", "Due"],
+                  [[r[0], _d(r[1]), "%s to %s" % (_d(r[2]), _d(r[3])), _inr(r[4]), _inr(r[5]), _inr(r[6])] for r in inv]) if inv else None
+        t2 = _tbl("Recent payments", ["Date", "Paid", "Mode", "TDS", "Concession"], [[_d(r[0]), _inr(r[1]), r[2] or "", _inr(r[3]), _inr(r[4])] for r in pay]) if pay else None
+        out = _out("statement", ans, t1 or t2, suggestions=["Request invoice copy"])
+        if t1 and t2:
+            out["table2"] = t2
+        return out
+    if re.search(r"\b(payment|paid|received|receipt)\b", q) and not re.search(r"\b(due|outstanding|pending amount)\b", q):
+        pay = Q("SELECT TOP 6 PayDate, PaidAmt, Mode, TDS, Concession, BalAmt FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 ORDER BY PayDate DESC, CompPayID DESC", (org,))
+        if not pay:
+            return _out("payments", "I could not find any payments recorded on your account.")
+        last = pay[0]
+        return _out("payments", "Your last payment recorded was **%s** on **%s** (%s). Balance after it: **%s**." % (_inr(last[1]), _d(last[0]), last[2] or "mode not recorded", _inr(last[5])),
+                    _tbl("Recent payments", ["Date", "Paid", "Mode", "TDS", "Concession", "Balance after"], [[_d(r[0]), _inr(r[1]), r[2] or "", _inr(r[3]), _inr(r[4]), _inr(r[5])] for r in pay]))
+    bal, at = _outstanding(Q, org)
+    if bal is None:
+        return _out("outstanding", "I could not find a balance record for your account.")
+    return _out("outstanding", "Your outstanding balance is **%s** (as of the last ledger entry on %s)." % (_inr(bal), _d(at)), suggestions=["Payment status", "Billing statement"])
+
+
+def _contract(Q, org):
+    o = Q("SELECT TOP 1 ORGANISATIONNAME, ORGANISATIONCODE, STARTDATE, ENDDATE, ACTIVE, ISCREDIT, CREDITPERIOD, BILLINGCYCLE, GRADE, GRADEPERCENTAGE, CONTACTPERSON "
+          "FROM mstOrganisation WHERE ORGANISATIONCODE = ?", (org,))
+    if not o:
+        return _out("contract", "I could not read your account details.")
+    n, code, s, e, act, iscr, per, cyc, gr, grp, cp = o[0]
+    rows = [["Client code", code], ["Name", n], ["Account status", "Active" if act in (1, True) else "Inactive"], ["Agreement from", _d(s) or "-"],
+            ["Agreement valid till", _d(e) or "-"], ["Credit account", "Yes" if iscr in (1, True) else "No"], ["Credit period", _per_txt(per)],
+            ["Billing cycle (days)", cyc if cyc is not None else "-"], ["Grade / discount %", ("%s %s" % (gr or "", ("(" + str(grp) + "%)") if grp else "")).strip() or "-"],
+            ["Contact person", cp or "-"]]
+    exp = ""
+    try:
+        if e and str(e)[:10] < date.today().isoformat():
+            exp = " Your agreement end date has passed - I can raise a renewal request."
+    except Exception:
+        pass
+    return _out("contract", "Your client code is **%s**. Agreement valid till **%s**.%s" % (code, _d(e) or "not specified", exp), _tbl("Account & agreement", ["Item", "Value"], rows),
+                suggestions=["Raise renewal request"] if exp else None)
+
+
+# ----------------------------------------------------------------------------------------------- tests / reports / samples
+def _owned(Q, org, bill):
+    return bool(Q("SELECT TOP 1 1 FROM trnINVLABPRI WHERE BILLNO = ? AND ORGANISATIONCODE = ?", (bill, org)))
+
+
+_STAGE = ("CASE WHEN s.CANCELLEDDATE IS NOT NULL THEN 'Cancelled' WHEN s.STATUS LIKE '%reject%' THEN 'Sample rejected' "
+          "WHEN s.DISPATCHDATE IS NOT NULL THEN 'Report dispatched' WHEN s.PRINTDATE IS NOT NULL THEN 'Report printed' "
+          "WHEN s.AUTHENTICATEDATE IS NOT NULL THEN 'Final report ready' WHEN s.RESULTENTRYDATE IS NOT NULL THEN 'Result entered - awaiting authentication' "
+          "WHEN s.ACKNOWLEDGEDDATE IS NOT NULL THEN 'Received at lab - in process' WHEN s.SAMPLECOLLECTEDDATE IS NOT NULL THEN 'Sample collected - on the way to lab' "
+          "ELSE 'Registered - sample not collected yet' END")
+_FINAL = ("Final report ready", "Report printed", "Report dispatched")
+
+
+def _status_for_bill(Q, org, bill, only=""):
+    if not _owned(Q, org, bill):
+        return _out("status", "I could not find bill **%s** on your account." % bill)
+    rows = Q("SELECT TOP 60 ISNULL(m.INVNAME, s.TCODE), " + _STAGE + ", s.SAMPLECOLLECTEDDATE, s.ACKNOWLEDGEDDATE, s.RESULTENTRYDATE, s.AUTHENTICATEDATE, s.DISPATCHDATE, "
+             "ISNULL(pk.INVNAME, s.PKGCODE) FROM trnInvStatus s "
+             "LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = s.TCODE COLLATE DATABASE_DEFAULT "
+             "LEFT JOIN mstInvestigations pk ON pk.INVCODE COLLATE DATABASE_DEFAULT = s.PKGCODE COLLATE DATABASE_DEFAULT WHERE s.BILLNO = ? ORDER BY s.ID", (bill,))
+    if not rows:
+        return _out("status", "No test status has been recorded yet for bill **%s**." % bill)
+    note = ""
+    if only and str(only).strip():
+        ws = [w for w in re.split(r"[^a-z0-9]+", _nterm(only)) if w]
+        keep = [r for r in rows if ws and all(w in _nterm(str(r[0]) + " " + str(r[7] or "")).split() or w in _nterm(str(r[0])) for w in ws)]
+        if keep:
+            rows = keep
+        else:
+            note = " I could not find a test called \"%s\" on this bill, so all its tests are shown." % only
+    n = len(rows)
+    done = sum(1 for r in rows if r[1] in _FINAL)
+    counts = {}
+    for r in rows:
+        counts[r[1]] = counts.get(r[1], 0) + 1
+    mix = ", ".join("%d %s" % (v, k.lower()) for k, v in sorted(counts.items(), key=lambda kv: -kv[1]))
+    ans = "Bill **%s**: **%d of %d** tests have the final report ready. (%s)%s" % (bill, done, n, mix, note)
+    has_pkg = any(r[7] for r in rows)
+    cols = ["Test"] + (["Package"] if has_pkg else []) + ["Stage", "Sample collected", "Received at lab", "Result entered", "Report ready"]
+    body = [[r[0]] + ([r[7] or ""] if has_pkg else []) + [r[1], _d(r[2]), _d(r[3]), _d(r[4]), _d(r[5])] for r in rows]
+    return _out("status", ans, _tbl("Test status", cols, body))
+
+
+def _tests_in_bill(Q, org, bill):
+    if not _owned(Q, org, bill):
+        return _out("tests_in_bill", "I could not find bill **%s** on your account." % bill)
+    tl = Q("SELECT ISNULL(m.INVNAME, s.TCODE) FROM trnInvStatus s LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = s.TCODE COLLATE DATABASE_DEFAULT WHERE s.BILLNO = ?", (bill,))
+    return _out("tests_in_bill", "Bill **%s** has **%d** tests." % (bill, len(tl)), _tbl("Tests on bill " + bill, ["#", "Test"], [[i + 1, r[0]] for i, r in enumerate(tl[:60])]),
+                suggestions=["Status of bill " + bill])
+
+
+def _status_for_period(Q, org, p):
+    a, b = _dates(p)
+    rows = Q("SELECT " + _STAGE + ", COUNT(*) FROM trnInvStatus s JOIN trnINVLABPRI p ON p.BILLNO = s.BILLNO "
+             "WHERE p.ORGANISATIONCODE = ? AND p.BILLDATE >= ? AND p.BILLDATE < ? GROUP BY " + _STAGE + " ORDER BY COUNT(*) DESC", (org, a, b))
+    if not rows:
+        return _out("status", "No tests found for your organisation %s." % _label(p))
+    tot = sum(int(r[1]) for r in rows)
+    done = sum(int(r[1]) for r in rows if r[0] in _FINAL)
+    return _out("status", "Tests for %s: **%d** total, **%d** with final reports ready, **%d** still in progress or other." % (_label(p), tot, done, tot - done),
+                _tbl("Tests by stage", ["Stage", "Tests"], [[r[0], r[1]] for r in rows]), suggestions=None)
+
+
+def _tests_volume(Q, org, p):
+    a, b = _dates(p)
+    r = Q("SELECT COUNT(*), COUNT(DISTINCT d.BILLNO) FROM trnINVLABDET d JOIN trnINVLABPRI p ON p.BILLNO = d.BILLNO WHERE p.ORGANISATIONCODE = ? AND p.BILLDATE >= ? AND p.BILLDATE < ?", (org, a, b))
+    return _out("mis", "Your organisation had **%s tests** across **%s bills** %s." % (format(int(r[0][0] or 0), ","), format(int(r[0][1] or 0), ","), _label(p)) if r else "No data found.")
+
+
+def _sample_track(Q, org, q, bill):
+    if bill and str(bill).isdigit() and 6 <= len(str(bill)) <= 12:         # a sample / barcode number
+        rows = Q("SELECT TOP 20 s.BILLNO, ISNULL(m.INVNAME,s.TCODE), " + _STAGE + ", s.SAMPLECOLLECTEDDATE, s.ACKNOWLEDGEDDATE, s.RESULTENTRYDATE, s.AUTHENTICATEDATE "
+                 "FROM trnInvStatus s JOIN trnINVLABPRI p ON p.BILLNO = s.BILLNO LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = s.TCODE COLLATE DATABASE_DEFAULT "
+                 "WHERE (s.BARCODENUMBER = ? OR s.BARCODE = ?) AND p.ORGANISATIONCODE = ?", (str(bill), str(bill), org))
+        if not rows:
+            return _out("sample", "Sample **%s** was not found for your account. Please check the number, or give the bill number." % bill)
+        return _out("sample", "Sample **%s** belongs to bill **%s** (%d test%s)." % (bill, rows[0][0], len(rows), "" if len(rows) == 1 else "s"),
+                    _tbl("Sample tracking", ["Test", "Stage", "Collected", "Received at lab", "Result entered", "Report ready"],
+                         [[r[1], r[2], _d(r[3]), _d(r[4]) or "Not yet", _d(r[5]) or "Not yet", _d(r[6]) or "Not yet"] for r in rows]))
+    if re.search(r"\breject|recollect|why was|not accepted|insufficient|hemoly", q):
+        if bill:
+            if not _owned(Q, org, bill):
+                return _out("sample", "I could not find bill **%s** on your account." % bill)
+            rows = Q("SELECT TOP 20 a.INVCODE, a.SAMPLETYPE, a.REASON, a.REMARKS, a.ACKDATE, ISNULL(m.INVNAME,a.INVCODE), r.REJECTDESC FROM trnSampleLogisAcknow a "
+                     "LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = a.INVCODE COLLATE DATABASE_DEFAULT "
+                     "LEFT JOIN mstRejectReason r ON r.REJECTID COLLATE DATABASE_DEFAULT = a.REASON COLLATE DATABASE_DEFAULT WHERE a.BILLNO = ?", (bill,))
+            rej = [r for r in rows if (r[2] and str(r[2]).strip()) or (r[3] and str(r[3]).strip())]
+            if not rej:
+                return _out("sample", "No sample rejection is recorded for bill **%s**." % bill, suggestions=["Raise recollection request"])
+            return _out("sample", "Rejection / remark recorded for bill **%s**:" % bill,
+                        _tbl("Sample rejection", ["Test", "Sample", "Reason", "Remarks", "Date"], [[r[5], r[1] or "", (r[6] or r[2] or ""), r[3] or "", _d(r[4])] for r in rej]),
+                        suggestions=["Raise recollection request"])
+        rows = Q("SELECT TOP 10 a.BILLNO, ISNULL(m.INVNAME,a.INVCODE), a.REASON, a.ACKDATE FROM trnSampleLogisAcknow a "
+                 "JOIN trnINVLABPRI p ON p.BILLNO = a.BILLNO LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = a.INVCODE COLLATE DATABASE_DEFAULT "
+                 "WHERE p.ORGANISATIONCODE = ? AND a.REASON IS NOT NULL AND LTRIM(RTRIM(a.REASON)) <> '' ORDER BY a.ACKDATE DESC", (org,))
+        if not rows:
+            return _out("sample", "I found no rejected samples for your organisation recently. Share a bill number to check a specific one.")
+        return _out("sample", "Recent sample rejections for your organisation:", _tbl("Sample rejections", ["Bill", "Test", "Reason", "Date"], [[r[0], r[1], r[2], _d(r[3])] for r in rows]))
+    if not bill:
+        return _out("sample", "Please give the bill number, for example: \"Has the sample for bill ABC12345 reached the lab?\"")
+    if not _owned(Q, org, bill):
+        return _out("sample", "I could not find bill **%s** on your account." % bill)
+    rows = Q("SELECT TOP 20 ISNULL(m.INVNAME,s.TCODE), s.SAMPLECOLLECTEDDATE, s.ACKNOWLEDGEDDATE, s.STATUS FROM trnInvStatus s "
+             "LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = s.TCODE COLLATE DATABASE_DEFAULT WHERE s.BILLNO = ?", (bill,))
+    if not rows:
+        return _out("sample", "No sample movement is recorded yet for bill **%s**." % bill)
+    reached = sum(1 for r in rows if r[2])
+    return _out("sample", "Bill **%s**: %d of %d samples have reached the laboratory." % (bill, reached, len(rows)),
+                _tbl("Sample tracking", ["Test", "Collected", "Received at lab", "Status"], [[r[0], _d(r[1]), _d(r[2]) or "Not yet", r[3] or ""] for r in rows]))
+
+
+_NAME_STOP = set("is are was were there any a an the of for to by in on at from with our my your we you i me us do does did has have had been be will can could "
+                 "patient patients person people named name called come came coming visit visited visiting visits checkup checkups check up health test tests report reports "
+                 "result results status bill bills sample samples registered registration done completed ready pending today yesterday tomorrow this last week month year "
+                 "days day ago recently earlier already yet still whether if what when where which who why how many much show tell give find search look lookup "
+                 "details detail info information about regarding please sir madam mr mrs ms dr shri smt kindly update check entha ela ekkada "
+                 "hey hi hello hii that these those and or but not no yes ok okay hai kya who whom whose someone anyone somebody anybody us out off up into "
+                 "attend attended attending walked walk tested testing took taken take got get gone went going lab labs here there "
+                 "billed billing bill amount charges charged cost price paid payment account against pending outstanding balance invoice invoices credit limit "
+                 "list all show every each total count number data pls plz also then than just only some more most least best top".split())
+
+
+def _weak_name(message):
+    """A name-like word in a question without explicit patient words: capitalised (not the first word) or possessive."""
+    words = re.findall(r"[A-Za-z][A-Za-z.\-']*", message)
+    left = [w for w in re.findall(r"[A-Za-z][A-Za-z.\-]{2,}", message) if w.lower().strip(".-") not in _NAME_STOP]
+    if not left:
+        return False
+    if re.search(r"[A-Za-z]['\u2019]s\b", message):
+        return True
+    for i, w in enumerate(words):
+        core = w.strip(".-'")
+        if i > 0 and w[0].isupper() and core.lower() in [x.lower() for x in left] and not (core.isupper() and len(core) <= 4):
+            return True       # acronyms such as GST / API / CBC / TAT are not names
+    return False
+
+
+_MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def _date_range(q):
+    """'1 to 10 October' / 'from 5th-12th Sept 2026' -> (from, to_exclusive, label) or None."""
+    m = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:to|-|and|till|until)\s*(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})\b(?:\s+(20\d{2}))?", (q or "").lower())
+    if not m or m.group(3)[:3] not in _MONTHS:
+        return None
+    t = date.today()
+    y = int(m.group(4)) if m.group(4) else t.year
+    try:
+        a = date(y, _MONTHS[m.group(3)[:3]], int(m.group(1)))
+        b = date(y, _MONTHS[m.group(3)[:3]], int(m.group(2))) + timedelta(days=1)
+        if not m.group(4) and a > t:
+            a, b = a.replace(year=y - 1), b.replace(year=y - 1)
+    except ValueError:
+        return None
+    if b <= a:
+        return None
+    return a.isoformat(), b.isoformat(), "%s to %s" % (a.strftime("%d %b %Y"), (b - timedelta(days=1)).strftime("%d %b %Y"))
+
+
+def _bills_between(Q, org, a, b, label):
+    rows = Q("SELECT TOP 100 p.BILLNO, p.BILLDATE, p.Name, (SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO), "
+             "(SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO AND s.AUTHENTICATEDATE IS NOT NULL), p.TOTALCHARGES "
+             "FROM trnINVLABPRI p WHERE p.ORGANISATIONCODE = ? AND p.BILLDATE >= ? AND p.BILLDATE < ? ORDER BY p.BILLDATE, p.BILLNO", (org, a, b))
+    if not rows:
+        return _out("recent_bills", "I found no bills for your organisation from %s." % label)
+    return _out("recent_bills", "**%d** bill%s from %s." % (len(rows), "" if len(rows) == 1 else "s", label),
+                _tbl("Bills " + label, ["Bill", "Date", "Patient", "Tests", "Reports ready", "Billed amount"],
+                     [[r[0], _d(r[1]), r[2], r[3], "%s of %s" % (r[4], r[3]), _inr(r[5])] for r in rows]),
+                suggestions=["Status of bill " + str(rows[0][0])])
+
+
+def _recent_bills(Q, org, q):
+    m = re.search(r"\b(?:top|last|latest|recent|newest|first)\s+(\d{1,3})\b|\b(\d{1,3})\s+(?:recent|latest|newest|last)\b", q)
+    n = int(next(g for g in m.groups() if g)) if m else 10
+    n = max(1, min(n, 50))
+    rows = Q("SELECT TOP " + str(n) + " p.BILLNO, p.BILLDATE, p.Name, (SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO), "
+             "(SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO AND LOWER(ISNULL(s.STATUS,'')) LIKE 'authent%'), p.TOTALCHARGES "
+             "FROM trnINVLABPRI p WHERE p.ORGANISATIONCODE = ? AND p.BILLDATE >= DATEADD(month,-6,GETDATE()) ORDER BY p.BILLDATE DESC, p.BILLNO DESC", (org,))
+    if not rows:
+        return _out("recent_bills", "I found no bills for your organisation in the last 6 months.")
+    return _out("recent_bills", "Your **%d** most recent bills (newest first)." % len(rows),
+                _tbl("Recent bills", ["Bill", "Date", "Patient", "Tests", "Reports ready", "Billed amount"],
+                     [[r[0], _d(r[1]), r[2], r[3], "%s of %s" % (r[4], r[3]), _inr(r[5])] for r in rows]),
+                suggestions=["Status of bill " + str(rows[0][0]), "Report PDF " + str(rows[0][0])])
+
+
+def _patient_lookup(Q, org, message, strict=True, toks=None):
+    toks = list(toks) if toks else [w for w in re.findall(r"[A-Za-z][A-Za-z.\-]{2,}", message) if w.lower().strip(".-") not in _NAME_STOP][:3]
+    if not toks:
+        return None
+    ml = message.lower()
+    # what is being asked decides what is shown (no test table unless the question is about status / tests)
+    if re.search(r"\b(status|ready|pending|authenticated|progress|processed|completed|result|results|report|reports)\b", ml):
+        want = "status"
+    elif re.search(r"\b(which|what) tests?\b|\btests? (done|taken|ordered|booked|included)\b|\binvestigations?\b|\bwhat was done\b", ml):
+        want = "tests"
+    elif re.search(r"\b(amount|charges?|cost|bill value|how much|billed|price|paid)\b", ml):
+        want = "amount"
+    elif re.search(r"\b(came|come|visit(ed)?|attended|walk(ed)? in|registered|any|anyone|there)\b", ml) and not re.search(r"\b(info|information|details?|about|tell)\b", ml):
+        want = "visit"
+    else:
+        want = "info"
+    where = " AND ".join(["p.Name LIKE ?"] * len(toks))
+    params = (org,) + tuple("%" + w.strip(".-").replace("%", "").replace("[", "") + "%" for w in toks)
+    rows = Q("SELECT TOP 15 p.BILLNO, p.BILLDATE, p.Name, (SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO), "
+             "(SELECT COUNT(*) FROM trnInvStatus s WHERE s.BILLNO = p.BILLNO AND LOWER(ISNULL(s.STATUS,'')) LIKE 'authent%'), p.TOTALCHARGES "
+             "FROM trnINVLABPRI p WHERE p.ORGANISATIONCODE = ? AND p.BILLDATE >= DATEADD(month,-12,GETDATE()) AND " + where + " ORDER BY p.BILLDATE DESC", params)
+    nm = " ".join(w.strip(".-") for w in toks)
+    if not rows:
+        if not strict:
+            return None
+        return _out("patient", "I could not find any patient matching **%s** among your organisation's bills in the last 12 months. Please check the spelling, or give the bill number." % nm)
+    names = sorted({str(r[2]) for r in rows})
+    latest = str(rows[0][0])
+    head = "Found **%d** visit%s for **%s** in the last 12 months. Most recent: bill **%s** on **%s**." % (len(rows), "" if len(rows) == 1 else "s", ", ".join(names[:3]), latest, _d(rows[0][1]))
+    sug = ["Status of bill " + latest, "Tests in bill " + latest, "Report PDF " + latest]
+    if want == "visit":
+        return _out("patient", "Yes - " + head[0].lower() + head[1:], _tbl("Visits", ["Bill", "Date", "Patient"], [[r[0], _d(r[1]), r[2]] for r in rows]), suggestions=sug)
+    if want == "amount":
+        tot = sum(float(r[5] or 0) for r in rows)
+        return _out("patient", head + " Total billed across these visits: **%s**." % _inr(tot),
+                    _tbl("Billed amount", ["Bill", "Date", "Patient", "Billed amount"], [[r[0], _d(r[1]), r[2], _inr(r[5])] for r in rows]), suggestions=sug[:2])
+    if want == "tests":
+        tl = Q("SELECT ISNULL(m.INVNAME, s.TCODE) FROM trnInvStatus s LEFT JOIN mstInvestigations m ON m.INVCODE COLLATE DATABASE_DEFAULT = s.TCODE COLLATE DATABASE_DEFAULT WHERE s.BILLNO = ?", (latest,))
+        out = _out("patient", head + " Tests on the latest bill: **%d**." % len(tl), _tbl("Tests on bill " + latest, ["#", "Test"], [[i + 1, r[0]] for i, r in enumerate(tl[:60])]),
+                   suggestions=["Status of bill " + latest, "Report PDF " + latest])
+        return out
+    if want == "status":
+        out = _out("patient", head, _tbl("Matching bills", ["Bill", "Date", "Patient", "Tests", "Reports ready"], [[r[0], _d(r[1]), r[2], r[3], r[4]] for r in rows]), suggestions=["Report PDF " + latest])
+        if len(names) == 1:
+            try:
+                st = _status_for_bill(Q, org, latest)
+                if st.get("table"):
+                    out["table2"] = st["table"]
+            except Exception:
+                pass
+        return out
+    return _out("patient", head, _tbl("Patient summary", ["Bill", "Date", "Patient", "Tests", "Billed amount", "Reports ready"],
+                                      [[r[0], _d(r[1]), r[2], r[3], _inr(r[5]), "%s of %s" % (r[4], r[3])] for r in rows]), suggestions=sug)
+
+
+# ----------------------------------------------------------------------------------------------- router
+_NO_PDF = re.compile(r"\breport pdf\b|\bdownload excel\b|\bexcel\b")
+
+
+_PRICEY = re.compile(r"\b(price|prices|rate|rates|cost|charges?|how much|tariff|mrp|available|availability|code|tat|turnaround|fasting|in-?house|outsourc|ready|profile)\b")
+
+
+def _entity(Q, org, message, q, R):
+    """The question has words no fixed handler knows (a name, a test name, a typo). Resolve them as a test or a patient of THIS
+    organisation; if neither exists, return the marker that sends the whole question to the AI."""
+    order = ("test", "patient") if _PRICEY.search(q) else ("patient", "test")
+    for kind in order:
+        try:
+            if kind == "test":
+                r = _test_answer(Q, org, q, "avail" if re.search(r"\bavailab|offered\b", q) else "info", soft=True, terms=([" ".join(R)] + (R if len(R) > 1 else [])) if len(R) <= 4 else None)
+            else:
+                r = _patient_lookup(Q, org, message, strict=False, toks=R[:3]) if len(R) <= 3 else None
+        except Exception as e:
+            print("[b2b assist] entity", kind, type(e).__name__, str(e)[:120], flush=True)
+            r = None
+        if r is not None:
+            return r
+    return {"_to_llm": True, "unknown": R}
+
+
+def route(Q: Callable, inst, contact, org_name, message, body_period="this_month", ticket_ok=True, strict=True):
+    """Pure routing (Q(sql, params) -> rows is injected, so it can be tested without a database)."""
+    q = re.sub(r"\s+", " ", (message or "").lower()).strip()
+    if not q or _NO_PDF.search(q):
+        return None
+    org = str(contact.get("organisation_code"))
+    p = _period(q, body_period if body_period in ("today", "yesterday", "last_7_days", "this_month", "last_month") else "this_month")
+    bill = _bill_no(message)
+
+    if strict:
+        try:
+            from auth.b2b_gate import is_exact
+            if not is_exact(message, bill):          # strict: only fixed questions / templates use fixed answers; all else is understood by the AI
+                return {"_to_llm": True, "unknown": []}
+        except ImportError:
+            pass
+    if strict:        # strict intents: one unknown / misspelt word -> resolve as a test or patient of this organisation, else the AI
+        try:
+            from auth.b2b_gate import residual
+            _R = residual(q, bill, message)
+        except Exception:
+            _R = []
+        if _R:
+            return _entity(Q, org, message, q, _R)
+
+    _dr = _date_range(q)
+    if _dr and re.search(r"\b(bills?|invoices?|orders?)\b", q):
+        return _bills_between(Q, org, *_dr)
+    if re.search(r"\b(recent|latest|newest|last \d+|top \d+|\d+ (recent|latest|newest))\b", q) and re.search(r"\b(bills?|invoices?|orders?|visits?|patients?)\b", q) \
+            and not re.search(r"\b(month|months|week|weeks|year|quarter|days?|total|amount|outstanding|pending|due|how many|count)\b", q):
+        return _recent_bills(Q, org, q)
+
+    try:        # operational analytics (pending / delayed / rejection / top tests / branch / trend / TAT / invoices)
+        from auth.b2b_assist2 import route2
+        _r2 = route2(Q, org, q, p, bill)
+        if _r2 is not None:
+            return _r2
+    except ImportError:
+        pass
+
+    # information first when the question is clearly a lookup
+    if re.search(r"\b(contract|agreement|validity|valid till|renewal date|client code|account status|agreed discount|discount|rate contract)\b", q) and not re.search(r"\brenew(al)? request|raise\b", q):
+        return _contract(Q, org)
+    if re.search(r"\b(outstanding|balance|credit limit|credit period|available credit|credit (is )?available|how much credit|payment|paid|received|statement|reconcil|ledger|tds|credit note|debit note|credit adjustment|pending (amount|payment|against)|how much (do we owe|is pending|is due)|dues?)\b", q) \
+            and not re.search(r"\b(report|sample|test|result)s?\b.*\b(pending|ready)\b", q):
+        return _account_answer(Q, org, q, p)
+    if (re.search(r"\b(sample|samples|specimen|vial|barcode)\b", q) and re.search(r"\b(reach|reached|receiv|arriv|track|where|status|collected|dispatch|reject|recollect|why was)\w*", q)) \
+            or (bill and re.search(r"\btrack(ing|ed)?\b|\bwhere is\b", q) and not re.search(r"\breport\b", q)):
+        return _sample_track(Q, org, q, bill)
+    if re.search(r"\b(included|includes|include|contains?|inside|components?|what.s in)\b", q) and re.search(r"\b(profile|package|panel|checkup|check-up)\b", q):
+        return _package_contents(Q, org, q)
+    if re.search(r"\b(packages?|health[- ]?checks?|checkups?|corporate packages)\b", q) and re.search(r"\b(what|which|list|available|show|offer)\b", q):
+        return _package_list(Q, org, q)
+    if not bill and not re.search(r"\b(patient|patients|came|come|visit(ed)?|check ?up|health ?check|registered)\b", q) and _weak_name(message):
+        _pw = _patient_lookup(Q, org, message, strict=False)
+        if _pw is not None:
+            return _pw
+    if bill and re.search(r"\b(tests?|investigations?)\b.*\b(in|on|of|for)\b.*\bbill\b|\bwhat tests\b", q) and not re.search(r"\b(status|ready|progress)\b", q):
+        return _tests_in_bill(Q, org, bill)
+    if bill and re.fullmatch(r"\s*[a-z]{2,5}\s?\d{6,12}\s*", q):
+        return _status_for_bill(Q, org, bill)
+    if bill and re.search(r"\b(status|ready|where|track|progress|update)\b", q) and not re.search(r"\b(sample|reject)", q):
+        return _status_for_bill(Q, org, bill)
+    if re.search(r"\bwhen will\b.*\bready\b", q) and not bill:
+        return _test_answer(Q, org, q, "info")
+    if re.search(r"\b(status|ready|pending|completed|done|processed|authenticated|released)\b", q) and re.search(r"\b(report|reports|test|tests|result|results|sample)\b", q) \
+            and not re.search(r"in-?house|outsourc", q):
+        if re.search(r"\b(how many tests|tests (done|processed)|test volume|volume)\b", q):
+            return _tests_volume(Q, org, p)
+        return _status_for_bill(Q, org, bill) if bill else _status_for_period(Q, org, p)
+    if re.search(r"\b(how many tests|tests (done|processed|performed)|test volume|monthly test|daily test|mis\b)", q):
+        return _tests_volume(Q, org, p)
+
+    if re.search(r"\b(patient|patients|person|came|come|visit(ed)?|check ?up|health ?check|registered|walk(ed)? in|attended|tested|test(s)? (of|for)|report (of|for)|result(s)? (of|for)|bill (of|for)|sample (of|from))\b", q) \
+            and not bill and not re.search(r"\b(how many|total|count|number of|list of all|all patients|every patient)\b", q):
+        _pl = _patient_lookup(Q, org, message)
+        if _pl is not None:
+            return _pl
+
+    t = classify_ticket(message)
+    if not t and re.match(r"(raise|log|create|submit|register)\b", q):
+        t = ("General request", "Normal", "I have raised your request.")
+    if t and ticket_ok:
+        cat, pri, reply = t
+        no, err = create_ticket(inst, contact, org_name, cat, pri, message, bill)
+        if err:
+            return _out("ticket", err)
+        return _out("ticket", "%s Your ticket number is **%s** (%s priority). Our team will contact you on your registered number%s." %
+                    (reply, no, pri.lower(), (" about bill " + bill) if bill else ""), ticket=no)
+
+    if re.search(r"\b(available|availability|test code|code for|tat|turnaround|how long|when will .*ready|fasting|prepar|sample type|in-?house|outsourc|price|rate|cost|charges?)\b", q) \
+            or re.search(r"\b(is|are) .{1,60}(available|offered|done|processed)\b", q):
+        return _test_answer(Q, org, q, "avail" if re.search(r"\bavailab|offered\b", q) else "info")
+    return None
+
+
+_FOLLOW = {
+    "test_enquiry": ["Show health packages", "Raise a special rate request", "Outstanding balance"],
+    "packages": ["What is included in <package name>", "Raise a special rate request"],
+    "package_contents": ["Show health packages", "Raise a special rate request"],
+    "status": ["Which tests are still pending?", "Which orders are likely to be delayed?"],
+    "pending": ["Which orders are likely to be delayed?", "Raise a delay complaint"],
+    "recent_bills": ["Which tests are still pending?", "Billing total this month"],
+    "outstanding": ["Billing statement", "Which invoices are unpaid?"],
+    "credit": ["Outstanding balance", "When is the next payment due?"],
+    "payments": ["Outstanding balance", "Billing statement"],
+    "sample": ["Which tests are still pending?", "Raise a recollection request"],
+    "patient": ["Which tests are still pending?", "Top 10 recent bills"],
+    "clarify": ["Price of CBC", "Outstanding balance", "Top 10 recent bills"],
+    "ai_support": ["Top 10 recent bills", "Outstanding balance", "Show health packages"],
+}
+
+
+def _polish(r):
+    """Every answer ends with sensible next questions (never overwrites ones a handler already set)."""
+    try:
+        if isinstance(r, dict) and not r.get("suggestions") and r.get("intent") in _FOLLOW and r.get("intent") != "ticket":
+            r["suggestions"] = _FOLLOW[r["intent"]]
+    except Exception:
+        pass
+    return r
+
+
+def try_answer(inst, contact, message, period="this_month", history=None):
+    """Called by the B2B chat endpoint after authentication. Returns a response dict or None."""
+    from auth.b2b_portal import _lis, _org_name
+
+    def Q(sql, params=()):
+        from auth.b2b_gate import check_readonly
+        check_readonly(sql)
+        conn = _lis(inst)
+        try:
+            cur = conn.execute(sql, params)
+            return cur.fetchall()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    try:
+        name = None
+        try:
+            name = _org_name(inst, contact.get("organisation_code"))
+        except Exception:
+            pass
+        try:
+            r = route(Q, inst, contact, name, message, period)
+        except Exception as e1:
+            try:
+                from fastapi import HTTPException
+                if isinstance(e1, HTTPException):
+                    raise
+            except ImportError:
+                pass
+            print("[b2b assist] handler error -> AI:", type(e1).__name__, str(e1)[:200], flush=True)
+            r = {"_to_llm": True, "unknown": [], "error": True}
+        if r is None and not _NO_PDF.search(re.sub(r"\s+", " ", (message or "").lower())):
+            r = {"_to_llm": True, "unknown": []}      # no fixed handler understood it: never let the old generic intents guess
+        if isinstance(r, dict) and r.get("_to_llm"):
+            try:        # unknown / misspelt words: the AI (with safe, organisation-bound lookup tools) answers
+                from auth.b2b_llm import answer
+                a = answer(inst, contact, message, history)
+                if a is not None:
+                    return a
+            except Exception as e2:
+                try:
+                    from fastapi import HTTPException
+                    if isinstance(e2, HTTPException):
+                        raise
+                except ImportError:
+                    pass
+                print("[b2b assist] llm failed:", type(e2).__name__, str(e2)[:160], flush=True)
+            if r.get("error"):
+                return _out("clarify", "I could not fetch that reliably right now, so I will not guess. Please try again in a moment, or type \"raise a support request\".",
+                            suggestions=["Raise a support request"])
+            return _out("clarify", "I could not find a reliable answer to that, so I will not guess. Please check the spelling, or give a bill number, patient name or test name.",
+                        suggestions=["Price of CBC", "Outstanding balance", "Status of my reports this month", "Raise a support request"])
+        return _polish(r)
+    except Exception as e:
+        try:
+            from fastapi import HTTPException
+            if isinstance(e, HTTPException):
+                raise
+        except ImportError:
+            pass
+        print("[b2b assist] fell back:", type(e).__name__, str(e)[:200], flush=True)
+        if _NO_PDF.search(re.sub(r"\s+", " ", (message or "").lower())):
+            return None
+        return _out("clarify", "I could not fetch that reliably right now, so I will not guess. Please try again in a moment, or type \"raise a support request\".",
+                    suggestions=["Raise a support request"])

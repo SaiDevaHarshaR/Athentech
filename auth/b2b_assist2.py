@@ -91,7 +91,14 @@ def _billing_total(Q, org, p):
     a, b = _dates(p)
     r = Q("SELECT COUNT(DISTINCT BILLNO), SUM(CAST(ISNULL(TOTALCHARGES,0) AS FLOAT)) FROM trnINVLABPRI WHERE ORGANISATIONCODE = ? AND BILLDATE >= ? AND BILLDATE < ?", (org, a, b))
     n, v = (int(r[0][0] or 0), float(r[0][1] or 0)) if r else (0, 0.0)
-    return _out("billing_total", "Your billed total %s: **%s** across **%s** bills. This is billed value, not cash received." % (_label(p), _inr(v), format(n, ",")),
+    got = None
+    try:
+        pr = Q("SELECT SUM(CAST(ISNULL(PaidAmt,0) AS FLOAT)), COUNT(*) FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 AND PayDate >= ? AND PayDate < ?", (org, a, b))
+        got = (float(pr[0][0] or 0), int(pr[0][1] or 0)) if pr else None
+    except Exception:
+        got = None
+    rec = (" Amount received %s: **%s** (%d payment%s)." % (_label(p), _inr(got[0]), got[1], "" if got[1] == 1 else "s")) if got else ""
+    return _out("billing_total", "Your billed total %s: **%s** across **%s** bills (billed value, not cash).%s" % (_label(p), _inr(v), format(n, ","), rec),
                 suggestions=["Billing statement", "Download Excel"])
 
 

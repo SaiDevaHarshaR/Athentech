@@ -24,9 +24,11 @@ _MODALITY_CASE = (
     "WHEN i.INVNAME LIKE '%ULTRASOUND%' OR i.INVNAME LIKE '%USG%' OR i.INVNAME LIKE '%SONOGRAPHY%' THEN 'Ultrasound' "
     "WHEN i.INVNAME LIKE '%MAMMO%' THEN 'Mammography' WHEN i.INVNAME LIKE '%DOPPLER%' THEN 'Doppler' "
     "WHEN i.INVNAME LIKE '%ECHO%' THEN 'Echo' "
+    "WHEN i.INVNAME LIKE '%CLOTT%' OR i.INVNAME LIKE '%BLEEDING%' OR i.INVNAME LIKE '%COAGUL%' OR i.INVNAME LIKE '%CLOT TIME%' THEN NULL "
     "WHEN i.INVNAME LIKE 'CT %' OR i.INVNAME LIKE '% CT %' OR i.INVNAME LIKE '% CT' OR i.INVNAME LIKE 'CT-%' "
-    "OR i.INVNAME LIKE '% CT-%' OR i.INVNAME LIKE '%(CT)%' OR i.INVNAME LIKE '%CT SCAN%' "
-    "OR i.INVNAME LIKE '%COMPUTED TOMO%' OR i.INVNAME = 'CT' THEN 'CT' "
+    "OR i.INVNAME LIKE '% CT-%' OR i.INVNAME LIKE '%CT SCAN%' "
+    "OR i.INVNAME LIKE '%COMPUTED TOMO%' OR i.INVNAME = 'CT' "
+    "OR i.INVNAME LIKE '%HRCT%' OR i.INVNAME LIKE '%NCCT%' OR i.INVNAME LIKE '%CECT%' OR i.INVNAME LIKE '%CT[0-9]%' THEN 'CT' "
     "ELSE NULL END"
 )
 _MODALITY_NAMES = {"ct": "CT", "mri": "MRI", "xray": "X-Ray", "x-ray": "X-Ray", "x ray": "X-Ray",
@@ -90,7 +92,7 @@ def build_sql(metric, group_by, d0, d1, f, p, top, self_mode=None):
 
     if metric in ("revenue", "refunds"):
         if group_by in ("doctor", "test", "department", "status", "modality"):
-            raise ValueError(f"'{group_by}' is not available for {metric} (collection rows have no {group_by}); use metric bill_value/bills/tests.")
+            raise ValueError(f"Revenue/refunds cannot be split by {group_by}: money is recorded per bill and payment mode, not per test. Do not try SQL for it. Tell the user this plainly and offer test COUNTS by {group_by} (metric tests) or revenue by branch/day/mode.")
         if f.get("doctor") or f.get("test") or f.get("department") or f.get("status") or f.get("modality"):
             raise ValueError(f"Filters other than branch are not available for {metric}.")
         base = "FROM trnMODEOFCOLLECTIONSDET m"
@@ -337,12 +339,24 @@ def run_report(
             if srow and srow[1]:
                 extra = f" · Self/walk-in excluded from list: {_fmt(srow[1], kind)}"
         total = sum(float(r[1] or 0) for r in rows if r[1] is not None)
+        shown_note = ""
+        if group_by not in ("day", "month", "none") and metric != "avg_bill" and len(rows) >= max(1, min(int(top_n or 15), 50)):
+            try:
+                tsql, tparams, _ts, _tk = build_sql(metric, "none", d0, d1, filters, p, 1, self_mode=sm)
+                cur.execute(tsql, tparams)
+                trow = cur.fetchone()
+                if trow and trow[1] is not None:
+                    shown_note = f" · showing top {len(rows)} (top {len(rows)} sum {_fmt(total, kind)})"
+                    total = float(trow[1])
+            except Exception:
+                shown_note = f" · showing top {len(rows)} only"
+                total = None
         if group_by == "none":
             card = {"icon": "📊", "title": what.title(), "subtitle": f"{label} · {scope}",
                     "stats": [{"label": "TOTAL", "value": _fmt(rows[0][1], kind)}],
                     "footer": {"label": "Source", "value": src}}
             return "```dashboard-card\n" + json.dumps(card) + "\n```"
-        intro = f"{label} · {scope}" + (f" · total {_fmt(total, kind)}" if metric != "avg_bill" else "") + extra
+        intro = f"{label} · {scope}" + (f" · total {_fmt(total, kind)}" if (metric != "avg_bill" and total is not None) else "") + shown_note + extra
         card = {"icon": "📊", "title": what.title(), "intro": intro,
                 "items": [{"primary": str(r[0]), "fields": [_fmt(r[1], kind)]} for r in rows],
                 "footer": {"label": "Source", "value": src}}

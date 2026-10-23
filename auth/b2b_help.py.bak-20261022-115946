@@ -1,0 +1,54 @@
+"""Portal how-to answers (fixed text, no database, no AI) + public-chat sign-in / contact answers."""
+import re
+
+_CONTACT = {"CM": "**Centromed Labs customer care**\n- Phone: **040-35162093**\n- Email: **customercare@centromedlabs.com**"}
+_COMPLAINT = "You can also raise a complaint or request yourself from **Complaints & requests** in the portal."
+
+
+def _n(m):
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", (m or "").lower())).strip()
+
+
+def b2b_help(message, client=None):
+    """-> answer text or None. Only portal how-to questions; never reads data."""
+    q = _n(message)
+    if not q or re.search(r"\b[a-z]{2,5} ?\d{6,12}\b", q) and not re.search(r"\b(why|cant|cannot|unable)\b", q):
+        return None
+    if re.search(r"\b(forgot|forget|reset|lost|change)\b.*\bpassword\b|\bpassword\b.*\b(forgot|reset|lock|locked|wrong|not working)\b|\b(account|login|user)\b.*\block(ed)?\b|\blocked out\b|\bcant (log ?in|login|sign in)\b", q):
+        return ("**Forgot password:** use **Forgot password** on the login page; an OTP is sent on **WhatsApp** to your registered number - enter it and set a new password.\n\n"
+                "**Account locked:** after **3 wrong passwords** the account is locked for **30 minutes**. Wait 30 minutes and try again, or use Forgot password.")
+    if re.search(r"\bletter ?head\b", q):
+        return ("**With letterhead** - the report is printed on the lab's header/footer format (use it for sending to patients or doctors).\n"
+                "**Without letterhead** - plain results only, for printing on your own pre-printed stationery.\n\n"
+                "You choose the option when you download or print the report from **Sample status**.")
+    if re.search(r"\b(download|print)\b.*\b(reports?|together|multiple|many|\d+)\b.*\b(together|one go|at once|of one bill|bill|multiple|selected)\b|\bdownload (selected|multiple|many|\d+ reports)\b|\bbulk download\b", q):
+        return ("1. Open **Sample status** and find the bill.\n2. **Tick** the reports you want.\n3. Click **Download selected**.\n4. Choose **with / without letterhead**.\n\n"
+                "Reports are available once they are authenticated. If a bill has dues beyond your credit limit, printing is blocked until the dues are cleared.")
+    if re.search(r"\b(why|cant|cannot|unable|not able|wont|isnt)\b.*\b(print|download)\b|\b(print|download)\b.*\b(blocked|disabled|not allowed|not working|greyed)\b", q):
+        return ("Printing/downloading is blocked when the bill is **not yet authenticated**, or when your account has **dues above the credit limit**. "
+                "The same message appears on the **Print** button.\n\nCheck **Dashboard > Account balance**, clear the dues with **Pay online (PayU)** or contact the lab, and then print again. "
+                "To see the stage of a bill, type its bill number.")
+    if re.search(r"\b(material )?indent\b", q) and re.search(r"\b(raise|create|place|make|how|new|submit)\b", q):
+        return "Open **Material indent** in the portal, add the items and quantities you need, and submit. The lab receives your indent and dispatches the material."
+    if re.search(r"\b(complaint|complain|contact (the )?lab|customer care|helpline|support number|escalat)\b", q):
+        return (_CONTACT.get((client or "").upper(), "Please use the contact details on the lab's website.") + "\n\n" + _COMPLAINT)
+    return None
+
+
+def public_answer(question, client=None):
+    """Public (not signed-in) chat: contact details + 'please sign in' for anything about accounts / bills / patients / B2B rates."""
+    q = _n(question)
+    if not q:
+        return None
+    acct = (re.search(r"\b[a-z]{2,5} ?\d{6,12}\b", q)
+            or re.search(r"\b(outstanding|balance|credit limit|b2b rate|my rate|rate card|agreed rate|my bills?|my reports?|my samples?|work orders?|payments? history|statement)\b", q)
+            or re.search(r"\b(status|track|tracking|ready|reports?)\b.*\b(patient|bill|sample|barcode)\b|\bpatient [a-z]+\b.*\b(report|status|result)s?\b|\b(show|list)\b.*\breports?\b.*\bpatient\b", q)
+            or re.search(r"\b[a-z]{3,6}[a-z]{0,3}\d{2,5}\b'?s? (outstanding|balance)\b", q))
+    if acct:
+        return ("This information is private to a verified account. **Please sign in** with the Corporate (B2B) login on this page and ask again - "
+                "I can then show your bill and sample status, outstanding balance and your agreed rates.")
+    if re.search(r"\b(contact|phone|call|email|e mail|mail us|support|customer care|helpline|complaint|reach)\b", q):
+        c = _CONTACT.get((client or "").upper())
+        if c:
+            return c + "\n\n" + _COMPLAINT.replace("in the portal", "after signing in")
+    return None

@@ -1,0 +1,902 @@
+"""Sahasra white-label B2B: registered corporate phone -> SMS OTP -> org-scoped, SELECT-only reports.
+
+All B2B identity/session tables live in the AthenTech admin database.
+No user-entered organization code or phone number is ever used as an authorization scope.
+The institution-specific LIS credentials come exclusively from the trusted admin registry.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import io
+import json
+import os
+import re
+import secrets
+import threading
+import time
+from collections import defaultdict, deque
+from datetime import date, datetime, timedelta
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request as URLRequest, urlopen
+from base64 import b64encode
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse, Response
+from pydantic import BaseModel, Field
+
+from auth.secrets_crypto import decrypt_secret, encrypt_secret
+from database.license_db import get_conn
+from database.connection import get_hospital_connection
+
+# The default deployment refuses to issue OTPs until a real provider is configured.
+TWILIO_URL = "https://verify.twilio.com/v2/Services/"
+OTP_WINDOW = 600
+SESSION_HOURS = 8
+_lock = threading.Lock()
+_hits = defaultdict(deque)
+
+
+def _utc():
+    return datetime.utcnow()
+
+
+def _dict(row):
+    if row is None:
+        return None
+    if hasattr(row, "items"):
+        return dict(row.items())
+    raise RuntimeError("Admin database must provide named columns")
+
+
+def _phone(value):
+    """International E.164; 10 digits without country code are treated as India (+91)."""
+    p = re.sub(r"[\s().-]", "", (value or ""))
+    if re.fullmatch(r"[6-9]\d{9}", p):
+        p = "+91" + p
+    if not re.fullmatch(r"\+[1-9]\d{7,14}", p):
+        raise HTTPException(400, "Enter a mobile number with country code, such as +91XXXXXXXXXX.")
+    return p
+
+
+def _rate(kind, ip, institution, phone, max_attempts, window=OTP_WINDOW):
+    """Additional in-process limit; Twilio Verify supplies provider-side anti-abuse controls."""
+    key = (kind, str(ip)[:100], int(institution), hashlib.sha256(phone.encode()).hexdigest())
+    now = time.monotonic()
+    with _lock:
+        bucket = _hits[key]
+        while bucket and now - bucket[0] >= window:
+            bucket.popleft()
+        if len(bucket) >= max_attempts:
+            raise HTTPException(429, "Too many attempts. Please try again later.")
+        bucket.append(now)
+        if len(_hits) > 5000:  # [b2b-reliability-v1] drop expired buckets
+            for k in [k for k, b in _hits.items() if not b or now - b[-1] >= 3600]:
+                _hits.pop(k, None)
+
+
+def _ensure_tables(cur):
+    # Called using a standalone admin DB connection; never in a client LIS connection.
+    cur.execute("""
+IF OBJECT_ID('dbo.sahasra_b2b_contacts', 'U') IS NULL
+CREATE TABLE dbo.sahasra_b2b_contacts (
+    id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    institution_id INT NOT NULL,
+    organisation_code NVARCHAR(80) NOT NULL,
+    contact_name NVARCHAR(120) NOT NULL,
+    phone_e164 NVARCHAR(20) NOT NULL,
+    active BIT NOT NULL DEFAULT 1,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    created_by NVARCHAR(100) NULL,
+    CONSTRAINT UQ_sahasra_b2b_phone UNIQUE (institution_id, phone_e164)
+)
+""")
+    cur.execute("""
+IF OBJECT_ID('dbo.sahasra_b2b_test_otp', 'U') IS NULL
+CREATE TABLE dbo.sahasra_b2b_test_otp (
+    institution_id INT NOT NULL,
+    contact_id INT NOT NULL,
+    code_hash CHAR(64) NOT NULL,
+    encrypted_code NVARCHAR(600) NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    consumed BIT NOT NULL DEFAULT 0,
+    PRIMARY KEY (institution_id, contact_id)
+)
+""")
+    cur.execute("""
+IF OBJECT_ID('dbo.sahasra_b2b_sessions', 'U') IS NULL
+CREATE TABLE dbo.sahasra_b2b_sessions (
+    id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    contact_id INT NOT NULL,
+    institution_id INT NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    revoked BIT NOT NULL DEFAULT 0,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+)
+""")
+
+
+def initialize_b2b():
+    """Create app-owned tables, fail visibly if admin database is not ready."""
+    conn = get_conn()
+    try:
+        _ensure_tables(conn.cursor())
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise
+    finally:
+        conn.close()
+
+
+def _admin_conn():
+    conn = get_conn()
+    return conn
+
+
+def _institution_by_prefix(prefix):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,50}", prefix or ""):
+        return None
+    conn = _admin_conn()
+    try:
+        row = conn.execute("SELECT * FROM institutions WHERE UPPER(client_prefix) = ?",
+                           (prefix.upper(),)).fetchone()
+        return _dict(row)
+    finally:
+        conn.close()
+
+
+def _institution_by_id(institution_id):
+    conn = _admin_conn()
+    try:
+        return _dict(conn.execute("SELECT * FROM institutions WHERE id = ?", (institution_id,)).fetchone())
+    finally:
+        conn.close()
+
+
+def _b2b_enabled(inst):
+    if not inst or str(inst.get("status") or "").lower() != "active":
+        return False
+    from auth.whitelabel import get_config
+    cfg = get_config(int(inst["id"]))
+    return bool(cfg["configured"] and cfg["enabled"] and cfg["b2b_enabled"])
+
+
+def _lis(inst):
+    if not inst or not inst.get("db_name"):
+        raise HTTPException(503, "Institution database is not configured.")
+    encrypted = inst.get("db_password")
+    password = decrypt_secret(encrypted) if encrypted else None
+    conn = get_hospital_connection(inst["db_name"], inst.get("db_server"), inst.get("db_user"), password)
+    if conn is None:
+        raise HTTPException(503, "Institution database is temporarily unavailable.")
+    return conn
+
+
+def _org_name(inst, org_code):
+    conn = _lis(inst)
+    try:
+        row = conn.execute("SELECT TOP 1 ORGANISATIONNAME FROM mstOrganisation WHERE ORGANISATIONCODE = ?",
+                           (org_code,)).fetchone()
+        return str(row[0]) if row else None
+    except Exception:
+        raise HTTPException(422, "Cannot verify organisation in this LIS schema. Ask support to configure its mapping.")
+    finally:
+        conn.close()
+
+
+def _org_name_safe(inst, org_code):
+    try:
+        return _org_name(inst, org_code)
+    except Exception:
+        return None
+
+
+def _contact(inst_id, phone):
+    conn = _admin_conn()
+    try:
+        return _dict(conn.execute("SELECT TOP 1 * FROM dbo.sahasra_b2b_contacts WHERE institution_id=? AND phone_e164=? AND active=1",
+                                  (inst_id, phone)).fetchone())
+    finally:
+        conn.close()
+
+
+def _twilio(path, form):
+    account = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    service = os.environ.get("TWILIO_VERIFY_SERVICE_SID", "")
+    if not re.fullmatch(r"VA[0-9a-fA-F]{32}", service) or not account or not token:
+        raise HTTPException(503, "SMS verification is not yet configured. Contact the institution administrator.")
+    headers = {
+        "Authorization": "Basic " + b64encode((account + ":" + token).encode()).decode(),
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    req = URLRequest(TWILIO_URL + service + "/" + path,
+                     data=urlencode(form).encode(), headers=headers, method="POST")
+    try:
+        with urlopen(req, timeout=12) as response:
+            return json.loads(response.read(8192))
+    except HTTPError as err:
+        # Never show OTP provider credentials, phone or error body to the client.
+        if err.code == 429:
+            raise HTTPException(429, "SMS service is busy. Please try again later.")
+        if err.code in (400, 404) and path == "VerificationCheck":
+            return {"status": "expired"}
+        raise HTTPException(502, "SMS provider could not complete verification. Contact support.")
+    except (URLError, TimeoutError, ValueError, OSError):
+        raise HTTPException(503, "SMS provider is temporarily unreachable.")
+
+
+def _testreg():
+    """Test-phase switch: B2B_TEST_REGISTER=1 enables /register and on-screen test codes. Never set in production."""
+    return (os.environ.get("B2B_TEST_REGISTER", "") == "1"
+            or os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "b2b_test_register.txt")))
+
+
+def _test_otp_mode():
+    """Explicit staging-only feature gate; refuses to run in production."""
+    if _testreg():
+        return True
+    environment = os.environ.get("SAHASRA_ENV", "").strip().lower()
+    return (environment in ("development", "staging", "test")
+            and os.environ.get("B2B_TEST_OTP_ENABLED", "") == "1")
+
+
+def _otp_delivery():
+    mode = os.environ.get("B2B_OTP_PROVIDER", "twilio").strip().lower()
+    if mode == "test" and not _test_otp_mode():
+        raise HTTPException(503, "Test verification is disabled outside an explicitly enabled test environment.")
+    if mode not in ("test", "twilio"):
+        raise HTTPException(503, "WhatsApp verification provider is not configured yet.")
+    return mode
+
+
+def _make_test_otp(institution_id, contact_id):
+    """Store encrypted short-lived OTP in the admin DB, never in a public response."""
+    code = f"{secrets.randbelow(1000000):06d}"
+    encrypted = encrypt_secret(code)
+    if not encrypted.startswith("enc::"):
+        raise RuntimeError("Encrypted OTP storage was not configured.")
+    digest = hashlib.sha256(code.encode()).hexdigest()
+    expiry = _utc() + timedelta(minutes=5)
+    conn = _admin_conn()
+    try:
+        conn.execute("DELETE FROM dbo.sahasra_b2b_test_otp WHERE institution_id=? AND contact_id=?",
+                     (institution_id, contact_id))
+        conn.execute("INSERT INTO dbo.sahasra_b2b_test_otp "
+                     "(institution_id, contact_id, code_hash, encrypted_code, expires_at) "
+                     "VALUES (?,?,?,?,?)", (institution_id, contact_id, digest, encrypted, expiry))
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise
+    finally: conn.close()
+    return code
+
+
+def _verify_test_otp(institution_id, contact_id, candidate):
+    """Lock challenge row and consume it in the same transaction; fail closed."""
+    if not _test_otp_mode():
+        raise HTTPException(503, "Test verification is disabled.")
+    conn = _admin_conn()
+    try:
+        row = conn.execute("SELECT code_hash, expires_at, attempts, consumed "
+                           "FROM dbo.sahasra_b2b_test_otp WITH (UPDLOCK, HOLDLOCK) "
+                           "WHERE institution_id=? AND contact_id=?",
+                           (institution_id, contact_id)).fetchone()
+        if row is None:
+            conn.rollback(); return False
+        digest, expires, attempts, consumed = (row[k] for k in ("code_hash", "expires_at", "attempts", "consumed")) if hasattr(row, "items") else row
+        expired = expires <= _utc() if isinstance(expires, datetime) else True
+        if expired or consumed or int(attempts) >= 5:
+            conn.rollback(); return False
+        valid = hmac.compare_digest(str(digest), hashlib.sha256(candidate.encode()).hexdigest())
+        conn.execute("UPDATE dbo.sahasra_b2b_test_otp SET attempts=attempts+1, consumed=? "
+                     "WHERE institution_id=? AND contact_id=?", (int(valid), institution_id, contact_id))
+        conn.commit()
+        return valid
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise HTTPException(503, "Verification unavailable. Try again later.")
+    finally: conn.close()
+
+
+class ContactIn(BaseModel):
+    institution_id: int = Field(gt=0)
+    organisation_code: str = Field(min_length=1, max_length=80)
+    contact_name: str = Field(min_length=1, max_length=120)
+    phone: str = Field(min_length=8, max_length=30)
+
+
+class OTPRequest(BaseModel):
+    client: str = Field(min_length=1, max_length=50)
+    phone: str = Field(min_length=8, max_length=30)
+
+
+class OTPCheck(OTPRequest):
+    code: str = Field(min_length=4, max_length=10)
+
+
+def _period_dates(p):
+    today = date.today()
+    if p == "today": start, end = today, today + timedelta(days=1)
+    elif p == "yesterday": start, end = today - timedelta(days=1), today
+    elif p == "last_7_days": start, end = today - timedelta(days=6), today + timedelta(days=1)
+    elif p == "this_month": start, end = today.replace(day=1), today + timedelta(days=1)
+    elif p == "last_month":
+        end = today.replace(day=1)
+        start = (end - timedelta(days=1)).replace(day=1)
+    elif re.fullmatch(r"20\d{2}-\d{2}-\d{2}", p):
+        try: start = date.fromisoformat(p)
+        except ValueError: raise HTTPException(400, "Invalid report date.")
+        end = start + timedelta(days=1)
+    elif re.fullmatch(r"20\d{2}-\d{2}", p):
+        try: start = date.fromisoformat(p + "-01")
+        except ValueError: raise HTTPException(400, "Invalid report month.")
+        end = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    else:
+        raise HTTPException(400, "Choose today, yesterday, last_7_days, this_month, last_month, YYYY-MM, or YYYY-MM-DD.")
+    return start.isoformat(), end.isoformat()
+
+
+def _dt(iso):
+    """datetime object for SQL parameters. A 'YYYY-MM-DD' string compared with a datetime column is
+    language/DATEFORMAT dependent on SQL Server (dmy sessions read it as YYYY-DD-MM); a datetime is not."""
+    return datetime.fromisoformat(iso)
+
+
+def _period_label(period, start, end):
+    """Human-readable period with the real date range, e.g. 'this month (01 Oct - 15 Oct 2026)'."""
+    try:
+        a = date.fromisoformat(start); b = date.fromisoformat(end) - timedelta(days=1)
+        rng = a.strftime("%d %b %Y") if a == b else a.strftime("%d %b") + " - " + b.strftime("%d %b %Y")
+    except ValueError:
+        return str(period)
+    name = str(period).replace("_", " ")
+    return name + " (" + rng + ")" if name != rng else rng
+
+
+def _columns(conn, table):
+    cache = getattr(conn, "_b2b_cols", None)
+    if cache is not None and table in cache:
+        return cache[table]
+    rows = conn.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", (table,)).fetchall()
+    cols = {str(r[0]).upper() for r in rows}
+    try:
+        if cache is None:
+            conn._b2b_cols = cache = {}
+        cache[table] = cols
+    except Exception:  # connection objects that forbid attributes: just don't cache
+        pass
+    return cols
+
+
+def _billing_schema(conn):
+    cols = _columns(conn, "trnINVLABPRI")
+    needed = {"BILLNO", "BILLDATE", "ORGANISATIONCODE"}
+    if not needed.issubset(cols):
+        raise HTTPException(422, "This LIS does not expose the required organisation billing columns. Contact support.")
+    total = next((c for c in ("TOTALCHARGES", "TOTALAMOUNT", "GRANDTOTAL") if c in cols), None)
+    if not total:
+        raise HTTPException(422, "No supported billed amount column was found in this LIS.")
+    # Explicitly avoid interpreting PAIDAMOUNT as collection: CentroMed and some other LISes use it differently.
+    status = "p.STATUS" if "STATUS" in cols else "CAST(NULL AS VARCHAR(50))"
+    return total, status
+
+
+def _rows_for_org(inst, organisation_code, period, max_rows=100):
+    start, end = _period_dates(period)
+    conn = _lis(inst)
+    try:
+        amt, status = _billing_schema(conn)
+        sql = ("SELECT TOP " + str(int(max_rows) + 1) + " p.BILLNO, p.BILLDATE, "
+               + "p.[" + amt + "] AS BILLED, " + status + " AS BILLSTATUS "
+               + "FROM trnINVLABPRI p WHERE p.ORGANISATIONCODE = ? "
+               + "AND p.BILLDATE >= ? AND p.BILLDATE < ? "
+               + "ORDER BY p.BILLDATE DESC, p.BILLNO DESC")
+        rows = conn.execute(sql, (organisation_code, _dt(start), _dt(end))).fetchall()
+        return [(str(r[0]), str(r[1])[:19], float(r[2] or 0), str(r[3] or "Not specified")) for r in rows]
+    finally:
+        conn.close()
+
+
+def _summary_for_org(inst, org_code, period):
+    start, end = _period_dates(period)
+    conn = _lis(inst)
+    try:
+        total, _ = _billing_schema(conn)
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT p.BILLNO), SUM(CAST(ISNULL(p.[" + total + "],0) AS FLOAT)) "
+            "FROM trnINVLABPRI p WHERE p.ORGANISATIONCODE = ? "
+            "AND p.BILLDATE >= ? AND p.BILLDATE < ?", (org_code, _dt(start), _dt(end))).fetchone()
+        summary = {"period": period, "bills": int(row[0] or 0), "billed_total": round(float(row[1] or 0), 2),
+                   "amount_label": "Billed amount (not collected cash)", "from": start, "to_exclusive": end,
+                   "period_label": _period_label(period, start, end)}
+        if "STATUS" in _columns(conn, "trnINVLABPRI"):
+            invoice_status_rows = conn.execute(
+                "SELECT p.STATUS, COUNT(DISTINCT p.BILLNO) FROM trnINVLABPRI p "
+                "WHERE p.ORGANISATIONCODE=? AND p.BILLDATE >= ? AND p.BILLDATE < ? "
+                "GROUP BY p.STATUS", (org_code, _dt(start), _dt(end))).fetchall()
+            summary["invoice_statuses"] = [
+                {"status": str(r[0] or "Not specified"), "bills": int(r[1])}
+                for r in invoice_status_rows
+            ]
+        else:
+            summary["invoice_statuses"] = []
+        status_cols = _columns(conn, "trnINVLABDET")
+        if {"BILLNO", "TESTSTATUS", "ORGANISATIONCODE"}.issubset(status_cols):
+            statuses = conn.execute(
+                "SELECT d.TESTSTATUS, COUNT(*) FROM trnINVLABDET d "
+                "WHERE d.ORGANISATIONCODE=? AND EXISTS (SELECT 1 FROM trnINVLABPRI p WHERE p.BILLNO=d.BILLNO "
+                "AND p.ORGANISATIONCODE=? AND p.BILLDATE >= ? AND p.BILLDATE < ?) "
+                "GROUP BY d.TESTSTATUS", (org_code, org_code, _dt(start), _dt(end))).fetchall()
+            summary["test_statuses"] = [{"status": str(r[0] or "Unknown"), "tests": int(r[1])} for r in statuses]
+        else:
+            summary["test_statuses"] = []
+            summary["status_note"] = "Investigation-level status cannot be safely scoped by organisation in this LIS; invoice statuses remain available."
+        return summary
+    finally:
+        conn.close()
+
+
+def _session(token, client):
+    if not token or not re.fullmatch(r"[A-Za-z0-9_-]{30,200}", token):
+        raise HTTPException(401, "Sign in with your mobile number to continue.")
+    inst = _institution_by_prefix(client)
+    if not _b2b_enabled(inst):
+        raise HTTPException(403, "B2B access is disabled for this institution.")
+    conn = _admin_conn()
+    try:
+        row = conn.execute("""SELECT TOP 1 c.* FROM dbo.sahasra_b2b_sessions s
+             JOIN dbo.sahasra_b2b_contacts c ON c.id = s.contact_id
+             WHERE s.token_hash=? AND s.institution_id=? AND s.revoked=0
+               AND s.expires_at > SYSUTCDATETIME() AND c.active=1
+               AND c.institution_id = s.institution_id""",
+             (hashlib.sha256(token.encode()).hexdigest(), int(inst["id"]))).fetchone()
+        contact = _dict(row)
+    finally:
+        conn.close()
+    if not contact:
+        raise HTTPException(401, "Session expired or revoked. Please verify your phone again.")
+    return inst, contact
+
+
+def _auth_session(request: Request, client: str):
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        raise HTTPException(401, "B2B sign-in required.")
+    return _session(token.strip(), client)
+
+
+# B2B answers are compiled from a fixed allowlist of organization-scoped read-only tools.
+# No unrestricted LLM/SQL execution is allowed in the authenticated B2B surface.
+class ChatRequest(BaseModel):
+    client: str = Field(min_length=1, max_length=50)
+    message: str = Field(min_length=1, max_length=700)
+    period: str = Field(default="this_month", max_length=30)
+    chat_history: list = Field(default_factory=list, max_length=12)
+
+
+def _llm_try(inst, contact, body):
+    """AI answer from the org's own snapshot + client knowledge (no tools, no SQL). None = use the canned reply."""
+    try:
+        from auth.b2b_llm import answer
+        return answer(inst, contact, body.message, body.chat_history)
+    except HTTPException:
+        raise
+    except Exception as _e:
+        print("[b2b llm] skipped:", type(_e).__name__, str(_e)[:160], flush=True)
+        return None
+
+
+def _classify_business_question(question):
+    """Deterministic natural-language routing, including report requests."""
+    q = re.sub(r"\s+", " ", question.strip().lower())
+    if re.search(r"\b(other company|another company|all organizations|all organisations|all patients)\b", q):
+        return "forbidden"
+    if re.search(r"\b(pdf|patient report|lab report|test report|download report)\b", q):
+        return "patient_report"
+    if re.search(r"\b(download|export|excel|spreadsheet|xlsx)\b", q):
+        return "excel"
+    if re.search(r"\b(how many|total|count|number of)\b", q) and re.search(r"\b(bills?|invoices?|samples?|investigations?)\b", q):
+        return "overview"
+    if re.search(r"\b(pending|status|statuses|invoice|invoices|bill|bills|completed report)\b", q):
+        return "bills"
+    if re.search(r"\b(how many|total|overview|summary|amount|business|dashboard|revenue|collection|investigation|sample)\b", q):
+        return "overview"
+    return "help"
+
+
+def _pdf_configured_root(inst):
+    """Trusted server-admin config only; no user-provided path, and disabled by default.
+
+    JSON example: {"KONNECT": "/srv/sahasra-approved-pdfs/konnect"}.
+    Only pre-approved exported LIS PDFs named by safe bill number are served.
+    """
+    from pathlib import Path
+    try:
+        roots = json.loads(os.environ.get("B2B_PDF_EXPORT_ROOTS", "{}"))
+        root = roots.get(str(inst.get("client_prefix", "")).upper())
+        if not isinstance(root, str) or not root:
+            return None
+        resolved = Path(root).resolve(strict=True)
+        return resolved if resolved.is_dir() else None
+    except (ValueError, OSError, TypeError):
+        return None
+
+
+def _authorized_pdf(inst, org_code, bill_no):
+    from pathlib import Path
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", bill_no or ""):
+        raise HTTPException(400, "Enter an invoice number using letters, numbers, hyphens or underscores.")
+    # Authorization MUST precede any filesystem access. The bill is NOT trusted from the browser.
+    conn = _lis(inst)
+    try:
+        match = conn.execute(
+            "SELECT TOP 1 BILLNO FROM trnINVLABPRI WHERE BILLNO=? AND ORGANISATIONCODE=?",
+            (bill_no, org_code),
+        ).fetchone()
+        if match is None:
+            raise HTTPException(404, "No authorized report found for this invoice.")
+    finally:
+        conn.close()
+    root = _pdf_configured_root(inst)
+    target = (root / (bill_no + ".pdf")).resolve() if root is not None else None
+    if target is None or target.parent != root or not target.is_file() or target.is_symlink():
+        # no exported signed report: give a clean, clearly-labelled status summary built from the client's own bill
+        try:
+            from auth.b2b_pdf import build_summary_pdf
+            from auth.whitelabel import get_config
+            cfg = get_config(int(inst["id"]))
+            conn2 = _lis(inst)
+            try:
+                return build_summary_pdf(conn2, org_code, bill_no, cfg.get("brand_name") or inst.get("name") or "Laboratory", cfg.get("primary_color") or "#F26B21")
+            finally:
+                conn2.close()
+        except HTTPException:
+            raise
+        except Exception as _e:
+            print("[b2b pdf] summary failed:", type(_e).__name__, str(_e)[:160], flush=True)
+            raise HTTPException(503, "The report PDF could not be prepared right now.")
+    if target.stat().st_size > 25 * 1024 * 1024:
+        raise HTTPException(413, "PDF exceeds the allowed size.")
+    with target.open("rb") as handle:
+        pdf = handle.read()
+    if not pdf.startswith(b"%PDF-"):
+        raise HTTPException(422, "The approved report export is not a valid PDF.")
+    return pdf
+
+
+def build_router(require_admin) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/admin/b2b/contacts")
+    def contacts(institution_id: int = Query(..., gt=0), admin: str = Depends(require_admin)):
+        if not _institution_by_id(institution_id): raise HTTPException(404, "Institution not found")
+        conn = _admin_conn()
+        try:
+            rows = conn.execute("SELECT id, organisation_code, contact_name, phone_e164, active "
+                                "FROM dbo.sahasra_b2b_contacts WHERE institution_id=? ORDER BY organisation_code, contact_name",
+                                (institution_id,)).fetchall()
+            return {"contacts": [{"id": r[0] if not hasattr(r, "items") else r["id"],
+                      "organisation_code": r[1] if not hasattr(r, "items") else r["organisation_code"],
+                      "contact_name": r[2] if not hasattr(r, "items") else r["contact_name"],
+                      "phone": r[3] if not hasattr(r, "items") else r["phone_e164"],
+                      "active": bool(r[4] if not hasattr(r, "items") else r["active"])} for r in rows]}
+        finally: conn.close()
+
+    @router.post("/admin/b2b/contacts")
+    def create_contact(body: ContactIn, admin: str = Depends(require_admin)):
+        inst = _institution_by_id(body.institution_id)
+        if not inst: raise HTTPException(404, "Institution not found")
+        code = body.organisation_code.strip().upper()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", code):
+            raise HTTPException(400, "Invalid organisation code.")
+        company = _org_name(inst, code)  # Admin cannot grant an invented organisation.
+        if not company: raise HTTPException(422, "Organisation code does not exist in this client's LIS database.")
+        phone = _phone(body.phone)
+        conn = _admin_conn()
+        try:
+            conn.execute("INSERT INTO dbo.sahasra_b2b_contacts "
+                         "(institution_id, organisation_code, contact_name, phone_e164, created_by) "
+                         "VALUES (?,?,?,?,?)", (body.institution_id, code, body.contact_name.strip(), phone, admin))
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except Exception: pass
+            raise HTTPException(409, "Phone is already registered for this institution or contact could not be saved.")
+        finally: conn.close()
+        return {"status": "success", "organisation": company, "phone": phone}
+
+    @router.post("/admin/b2b/contacts/{contact_id}/access")
+    def change_access(contact_id: int, institution_id: int = Query(..., gt=0), active: bool = Query(...),
+                      admin: str = Depends(require_admin)):
+        conn = _admin_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE dbo.sahasra_b2b_contacts SET active=? WHERE id=? AND institution_id=?",
+                        (int(active), contact_id, institution_id))
+            if cur.rowcount != 1: raise HTTPException(404, "Contact not found")
+            if not active:
+                cur.execute("UPDATE dbo.sahasra_b2b_sessions SET revoked=1 WHERE contact_id=? AND institution_id=?",
+                            (contact_id, institution_id))
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except Exception: pass
+            raise
+        finally: conn.close()
+        return {"status": "success", "active": active}
+
+    @router.get("/admin/b2b/test-otp")
+    def inspect_test_otp(institution_id: int = Query(..., gt=0),
+                         contact_id: int = Query(..., gt=0), admin: str = Depends(require_admin)):
+        """Admin-only staging diagnostics: retrieve OTP for a registered active contact."""
+        if _otp_delivery() != "test":
+            raise HTTPException(404, "Test OTP is not enabled.")
+        conn = _admin_conn()
+        try:
+            row = conn.execute("SELECT TOP 1 o.encrypted_code, o.expires_at "
+                               "FROM dbo.sahasra_b2b_test_otp o "
+                               "JOIN dbo.sahasra_b2b_contacts c ON c.id=o.contact_id "
+                               "AND c.institution_id=o.institution_id "
+                               "WHERE o.institution_id=? AND o.contact_id=? "
+                               "AND c.active=1 AND o.consumed=0 AND o.attempts<5 "
+                               "AND o.expires_at>SYSUTCDATETIME()",
+                               (institution_id, contact_id)).fetchone()
+            if not row: raise HTTPException(404, "No active test code for this contact.")
+            encrypted = row["encrypted_code"] if hasattr(row, "items") else row[0]
+            return {"test_code": decrypt_secret(encrypted), "expires_in_minutes": 5,
+                    "warning": "TEST ENVIRONMENT ONLY. Never send this code to production users."}
+        finally: conn.close()
+
+    @router.post("/public/b2b/request-otp")
+    def request_otp(body: OTPRequest, request: Request):
+        inst = _institution_by_prefix(body.client)
+        if not _b2b_enabled(inst): raise HTTPException(404, "This B2B portal is not available.")
+        phone = _phone(body.phone)
+        ip = request.client.host if request.client else "unknown"
+        _rate("start-ip", ip, inst["id"], "ip", 15)
+        _rate("start-phone", "global", inst["id"], phone, 3)
+        mode = "test" if _testreg() else _otp_delivery()
+        _tc = None
+        contact = _contact(int(inst["id"]), phone)
+        # Same response for unknown numbers: no phone / organization enumeration.
+        if contact:
+            if mode == "test":
+                _tc = _make_test_otp(int(inst["id"]), int(contact["id"]))
+            else:
+                response = _twilio("Verifications", {"To": phone, "Channel": "sms"})
+                if response.get("status") not in ("pending", "approved"):
+                    raise HTTPException(502, "SMS provider did not accept the verification request.")
+        note = ("If registered, a test verification code is available to an authorized staging admin."
+                if mode == "test" else "If this number is registered, a verification SMS has been sent.")
+        if _tc and _testreg():
+            return {"status": "success", "message": note, "test_code": _tc}
+        return {"status": "success", "message": note}
+
+    @router.post("/public/b2b/verify-otp")
+    def verify_otp(body: OTPCheck, request: Request):
+        inst = _institution_by_prefix(body.client)
+        if not _b2b_enabled(inst): raise HTTPException(404, "This B2B portal is not available.")
+        phone = _phone(body.phone)
+        if not re.fullmatch(r"\d{4,10}", body.code): raise HTTPException(400, "Enter the numeric verification code.")
+        ip = request.client.host if request.client else "unknown"
+        _rate("verify-ip", ip, inst["id"], "ip", 30)
+        _rate("verify-phone", "global", inst["id"], phone, 8)
+        contact = _contact(int(inst["id"]), phone)
+        if not contact: raise HTTPException(401, "Invalid or expired verification code.")
+        mode = "test" if _testreg() else _otp_delivery()
+        if mode == "test":
+            verified = _verify_test_otp(int(inst["id"]), int(contact["id"]), body.code)
+        else:
+            response = _twilio("VerificationCheck", {"To": phone, "Code": body.code})
+            verified = hmac.compare_digest(str(response.get("status", "")), "approved")
+        if not verified:
+            raise HTTPException(401, "Invalid or expired verification code.")
+        token = secrets.token_urlsafe(48)
+        expiry = _utc() + timedelta(hours=SESSION_HOURS)
+        conn = _admin_conn()
+        try:
+            conn.execute("INSERT INTO dbo.sahasra_b2b_sessions "
+                         "(token_hash, contact_id, institution_id, expires_at) VALUES (?,?,?,?)",
+                         (hashlib.sha256(token.encode()).hexdigest(), contact["id"], inst["id"], expiry))
+            conn.commit()
+        finally: conn.close()
+        return {"status": "success", "access_token": token, "expires_in": SESSION_HOURS * 3600,
+                "contact_name": contact["contact_name"], "organisation": contact["organisation_code"],
+                "organisation_name": _org_name_safe(inst, contact["organisation_code"])}
+
+    @router.get("/public/b2b/overview")
+    def overview(request: Request, client: str = Query(..., min_length=1, max_length=50), period: str = "this_month"):
+        inst, contact = _auth_session(request, client)
+        return {"status": "success", "organisation": contact["organisation_code"],
+                "summary": _summary_for_org(inst, contact["organisation_code"], period)}
+
+    @router.get("/public/b2b/bills")
+    def bills(request: Request, client: str = Query(..., min_length=1, max_length=50), period: str = "this_month"):
+        inst, contact = _auth_session(request, client)
+        rows = _rows_for_org(inst, contact["organisation_code"], period, max_rows=100)
+        return {"status": "success", "period": period,
+                "bills": [{"bill_no": b, "bill_date": dt, "billed_amount": amt, "status": st}
+                          for b, dt, amt, st in rows[:100]], "has_more": len(rows) > 100}
+
+    @router.get("/public/b2b/download-excel")
+    def download_excel(request: Request, client: str = Query(..., min_length=1, max_length=50), period: str = "this_month"):
+        inst, contact = _auth_session(request, client)
+        rows = _rows_for_org(inst, contact["organisation_code"], period, max_rows=5000)
+        if len(rows) > 5000:
+            raise HTTPException(413, "This report exceeds 5,000 bills. Use a narrower date range.")
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "B2B Organisation Bills"
+        ws.append(["B2B Billing Report", contact["organisation_code"], period])
+        ws.append(["Invoice No", "Bill Date", "Billed Amount (INR)", "Bill Status"])
+        def safe(v):
+            s = str(v)
+            return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+        for b, dt, amount, status in rows:
+            ws.append([safe(b), dt, amount, safe(status)])
+        for cell in ws[2]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="243B53")
+        for i, width in enumerate((24, 24, 25, 25), 1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A2:D{max(2, ws.max_row)}"
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = "b2b_bills_" + re.sub(r"[^a-zA-Z0-9_-]", "_", period) + ".xlsx"
+        return StreamingResponse(output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                     "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+    @router.post("/public/b2b/chat")
+    def business_chat(body: ChatRequest, request: Request):
+        inst, contact = _auth_session(request, body.client)
+        _rate("chat", request.client.host if request.client else "unknown", inst["id"],
+              str(contact["id"]), 90, 600)
+        # Stage 12: retain authenticated, organization-scoped B2B routing.
+        # Never use AI-generated SQL or trust a model for authorization.
+        from auth.b2b_intent_engine import parse_question
+        decision = parse_question(body.message)
+        # Legacy explicit-scope denial has additional English phrases (such as
+        # "all patients") that must be preserved when adopting Stage 7B.
+        if _classify_business_question(body.message) == "forbidden":
+            return {"status": "success", "intent": "forbidden", "answer":
+                    "I can only access your verified organization's records."}
+        if decision.intent != "forbidden":
+            try:        # org-scoped lookups + support tickets (auth/b2b_assist.py); None = not one of its questions
+                from auth.b2b_assist import try_answer as _assist
+                _ans = _assist(inst, contact, body.message, body.period, body.chat_history)
+                if _ans is not None:
+                    return _ans
+            except HTTPException:
+                raise
+            except Exception as _e:
+                print("[b2b assist] skipped:", type(_e).__name__, flush=True)
+        if decision.intent == "forbidden":
+            intent = "forbidden"
+        elif decision.intent == "patient_report":
+            intent = "patient_report"
+        elif decision.intent == "excel":
+            intent = "excel"
+        elif decision.intent == "overview":
+            intent = "overview"
+        elif decision.intent == "bills":
+            intent = "bills"
+        elif decision.intent in ("invoice_status", "unsupported_clinical_status", "clarify"):
+            # Do not silently return ALL invoices for a pending/completed filter.
+            _l = _llm_try(inst, contact, body)
+            if _l is not None:
+                return _l
+            return {"status":"success", "intent":"status_mapping_required", "answer":
+                    "Pending/completed status queries require approved LIS-specific status mapping. No unfiltered records were returned."}
+        else:
+            # Only ambiguous authenticated requests may be interpreted by local
+            # Qwen3. The model can select a safe intent, never a SQL query.
+            from auth.b2b_local_intent import refine_ambiguous
+            intent = refine_ambiguous(body.message, str(inst.get("client_prefix") or body.client))
+        org = contact["organisation_code"]  # always resolved server-side
+        requested_period = decision.period or body.period
+        if intent == "forbidden":
+            return {"status": "success", "intent": intent, "answer": "I can only access your verified organization's records."}
+        if intent == "patient_report":
+            return {"status": "success", "intent": intent,
+                    "answer": "To download a patient PDF, type: Report PDF BILLNUMBER. The invoice must belong to your organization, and an approved report must be available."}
+        if intent == "excel":
+            return {"status": "success", "intent": intent, "action": "download_excel", "period": requested_period,
+                    "answer": "Your organization's Excel invoice report is ready to request."}
+        if intent in ("overview", "bills"):
+            try:
+                _period_dates(requested_period)
+            except HTTPException:
+                requested_period = body.period if body.period else "this_month"  # unparseable phrase -> selected period
+            try:
+                if intent == "overview":
+                    summary = _summary_for_org(inst, org, requested_period)
+                    label = summary.get("period_label") or requested_period
+                    text = (f"For {label}: {summary.get('bills', 0)} invoice{'s' if summary.get('bills', 0) != 1 else ''}, "
+                            f"billed amount INR {summary.get('billed_total', 0):,.2f}. "
+                            "This is billed value, not collected cash.")
+                    if summary.get("bills") == 0:
+                        text = f"No invoices were found for your organization in {label}."
+                    elif summary.get("invoice_statuses"):
+                        text += " By status: " + ", ".join(
+                            f"{x['status']} {x['bills']}" for x in summary["invoice_statuses"][:6]) + "."
+                    return {"status": "success", "intent": intent, "summary": summary, "answer": text}
+                rows = _rows_for_org(inst, org, requested_period, max_rows=20)
+                s_, e_ = _period_dates(requested_period)
+                label = _period_label(requested_period, s_, e_)
+                shown = min(len(rows), 20)
+                if not rows:
+                    text = f"No invoices were found for your organization in {label}."
+                elif len(rows) > 20:
+                    text = f"Showing the latest {shown} invoices for {label}. More exist: download the Excel report for the full list."
+                else:
+                    text = f"Found {shown} invoice{'s' if shown != 1 else ''} for your organization in {label}."
+                return {"status": "success", "intent": intent,
+                        "bills": [{"bill_no": b, "bill_date": dt, "billed_amount": amount, "status": st}
+                                  for b, dt, amount, st in rows[:20]], "has_more": len(rows) > 20, "answer": text}
+            except HTTPException as exc:
+                if exc.status_code in (400, 422, 503):  # schema / config problem: say so instead of a bare error
+                    return {"status": "success", "intent": intent, "answer": str(exc.detail)}
+                raise
+            except Exception:
+                return {"status": "success", "intent": intent,
+                        "answer": "I couldn't read your organization's records just now. Please try again in a minute."}
+        # FAQ is separate from financial tools. The backend supplies the
+        # authenticated institution and organization, never an LLM-supplied ID.
+        if intent == "help":
+            from auth.b2b_local_answer import approved_faq_answer
+            faq_answer = approved_faq_answer(question=body.message, inst=inst,
+                                             organization_code=org)
+            if faq_answer:
+                return {"status":"success", "intent":"approved_faq", "answer":faq_answer}
+        _l2 = _llm_try(inst, contact, body)
+        if _l2 is not None:
+            return _l2
+        return {"status": "success", "intent": intent,
+                "answer": "You can ask: How many invoices this month? Show pending invoices. "
+                          "What is our billed amount? Download Excel. Report PDF BILLNUMBER. "
+                          "Choose a reporting period to change the date range."}
+
+    @router.get("/public/b2b/patient-report/{bill_no}")
+    def authorized_patient_pdf(bill_no: str, request: Request,
+                               client: str = Query(..., min_length=1, max_length=50)):
+        inst, contact = _auth_session(request, client)
+        # B2B PDFs only; no reuse of unscoped /generate-patient-report API.
+        content = _authorized_pdf(inst, contact["organisation_code"], bill_no)
+        return Response(content=content, media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="patient_report_{bill_no}.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+        })
+
+    @router.post("/public/b2b/logout")
+    def logout(request: Request, client: str = Query(..., min_length=1, max_length=50)):
+        inst, contact = _auth_session(request, client)
+        token = request.headers.get("Authorization", "").partition(" ")[2].strip()
+        conn = _admin_conn()
+        try:
+            conn.execute("UPDATE dbo.sahasra_b2b_sessions SET revoked=1 WHERE token_hash=? AND institution_id=?",
+                         (hashlib.sha256(token.encode()).hexdigest(), inst["id"]))
+            conn.commit()
+        finally: conn.close()
+        return {"status": "success"}
+
+    return router
+
+# [b2b-reliability-v1]

@@ -478,7 +478,7 @@ def _wrap_ask(app, route, orig):
     from agent import answer_guard as ag
     QueryRequest = orig.__annotations__.get("req") or orig.__globals__["QueryRequest"]
 
-    def ask_wrapped(req: QueryRequest, request: Request):      # sync: FastAPI runs it in the worker pool, like the original
+    def _ask_core(req: QueryRequest, request: Request):      # sync: FastAPI runs it in the worker pool, like the original
         from agent import followup as fu
         code = (getattr(req, "activation_code", None) or "").strip().upper()
         question = req.question or ""
@@ -563,6 +563,26 @@ def _wrap_ask(app, route, orig):
                 ag.cache_put(code, "-", question, res, hist)
         except Exception:
             pass
+        return res
+
+    def ask_wrapped(req: QueryRequest, request: Request):
+        _lang = None
+        try:        # reply in the language the question was typed in (Indian-language script)
+            from agent import lang_out as lo
+            _lang = lo.detect(req.question or "")
+            if not _lang and lo.looks_roman(req.question or ""):      # Telugu/Hindi/Tamil... typed in English letters
+                _r = lo.classify_roman(req.question, lo.inst_from_activation(getattr(req, "activation_code", "")))
+                if _r:
+                    _lang = (_r[0], _r[1], "roman")
+                    req.question = _r[2]
+        except Exception:
+            pass
+        res = _ask_core(req, request)
+        if _lang and isinstance(res, dict):
+            try:
+                res = lo.localize(res, _lang, lo.inst_from_activation(getattr(req, "activation_code", "")))
+            except Exception:
+                pass
         return res
 
     # swap the route's handler: remove the original, register the wrapper at the same path

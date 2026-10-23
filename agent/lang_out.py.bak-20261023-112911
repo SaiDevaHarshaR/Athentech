@@ -1,0 +1,142 @@
+"""Reply in the user's language (English, Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Urdu, Odia).
+The question is understood via agent.lang_bridge; the finished English answer is translated here. Numbers, names, IDs and
+formatting are kept exactly. Uses the institution's own AI chain (never silently the shared one); on any problem the English answer is returned."""
+import re
+import threading
+
+_SCRIPTS = [("hi", "Hindi", 0x0900, 0x097F), ("bn", "Bengali", 0x0980, 0x09FF), ("pa", "Punjabi", 0x0A00, 0x0A7F),
+            ("gu", "Gujarati", 0x0A80, 0x0AFF), ("or", "Odia", 0x0B00, 0x0B7F), ("ta", "Tamil", 0x0B80, 0x0BFF),
+            ("te", "Telugu", 0x0C00, 0x0C7F), ("kn", "Kannada", 0x0C80, 0x0CFF), ("ml", "Malayalam", 0x0D00, 0x0D7F),
+            ("ur", "Urdu", 0x0600, 0x06FF)]
+_MARATHI = re.compile(r"आहे|आहेत|किती|काय|मला|दाखवा|सांगा|माझ्या|झाले|झालेल")
+
+
+def detect(text):
+    """(code, language name) when the message is written in an Indian-language script; None for English / romanised text."""
+    t = text or ""
+    best, n = None, 0
+    for code, name, lo, hi in _SCRIPTS:
+        c = sum(1 for ch in t if lo <= ord(ch) <= hi)
+        if c > n:
+            best, n = (code, name), c
+    if not best or n < 2:
+        return None
+    if best[0] == "hi" and _MARATHI.search(t):
+        return ("mr", "Marathi")
+    return best
+
+
+_NAMES = {c: n for c, n, _, _ in _SCRIPTS}
+_NAMES.update({"mr": "Marathi", "en": "English"})
+_ROMAN = set("""meeru miru emi enti ela evaru ekkada entha sevalu andistharu andhistharu andistaru cheppandi ivvandi chupinchandi kavali naaku naku maaku unnayi unnaru ledu
+ aapke aapka kya kitne kitna kitni mujhe batao bataiye dikhao dikhaiye kaise kahan nahin humein kaun kyun sabhi
+ neenga enna evlo irukku irukkum sollunga kaattunga engal ungal eppadi enga ennoda
+ nimma nanage yenu hege yaava beku torisi heli yeshtu illa
+ ningal engane aanu undo parayu kaanikku ethra entokke
+ tumhi tumchya aahe aahet mala dakhva sanga kuthe kiti
+ apni apnar koto dekhan bolun amar kothay
+ tame chhe batavo mane shu
+ tusi kithe dasso vekhao kinne
+ apana kemiti dekhantu kebe""".split())
+_WORD = re.compile(r"[a-z]+")
+_ROMAN.update("""nela enni ayyayi ayyindi ayindi chellinchanu chellimpulu baaki marchipoyanu naa mee mahine mahina hue hua bane maadham maasam tingalu
+ mashe masa mahinyat jhale ayyaru kadantha gata pichle pichla kalede kazhinja gelya thaya heichi bill-ayyindi""".split())
+
+
+def looks_roman(text):
+    """cheap gate: English-letter text containing words typical of Telugu/Hindi/Tamil/... (no AI call)."""
+    t = (text or "").lower()
+    if not t.strip() or any(ord(c) > 127 for c in t):
+        return False
+    if sum(1 for w in _WORD.findall(t) if w in _ROMAN) >= 1:
+        return True
+    try:
+        from agent.lang_bridge import _MARK
+        return bool(_MARK.search(t))
+    except Exception:
+        return False
+
+
+def classify_roman(text, inst_code, timeout=12.0):
+    """('te', 'Telugu', english_question) for Indian-language text typed in English letters; None for plain English / any problem."""
+    import json as _json
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            llm = _chain(inst_code)
+            if llm is None:
+                return
+            sysm = ("The user message is either English or an Indian language written in English letters. Reply with ONLY JSON: "
+                    '{"lang":"<en|te|hi|ta|kn|ml|mr|bn|gu|pa|ur|or>","english":"<the message as one short plain English question>"}. '
+                    "Keep names, bill numbers and numbers exactly as written.")
+            r = llm.invoke([SystemMessage(content=sysm), HumanMessage(content=text)])
+            raw = str(getattr(r, "content", r) or "")
+            m = re.search(r"\{.*\}", raw, re.S)
+            d = _json.loads(m.group(0)) if m else {}
+            code = str(d.get("lang") or "").lower()
+            en = str(d.get("english") or "").strip()
+            if code in _NAMES and code != "en" and en:
+                box["r"] = (code, _NAMES[code], en)
+        except Exception:
+            pass
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    return box.get("r")
+
+
+def _chain(inst_code):
+    from agent.agent import _data_chain
+    ch = _data_chain(inst_code, True)
+    return ch[0][1] if ch else None
+
+
+def _translate(answer, lang_name, inst_code, timeout=40.0, roman=False):
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            llm = _chain(inst_code)
+            if llm is None:
+                return
+            how = (" written in English letters (Roman script, the way people type it in chat), not in native script" if roman else "")
+            sysm = ("Translate the text to " + lang_name + how + ". Keep EXACTLY as written: all numbers, amounts, currency symbols, dates, bill numbers, IDs, "
+                    "names of people, doctors, tests, organisations and branches, and all markdown (tables, bullets, bold, line breaks). "
+                    "Translate every other word, including words such as patients, bills, tests, pending. Output only the translation, nothing else.")
+            r = llm.invoke([SystemMessage(content=sysm), HumanMessage(content=answer)])
+            t = str(getattr(r, "content", r) or "").strip()
+            if t:
+                box["t"] = t
+        except Exception:
+            pass
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    return box.get("t")
+
+
+def localize(res, lang, inst_code):
+    """res: the /ask or B2B chat response dict. Returns a copy with 'answer' translated (original kept in 'answer_en')."""
+    if not lang or not isinstance(res, dict):
+        return res
+    ans = res.get("answer")
+    if not isinstance(ans, str) or not ans.strip() or res.get("status") not in ("success", None):
+        return res
+    t = _translate(ans, lang[1], inst_code, roman=(len(lang) > 2 and lang[2] == "roman"))
+    if not t:
+        return res
+    out = dict(res)
+    out["answer_en"], out["answer"], out["lang"] = ans, t, lang[0]
+    return out
+
+
+def inst_from_activation(code):
+    try:
+        from auth.license_service import validate_license
+        v = validate_license((code or "").strip()) or {}
+        return v.get("institution_code") or v.get("db_name")
+    except Exception:
+        return None

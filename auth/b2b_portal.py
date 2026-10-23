@@ -765,9 +765,41 @@ def build_router(require_admin) -> APIRouter:
 
     @router.post("/public/b2b/chat")
     def business_chat(body: ChatRequest, request: Request):
+        _lang = None
+        try:        # understand + reply in the user's Indian language
+            from agent import lang_out as _lo
+            from agent import lang_bridge as _lb
+            _lang = _lo.detect(body.message)
+            if not _lang and _lo.looks_roman(body.message):
+                _r = _lo.classify_roman(body.message, str(body.client or "").upper())
+                if _r:
+                    _lang = (_r[0], _r[1], "roman")
+                    body.message = _r[2]
+            if _lang and len(_lang) == 2:
+                _en, _ch = _lb.translate(body.message)
+                if _ch:
+                    body.message = _en
+        except Exception:
+            _lang = None
+        _res = _business_chat_core(body, request)
+        if _lang and isinstance(_res, dict):
+            try:
+                _res = _lo.localize(_res, _lang, str(body.client or "").upper())
+            except Exception:
+                pass
+        return _res
+
+    def _business_chat_core(body: ChatRequest, request: Request):
         inst, contact = _auth_session(request, body.client)
         _rate("chat", request.client.host if request.client else "unknown", inst["id"],
               str(contact["id"]), 90, 600)
+        try:        # portal how-to (password, letterhead, downloads, indent, contact): fixed text, no data
+            from auth.b2b_help import b2b_help as _help
+            _h = _help(body.message, str(inst.get("client_prefix") or body.client))
+            if _h:
+                return {"status": "success", "intent": "help", "answer": _h}
+        except Exception as _e:
+            print("[b2b help] skipped:", type(_e).__name__, flush=True)
         # Stage 12: retain authenticated, organization-scoped B2B routing.
         # Never use AI-generated SQL or trust a model for authorization.
         from auth.b2b_intent_engine import parse_question

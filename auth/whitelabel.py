@@ -766,6 +766,13 @@ def build_router(require_admin, log_admin_action) -> APIRouter:
         if len(question) > _B2C_MAX_QUESTION:
             return {"status": "error", "answer": f"Please keep your question under {_B2C_MAX_QUESTION} characters."}
 
+        try:        # public chat: contact details / "please sign in" for private data (no AI call, not throttled)
+            from auth.b2b_help import public_answer as _pub
+            _pa = _pub(question, str(inst.get("client_prefix") or ""))
+            if _pa:
+                return {"status": "success", "answer": _pa}
+        except Exception:
+            pass
         ip = request.client.host if request.client else "unknown"
         limited = _throttle(ip, str(inst.get("client_prefix")).upper())
         if limited:

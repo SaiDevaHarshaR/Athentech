@@ -77,7 +77,35 @@ A['iso'] = '📜 **Compliance posture**\n\nFeature communications reference ISO 
 A['partner'] = '🤝 **Engaging AthenTech**\n\nA typical path is discovery → product demo → commercial proposal → implementation.\nAthentech emphasises configuration, training and go-live with their own teams.\nPrepare facility profile: type, locations, volumes, must-have modules and interfaces.\nInvolve clinical, lab, IT and finance sponsors so scope stays realistic.\nStart with sales on +91 970 5480 699 or sales@athentech.co.in.\nUse the website contact form if you prefer a structured web enquiry.\n\n🔗 https://www.athentech.co.in/contact/'
 A['hello'] = '👋 **Hello**\n\nI’m the **AthenTech Assistant** for questions about AthenTech and the **Sahasra** platform.\nI can help with contact details, products (HIS, LIS, RIS, ERP), modules, demos and company facts.\nI do not access hospital live data in this mode—only public company/product information.\nTry asking about pricing, ABDM, modules, or how to request a demo.\nFor urgent human help, call sales +91 970 5480 699 or support +91 8096 247 365.\nOfficial site: athentech.co.in\n\n🔗 https://www.athentech.co.in/'
 
+A['services'] = '🛠️ **Services & solutions AthenTech provides**\n\nAthenTech builds and implements **healthcare software** for hospitals, diagnostic centres and multi-location groups under the **Sahasra** brand.\n\n**Core software**\n• **HIS GenX** — hospital information system (OPD, IPD, OT, nursing, billing, pharmacy, EMR…)\n• **LIS GenX** — laboratory information system (samples, analyzers, TAT, reports)\n• **RIS GenX** — radiology / imaging workflows\n• **ERP / finance** — hospital ERP, Tally-oriented finance links where applicable\n\n**Platform strengths (public figures)**\n• **43** integrated modules · **592+** healthcare clients · **950+** diagnostic report formats\n• **One patient record** across clinical, lab and admin modules\n• **ABDM V3**, NABH/NABL-oriented workflows, HL7 / FHIR / DICOM interoperability themes\n\n**How they engage**\nDiscovery → product demo → proposal → configuration, training and go-live with AthenTech teams.\n\nSales: **+91 970 5480 699** · sales@athentech.co.in\n\n🔗 https://www.athentech.co.in/products/\n'
+
 _INTENTS = [
+    ((' his ',), A['his']),
+    ((' lis ',), A['lis']),
+    ((' ris ',), A['ris']),
+    ((' sahasra ',), A['products']),
+    ((' about athentech ',), A['about']),
+    ((' about you ',), A['about']),
+    ((' who are you ',), A['about']),
+    ((' company ',), A['about']),
+    # --- high priority product/services ---
+    (('services provided',), A['services']),
+    (('service provided',), A['services']),
+    (('what services',), A['services']),
+    (('your services',), A['services']),
+    (('services',), A['services']),
+    (('solutions',), A['services']),
+    (('offerings',), A['services']),
+    (('what do you provide',), A['services']),
+    (('what do you offer',), A['services']),
+    (('what can you provide',), A['services']),
+    (('software you provide',), A['services']),
+    (('products you offer',), A['products']),
+    (('what products',), A['products']),
+    (('product list',), A['products']),
+    (('products',), A['products']),
+    (('sahasra suite',), A['products']),
+    (('what do you sell',), A['products']),
     (('hello',), A['hello']),
     (('hi ',), A['hello']),
     (('hey',), A['hello']),
@@ -273,16 +301,19 @@ def try_athentech_intent(question: str) -> Optional[str]:
     qn = re.sub(r"[^\w\s\+@\./-]", " ", q)
     qn = re.sub(r"\s+", " ", qn).strip()
     qn_pad = f" {qn} "
-    for keys, answer in _INTENTS:
-        ok = True
-        for k in keys:
-            if k.startswith(" ") or k.endswith(" "):
-                if k not in qn_pad:
-                    ok = False
-                    break
-            elif k not in qn:
-                ok = False
-                break
-        if ok:
+
+    def key_hit(k: str) -> bool:
+        k = k.strip()
+        if not k:
+            return False
+        # short tokens / acronyms → whole word only
+        if len(k) <= 4 or k in {"his", "lis", "ris", "erp", "emr", "ot", "ipd", "opd"}:
+            return f" {k} " in qn_pad
+        return k in qn
+
+    # Prefer longer key-sets first (more specific phrases)
+    ranked = sorted(_INTENTS, key=lambda pair: -sum(len(k) for k in pair[0]))
+    for keys, answer in ranked:
+        if all(key_hit(k) for k in keys):
             return answer
     return None

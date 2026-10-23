@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from urllib.parse import quote
 from pathlib import Path
 
 _ID_LOCK = threading.Lock()
@@ -71,6 +72,51 @@ def allocate_unique_request_id() -> str:
         return rid
 
 
+
+def _whatsapp_link(
+    phone: str,
+    name: str,
+    request_id: str,
+    *,
+    email: str = "",
+    organization: str = "",
+    requirements: str = "",
+) -> str:
+    """WhatsApp deep link to the visitor's phone (form field)."""
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if len(digits) == 10:
+        digits = "91" + digits
+    elif digits.startswith("0") and len(digits) == 11:
+        digits = "91" + digits[1:]
+    elif digits.startswith("91") and len(digits) >= 12:
+        pass
+    else:
+        digits = "918096247365"
+
+    org_line = (organization or "").strip() or "—"
+    req_line = (requirements or "").strip() or "—"
+    email_line = (email or "").strip() or "—"
+    phone_line = (phone or "").strip() or "—"
+
+    msg = (
+        f"Hi {name},\n\n"
+        f"We have received your details for AthenTech / Sahasra demo request #{request_id}:\n\n"
+        f"• Name: {name}\n"
+        f"• Email: {email_line}\n"
+        f"• Phone: {phone_line}\n"
+        f"• Organization: {org_line}\n"
+        f"• Requirements: {req_line}\n\n"
+        f"Please confirm if these details are correct, and let us know a convenient time to discuss "
+        f"Sahasra (HIS / LIS / modules) and schedule a walkthrough.\n\n"
+        f"— AthenTech Sales"
+    )
+    text = quote(msg)
+    return (
+        f"https://api.whatsapp.com/send/?phone={digits}"
+        f"&text={text}&type=phone_number&app_absent=0"
+    )
+
+
 def _smtp_config():
     from auth.license_service import get_settings
     s = get_settings()
@@ -84,9 +130,22 @@ def _smtp_config():
 
 
 def _build_html(payload: dict, kind: str, request_id: str) -> str:
-    name = html.escape((payload.get("name") or "").strip())
+    name_raw = (payload.get("name") or "").strip()
+    phone_raw = (payload.get("phone") or "").strip()
+    name = html.escape(name_raw)
     email = html.escape((payload.get("email") or "").strip())
-    phone = html.escape((payload.get("phone") or "").strip())
+    phone = html.escape(phone_raw)
+    wa_url = html.escape(
+        _whatsapp_link(
+            phone_raw,
+            name_raw,
+            request_id,
+            email=(payload.get("email") or "").strip(),
+            organization=(payload.get("organization") or "").strip(),
+            requirements=(payload.get("requirements") or "").strip(),
+        ),
+        quote=True,
+    )
     org = html.escape((payload.get("organization") or "").strip() or "—")
     reqs = html.escape((payload.get("requirements") or "").strip()).replace("\n", "<br/>")
     title = "Demo request" if kind == "demo" else "Chat lead details"
@@ -146,7 +205,7 @@ def _build_html(payload: dict, kind: str, request_id: str) -> str:
             <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:22px;">
               <tr>
                 <td style="background:linear-gradient(135deg,#f97316,#ea580c);border-radius:10px;">
-                  <a href="mailto:{email}?subject=Re%3A%20Demo%20-Request%20%23{rid}" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;">Reply to {name}</a>
+                  <a href="{wa_url}" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;" target="_blank">WhatsApp {name}</a>
                 </td>
               </tr>
             </table>

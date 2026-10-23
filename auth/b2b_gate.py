@@ -73,7 +73,11 @@ def residual(q, bill=None, original=None):
     V, EN = _vocab(), _english()
     t = q or ""
     if bill:
-        t = t.replace(str(bill).lower(), " ")
+        _b = str(bill).lower()
+        t = t.replace(_b, " ")
+        _m = re.match(r"([a-z]+)(\d+)$", _b)
+        if _m:
+            t = re.sub(_m.group(1) + r"\s?" + _m.group(2), " ", t)
     t = re.sub(r"['\u2019]s\b", " ", t)
     caps = set()
     if original:
@@ -124,6 +128,8 @@ def is_exact(message, bill=None):
     if n in _EXACT:
         return True
     B = (str(bill).lower() if bill else None)
+    if B and re.fullmatch(r"[a-z]{2,5} ?\d{6,12}", n):
+        return True
     if B:
         Bn = re.escape(_norm(B))
         if re.fullmatch(r"(status|tracking|track|tests?|sample status|sample tracking|report pdf|samples?)( of| in| for| on)?( bill| invoice)?( no| number)? " + Bn, n) \

@@ -55,7 +55,7 @@ _LEFTOVER = set("""enti emiti evaru ekkada ela undi unnaru unnayi vachaaru vacha
 
 _FILLER = {"aaye", "aaya", "aayi", "hue", "hui", "vachaaru", "vachayi", "ka", "ki", "ke", "ko", "hai", "hain", "hua", "ayyindi", "ayyayi", "undi", "unnayi", "vachindi", "me", "mein", "lo", "yokka", "ni", "ku",
            "का", "की", "के", "को", "है", "हैं", "हुआ", "में", "కి", "లో", "ఉంది", "ఉన్నాయి", "ఎంత"}
-_NATIVE = re.compile("[\u0900-\u097f\u0c00-\u0c7f]")
+_NATIVE = re.compile("[\u0600-\u06ff\u0900-\u0d7f]")
 _PH = sorted(_PHRASES + [("eroju", "today"), ("aj", "today"), ("ivala", "today")], key=lambda p: -len(p[0]))
 
 
@@ -101,7 +101,7 @@ import threading
 
 _CACHE = {}
 _SHIELD = re.compile(r"\d{5,}|\buhid\b|\bphone\b|\bmobile\b|\bpatient\s+(named|called)\b", re.I)
-_PROMPT = ("You translate questions typed by hospital/laboratory staff in Telugu, Hindi, Telglish or Hinglish (any spelling) into ONE short plain English "
+_PROMPT = ("You translate questions typed by hospital/laboratory staff in any Indian language (Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Urdu, Odia), Telglish or Hinglish (any spelling) into ONE short plain English "
            "question for a hospital billing/lab reporting system. Keep branch names, doctor names, test names and numbers exactly as written. "
            "Output only the English question, nothing else.")
 

@@ -905,6 +905,11 @@ Choose A or C whenever the answer has structured data — plain paragraphs are o
         if intent_answer is not None:
             _cn("note_intent", question, intent_answer)
             return check_output(intent_answer), 0
+        from agent.fast_report import try_fast_report
+        fast_answer = try_fast_report(question, role, db_name, db_server, db_user, db_password)
+        if fast_answer is not None:
+            _cn("note_intent", question, fast_answer)
+            return check_output(fast_answer), 0
 
     is_dashboard = ("dashboard" in q and "tat" not in q and "turnaround" not in q and "turn around" not in q) or q in ("radiology", "laboratory", "lab")
     is_tat_compliance = ("tat" in q or "turnaround" in q) and any(

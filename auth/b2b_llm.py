@@ -120,22 +120,32 @@ def _make_tools(inst, contact, captured):
         r = A._test_answer(Q, org, (test_name or "") + " price", "info", soft=True, terms=[(test_name or "").strip().lower()[:60]])
         return done(r) if r else "No test found with that name."
 
+    def test_info(test_name: str) -> str:
+        """Details of a test: report time (TAT), sample type, fasting / preparation, in-house or outsourced, code, and the price. Use for 'how long does X take', 'which sample for X', 'is fasting needed', 'is X available'."""
+        r = A._test_answer(Q, org, (test_name or "") + " details", "info", soft=True, terms=[(test_name or "").strip().lower()[:60]])
+        return done(r) if r else "No test found with that name."
+
+    def bills_in_range(date_text: str) -> str:
+        """Bills of this organisation between two dates in the current year, e.g. date_text '1 to 10 October' or '5 to 12 Sept 2026'."""
+        dr = A._date_range(date_text or "")
+        return done(A._bills_between(Q, org, *dr)) if dr else "Give the dates like '1 to 10 October'."
+
     def package_contents(package_name: str) -> str:
         """List what a health package / profile contains."""
         return done(A._package_contents(Q, org, "what is included in " + (package_name or "") + " package"))
 
-    def package_list() -> str:
-        """List the health packages available to this organisation."""
-        return done(A._package_list(Q, org))
+    def package_list(name_contains: str = "") -> str:
+        """List the health packages on this organisation's account. Optional name_contains narrows by name (e.g. 'yashodha 1.1')."""
+        return done(A._package_list(Q, org, name_contains or ""))
 
-    def bill_status(bill_no: str) -> str:
-        """Report status of every test in one bill number of this organisation (ready / pending stage)."""
+    def bill_status(bill_no: str, test_name: str = "") -> str:
+        """Report status of the tests in ONE bill number of this organisation (stage of each test). Pass test_name to check one test only, e.g. 'is the Vitamin D report ready for bill X'."""
         b = A._bill_no(bill_no or "")
-        return done(A._status_for_bill(Q, org, b)) if b else "That is not a valid bill number."
+        return done(A._status_for_bill(Q, org, b, test_name or "")) if b else "That is not a valid bill number."
 
     def sample_tracking(bill_no: str) -> str:
-        """Where the sample of a bill is: collected, received at lab, rejected."""
-        b = A._bill_no(bill_no or "")
+        """Where a sample is: collected, received at lab, rejected. Give a bill number OR a sample / barcode number (digits only)."""
+        b = A._bill_no(bill_no or "") or (re.sub(r"\D", "", bill_no or "") if re.fullmatch(r"\s*\d{6,12}\s*", bill_no or "") else None)
         return done(A._sample_track(Q, org, "sample status " + (bill_no or ""), b)) if b else "That is not a valid bill number."
 
     def find_patient(name: str) -> str:
@@ -150,12 +160,12 @@ def _make_tools(inst, contact, captured):
         """Outstanding balance, credit limit, available credit, payments, TDS of this organisation."""
         return done(A._account_answer(Q, org, "outstanding balance credit limit", "this_month"))
 
-    def pending_tests() -> str:
-        """Tests still pending this month for this organisation."""
-        return done(A2._pending_list(Q, org, "this_month"))
+    def pending_tests(period: str = "this_month") -> str:
+        """Tests still pending (no final report yet) for a period: today, yesterday, last_7_days, this_month, last_month."""
+        return done(A2._pending_list(Q, org, _per(period)))
 
     def _per(period):
-        return period if period in ("today", "yesterday", "last_7_days", "this_month", "last_month") else "this_month"
+        return period if (period in ("today", "yesterday", "last_7_days", "this_month", "last_month") or re.fullmatch(r"last_\d{1,3}_days", str(period))) else "this_month"
 
     def recent_bills(count: int = 10) -> str:
         """The most recent bills of this organisation (newest first) with patient, tests, reports ready and amount. count 1-50."""
@@ -180,7 +190,7 @@ def _make_tools(inst, contact, captured):
         return done(A._out("frequent_patients", "Patients with more than %s bills." % int(min_visits or 0), A._tbl("Frequent patients", ["Patient", "Bills"], [[r[0], r[1]] for r in rows])))
 
     def billing_total(period: str = "this_month") -> str:
-        """Number of bills and total billed amount for a period: today, yesterday, last_7_days, this_month, last_month."""
+        """Number of bills, total billed amount and amount received for a period: today, yesterday, last_7_days, this_month, last_month, last_30_days, last_90_days (3 months), last_180_days, last_365_days."""
         return done(A2._billing_total(Q, org, _per(period)))
 
     def account_info(topic: str = "outstanding") -> str:
@@ -215,7 +225,7 @@ def _make_tools(inst, contact, captured):
         return done(A2._rejection(Q, org, _per(period)))
 
     def top_tests(period: str = "this_month") -> str:
-        """Most frequently ordered tests (by count, NOT revenue) for a period."""
+        """Most frequently ordered tests (by count, NOT revenue) for a period: today, yesterday, last_7_days, this_month, last_month, last_30_days, last_90_days (3 months), last_180_days, last_365_days."""
         return done(A2._top_tests(Q, org, _per(period)))
 
     def branch_volume(period: str = "this_month") -> str:
@@ -248,7 +258,7 @@ def _make_tools(inst, contact, captured):
         captured["ticket"] = bool(no)
         return ("Ticket %s raised (%s, %s priority). The lab team will contact the registered number." % (no, cat, pri)) if no else (err or "Could not raise the ticket.")
 
-    fns = [account_info, invoice_info, contract_info, report_status, tests_in_bill, delayed_tests, rejection_rate, top_tests, branch_volume, volume_trend, tat_performance, patient_count, raise_support_ticket, recent_bills, bills_by_test_count, frequent_patients, billing_total, test_price, package_contents, package_list, bill_status, sample_tracking, find_patient, pending_tests]
+    fns = [account_info, invoice_info, contract_info, report_status, tests_in_bill, delayed_tests, rejection_rate, top_tests, branch_volume, volume_trend, tat_performance, patient_count, raise_support_ticket, recent_bills, bills_by_test_count, frequent_patients, billing_total, test_price, test_info, bills_in_range, package_contents, package_list, bill_status, sample_tracking, find_patient, pending_tests]
     return [StructuredTool.from_function(f, name=f.__name__, description=(f.__doc__ or f.__name__).strip()) for f in fns], {f.__name__: f for f in fns}
 
 
@@ -294,7 +304,7 @@ def _answer(inst, contact, message, history=None) -> Optional[dict]:
         "If the answer is not there, say so briefly and offer to raise a support ticket (the user can type e.g. 'raise a complaint', "
         "'sample pickup request', 'talk to the lab manager'). If the message is not about the lab's business, or is abusive or silly, reply in one polite sentence that you can help with tests, prices, packages, bills, report status, sample tracking and payments. Never discuss other organisations or individual patients. "
         "No medical advice. Be concise (under 120 words), plain text, Indian Rupee amounts as INR.\n"
-        "TOOL CHOICE: pick the ONE tool whose description matches what the user asked and answer ONLY that; do not add unrelated facts. If no tool fits (for example revenue per test, patient personal details) say plainly that this information is not available in this chat and offer a support ticket. Raise a ticket only when the user explicitly asks for one.\n"
+        "TOOL CHOICE: for a test's price / rate / MRP use test_price; for its report time (TAT), sample type, fasting or availability use test_info (never answer a time question with a price). To check one test on a bill use bill_status with test_name. A bare number of 6-12 digits is a sample / barcode number: use sample_tracking. A date range like '1 to 10 October' uses bills_in_range. 'last payment' / 'payments received' / 'when did I pay' = account_info(topic=payments) (payments are NOT invoices; never answer them from invoice_info). Never guess a sample type: if the table says 'Not recorded in lab master' say the lab has not recorded it, do not name a tube or sample. Periods for top_tests / billing_total / rejection_rate / pending_tests also accept last_30_days, last_90_days (= last 3 months), last_180_days (6 months), last_365_days (12 months): for 'last N months' call the tool ONCE with that period, never add up this_month + last_month. Never write a month name or year unless it appears in a tool result: say 'this month' / 'last month' for the period the tool reports. 'Ready to print' means ONLY tests in stage 'Final report ready' (authenticated but NOT yet printed); tests already 'Report printed' or 'Report dispatched' are not ready to print, so if none are in 'Final report ready' say zero are waiting to be printed. Never say 'not available' for work orders / bills today or rejected samples: use billing_total / rejection_rate. Pick the ONE tool whose description matches what the user asked and answer ONLY that; do not add unrelated facts. If no tool fits (for example revenue per test, patient personal details) say plainly that this information is not available in this chat and offer a support ticket. Raise a ticket only when the user explicitly asks for one.\n"
         "TOOLS: for any question about a test, price, package, bill, report status, sample, patient or balance you MUST call the matching tool first. "
         "Silently correct obvious spelling mistakes before calling a tool (for example 'cbp' may mean CBC / complete blood picture). "
         "A table of the tool result is shown to the user automatically: NEVER write tables, markdown or bullet lists of rows; give one or two plain sentences that summarise it. Quote prices, dates and counts exactly as the tool returned them. If a tool finds nothing, say plainly that nothing was found for that name in this organisation's records and suggest checking the spelling or giving the bill number; never invent a match.\n\n"

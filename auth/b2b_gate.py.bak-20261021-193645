@@ -1,0 +1,140 @@
+"""Strict gate for the B2B assistant: the fixed (SQL) answers are used only when EVERY word of the question is a word the
+fixed handlers understand. Any unknown or misspelt word (a name, a typo, a test name) is returned by residual() so the caller
+can resolve it as an entity (patient / test) or hand the whole question to the AI - never guess an intent."""
+import ast
+import os
+import re
+
+_EXTRA = """expire expires expiry employees employee organize organise hello hey hii hiya thanks thank please pls plz kindly sir madam team lab give tell show want need get let know can could would you your our
+we us me my the for and with about from into have has had was were been this that these those there here what which when where why how who whom whose
+also again now today yesterday tomorrow week month year last next previous current latest recent old new all any some each every more most least
+yes not none just only still already yet well okay ok done please check see find look tell view send provide share download open start stop
+b2b b2c neft rtgs upi imps gst tds pan api hl7 fhir cheque cheques utr trf mis tat nabl pdf xls excel otp sms whatsapp email invoice invoices ledger
+amount amounts number numbers percent percentage rupees rupee inr details detail data record records list lists summary summaries overview""".split()
+
+_JUNK = set("gay fuck fucking fucked shit damn idiot dumb stupid retard sex porn bitch bastard asshole hell kill die hate god religion".split())
+_V = None
+_EN = None
+
+
+def _english():
+    global _EN
+    if _EN is None:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "english_words.txt"), encoding="utf-8") as fh:
+                _EN = set(x.strip() for x in fh if x.strip())
+        except Exception:
+            _EN = set()
+    return _EN
+
+
+def _vocab():
+    global _V
+    if _V is not None:
+        return _V
+    words = set(_EXTRA)
+    here = os.path.dirname(os.path.abspath(__file__))
+    for fn in ("b2b_assist.py", "b2b_assist2.py"):
+        try:
+            with open(os.path.join(here, fn), encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+        except Exception:
+            continue
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                words.update(re.findall(r"[a-z]{2,}", n.value.lower()))
+    _V = words
+    return _V
+
+
+_SUF = ("s", "es", "ed", "d", "ing", "ly", "al", "er", "ers", "ion", "ions", "ation", "ment", "ments", "ies", "ness")
+
+
+def _known(t, V):
+    if t in V:
+        return True
+    for s in _SUF:
+        if t.endswith(s) and len(t) - len(s) >= 3 and t[:-len(s)] in V:
+            return True
+    if t.endswith("ies") and (t[:-3] + "y") in V:
+        return True
+    if t.endswith("ing") and (t[:-3] + "e") in V:
+        return True
+    # stems written in the handler patterns ('receiv', 'authent', 'reject' ...)
+    for w in V:
+        if len(w) >= 5 and t.startswith(w) and len(t) - len(w) <= 4 and t[len(w):] in ("", "e", "ed", "es", "ing", "ion", "ions", "ation", "ed", "s", "d", "ive", "ively", "ly", "al"):
+            return True
+    return False
+
+
+def residual(q, bill=None, original=None):
+    """Words of the question that neither a fixed handler nor ordinary English explains (a name, a typo, a test short name).
+    Bill numbers are ignored. A capitalised word that is not an acronym is always treated as a possible name."""
+    V, EN = _vocab(), _english()
+    t = q or ""
+    if bill:
+        t = t.replace(str(bill).lower(), " ")
+    t = re.sub(r"['\u2019]s\b", " ", t)
+    caps = set()
+    if original:
+        ws = re.findall(r"[A-Za-z][A-Za-z0-9]*", original)
+        for i, w in enumerate(ws):
+            if i > 0 and w[0].isupper() and not w.isupper() and w.lower() not in V:
+                caps.add(w.lower())
+    out = []
+    for w in re.findall(r"[a-z][a-z0-9]{2,}", t):
+        if w in out:
+            continue
+        if w in caps or w in _JUNK or not (_known(w, V) or w in EN or (w.endswith("s") and w[:-1] in EN) or (w.endswith("ed") and w[:-2] in EN) or (w.endswith("ing") and w[:-3] in EN)):
+            out.append(w)
+    return out
+
+
+_WRITE = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|merge|exec|execute|grant|revoke|into|xp_\w+|sp_\w+)\b", re.I)
+
+
+def check_readonly(sql):
+    """Every query the B2B assistant sends to a hospital / lab database must be a single read-only SELECT. Raises otherwise."""
+    t = re.sub(r"'[^']*'", "''", str(sql or "")).strip()
+    if not re.match(r"(?is)^(select|with)\b", t) or ";" in t.rstrip(";") or _WRITE.search(t):
+        raise PermissionError("Read-only: this assistant may only run SELECT queries.")
+
+
+_EXACT_RAW = """How many invoices this month?|What is the status of my reports?|How much is pending against our account?|Has our payment been received?|What is our available credit limit?
+Can you provide the monthly billing statement?|Which tests are still pending?|Which orders are likely to be delayed?|What percentage of reports met TAT this month?|Which tests were ordered most frequently?
+What is our sample rejection percentage?|Compare our last three months' invoices.|What is the price and report time for CBC?|What health-check packages are available?|Can you arrange sample pickup tomorrow?
+Can I speak with the lab manager?|Download Excel|Talk to lab manager|Raise a delay complaint|Show rejected samples|Request invoice copy|Request GST invoice copy|Raise renewal request|Raise recollection request
+Billing statement|Payment status|Outstanding balance|Status of my reports this month|Price of CBC|Raise a special rate request|Top 10 recent bills|Show health packages|Raise a support request
+Billing total this month|When is the next payment due?|Which invoices are unpaid?|What is our outstanding balance and credit limit|Tests done this month|Contract agreement details|Which health packages are available
+What is our pending balance?|Has our NEFT payment been received?|How much credit is available?|When does our agreement expire?|Has our credit note been approved?|Can we download our ledger?|Has our monthly invoice been generated?
+What is our monthly billing total?|Which branch has the highest test volume?|How has our test volume changed this quarter?|Give me today's pending-order summary."""
+_EXACT = None
+
+
+def _norm(m):
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", (m or "").lower()).split())
+
+
+def is_exact(message, bill=None):
+    """True only for the fixed questions (chips / suggestions) and a few strict templates. Everything else is understood by the AI."""
+    global _EXACT
+    if _EXACT is None:
+        _EXACT = set(_norm(x) for x in re.split(r"[|\n]", _EXACT_RAW) if x.strip())
+    n = _norm(message)
+    if n in _EXACT:
+        return True
+    B = (str(bill).lower() if bill else None)
+    if B:
+        Bn = re.escape(_norm(B))
+        if re.fullmatch(r"(status|tracking|track|tests?|sample status|sample tracking|report pdf|samples?)( of| in| for| on)?( bill| invoice)?( no| number)? " + Bn, n) \
+                or re.fullmatch(Bn + r" (status|tracking|track|tests?|report pdf)", n) or re.fullmatch(r"(bill|invoice) " + Bn + r"( status| tracking| tests?)?", n):
+            return True
+    if re.fullmatch(r"(raise|log|create|submit|register) (a |an |the )?[a-z ]{2,40}(request|complaint|ticket|query|issue)", n) or re.fullmatch(r"(special rate|recollection|pickup|renewal|correction|delay|rate) (request|complaint)", n):
+        return True
+    if re.fullmatch(r"(price|rate|cost|prices|rates) (of|for) [a-z0-9 ]{2,40}", n) or re.fullmatch(r"[a-z0-9 ]{2,40} (price|rate|cost)", n):
+        return len(n.split()) <= 6
+    if re.fullmatch(r"what is (included|inside) in [a-z0-9 ]{2,50}( package| profile)?", n):
+        return True
+    if re.fullmatch(r"(top|last|latest|recent) \d{1,2}( recent)? (bills|invoices)|(recent|latest) (bills|invoices)", n):
+        return True
+    return False
