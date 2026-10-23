@@ -127,7 +127,7 @@ body{display:flex;flex-direction:column;min-height:100%;background:radial-gradie
     "i"
   );
   var CONTACT_RE = new RegExp(
-    "\\b(contact\\s*us|contact|phone\\s*number|email|call\\s*you|reach\\s*you|get\\s*in\\s*touch)\\b",
+    "\\b(contact\\s*us|how\\s*to\\s*contact|phone\\s*number|call\\s*you|reach\\s*(you|athentech)|get\\s*in\\s*touch|your\\s*email|sales\\s*email)\\b",
     "i"
   );
 
@@ -183,10 +183,18 @@ body{display:flex;flex-direction:column;min-height:100%;background:radial-gradie
     chat.appendChild(el);
     chat.scrollTop = chat.scrollHeight;
   }
+  function notifyParentBot() {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: "athentech-widget", type: "bot-message" }, "*");
+      }
+    } catch (e) {}
+  }
   function addBot(text) {
     var c = parseCard(text);
     var el = document.createElement("div");
     el.className = "at-msg bot";
+    notifyParentBot();
     var linkHtml = c.link
       ? ('<a class="at-card-link" href="' + esc(c.link) + '" target="_blank" rel="noopener">' + esc(c.link) + "</a>")
       : "";
@@ -358,8 +366,7 @@ body{display:flex;flex-direction:column;min-height:100%;background:radial-gradie
         addBot(CONTACT);
       } else {
         var answer = (data && (data.answer || data.message)) || CONTACT;
-        if (CONTACT_RE.test(q) && (answer.match(/\n/g) || []).length < 3) answer = CONTACT;
-        addBot(answer);
+                addBot(answer);
       }
     } catch (err) {
       await sleep(2500);

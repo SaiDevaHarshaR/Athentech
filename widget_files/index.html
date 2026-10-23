@@ -1397,6 +1397,35 @@ async function processMessage(text) {
   }
 
 
+  if (state.mode === 'premium' && !/pdf/i.test(text) && /(patients?|reports?|results?).{0,40}(ready|received|available|completed)|(ready|received|completed).{0,25}(patients?|reports?|results?)/i.test(text)) {
+    addMessage('Finding patients whose results are ready...', 'bot');
+    try {
+      const rr = await fetch(API_URL.replace('/ask', '/premium/ready-patients'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activation_code: state.activationCode || '', days: 7 })
+      });
+      const dd = await rr.json().catch(() => ({}));
+      if (!rr.ok) { addMessage(dd.detail || 'Could not load the list.', 'bot'); return; }
+      const ps = dd.patients || [];
+      if (!ps.length) { addMessage('No patients with authenticated results in the last 7 days.', 'bot'); return; }
+      const box = addMessage('Patients with results ready (last 7 days). Tap "Smart report":', 'bot');
+      ps.forEach(p => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;padding:8px 10px;border:1px solid rgba(128,128,128,.3);border-radius:10px';
+        const info = document.createElement('div');
+        info.textContent = (p.name || '(no name)') + ' \u2022 ' + p.billno + ' \u2022 ' + p.date + ' \u2022 ' + p.ready + '/' + p.total + ' tests';
+        info.style.cssText = 'font-size:13px;flex:1';
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = 'Smart report';
+        b.style.cssText = 'padding:6px 12px;border-radius:999px;border:1px solid var(--w-accent,#6a5cf6);background:var(--w-accent-soft,rgba(106,92,246,.15));color:var(--w-accent-ink,#4a3dd1);font:600 12px inherit;cursor:pointer;white-space:nowrap';
+        b.onclick = () => downloadPatientReport('BILL:' + p.billno);
+        row.appendChild(info); row.appendChild(b);
+        if (box) box.appendChild(row);
+      });
+    } catch (e) { addMessage('Could not load the list.', 'bot'); }
+    return;
+  }
+
   if (mentionsPdf && hasActionWord) {
     // If the request names a specific patient (UHID pattern, e.g.
     // KDX26929648), fetch a REAL fresh report for that one patient
@@ -2113,9 +2142,10 @@ async function wlB2BMessage(text) {
     finally { statusEl.textContent = WL.b2bToken ? 'B2B verified' : 'B2B verification'; }
     return;
   }
-  if (low === 'sign out' || low === 'logout' || low === 'exit') {
+  if (low === 'sign out' || low === 'logout' || low === 'exit' || low === '/exit' || low === '/logout' || low === '/signout' || low === 'sign-out') {
     try { await wlB2BCall('logout?client=' + encodeURIComponent(WL.client), { method: 'POST' }); } catch (_) {}
     WL.b2bToken = null; WL.b2bStep = 'phone'; WL.b2bPeriod = 'this_month';
+    chatEl.innerHTML = ''; state.history = [];
     statusEl.textContent = 'B2B sign-in'; input.placeholder = 'Registered mobile number'; wlQuickRender();
     addMessage('Signed out. Enter your registered mobile number to sign in again.', 'bot'); return;
   }

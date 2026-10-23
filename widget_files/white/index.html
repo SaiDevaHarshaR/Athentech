@@ -556,7 +556,8 @@
     var t = token; token = null; orgName = ""; contactName = "";
     try { sessionStorage.removeItem("wl_b2b_" + CLIENT); sessionStorage.removeItem("wl_org_" + CLIENT); sessionStorage.removeItem("wl_cn_" + CLIENT); } catch (e) {}
     if (t && !expired) { fetch(API + "/public/b2b/logout?client=" + encodeURIComponent(CLIENT), { method: "POST", headers: { "Authorization": "Bearer " + t } }).catch(function () {}); }
-    addNote(expired ? "Session expired. Please log in again." : "Signed out"); refreshHeaderBtn(); showChips();
+    chat.innerHTML = ""; history = []; try { chipsEl.innerHTML = ""; } catch (e) {}           // leaving the business session: the whole conversation is cleared
+    refreshHeaderBtn(); welcome(); addNote(expired ? "Session expired. Please log in again." : "Signed out"); showChips();
   }
   $("hbtn").onclick = function () { if (token) signOut(false); else openLogin(!$("login").classList.contains("open")); };
 

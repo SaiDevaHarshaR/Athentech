@@ -77,7 +77,12 @@ def get_tat_compliance_dashboard(
         )
         period_label = "This Month"
     else:
-        return {"error": f"Unsupported period '{period}'."}
+        try:
+            from agent.report_tool import resolve_period as _rp
+            _d0, _d1, period_label = _rp(period)
+        except Exception:
+            return {"error": f"Unsupported period '{period}'."}
+        date_sql = f"s.RESULTENTRYDATE >= '{_d0.isoformat()}' AND s.RESULTENTRYDATE < '{_d1.isoformat()}'"
 
     loc_sql = ""
     dept_sql = ""
