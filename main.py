@@ -1170,6 +1170,33 @@ from fastapi.responses import StreamingResponse
 #     )
 
 
+class ReadyPatientsRequest(BaseModel):
+    activation_code: str
+    client: Optional[str] = None
+    days: int = 7
+
+
+@app.post("/premium/ready-patients")
+async def premium_ready_patients(req: ReadyPatientsRequest):
+    """READ-ONLY: patients whose test results are authenticated (ready for a Smart Report)."""
+    if req.client:
+        from auth.whitelabel import smart_report_allowed
+        if not smart_report_allowed(req.client):
+            raise HTTPException(status_code=403, detail="Smart reports are not available in this chatbot.")
+    validation = validate_license(req.activation_code)
+    if not validation.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
+    import asyncio
+    from reports.ready_patients import list_ready
+    try:
+        rows = await asyncio.get_event_loop().run_in_executor(
+            None, list_ready, validation.get("db_name"), validation.get("db_server"),
+            validation.get("db_user"), validation.get("db_password"), req.days, 30)
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"status": "success", "days": req.days, "patients": rows}
+
+
 @app.post("/generate-patient-report")
 async def generate_patient_report(req: PatientReportRequest):
     """
@@ -1213,7 +1240,7 @@ async def generate_patient_report(req: PatientReportRequest):
         _ctx = contextvars.copy_context()      # carries the "own AI key" flag into the worker thread (no shared-AI fallback)
         for _attempt in (1, 2):
             report_data = await loop.run_in_executor(
-                None, _ctx.run, build_patient_report_data, req.patient_identifier, db_name, role, hospital_name, agent_llm,
+                None, _ctx.run, __import__("reports.ready_patients", fromlist=["build_any"]).build_any, req.patient_identifier, db_name, role, hospital_name, agent_llm,
                 db_server, db_user, db_password,
             )
             if report_data.get("all_findings") or not report_data.get("_has_lab_data"):
