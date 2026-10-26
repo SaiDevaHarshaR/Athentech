@@ -1,31 +1,31 @@
-fastapi #MCP
+fastapi
 uvicorn
 python-dotenv
 mysql-connector-python
 sqlalchemy
-langchain #AutoGen / CrewAI
+langchain
 langchain-groq
 langchain-openai
 langchain-anthropic
 langchain-google-genai
 langchain-mistralai
-langchain-cohere 
-langgraph #crewAI / Pydantic-AI
+langchain-cohere
+langgraph
 pandas
-openpyxl # pandas, xlwings
-reportlab #ReportLab / xhtml2pdf / weasyprint
-playwright #ReportLab / xhtml2pdf / weasyprint
+openpyxl
+reportlab
+playwright
 pydantic
-cryptography #PyCryptodome / PyNaCl (Binding to libsodium)
-pyodbc # mssql-python / pymssql
-jinja2 #Mako/ chameleon 
+cryptography
+pyodbc
+jinja2
 python-multipart
 pytest
-pypdf #pymupdf / pdfminer / pikepdf
+pypdf
 requests
-libsql #DuckDB
+libsql
 pydantic-settings
-tavily-python #DuckDuckGo Search (DDGS)
-pyotp #Authlib / pyauthenticator
-qrcode[pil]  # Segno / qrcodegen / PyQRCode / treepoem
-beautifulsoup4 #Selenium / playwright
+tavily-python
+pyotp
+qrcode[pil]
+beautifulsoup4
