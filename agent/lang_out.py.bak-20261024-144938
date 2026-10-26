@@ -1,0 +1,328 @@
+"""Reply in the user's language (English, Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Urdu, Odia).
+The question is understood via agent.lang_bridge; the finished English answer is translated here. Numbers, names, IDs and
+formatting are kept exactly. Uses the institution's own AI chain (never silently the shared one); on any problem the English answer is returned."""
+import re
+import threading
+
+_SCRIPTS = [("hi", "Hindi", 0x0900, 0x097F), ("bn", "Bengali", 0x0980, 0x09FF), ("pa", "Punjabi", 0x0A00, 0x0A7F),
+            ("gu", "Gujarati", 0x0A80, 0x0AFF), ("or", "Odia", 0x0B00, 0x0B7F), ("ta", "Tamil", 0x0B80, 0x0BFF),
+            ("te", "Telugu", 0x0C00, 0x0C7F), ("kn", "Kannada", 0x0C80, 0x0CFF), ("ml", "Malayalam", 0x0D00, 0x0D7F),
+            ("ur", "Urdu", 0x0600, 0x06FF)]
+_MARATHI = re.compile(r"(?<![\u0900-\u097f])(आहे|आहेत|किती|काय|मला|दाखवा|सांगा|माझ्या|माझी|माझे|झाले|झाली|झालेल\w*)(?![\u0900-\u097f])")
+
+
+def detect(text):
+    """(code, language name) when the message is written in an Indian-language script; None for English / romanised text."""
+    t = text or ""
+    best, n = None, 0
+    for code, name, lo, hi in _SCRIPTS:
+        c = sum(1 for ch in t if lo <= ord(ch) <= hi)
+        if c > n:
+            best, n = (code, name), c
+    if not best or n < 2:
+        return None
+    if best[0] == "hi" and _MARATHI.search(t):
+        return ("mr", "Marathi")
+    return best
+
+
+_NAMES = {c: n for c, n, _, _ in _SCRIPTS}
+_NAMES.update({"mr": "Marathi", "en": "English"})
+_VOTES = {
+    "te": "meeru miru emi enti ela evaru ekkada entha sevalu andistharu andhistharu andistaru cheppandi ivvandi chupinchandi kavali naaku naku maaku unnayi unnaru ledu nela enni ayyayi ayyindi ayindi chellinchanu chellimpulu baaki marchipoyanu naa mee mandhe ninna monna vaccharu vachindha vachindi mana manaku ippudu gata",
+    "hi": "aapke aapka kya kitne kitna kitni mujhe batao bataiye dikhao dikhaiye kaise kahan nahin humein kaun kyun sabhi mahine mahina hue hua pichle pichla aaj kal",
+    "ta": "neenga enna evlo irukku irukkum sollunga kaattunga engal ungal eppadi enga ennoda maadham kadantha ethanai",
+    "kn": "nimma nanna nanage yenu hege yaava beku torisi heli yeshtu eshtu ide aagide illa tingalu kalede",
+    "ml": "ningal engane aanu undo parayu kaanikku ethra entokke maasam kazhinja",
+    "mr": "tumhi tumchya aahe aahet mala dakhva sanga kuthe kiti mahinyat jhale gelya",
+    "bn": "apni apnar koto dekhan bolun amar kothay mashe hoyeche gato",
+    "gu": "tame chhe batavo mane shu pachla thaya ketla",
+    "pa": "tusi kithe dasso vekhao kinne kinna kinni kinnian bane vich haige sanu tuhada pichle pichla mahine mahina",
+    "or": "apana kemiti dekhantu kebe masa heichi kete mora mota rashi bakeya gata dena mo tume apana heichi",
+}
+_VOTES = {k: set(v.split()) for k, v in _VOTES.items()}
+_WORD = re.compile(r"[a-z]+")
+
+
+def _roman_lang(text):
+    t = (text or "").lower()
+    if not t.strip() or any(ord(c) > 127 for c in t):
+        return None
+    words = _WORD.findall(t)
+    score = {k: sum(1 for w in words if w in v) for k, v in _VOTES.items()}
+    best = max(score, key=score.get)
+    return best if score[best] else None
+
+
+def _roman_votes(text):
+    """(language, number of matching words, True if no other language ties)"""
+    t = (text or "").lower()
+    if not t.strip() or any(ord(c) > 127 for c in t):
+        return None, 0, False
+    words = _WORD.findall(t)
+    score = {k: sum(1 for w in words if w in v) for k, v in _VOTES.items()}
+    best = max(score, key=score.get)
+    n = score[best]
+    return (best if n else None), n, (n > 0 and sum(1 for v in score.values() if v == n) == 1)
+
+
+def looks_roman(text):
+    """cheap gate: English-letter text with words typical of Telugu/Hindi/Tamil/... (no AI call)."""
+    if _roman_lang(text):
+        return True
+    try:
+        from agent.lang_bridge import _MARK
+        return bool(_MARK.search((text or "").lower()))
+    except Exception:
+        return False
+
+
+def classify_roman(text, inst_code, timeout=25.0):
+    """('te', 'Telugu', english_question) for Indian-language text typed in English letters; None when it cannot be understood.
+    The AI names the language and writes the English question; the word votes are the fallback."""
+    votes = _roman_lang(text)
+    r = to_english(text, inst_code, timeout, with_lang=True)
+    if r:
+        code, en = r
+        v, n, unique = _roman_votes(text)
+        if v and unique and n >= 2:        # two or more clear words of one language beat the AI's guess
+            code = v
+        code = code or votes
+        if not code:
+            return None
+        return (code, _NAMES[code], en)
+    en = to_english(text, inst_code, timeout)        # same translation without the language code (language from the word votes)
+    if not en:
+        try:        # last fallback: word list (only when the AI could not answer in time)
+            from agent.lang_bridge import to_english as _wl
+            h, ch = _wl(text)
+            en = h if ch else None
+        except Exception:
+            en = None
+    if not en or any(ord(c) > 127 for c in en):
+        return None
+    code = votes or "hi"
+    return (code, _NAMES[code], en)
+
+
+def _bind_fast(llm):
+    try:        # translation does not need long reasoning: much faster on gpt-oss models
+        model = str(getattr(llm, "model_name", None) or getattr(llm, "model", "") or "").lower()
+        if type(llm).__name__ == "ChatGroq" and "gpt-oss" in model:
+            return llm.bind(reasoning_effort="low")
+    except Exception:
+        pass
+    return llm
+
+
+def _chain(inst_code):
+    from agent.agent import _data_chain
+    ch = _data_chain(inst_code, True)
+    return _bind_fast(ch[0][1]) if ch else None
+
+
+def _ask_ai(inst_code, messages, question=None, what="translate"):
+    """Text of the first provider (the institution's own chain) that answers; None if all fail. Failures are logged, never raised."""
+    try:
+        from agent.agent import _data_chain
+        chain = _data_chain(inst_code, True, question)
+    except Exception as e:
+        print("[lang] %s: no AI chain: %s %s" % (what, type(e).__name__, str(e)[:120]), flush=True)
+        return None
+    import os
+    fb_model = os.getenv("SAHASRA_LANG_FALLBACK_MODEL", "llama-3.1-8b-instant")
+    def _quick(m):
+        for upd in ({"max_retries": 0, "request_timeout": 20}, {"max_retries": 0, "timeout": 20}, {"max_retries": 0}):
+            try:
+                return m.model_copy(update=upd)
+            except Exception:
+                continue
+        return m
+
+    for name, llm in (chain or []):
+        tries = []
+        if name == "groq" and fb_model:
+            tries = [("small", lambda l=llm: _quick(l.bind(model=fb_model))), ("main", lambda l=llm: _quick(_bind_fast(l)))]
+        else:
+            tries = [("main", lambda l=llm: _bind_fast(l))]
+        for label, mk in tries:        # Groq: the small model first (own quota, fast, no internal 60 s retry loop), then the main one
+            try:
+                r = mk().invoke(messages)
+                t = str(getattr(r, "content", r) or "").strip()
+                if t:
+                    return t
+                print("[lang] %s: empty reply from %s/%s" % (what, name, label), flush=True)
+            except Exception as e:
+                print("[lang] %s: %s/%s failed: %s %s" % (what, name, label, type(e).__name__, str(e)[:100]), flush=True)
+    return None
+
+
+_CANON = ("How many bills did I get this month? | How many bills did I get last month? | What is my total billed amount in the last 3 months? | "
+          "What is my outstanding balance? | What is my credit limit? | When was my last payment and how much? | Has our payment been received? | "
+          "What services do you provide? | Which of my reports are pending? | What is the price of CBC?")
+_GLOSS = ("baaki, bakaya, thakbaki, niluvai, kudishika, bokeya, bakeya, బకాయి, बकाया = outstanding balance (money still to be paid, NOT pending tests); "
+          "bill, billu = invoice/bill; payment, chellimpu, bhugtan, adaayi = payment made by the client; credit limit = credit limit; "
+          "sevalu, sevaigal, seve, services = services; nela, mahina, maadham, tingalu, maasam, mashe, masa = month; gata, pichle, kadantha, kalede = last/previous")
+_QCACHE = {}
+
+
+_QCACHE2 = {}
+_LANGCODES = ("te", "hi", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "ur", "or")
+
+
+def to_english(text, inst_code, timeout=25.0, with_lang=False):
+    """One short AI call: the question in any supported language -> a plain English question the chat already understands.
+    with_lang=True returns (language code, English question) instead. None on any problem."""
+    t = (text or "").strip()
+    if not t:
+        return None
+    cache = _QCACHE2 if with_lang else _QCACHE
+    if t in cache:
+        return cache[t]
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            sysm = ("Rewrite the user's message (any Indian language, in native script or English letters) as ONE short plain English question for a "
+                    "laboratory's corporate-client portal: bills, billed amount, payments received, outstanding balance, credit limit, test prices, "
+                    "report status, sample tracking. Keep every time-period word exactly (today, yesterday, this month, last month, last N months, last N days) and "
+                    "never invent a period the user did not say. Use these exact wordings when the meaning matches: " + _CANON + ". "
+                    "Glossary: " + _GLOSS + ". Keep names, bill numbers and numbers exactly. ")
+            if with_lang:
+                sysm += ("Reply in this exact format: <code>|<English question> where <code> is the language of the user's message: "
+                         "te Telugu, hi Hindi, ta Tamil, kn Kannada, ml Malayalam, mr Marathi, bn Bengali, gu Gujarati, pa Punjabi, ur Urdu, or Odia. Nothing else.")
+            else:
+                sysm += "Output only the English question."
+            txt = _ask_ai(inst_code, [SystemMessage(content=sysm), HumanMessage(content=t)], None, "question")
+            line = (txt or "").strip().strip('"').splitlines()[0].strip() if txt else ""
+            if with_lang:
+                m = re.match(r"^\W*([A-Za-z]{2})\W{0,3}[|:\u2013-]\s*(.+)$", line)
+                if m and len(m.group(2)) <= 300:
+                    c = m.group(1).lower()
+                    box["q"] = (c if c in _LANGCODES else None, m.group(2).strip().strip('"'))
+                else:
+                    print("[lang] question: unparsed reply: %s" % line[:100], flush=True)
+            elif line and len(line) <= 300:
+                box["q"] = line
+        except Exception as e:
+            print("[lang] question: %s %s" % (type(e).__name__, str(e)[:120]), flush=True)
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    q = box.get("q")
+    eng = q[1] if with_lang and q else q
+    if eng:
+        eng = eng.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"').replace("\u2013", "-").replace("\u2011", "-").replace("\u2014", "-").replace("\u20b9", "Rs ")
+        q = (q[0], eng) if with_lang else eng
+    if eng and not any(ord(c) > 127 for c in eng):
+        if len(cache) > 500:
+            cache.clear()
+        cache[t] = q
+        return q
+    return None
+
+
+def _in_script(text, code):
+    lo_hi = {c: (lo, hi) for c, _, lo, hi in _SCRIPTS}
+    lo_hi["mr"] = lo_hi["hi"]
+    if code not in lo_hi:
+        return False
+    lo, hi = lo_hi[code]
+    letters = [ch for ch in (text or "") if ch.isalpha()]
+    return bool(letters) and sum(1 for ch in letters if lo <= ord(ch) <= hi) / len(letters) > 0.5
+
+
+_TERM_KEYS = ["outstanding balance", "billed amount", "payments received", "credit limit", "bills", "tests", "packages", "report status", "sample tracking", "pending"]
+_TERMS = {
+    "te": "బకాయి మొత్తం|బిల్ చేసిన మొత్తం|అందిన చెల్లింపులు|క్రెడిట్ పరిమితి|బిల్లులు|పరీక్షలు|ప్యాకేజీలు|రిపోర్ట్ స్థితి|శాంపిల్ ట్రాకింగ్|పెండింగ్",
+    "hi": "बकाया राशि|बिल की गई राशि|प्राप्त भुगतान|क्रेडिट सीमा|बिल|जाँच|पैकेज|रिपोर्ट की स्थिति|सैंपल ट्रैकिंग|लंबित",
+    "ta": "நிலுவைத் தொகை|பில் செய்த தொகை|பெறப்பட்ட பணம்|கிரெடிட் வரம்பு|பில்கள்|பரிசோதனைகள்|பேக்கேஜ்கள்|அறிக்கை நிலை|மாதிரி கண்காணிப்பு|நிலுவையில்",
+    "kn": "ಬಾಕಿ ಮೊತ್ತ|ಬಿಲ್ ಮಾಡಿದ ಮೊತ್ತ|ಸ್ವೀಕರಿಸಿದ ಪಾವತಿಗಳು|ಕ್ರೆಡಿಟ್ ಮಿತಿ|ಬಿಲ್‌ಗಳು|ಪರೀಕ್ಷೆಗಳು|ಪ್ಯಾಕೇಜ್‌ಗಳು|ವರದಿ ಸ್ಥಿತಿ|ಮಾದರಿ ಟ್ರ್ಯಾಕಿಂಗ್|ಬಾಕಿ",
+    "ml": "കുടിശ്ശിക തുക|ബിൽ ചെയ്ത തുക|ലഭിച്ച പേയ്‌മെന്റുകൾ|ക്രെഡിറ്റ് പരിധി|ബില്ലുകൾ|പരിശോധനകൾ|പാക്കേജുകൾ|റിപ്പോർട്ട് നില|സാമ്പിൾ ട്രാക്കിംഗ്|തീർപ്പാക്കാത്തത്",
+    "mr": "थकबाकी|बिल केलेली रक्कम|प्राप्त पेमेंट|क्रेडिट मर्यादा|बिले|चाचण्या|पॅकेजेस|अहवालाची स्थिती|नमुना ट्रॅकिंग|प्रलंबित",
+    "bn": "বকেয়া|বিল করা পরিমাণ|প্রাপ্ত পেমেন্ট|ক্রেডিট সীমা|বিল|পরীক্ষা|প্যাকেজ|রিপোর্টের অবস্থা|নমুনা ট্র্যাকিং|মুলতুবি",
+    "gu": "બાકી રકમ|બિલ કરેલી રકમ|મળેલ ચુકવણીઓ|ક્રેડિટ મર્યાદા|બિલ|ટેસ્ટ|પેકેજ|રિપોર્ટની સ્થિતિ|સેમ્પલ ટ્રેકિંગ|બાકી",
+    "pa": "ਬਕਾਇਆ ਰਕਮ|ਬਿੱਲ ਕੀਤੀ ਰਕਮ|ਪ੍ਰਾਪਤ ਅਦਾਇਗੀਆਂ|ਕ੍ਰੈਡਿਟ ਸੀਮਾ|ਬਿੱਲ|ਟੈਸਟ|ਪੈਕੇਜ|ਰਿਪੋਰਟ ਦੀ ਸਥਿਤੀ|ਸੈਂਪਲ ਟ੍ਰੈਕਿੰਗ|ਬਕਾਇਆ",
+    "ur": "بقایا رقم|بل کی گئی رقم|موصول ادائیگیاں|کریڈٹ حد|بل|ٹیسٹ|پیکیج|رپورٹ کی حالت|سیمپل ٹریکنگ|زیر التوا",
+    "or": "ବକେୟା ରାଶି|ବିଲ୍ ହୋଇଥିବା ରାଶି|ପ୍ରାପ୍ତ ପେମେଣ୍ଟ|କ୍ରେଡିଟ୍ ସୀମା|ବିଲ୍|ପରୀକ୍ଷା|ପ୍ୟାକେଜ୍|ରିପୋର୍ଟ ସ୍ଥିତି|ନମୁନା ଟ୍ରାକିଂ|ବକେୟା",
+}
+
+
+def _term_line(code):
+    v = _TERMS.get(code or "")
+    if not v:
+        return ""
+    return " Use exactly these words: " + "; ".join("%s = %s" % (k, w) for k, w in zip(_TERM_KEYS, v.split("|"))) + "."
+
+
+def _nums(text):
+    import unicodedata
+    t = "".join(str(unicodedata.digit(c)) if c.isdigit() and not c.isascii() else c for c in (text or ""))
+    t = re.sub(r"(?<=\d),(?=\d)", "", t)
+    return set(re.findall(r"\d+(?:\.\d+)?", t))
+
+
+def _translate(answer, lang_name, inst_code, timeout=60.0, roman=False, code=None, strict=False):
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            how = (" written in English letters (Roman script, the way people type it in chat), not in native script" if roman else "")
+            sysm = ("Translate the text to " + lang_name + how + ". Keep EXACTLY as written: all numbers, amounts, currency symbols, dates, bill numbers, IDs, "
+                    "names of people, doctors, tests, organisations and branches, and all markdown (tables, bullets, bold, line breaks). "
+                    "Translate every other word, including words such as patients, bills, tests, pending. Never drop, merge or round a number: every number and amount in the text must appear in the translation. "
+                    "Do not transliterate English words into the target script when a proper word exists (for example write the local word for bill, outstanding, billed)." + (" Write EVERYTHING in English letters only, never in native script." if roman else "") + ("" if roman else _term_line(code))
+                    + (" IMPORTANT: your previous translation lost a number. Keep EVERY number and amount, and keep the whole message." if strict else "")
+                    + " Output only the translation, nothing else.")
+            t = _ask_ai(inst_code, [SystemMessage(content=sysm), HumanMessage(content=answer)], None, "answer")
+            if t:
+                box["t"] = t
+        except Exception as e:
+            print("[lang] answer: %s %s" % (type(e).__name__, str(e)[:120]), flush=True)
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    return box.get("t")
+
+
+def localize(res, lang, inst_code):
+    """res: the /ask or B2B chat response dict. Returns a copy with 'answer' translated (original kept in 'answer_en')."""
+    if not lang or not isinstance(res, dict):
+        return res
+    ans = res.get("answer")
+    if not isinstance(ans, str) or not ans.strip() or res.get("status") not in ("success", None):
+        return res
+    import os as _os
+    roman = len(lang) > 2 and lang[2] == "roman" and _os.getenv("SAHASRA_ROMAN_REPLY", "native").lower() == "roman"
+    if not roman and _in_script(ans, lang[0]):        # the answer is already in the user's language
+        out = dict(res)
+        out["lang"] = lang[0]
+        return out
+    t = _translate(ans, lang[1], inst_code, roman=roman, code=lang[0])
+    if t and not (_nums(t) <= _nums(ans)):        # invented a number: treat as lost
+        print("[lang] answer: translation added numbers, retrying", flush=True)
+        t = _translate(ans, lang[1], inst_code, roman=roman, code=lang[0], strict=True)
+        if t and not (_nums(t) <= _nums(ans)):
+            t = None
+    if t and not _nums(ans) <= _nums(t):        # never show a translation that lost a number: retry once, else keep English
+        print("[lang] answer: translation lost numbers, retrying", flush=True)
+        t = _translate(ans, lang[1], inst_code, roman=roman, code=lang[0], strict=True)
+        if t and not _nums(ans) <= _nums(t):
+            print("[lang] answer: still lost numbers, keeping English", flush=True)
+            t = None
+    if not t:
+        return res
+    out = dict(res)
+    out["answer_en"], out["answer"], out["lang"] = ans, t, lang[0]
+    return out
+
+
+def inst_from_activation(code):
+    try:
+        from auth.license_service import validate_license
+        v = validate_license((code or "").strip()) or {}
+        return v.get("institution_code") or v.get("db_name")
+    except Exception:
+        return None

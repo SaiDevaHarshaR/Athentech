@@ -766,6 +766,7 @@ def build_router(require_admin) -> APIRouter:
     @router.post("/public/b2b/chat")
     def business_chat(body: ChatRequest, request: Request):
         _lang = None
+        _unclear = False
         try:        # understand + reply in the user's Indian language
             from agent import lang_out as _lo
             from agent import lang_bridge as _lb
@@ -775,12 +776,19 @@ def build_router(require_admin) -> APIRouter:
                 if _r:
                     _lang = (_r[0], _r[1], "roman")
                     body.message = _r[2]
+                elif not re.search(r"[A-Za-z]{2,}\d{5,}", body.message or ""):
+                    _unclear = True      # could not translate it reliably: say so instead of guessing
             if _lang and len(_lang) == 2:
-                _en, _ch = _lb.translate(body.message)
-                if _ch:
+                _en = _lo.to_english(body.message, str(body.client or "").upper())
+                if not _en:
+                    _en, _ch = _lb.translate(body.message)
+                    _en = _en if _ch else None
+                if _en:
                     body.message = _en
         except Exception:
             _lang = None
+        if _unclear:
+            return {"status": "success", "intent": "clarify", "answer": "Sorry, I could not understand that just now. Please try again in a moment, or ask in English."}
         _res = _business_chat_core(body, request)
         if _lang and isinstance(_res, dict):
             try:

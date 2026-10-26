@@ -489,6 +489,14 @@ def _wrap_ask(app, route, orig):
             try:        # Telugu / Hindi / Telglish -> English words the assistant understands
                 from agent import lang_bridge as lb
                 tq, changed = lb.translate(question)
+                try:        # any Indian-language script: longer, domain-aware AI translation (the word list alone is too thin)
+                    from agent import lang_out as _lo2
+                    if _lo2.detect(question):
+                        _t2 = _lo2.to_english(question, _lo2.inst_from_activation(code))
+                        if _t2:
+                            tq, changed = _t2, True
+                except Exception:
+                    pass
                 if changed:
                     understood, question = tq, tq
                     req.question = tq

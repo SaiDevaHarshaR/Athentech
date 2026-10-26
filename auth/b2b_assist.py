@@ -1193,6 +1193,29 @@ def _fixed_money(Q, contact, message, period):
             and not re.search(r"[a-z]{2,}\d{5,}", _q0):
         return _pay_received(Q, contact, _q0)
     ql = re.sub(r"\s+", " ", (message or "").lower())
+    _mm = re.search(r"\b(?:last|past|previous)\s+(\d{1,2})\s+months?\b", ql)
+    if _mm and 2 <= int(_mm.group(1)) <= 12 and re.search(r"\b(total|billed|billing|business|revenue|amount|bills?|invoices?)\b", ql) \
+            and not re.search(r"\b(test|tests|patient|patients|pending|status|ready|delayed|rejected|outstanding|balance|due|dues|doctor|doctors|branch|per|each|by|wise|price|rate|rates)\b", ql):
+        from datetime import date as _dt, timedelta as _td     # fixed, never left to the AI: rolling N months up to today
+        _n = int(_mm.group(1)); _t = _dt.today()
+        _y, _m0 = divmod(_t.year * 12 + _t.month - 1 - _n, 12)
+        _d = 1
+        while True:
+            try:
+                _a = _dt(_y, _m0 + 1, min(_t.day, 28) if _d else 1); break
+            except ValueError:
+                _d = 0
+        _org = str(contact.get("organisation_code"))
+        _r = Q("SELECT COUNT(DISTINCT BILLNO), SUM(CAST(ISNULL(TOTALCHARGES,0) AS FLOAT)) FROM trnINVLABPRI WHERE ORGANISATIONCODE = ? AND BILLDATE >= ? AND BILLDATE < ?", (_org, _a, _t + _td(days=1)))
+        _c, _v = (int(_r[0][0] or 0), float(_r[0][1] or 0)) if _r else (0, 0.0)
+        _got = ""
+        try:
+            _p = Q("SELECT SUM(CAST(ISNULL(PaidAmt,0) AS FLOAT)), COUNT(*) FROM trnCompPayments WHERE ORGCODE = ? AND Active = 1 AND PayDate >= ? AND PayDate < ?", (_org, _a, _t + _td(days=1)))
+            if _p:
+                _got = " The total amount received in payments is **%s**." % _inr(_p[0][0])
+        except Exception:
+            _got = ""
+        return _out("billing_total", "Your total billed amount for the last %d months is **%s** across %s bills.%s" % (_n, _inr(_v), format(_c, ","), _got), suggestions=["Billing statement", "Download Excel"])
     if re.search(r"\bdoctors?\b|\breferr?(ing|al|als|ed)\b", ql) and re.search(r"\b(bills?|invoices?|work ?orders?|orders?|referr\w*|top|most|per|by|wise|each|how many)\b", ql) \
             and not re.search(r"\b(test|tests|patient|patients|payment|paid|outstanding|balance|rate|rates|price)\b", ql):
         return _bills_by_doctor(Q, str(contact.get("organisation_code")), _period(ql, period if period in ("today", "yesterday", "last_7_days", "this_month", "last_month") else "this_month"))
