@@ -1,0 +1,5 @@
+Run: 2026-10-21 15:35 | API: https://api.athentech.in | calls: 37
+ask        instant  n=19  http200=19  p50=  3845 ms  p95= 19643 ms  mean=  7466 ms  max= 52382 ms  auto-pass=17/19
+ask        llm      n=18  http200=18  p50= 10572 ms  p95= 39379 ms  mean= 15897 ms  max= 65293 ms  auto-pass=16/18
+health    during an LLM question: 39 checks, worst 40 ms, failed 0
+NOTE: auto-pass is rule-based, NOT correctness. Fill correct_manual (1/0) for ~30 rows by checking against SQL; quote that number with its sample size.
