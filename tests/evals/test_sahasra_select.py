@@ -41,7 +41,7 @@ def fake_database(monkeypatch):
     monkeypatch.setattr(
         tools,
         "get_hospital_connection",
-        __________
+        lambda *args, **kwargs: connection
     )
 
     return connection
@@ -56,14 +56,14 @@ def test_select_revenue(fake_database):
     })
 
     # TODO 2: Verify OP revenue appears
-    assert __________
+    assert "OPRevenue" in result
 
     # TODO 3: Verify IP revenue appears
-    assert __________
+    assert "IPRevenue" in result
 
     # TODO 4: Verify SQL was executed once
     cursor = fake_database.cursor.return_value
-    cursor.execute.__________
+    cursor.execute.assert_called_once()
 
     # TODO 5: Verify connection was closed
-    fake_database.close.__________
+    fake_database.close.assert_called_once()
