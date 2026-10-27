@@ -36,9 +36,9 @@ def test_revenue_regression(actual, should_pass, expected_revenue):
 
     # TODO 1:
     # Determine whether every evaluation criterion passed.
-    all_passed = __________
+    all_passed = all({"actual": True, "should_pass": True, "expected_revenue": True}) 
 
     # TODO 2:
     # Compare the evaluation outcome
     # with should_pass.
-    assert __________
+    assert all_passed.values() == should_pass
