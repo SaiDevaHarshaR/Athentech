@@ -13,13 +13,13 @@ def test_ask_agent_returns_answer(monkeypatch):
     monkeypatch.setattr(
         agent_module,
         "_ask_agent_impl",
-        __________
+        fake_agent
     )
 
     # TODO 2:
     # Call the real ask_agent with this question:
     # "What is today's OP revenue?"
-    answer, tokens = __________
+    answer, tokens = 
 
     # TODO 3:
     # Verify the answer is exactly:
