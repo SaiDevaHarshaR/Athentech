@@ -19,13 +19,13 @@ def test_ask_agent_returns_answer(monkeypatch):
     # TODO 2:
     # Call the real ask_agent with this question:
     # "What is today's OP revenue?"
-    answer, tokens = 
+    answer, tokens = agent_module("What is today's OP revenue?")
 
     # TODO 3:
     # Verify the answer is exactly:
     # "OP revenue is 125000"
-    assert __________
+    assert answer == "OP revenue is 125000"
 
     # TODO 4:
     # Verify the token count is 25.
-    assert __________
+    assert tokens == 25
