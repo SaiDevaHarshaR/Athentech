@@ -28,7 +28,7 @@ def test_sql_tool_loop(monkeypatch):
 
     # TODO 1:
     # Create an iterator containing the two responses.
-    responses = iter(__________)
+    responses = iter([tool_request, final_response])
 
     # Replace LLM invocation with controlled responses.
     def fake_invoke(*args, **kwargs):
@@ -49,9 +49,9 @@ def test_sql_tool_loop(monkeypatch):
     # TODO 2:
     # Verify SQL tool received the correct arguments.
     fake_tool.invoke.assert_called_once_with(
-        __________
+        {"query": "SELECT 125000 AS OPRevenue"}
     )
 
     # TODO 3:
     # Verify the final answer contains the revenue.
-    assert __________
+    assert answer == "OP revenue is 125000"
