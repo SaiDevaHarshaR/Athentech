@@ -21,7 +21,7 @@ def test_agent_receives_correct_context(monkeypatch):
     # TODO 1: Verify captured role is viewer.
     assert captured["role"] == "viewer"
     # TODO 2: Verify database name.
-    assert captured["dn_name"] == "hospital_demo"
+    assert captured["db_name"] == "hospital_demo"
     # TODO 3: Verify institution code.
     assert captured["institution_code"] == "HOSP001"
     # TODO 4: Verify question was passed correctly.
