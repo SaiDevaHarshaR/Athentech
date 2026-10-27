@@ -19,7 +19,7 @@ def test_ask_agent_returns_answer(monkeypatch):
     # TODO 2:
     # Call the real ask_agent with this question:
     # "What is today's OP revenue?"
-    answer, tokens = agent_module("What is today's OP revenue?")
+    answer, tokens = _ask_agent_impl("What is today's OP revenue?")
 
     # TODO 3:
     # Verify the answer is exactly:
