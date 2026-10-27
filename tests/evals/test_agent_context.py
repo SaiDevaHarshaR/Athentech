@@ -27,4 +27,5 @@ def test_agent_receives_correct_context(monkeypatch):
     # TODO 4: Verify question was passed correctly.
     assert captured["question"] == "Show today's revenue"
     # TODO 5: Verify the answer.
-    assert fake_agent.tokens == 15
+    assert answer == "Revenue report ready"
+    assert tokens == 15
