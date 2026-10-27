@@ -17,4 +17,4 @@ def test_reject_update_query():
     # Verify that the returned message
     # indicates that only SELECT is allowed.
 
-    assert "Error" in result.message
+    assert result == "Error: Only SELECT queries are allowed."
