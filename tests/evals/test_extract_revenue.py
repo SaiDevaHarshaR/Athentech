@@ -19,11 +19,13 @@ def extract_revenue(answer):
 
     # TODO 3:
     # Remove commas and convert OP to Decimal.
-    op_amount = Decimal(op).replace(",","")
+    op_amount = op_text.replace(",","")
+    op_amount = Decimal(op_amount)
 
     # TODO 4:
     # Remove commas and convert IP to Decimal.
-    ip_amount = Decimal(ip).replace(",","")
+    ip_amount = ip_text.replace(",","")
+    ip_amount = Decimal(ip_amount)
 
     return {
         "op": op_amount,
