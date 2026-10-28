@@ -15,7 +15,7 @@ def extract_revenue(answer):
 
     # TODO 2:
     # Extract IP text from named group "ip".
-    ip_text = __________
+    ip_text = match
 
     # TODO 3:
     # Remove commas and convert OP to Decimal.
