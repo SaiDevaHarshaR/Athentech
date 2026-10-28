@@ -45,7 +45,7 @@ def test_agent_revenue_answer(monkeypatch):
 
     # TODO 1:
     # Call the real ask_agent function.
-    answer, tokens = agent_module.ask_agent({"query":"Compare today's OP and IP revenue"})
+    answer, tokens = agent_module.ask_agent("query":"Compare today's OP and IP revenue")
 
     # TODO 2:
     # Extract OP/IP revenue from the answer.
