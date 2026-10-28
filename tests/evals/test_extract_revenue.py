@@ -11,7 +11,7 @@ def extract_revenue(answer):
         return None
     # TODO 1:
     # Extract OP text from named group "op".
-    op_text = match
+    op_text = match.group()
 
     # TODO 2:
     # Extract IP text from named group "ip".
