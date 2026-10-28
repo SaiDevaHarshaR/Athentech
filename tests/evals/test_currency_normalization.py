@@ -6,7 +6,7 @@ def normalize_amount(text):
     text = text.replace("₹","")
 
     # TODO 2: Remove commas.
-    text = text.replace(__________)
+    text = text.replace("","")
 
     return text.strip()
 
