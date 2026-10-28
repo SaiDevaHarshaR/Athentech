@@ -17,7 +17,7 @@ def test_indian_currency():
 
     # TODO 3: Compare normalized actual
     # with normalized expected.
-    assert __________
+    assert actual == expected
 
 
 def test_plain_number():
