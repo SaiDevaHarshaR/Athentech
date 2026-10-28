@@ -21,7 +21,7 @@ def compare_amounts(actual, expected):
 
     # TODO 3:
     # Return True if both numerical values match.
-    return __________
+    return actual_value == expected_value
 
 
 def test_formatted_amount():
