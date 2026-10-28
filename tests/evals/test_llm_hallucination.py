@@ -49,11 +49,11 @@ def test_detect_wrong_revenue(monkeypatch):
     # TODO 1:
     # Extract the amount from the answer.
     # Assume format: "OP revenue is 150000".
-    actual_op = __________
+    actual_op = answer.group("150000")
 
     # TODO 2:
     # Check whether actual OP matches expected OP.
-    is_correct = __________
+    is_correct = actual_op == expected_op
 
     # TODO 3:
     # The evaluator should recognize a wrong answer.
