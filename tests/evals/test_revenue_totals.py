@@ -15,11 +15,11 @@ def evaluate_revenue_totals(actual, expected):
 
     # TODO 3:
     # Calculate the trusted total from expected.
-    expected_total = __________
+    expected_total = expected.get("op") + expected.get("ip")
 
     # TODO 4:
     # Compare actual total to expected total.
-    scores["total_correct"] = actual.get("total") == expected.get("total")
+    scores["total_correct"] = actual.get("total") == expected_total
 
     return scores
 
