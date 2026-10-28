@@ -1,0 +1,65 @@
+# -*- coding: utf-8 -*-
+"""Word-based rescue for 9 Indian languages (native script + English letters): maps a question to a known English question
+when the AI translation went wrong. Needs TWO concepts together (e.g. test + pending), so it cannot fire on a normal question."""
+import re
+
+def _r(*w): return re.compile("|".join(w), re.I)
+
+TEST = _r(r"parisodhan", r"pariksh", r"parishodhan", r"tapasan", r"porikkh", r"\btests?\b", r"ટેસ્ટ", r"ਟੈਸਟ", r"ଟେଷ୍ଟ", r"பரிசோதன", r"ಪರೀಕ್ಷ", r"പരിശോധന", r"तपासण", r"পরীক্ষ", r"ٹیسٹ")
+PEND = _r(r"\bbaa?ki\b", r"\bbaakiy", r"\bhaju\b", r"\bajun\b", r"\bekhono\b", r"\binnum\b", r"\biniyum\b", r"\binnu\b", r"\bebe bi\b", r"\bpending\b", r"\babhi\b", r"நிலுவையில்", r"இன்னும்", r"ಬಾಕಿ", r"ಇನ್ನೂ", r"ബാക്കി", r"ഇനിയും", r"बाकी", r"অজून|अजून", r"বাকি", r"এখনও", r"બાકી", r"હજુ", r"ਬਾਕੀ", r"ਹਜੇ", r"ବାକି", r"ଏବେ ବି", r"باقی", r"ابھی")
+MOST = _r(r"adhig", r"adhik", r"hechch?u", r"hechu", r"koo?duthal", r"kuduthal", r"sarvadhik", r"\bvadh", r"zyada", r"beshi", r"sobcheye", r"sab se", r"sabh ton", r"sabuthu", r"ettavum", r"sauthi", r"அதிக", r"ಹೆಚ್ಚು", r"കൂടുതൽ", r"ഏറ്റവും", r"सर्वाधिक", r"বেশি", r"સૌથી", r"વધુ", r"ਵੱਧ", r"ଅଧିକ", r"سب سے", r"زیادہ", r"\bmost\b")
+ORDER = _r(r"order", r"mangav", r"mangwa", r"magval", r"ordar", r"ஆர்டர்", r"ಆರ್ಡರ್", r"ഓർഡർ", r"मागवल", r"मागव", r"অর্ডার", r"મંગાવ", r"ਮੰਗਵਾ", r"ଅର୍ଡର", r"آرڈر", r"منگوا")
+BRANCH = _r(r"\bkilai", r"shakh", r"\bbranch", r"கிளை", r"ಶಾಖೆ", r"ബ്രാഞ്ച", r"शाखा", r"शाखे", r"শাখা", r"શાખા", r"ਸ਼ਾਖਾ", r"ଶାଖା", r"برانچ")
+STMT = _r(r"statement", r"அறிக்கை", r"ஸ்டேட்மென்ட்", r"ಸ್ಟೇಟ್‌?ಮೆಂಟ್", r"സ്റ്റേറ്റ്മെന്റ്", r"स्टेटमेंट", r"স্টেটমেন্ট", r"સ્ટેટમેન્ટ", r"ਸਟੇਟਮੈਂਟ", r"ଷ୍ଟେଟମେଣ୍ଟ", r"اسٹیٹمنٹ")
+BILLING = _r(r"billing", r"பில்லிங்", r"ಬಿಲ್ಲಿಂಗ್", r"ബില്ലിംഗ്", r"बिलिंग", r"বিলিং", r"બિલિંગ", r"ਬਿਲਿੰਗ", r"ବିଲିଂ", r"بلنگ")
+AGREE = _r(r"karar", r"chukti", r"ikrarnama", r"muahida", r"oppand", r"agreement", r"contract", r"ଚୁକ୍ତି", r"ஒப்பந்த", r"ಒಪ್ಪಂದ", r"കരാർ", r"करार", r"চুক্তি", r"કરાર", r"ਇਕਰਾਰ", r"معاہدہ")
+END = _r(r"mugi", r"samp", r"shesh", r"puro", r"khatam", r"avasan", r"\bsari", r"mudiy", r"expir", r"\bend", r"ସରିବ", r"ଶେଷ", r"முடி", r"ಮುಗಿ", r"അവസാന", r"संपत", r"শেষ", r"પૂરો", r"ਖਤਮ", r"ختم")
+INVOICE = _r(r"invoic", r"இன்வாய்ஸ்", r"ಇನ್‌?ವಾಯ್ಸ್", r"വോയ്സ്", r"इनव्हॉइस", r"ইনভয়েস", r"ઇન્વોઇસ", r"ਇਨਵੌਇਸ", r"ଇନଭଏସ", r"انوائس")
+UNPAID = _r(r"unpaid", r"not paid", r"bharleli", r"\bnathi\b", r"chukavaya", r"ada nah", r"diaijai", r"seluthappada", r"pavatiyagilla", r"adachittilla", r"porishodh hoyni", r"hoyni", r"ନାହିଁ", r"ਨਹੀਂ", r"نہیں", r"செலுத்தப்படவில்லை", r"ಪಾವತಿಯಾಗಿಲ್ಲ", r"അടച്ചിട്ടില്ല", r"न भरलेली", r"পরিশোধ হয়নি", r"ચૂકવાયા નથી")
+COPY = _r(r"\bcopy\b", r"\bgst\b", r"excel", r"download")
+PACKAGE = _r(r"package", r"பேக்கேஜ்", r"ಪ್ಯಾಕೇಜ್", r"പാക്കേജ", r"पॅकेज", r"पैकेज", r"প্যাকেজ", r"પેકેજ", r"ਪੈਕੇਜ", r"ପ୍ୟାକେଜ", r"پیکج")
+AVAIL = _r(r"labhya", r"uplabdh", r"upalabdh", r"available", r"irukku", r"\bive\b", r"paowa", r"dastiyab", r"உள்ளன", r"ಲಭ್ಯ", r"ലഭ്യ", r"उपलब्ध", r"পাওয়া", r"ઉપલબ્ધ", r"ਉਪਲਬਧ", r"ଉପଲବ୍ଧ", r"دستیاب")
+PRICE = _r(r"price", r"vilai", r"\bvila\b", r"\bbele\b", r"kimmat", r"keemat", r"\bdam\b", r"mulya", r"\brate\b", r"cost", r"how much", r"விலை", r"ಬೆಲೆ", r"വില", r"किंमत", r"दाम", r"দাম", r"કિંમત", r"ਕੀਮਤ", r"ମୂଲ୍ୟ", r"قیمت")
+
+def kw_intent(t):
+    """Return the exact English question for t, or None."""
+    t = (t or "").strip()
+    if not t or len(t) > 160 or re.search(r"@|\d{4,}|[A-Za-z]{2,}\d{3,}", t):
+        return None
+    if STMT.search(t) and BILLING.search(t):
+        return "Can you provide the monthly billing statement?"
+    if AGREE.search(t) and END.search(t):
+        return "When does our agreement expire?"
+    if INVOICE.search(t) and UNPAID.search(t) and not COPY.search(t):
+        return "Which invoices are unpaid?"
+    if BRANCH.search(t) and MOST.search(t):
+        return "Which branch has the highest test volume?"
+    if TEST.search(t) and MOST.search(t) and ORDER.search(t):
+        return "Which tests were ordered most frequently?"
+    if TEST.search(t) and PEND.search(t) and not INVOICE.search(t) and not PACKAGE.search(t):
+        return "Which tests are still pending?"
+    if PACKAGE.search(t) and AVAIL.search(t) and not PRICE.search(t):
+        return "What health-check packages are available?"
+    return None
+
+_LANGW = {
+ "kn": r"yava|innu|\bive\b|aagide|eshtu|labhyavi|labhyavide|hechch?u|shakhe|nanna|namma|tingal|yavaga|mugi|\bide\b|kodabahude|bele",
+ "ml": r"ethu|ethra|iniyum|\bente\b|njangal|parishodhana|kooduthal|ettavum|avasanik|prathimasa|tharamo|kazhinja|labhyam|ethokke|baakiy",
+ "ta": r"entha|evlo|irukku|innum|\benna\b|engal|parisodhanai|adhigam|kilai|thara|mudiyuma|niluvai|\ben\b|kadantha|vilai",
+ "mr": r"kontya|\bkiti\b|aahe|aahet|ajun|majhi|tumhi|amche|amcha|tapasanya|sarvadhik|shakta|magvalya|bharleli|\bmasik\b",
+ "bn": r"\bkon\b|\bkoto\b|\bache\b|\bamar\b|amader|ekhono|hobe|porikkh|sobcheye|beshi|parben|hoyeche|hoyni|dite|apnara",
+ "gu": r"\bkya\b|ketla|ketli|ketlu|\bchhe\b|\bhaju\b|\bmari\b|\btame\b|sauthi|vadhu|mangavya|chukavaya|\bapi\b|shako|pachla",
+ "pa": r"kihde|kinna|kinni|kinne|\bhan\b|\bhaje\b|\bmeri\b|\bsada\b|\btusi\b|\bvich\b|sabh ton|mangwaye|sakde|mahinawar|pichle",
+ "or": r"\bkeu\b|\bkete\b|achhi|\bebe\b|\bmora\b|apana|upalabdha|sabuthu|adhika|deiparibe|diaijai|heichi|saribe|gata",
+ "ur": r"\bkaun\b|\bkitna\b|\bhain\b|hamara|\bkab\b|muahida|dastiyab|zyada|mangwaye|sakte|huin",
+}
+_LANGW = {k: re.compile(v, re.I) for k, v in _LANGW.items()}
+
+def guess_lang(t):
+    """Language code of a question typed in English letters, from distinctive words; None when unclear."""
+    best, n = None, 0
+    for k, rx in _LANGW.items():
+        c = len(rx.findall(t or ""))
+        if c > n:
+            best, n = k, c
+    return best

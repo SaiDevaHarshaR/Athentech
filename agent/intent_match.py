@@ -1,0 +1,141 @@
+"""Stage-2 matcher: maps a plain English question (already translated from any language) to the closest KNOWN question, so it reaches the same fixed handler as the chip.
+Deterministic, no AI call, no network. Conservative: unknown words (names, codes, new topics) lower the score so those questions are left alone for the AI.
+Also writes questions that matched nothing to lang_unmatched.csv (digits masked) so they can be reviewed and added."""
+import csv, os, re, threading, time
+
+CANON = [
+    "How many bills did I get this month?", "How many bills did I get last month?", "What is my total billed amount in the last 3 months?",
+    "What is my outstanding balance?", "What is my credit limit?", "When was my last payment and how much?", "Has our payment been received?",
+    "What services do you provide?", "What is the status of my reports?", "How much is pending against our account?", "What is our available credit limit?",
+    "Can you provide the monthly billing statement?", "Which tests are still pending?", "Which orders are likely to be delayed?",
+    "What percentage of reports met TAT this month?", "Which tests were ordered most frequently?", "What is our sample rejection percentage?",
+    "Compare our last three months' invoices.", "What health-check packages are available?", "Can you arrange sample pickup tomorrow?",
+    "Can I speak with the lab manager?", "Download Excel", "Raise a delay complaint", "Show rejected samples", "Request invoice copy",
+    "Request GST invoice copy", "Raise renewal request", "Raise recollection request", "Payment status", "Status of my reports this month",
+    "Raise a special rate request", "Top 10 recent bills", "Raise a support request", "Billing total this month", "When is the next payment due?",
+    "Which invoices are unpaid?", "What is our outstanding balance and credit limit", "Tests done this month", "Contract agreement details",
+    "Has our NEFT payment been received?", "How much credit is available?", "When does our agreement expire?", "Has our credit note been approved?",
+    "Can we download our ledger?", "Has our monthly invoice been generated?", "Which branch has the highest test volume?",
+    "How has our test volume changed this quarter?", "Give me today's pending-order summary.",
+]
+# word -> concept (so "invoice", "invoices", "billing", "billed" all mean the same thing)
+_SYN = {
+    "invoice": "bill", "invoices": "bill", "bills": "bill", "billing": "bill", "billed": "bill", "bill": "bill",
+    "tests": "test", "investigations": "test", "investigation": "test", "examinations": "test", "test": "test",
+    "reports": "report", "report": "report", "results": "report", "result": "report",
+    "payments": "payment", "paid": "payment", "pay": "payment", "payment": "payment", "received": "receive", "receive": "receive", "credited": "receive",
+    "dues": "outstanding", "due": "outstanding", "owe": "outstanding", "owed": "outstanding", "unpaid": "unpaid", "outstanding": "outstanding", "balance": "balance", "arrears": "outstanding",
+    "limit": "limit", "limits": "limit", "ceiling": "limit",
+    "month": "month", "months": "month", "monthly": "month",
+    "samples": "sample", "sample": "sample", "specimens": "sample", "specimen": "sample",
+    "orders": "order", "order": "order", "requests": "request", "request": "request", "tickets": "request", "ticket": "request",
+    "packages": "package", "package": "package", "checkups": "package", "checkup": "package", "profiles": "package",
+    "percentage": "percent", "percent": "percent", "rate": "rate", "rates": "rate", "price": "price", "prices": "price", "cost": "price", "charges": "price", "charge": "price",
+    "contract": "contract", "agreement": "contract", "contracts": "contract", "agreements": "contract",
+    "expire": "expire", "expires": "expire", "expiry": "expire", "ends": "expire", "end": "expire", "validity": "expire", "valid": "expire",
+    "delayed": "delay", "delay": "delay", "late": "delay", "delays": "delay", "overdue": "delay",
+    "rejected": "reject", "rejection": "reject", "rejections": "reject", "reject": "reject",
+    "statement": "statement", "statements": "statement", "ledger": "ledger", "excel": "excel", "spreadsheet": "excel", "xlsx": "excel",
+    "manager": "manager", "supervisor": "manager", "head": "manager", "speak": "talk", "talk": "talk", "call": "talk", "contact": "talk", "meet": "talk",
+    "pickup": "pickup", "collect": "pickup", "collection": "pickup", "arrange": "pickup", "pick": "pickup",
+    "services": "service", "service": "service", "offer": "service", "provide": "service", "facilities": "service",
+    "complaint": "complaint", "complain": "complaint", "complaining": "complaint", "complaints": "complaint", "grievance": "complaint",
+    "latest": "recent", "recent": "recent", "last": "last", "previous": "last", "past": "last", "prior": "last",
+    "three": "3", "two": "2", "one": "1", "four": "4", "six": "6", "twelve": "12",
+    "pending": "pending", "waiting": "pending", "yet": "", "still": "",
+    "credit": "credit", "available": "available",
+    "tat": "tat", "turnaround": "tat", "turn": "tat",
+    "performed": "done", "done": "done", "conducted": "done", "carried": "done",
+    "branch": "branch", "branches": "branch", "centre": "branch", "center": "branch", "volume": "volume",
+    "quarter": "quarter", "quarterly": "quarter", "trend": "change", "changed": "change", "change": "change", "compare": "compare", "comparison": "compare",
+    "frequently": "frequent", "frequent": "frequent", "most": "most", "highest": "most", "top": "most", "popular": "frequent", "often": "frequent",
+    "gst": "gst", "neft": "neft", "upi": "upi", "tds": "tds", "note": "note", "approved": "approve", "approve": "approve",
+    "renewal": "renewal", "renew": "renewal", "recollection": "recollection", "recollect": "recollection", "recollected": "recollection",
+    "special": "special", "copy": "copy", "copies": "copy", "download": "download", "downloaded": "download", "export": "download", "summary": "summary",
+    "today": "today", "tomorrow": "tomorrow", "yesterday": "yesterday", "week": "week", "weeks": "week", "year": "year",
+    "generated": "generate", "generate": "generate", "prepared": "generate", "ready": "generate", "made": "generate",
+    "left": "available", "remaining": "available", "remains": "available", "remain": "available",
+    "number": "many", "count": "many", "many": "many",
+    "next": "next", "total": "total", "amount": "amount", "when": "when",
+    "status": "status", "state": "status", "progress": "status", "update": "status", "track": "status", "tracking": "status",
+    "health": "package", "full": "", "body": "", "account": "account", "our": "", "my": "", "your": "", "me": "",
+}
+_STOP = set("a an the is are was were be been being do does did can could would will shall you yours we us i of for to in on at by with from and or please kindly tell show give let know there any has have had it this that these those what who whom how whose may might should about as into if am so than then also just now currently get got need want like please send give list file register create make raise much amount which where".split())
+_TOK = re.compile(r"[a-z0-9]+")
+_LOCK = threading.Lock()
+
+
+def _stem(w):
+    for suf in ("ing", "ed", "es", "s"):
+        if len(w) > len(suf) + 2 and w.endswith(suf):
+            return w[: -len(suf)]
+    return w
+
+
+def _concepts(text):
+    out = []
+    for w in _TOK.findall((text or "").lower().replace("'s", "")):
+        if w in _STOP:
+            continue
+        c = _SYN.get(w)
+        if c is None:
+            c = _SYN.get(_stem(w), _stem(w))
+        if c:
+            out.append(c)
+    return out
+
+
+_CB = None
+
+
+def _bank():
+    global _CB
+    if _CB is None:
+        _CB = [(q, set(_concepts(q))) for q in CANON]
+    return _CB
+
+
+_PRE = [(re.compile(r"rejection rate"), "rejection percentage"), (re.compile(r"how are (my|our) reports"), "status of my reports"),
+        (re.compile(r"(?:not|yet to be|hasn.t been|haven.t been) paid"), "unpaid"), (re.compile(r"(?:not|yet to be|haven.t been|hasn.t been|is not|are not) (?:yet |been )?(?:completed|complete|finished|done|ready)"), "pending"), (re.compile(r"expiry date"), "expire"), (re.compile(r"renew (?:the |our )?contract"), "renewal request")]
+
+
+def canonical(text, min_score=0.7, margin=0.08):
+    """Return (closest known question, score) or (None, best_score). Only maps when clearly closest."""
+    t = (text or "").strip()
+    if not t or len(t) > 200 or re.search(r"[A-Z]{2,}[A-Z0-9]*\d{3,}|\b[A-Z]{2,4}\d{3,}\b|@", t):   # bill numbers / codes / emails: never rewrite
+        return None, 0.0
+    tl = t.lower()
+    for rx, rep in _PRE:
+        tl = rx.sub(rep, tl)
+    q = set(_concepts(tl))
+    if not q:
+        return None, 0.0
+    scored = []
+    for cq, cs in _bank():
+        inter = len(q & cs)
+        if not inter:
+            continue
+        scored.append((0.65 * inter / len(q) + 0.35 * inter / len(cs), cq))
+    if not scored:
+        return None, 0.0
+    scored.sort(reverse=True)
+    best = scored[0]
+    second = scored[1][0] if len(scored) > 1 else 0.0
+    if best[0] >= min_score and (best[0] - second) >= margin:
+        return best[1], best[0]
+    return None, best[0]
+
+
+def log_unmatched(original, english, path="lang_unmatched.csv"):
+    """Append a question that no handler was sure about (digits masked). Never raises."""
+    try:
+        o = re.sub(r"\d", "#", (original or "")[:300]); e = re.sub(r"\d", "#", (english or "")[:300])
+        with _LOCK:
+            new = not os.path.exists(path)
+            with open(path, "a", encoding="utf-8-sig", newline="") as fh:
+                w = csv.writer(fh)
+                if new:
+                    w.writerow(["time", "original", "english"])
+                w.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), o, e])
+    except Exception:
+        pass
