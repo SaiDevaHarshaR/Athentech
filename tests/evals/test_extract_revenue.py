@@ -1,23 +1,17 @@
-
 import re
 from decimal import Decimal
-
-
 def extract_revenue(answer):
     pattern = (
         r"OP revenue is ₹?(?P<op>[\d,]+)"
         r"\s+and\s+"
         r"IP revenue is ₹?(?P<ip>[\d,]+)"
     )
-
     match = re.search(pattern, answer, re.IGNORECASE)
-
     if not match:
         return None
-
     # TODO 1:
     # Extract OP text from named group "op".
-    op_text = __________
+    op_text = match
 
     # TODO 2:
     # Extract IP text from named group "ip".
@@ -25,11 +19,11 @@ def extract_revenue(answer):
 
     # TODO 3:
     # Remove commas and convert OP to Decimal.
-    op_amount = __________
+    op_amount = Decimal(op).replace(",","")
 
     # TODO 4:
     # Remove commas and convert IP to Decimal.
-    ip_amount = __________
+    ip_amount = Decimal(ip).replace(",","")
 
     return {
         "op": op_amount,
