@@ -46,15 +46,11 @@ def test_detect_wrong_revenue(monkeypatch):
         tools_by_name={"run_sql_query": fake_sql}
     )
 
-    # TODO 1:
-    # Extract the amount from the answer.
-    # Assume format: "OP revenue is 150000".
-    actual_op = answer.group("150000")
 
-    # TODO 2:
-    # Check whether actual OP matches expected OP.
+    actual_op = Decimal(answer.split()[-1])
+
     is_correct = Decimal(actual_op) == expected_op
 
-    # TODO 3:
+
     # The evaluator should recognize a wrong answer.
     assert is_correct is False
