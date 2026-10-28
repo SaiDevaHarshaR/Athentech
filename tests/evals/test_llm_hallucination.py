@@ -53,8 +53,8 @@ def test_detect_wrong_revenue(monkeypatch):
 
     # TODO 2:
     # Check whether actual OP matches expected OP.
-    is_correct = actual_op == expected_op
+    is_correct = Decimal(actual_op) == expected_op
 
     # TODO 3:
     # The evaluator should recognize a wrong answer.
-    assert __________
+    assert is_correct is False
