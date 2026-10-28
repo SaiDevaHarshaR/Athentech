@@ -45,7 +45,7 @@ def test_agent_revenue_answer(monkeypatch):
 
     # TODO 1:
     # Call the real ask_agent function.
-    answer, tokens = agent_module.ask_agent("query":"Compare today's OP and IP revenue")
+    answer, tokens = agent_module.ask_agent({"query":"Compare today's OP and IP revenue"})
 
     # TODO 2:
     # Extract OP/IP revenue from the answer.
@@ -57,8 +57,8 @@ def test_agent_revenue_answer(monkeypatch):
 
     # TODO 4:
     # Verify OP matches the trusted amount.
-    assert expected["op"] == answer["op"]
+    assert expected["op"] == actual["op"]
 
     # TODO 5:
     # Verify IP matches the trusted amount.
-    assert expected["ip"] == answer["ip"]
+    assert expected["ip"] == actual["ip"]
