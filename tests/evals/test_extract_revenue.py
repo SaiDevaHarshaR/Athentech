@@ -11,11 +11,11 @@ def extract_revenue(answer):
         return None
     # TODO 1:
     # Extract OP text from named group "op".
-    op_text = match.group()
+    op_text = match.group("op")
 
     # TODO 2:
     # Extract IP text from named group "ip".
-    ip_text = match.group()
+    ip_text = match.group("ip")
 
     # TODO 3:
     # Remove commas and convert OP to Decimal.
