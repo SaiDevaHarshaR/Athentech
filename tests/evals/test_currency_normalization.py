@@ -25,4 +25,4 @@ def test_plain_number():
     expected = 125000
 
     # TODO 4: Compare both values.
-    assert __________
+    assert actual == expected
