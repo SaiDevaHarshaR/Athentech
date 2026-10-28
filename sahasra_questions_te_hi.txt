@@ -1,0 +1,254 @@
+SAHASRA AI AGENT - questions it can answer (English / Telugu / Hindi)
+Tested in all languages: the first 8 of BILLING/ACCOUNT groups marked [T]. Others are supported by the agent but not run in the 11-language test.
+Bill numbers, test names and patient names are examples: replace with real ones.
+
+=== BILLING ===
+
+1. [T] How many bills did I get this month?
+   తెలుగు: ఈ నెల ఎన్ని బిల్లులు వచ్చాయి?
+   हिन्दी: इस महीने कितने बिल बने?
+
+2. [T] How many bills did I get last month?
+   తెలుగు: గత నెల ఎన్ని బిల్లులు వచ్చాయి?
+   हिन्दी: पिछले महीने कितने बिल बने?
+
+3. [T] What is my total billed amount in the last 3 months?
+   తెలుగు: గత 3 నెలల్లో నా మొత్తం బిల్లు ఎంత?
+   हिन्दी: पिछले 3 महीनों में मेरी कुल बिल राशि कितनी है?
+
+4. What is our monthly billing total?
+   తెలుగు: మా నెలవారీ బిల్లింగ్ మొత్తం ఎంత?
+   हिन्दी: हमारा मासिक बिलिंग कुल कितना है?
+
+5. Billing total this month
+   తెలుగు: ఈ నెల బిల్లింగ్ మొత్తం
+   हिन्दी: इस महीने का बिलिंग कुल
+
+6. Tests done this month
+   తెలుగు: ఈ నెల చేసిన పరీక్షలు
+   हिन्दी: इस महीने की गई जाँचें
+
+7. Top 10 recent bills
+   తెలుగు: ఇటీవలి 10 బిల్లులు
+   हिन्दी: हाल के 10 बिल
+
+8. Compare our last three months' invoices.
+   తెలుగు: గత మూడు నెలల ఇన్వాయిస్‌లను పోల్చండి.
+   हिन्दी: पिछले तीन महीनों के इनवॉइस की तुलना करें।
+
+9. How has our test volume changed this quarter?
+   తెలుగు: ఈ త్రైమాసికంలో మా పరీక్షల సంఖ్య ఎలా మారింది?
+   हिन्दी: इस तिमाही में हमारी जाँचों की संख्या कैसे बदली?
+
+10. Which branch has the highest test volume?
+   తెలుగు: ఏ బ్రాంచ్‌లో ఎక్కువ పరీక్షలు ఉన్నాయి?
+   हिन्दी: किस ब्रांच में सबसे ज़्यादा जाँचें हैं?
+
+11. Which tests were ordered most frequently?
+   తెలుగు: ఏ పరీక్షలు ఎక్కువగా ఆర్డర్ చేయబడ్డాయి?
+   हिन्दी: कौन सी जाँचें सबसे ज़्यादा मँगाई गईं?
+
+=== ACCOUNT AND PAYMENTS ===
+
+12. [T] What is my outstanding balance?
+   తెలుగు: నా బకాయి మొత్తం ఎంత?
+   हिन्दी: मेरा बकाया कितना है?
+
+13. What is our pending balance?
+   తెలుగు: మా పెండింగ్ బ్యాలెన్స్ ఎంత?
+   हिन्दी: हमारा बकाया बैलेंस कितना है?
+
+14. How much is pending against our account?
+   తెలుగు: మా ఖాతాపై ఎంత పెండింగ్‌లో ఉంది?
+   हिन्दी: हमारे खाते पर कितना बकाया है?
+
+15. [T] What is my credit limit?
+   తెలుగు: నా క్రెడిట్ లిమిట్ ఎంత?
+   हिन्दी: मेरी क्रेडिट लिमिट कितनी है?
+
+16. What is our available credit limit?
+   తెలుగు: మా అందుబాటులో ఉన్న క్రెడిట్ లిమిట్ ఎంత?
+   हिन्दी: हमारी उपलब्ध क्रेडिट लिमिट कितनी है?
+
+17. How much credit is available?
+   తెలుగు: ఎంత క్రెడిట్ అందుబాటులో ఉంది?
+   हिन्दी: कितना क्रेडिट उपलब्ध है?
+
+18. [T] When was my last payment and how much?
+   తెలుగు: నా చివరి చెల్లింపు ఎప్పుడు, ఎంత?
+   हिन्दी: मेरा आखिरी भुगतान कब और कितना था?
+
+19. [T] Has our payment been received?
+   తెలుగు: మా చెల్లింపు అందిందా?
+   हिन्दी: क्या हमारा भुगतान मिल गया?
+
+20. Has our NEFT payment been received?
+   తెలుగు: మా NEFT చెల్లింపు అందిందా?
+   हिन्दी: क्या हमारा NEFT भुगतान मिल गया?
+
+21. Payment status
+   తెలుగు: చెల్లింపు స్థితి
+   हिन्दी: भुगतान की स्थिति
+
+22. Can you provide the monthly billing statement?
+   తెలుగు: నెలవారీ బిల్లింగ్ స్టేట్‌మెంట్ ఇవ్వగలరా?
+   हिन्दी: क्या आप मासिक बिलिंग स्टेटमेंट दे सकते हैं?
+
+23. Can we download our ledger?
+   తెలుగు: మా లెడ్జర్ డౌన్‌లోడ్ చేసుకోవచ్చా?
+   हिन्दी: क्या हम अपना लेज़र डाउनलोड कर सकते हैं?
+
+24. Which invoices are unpaid?
+   తెలుగు: ఏ ఇన్వాయిస్‌లు చెల్లించలేదు?
+   हिन्दी: कौन से इनवॉइस अदा नहीं हुए?
+
+25. When is the next payment due?
+   తెలుగు: తదుపరి చెల్లింపు ఎప్పుడు చేయాలి?
+   हिन्दी: अगला भुगतान कब देय है?
+
+26. Has our monthly invoice been generated?
+   తెలుగు: మా నెలవారీ ఇన్వాయిస్ తయారైందా?
+   हिन्दी: क्या हमारा मासिक इनवॉइस बन गया है?
+
+27. What is the TDS recorded on our payments?
+   తెలుగు: మా చెల్లింపులపై నమోదైన TDS ఎంత?
+   हिन्दी: हमारे भुगतानों पर दर्ज TDS कितना है?
+
+28. Has our credit note been approved?
+   తెలుగు: మా క్రెడిట్ నోట్ ఆమోదించబడిందా?
+   हिन्दी: क्या हमारा क्रेडिट नोट मंज़ूर हो गया है?
+
+29. Contract agreement details
+   తెలుగు: కాంట్రాక్ట్ ఒప్పంద వివరాలు
+   हिन्दी: कॉन्ट्रैक्ट एग्रीमेंट का विवरण
+
+30. When does our agreement expire?
+   తెలుగు: మా ఒప్పందం ఎప్పుడు ముగుస్తుంది?
+   हिन्दी: हमारा एग्रीमेंट कब खत्म होता है?
+
+=== TESTS, PRICES, PACKAGES ===
+
+31. What is the price and report time for CBC?
+   తెలుగు: CBC ధర మరియు రిపోర్ట్ సమయం ఎంత?
+   हिन्दी: CBC की कीमत और रिपोर्ट का समय क्या है?
+
+32. Price of CBC
+   తెలుగు: CBC ధర
+   हिन्दी: CBC की कीमत
+
+33. Is the lipid profile available?
+   తెలుగు: లిపిడ్ ప్రొఫైల్ అందుబాటులో ఉందా?
+   हिन्दी: क्या लिपिड प्रोफाइल उपलब्ध है?
+
+34. Is fasting required for the sugar test?
+   తెలుగు: షుగర్ పరీక్షకు ఉపవాసం అవసరమా?
+   हिन्दी: क्या शुगर जाँच के लिए खाली पेट रहना ज़रूरी है?
+
+35. What health-check packages are available?
+   తెలుగు: ఏ హెల్త్ చెకప్ ప్యాకేజీలు అందుబాటులో ఉన్నాయి?
+   हिन्दी: कौन से हेल्थ-चेकअप पैकेज उपलब्ध हैं?
+
+36. What is included in the full body checkup package?
+   తెలుగు: ఫుల్ బాడీ చెకప్ ప్యాకేజీలో ఏమేమి ఉన్నాయి?
+   हिन्दी: फुल बॉडी चेकअप पैकेज में क्या-क्या शामिल है?
+
+37. [T] What services do you provide?
+   తెలుగు: మీరు ఏ ఏ సేవలు అందిస్తారు?
+   हिन्दी: आप कौन सी सेवाएं देते हैं?
+
+=== REPORTS, SAMPLES, STATUS ===
+
+38. What is the status of my reports?
+   తెలుగు: నా రిపోర్టుల స్థితి ఏమిటి?
+   हिन्दी: मेरी रिपोर्टों की स्थिति क्या है?
+
+39. Status of my reports this month
+   తెలుగు: ఈ నెల నా రిపోర్టుల స్థితి
+   हिन्दी: इस महीने मेरी रिपोर्टों की स्थिति
+
+40. Which tests are still pending?
+   తెలుగు: ఏ పరీక్షలు ఇంకా పెండింగ్‌లో ఉన్నాయి?
+   हिन्दी: कौन सी जाँचें अभी भी लंबित हैं?
+
+41. Which orders are likely to be delayed?
+   తెలుగు: ఏ ఆర్డర్లు ఆలస్యం అయ్యే అవకాశం ఉంది?
+   हिन्दी: कौन से ऑर्डर देर से आ सकते हैं?
+
+42. Give me today's pending-order summary.
+   తెలుగు: ఈ రోజు పెండింగ్ ఆర్డర్ల సారాంశం ఇవ్వండి.
+   हिन्दी: आज के लंबित ऑर्डरों का सारांश दीजिए।
+
+43. What percentage of reports met TAT this month?
+   తెలుగు: ఈ నెల ఎంత శాతం రిపోర్టులు TAT లోపల వచ్చాయి?
+   हिन्दी: इस महीने कितने प्रतिशत रिपोर्ट TAT में आईं?
+
+44. Status of bill SMN123
+   తెలుగు: బిల్ SMN123 స్థితి
+   हिन्दी: बिल SMN123 की स्थिति
+
+45. What tests are in bill SMN123?
+   తెలుగు: బిల్ SMN123 లో ఏ పరీక్షలు ఉన్నాయి?
+   हिन्दी: बिल SMN123 में कौन सी जाँचें हैं?
+
+46. Where is the sample for bill SMN123?
+   తెలుగు: బిల్ SMN123 శాంపిల్ ఎక్కడ ఉంది?
+   हिन्दी: बिल SMN123 का सैंपल कहाँ है?
+
+47. What is our sample rejection percentage?
+   తెలుగు: మా శాంపిల్ రిజెక్షన్ శాతం ఎంత?
+   हिन्दी: हमारे सैंपल अस्वीकृति का प्रतिशत कितना है?
+
+48. Show rejected samples
+   తెలుగు: తిరస్కరించిన శాంపిల్స్ చూపండి
+   हिन्दी: अस्वीकृत सैंपल दिखाइए
+
+49. Show bills of patient Ravi
+   తెలుగు: రవి అనే పేషెంట్ బిల్లులు చూపండి
+   हिन्दी: मरीज़ रवि के बिल दिखाइए
+
+=== SUPPORT REQUESTS (creates a ticket for the lab) ===
+
+50. Raise a support request
+   తెలుగు: సపోర్ట్ రిక్వెస్ట్ పెట్టండి
+   हिन्दी: सपोर्ट रिक्वेस्ट दर्ज करें
+
+51. Raise a delay complaint
+   తెలుగు: ఆలస్యంపై ఫిర్యాదు నమోదు చేయండి
+   हिन्दी: देरी की शिकायत दर्ज करें
+
+52. Can you arrange sample pickup tomorrow?
+   తెలుగు: రేపు శాంపిల్ పికప్ ఏర్పాటు చేయగలరా?
+   हिन्दी: क्या आप कल सैंपल पिकअप की व्यवस्था कर सकते हैं?
+
+53. Talk to lab manager
+   తెలుగు: ల్యాబ్ మేనేజర్‌తో మాట్లాడాలి
+   हिन्दी: लैब मैनेजर से बात करनी है
+
+54. Can I speak with the lab manager?
+   తెలుగు: నేను ల్యాబ్ మేనేజర్‌తో మాట్లాడవచ్చా?
+   हिन्दी: क्या मैं लैब मैनेजर से बात कर सकता हूँ?
+
+55. Raise a special rate request
+   తెలుగు: ప్రత్యేక రేటు కోసం రిక్వెస్ట్ పెట్టండి
+   हिन्दी: विशेष दर के लिए रिक्वेस्ट दर्ज करें
+
+56. Request invoice copy
+   తెలుగు: ఇన్వాయిస్ కాపీ కావాలి
+   हिन्दी: इनवॉइस की कॉपी चाहिए
+
+57. Request GST invoice copy
+   తెలుగు: GST ఇన్వాయిస్ కాపీ కావాలి
+   हिन्दी: GST इनवॉइस की कॉपी चाहिए
+
+58. Raise renewal request
+   తెలుగు: రెన్యువల్ రిక్వెస్ట్ పెట్టండి
+   हिन्दी: नवीनीकरण का अनुरोध दर्ज करें
+
+59. Raise recollection request
+   తెలుగు: రీకలెక్షన్ రిక్వెస్ట్ పెట్టండి
+   हिन्दी: पुनः सैंपल संग्रह का अनुरोध दर्ज करें
+
+60. Download Excel
+   తెలుగు: ఎక్సెల్ డౌన్‌లోడ్ చేయండి
+   हिन्दी: एक्सेल डाउनलोड करें
+

@@ -1,0 +1,269 @@
+SAHASRA AI AGENT - CONFIRMED QUESTIONS (run on your server 27 Oct 2026). Only questions that returned the correct answer are listed.
+
+=== TAMIL (25 confirmed) ===
+  -- native script --
+     last month bills   கடந்த மாதம் எத்தனை பில்கள்?
+     3-month total      கடந்த 3 மாதங்களில் என் மொத்த பில் தொகை எவ்வளவு?
+     outstanding        என் நிலுவைத் தொகை எவ்வளவு?
+     credit limit       என் கிரெடிட் லிமிட் எவ்வளவு?
+     last payment       என் கடைசி பணம் செலுத்தல் எப்போது, எவ்வளவு?
+     payment received   எங்கள் பணம் கிடைத்ததா?
+     available credit   எவ்வளவு கிரெடிட் மீதம் உள்ளது?
+     agreement expiry   எங்கள் ஒப்பந்தம் எப்போது முடிகிறது?
+     packages           என்னென்ன ஹெல்த் பேக்கேஜ்கள் உள்ளன?
+     top tests          எந்த பரிசோதனைகள் அதிகம் ஆர்டர் செய்யப்பட்டன?
+     busiest branch     எந்த கிளையில் அதிக பரிசோதனைகள் உள்ளன?
+     price of CBC       CBC விலை என்ன?
+     monthly statement  மாதாந்திர பில்லிங் அறிக்கை தர முடியுமா?
+     unpaid invoices    எந்த இன்வாய்ஸ்கள் செலுத்தப்படவில்லை?
+  -- English letters --
+     last month bills   kadantha maadham ethanai bills?
+     3-month total      kadantha 3 maadhathil en mottha bill thogai evlo?
+     outstanding        en niluvai thogai evlo?
+     credit limit       en credit limit evlo?
+     last payment       en kadaisi payment eppodhu, evlo?
+     payment received   engal payment kidaithatha, enna?
+     available credit   evlo credit meedham irukku?
+     agreement expiry   engal oppandham eppo mudiyudhu?
+     packages           ennenna health package irukku?
+     price of CBC       CBC vilai enna?
+     unpaid invoices    entha invoice seluthappadavillai?
+
+=== KANNADA (26 confirmed) ===
+  -- native script --
+     last month bills   ಕಳೆದ ತಿಂಗಳು ಎಷ್ಟು ಬಿಲ್‌ಗಳಾಗಿವೆ?
+     3-month total      ಕಳೆದ 3 ತಿಂಗಳಲ್ಲಿ ನನ್ನ ಒಟ್ಟು ಬಿಲ್ ಮೊತ್ತ ಎಷ್ಟು?
+     outstanding        ನನ್ನ ಬಾಕಿ ಮೊತ್ತ ಎಷ್ಟು?
+     credit limit       ನನ್ನ ಕ್ರೆಡಿಟ್ ಲಿಮಿಟ್ ಎಷ್ಟು?
+     last payment       ನನ್ನ ಕೊನೆಯ ಪಾವತಿ ಯಾವಾಗ, ಎಷ್ಟು?
+     services           ನೀವು ಯಾವ ಯಾವ ಸೇವೆಗಳನ್ನು ನೀಡುತ್ತೀರಿ?
+     payment received   ನಮ್ಮ ಪಾವತಿ ಬಂದಿದೆಯೇ?
+     available credit   ಎಷ್ಟು ಕ್ರೆಡಿಟ್ ಲಭ್ಯವಿದೆ?
+     agreement expiry   ನಮ್ಮ ಒಪ್ಪಂದ ಯಾವಾಗ ಮುಗಿಯುತ್ತದೆ?
+     packages           ಯಾವ ಹೆಲ್ತ್ ಪ್ಯಾಕೇಜ್‌ಗಳು ಲಭ್ಯವಿವೆ?
+     top tests          ಯಾವ ಪರೀಕ್ಷೆಗಳನ್ನು ಹೆಚ್ಚು ಆರ್ಡರ್ ಮಾಡಲಾಗಿದೆ?
+     busiest branch     ಯಾವ ಶಾಖೆಯಲ್ಲಿ ಹೆಚ್ಚು ಪರೀಕ್ಷೆಗಳಿವೆ?
+     price of CBC       CBC ಬೆಲೆ ಎಷ್ಟು?
+     monthly statement  ಮಾಸಿಕ ಬಿಲ್ಲಿಂಗ್ ಸ್ಟೇಟ್‌ಮೆಂಟ್ ಕೊಡಬಹುದೇ?
+     unpaid invoices    ಯಾವ ಇನ್‌ವಾಯ್ಸ್‌ಗಳು ಪಾವತಿಯಾಗಿಲ್ಲ?
+  -- English letters --
+     last month bills   kalede tingalu eshtu bills aagide?
+     3-month total      kalede 3 tingalalli nanna ottu bill mottha eshtu?
+     outstanding        nanna baaki mottha eshtu?
+     credit limit       nanna credit limit eshtu?
+     last payment       nanna kone payment yavaga, eshtu?
+     services           nimma yenu yenu services ide?
+     payment received   namma payment bandideya, yenu?
+     available credit   eshtu credit labhyavide?
+     agreement expiry   namma oppanda yavaga mugiyuttade?
+     price of CBC       CBC bele eshtu?
+     unpaid invoices    yava invoice pavatiyagilla?
+
+=== MALAYALAM (25 confirmed) ===
+  -- native script --
+     last month bills   കഴിഞ്ഞ മാസം എത്ര ബില്ലുകൾ ആയി?
+     3-month total      കഴിഞ്ഞ 3 മാസത്തിൽ എന്റെ ആകെ ബിൽ തുക എത്ര?
+     outstanding        എന്റെ കുടിശ്ശിക എത്ര?
+     credit limit       എന്റെ ക്രെഡിറ്റ് ലിമിറ്റ് എത്ര?
+     last payment       എന്റെ അവസാന പേയ്‌മെന്റ് എപ്പോൾ, എത്ര?
+     payment received   ഞങ്ങളുടെ പേയ്‌മെന്റ് കിട്ടിയോ?
+     available credit   എത്ര ക്രെഡിറ്റ് ലഭ്യമാണ്?
+     agreement expiry   ഞങ്ങളുടെ കരാർ എപ്പോൾ അവസാനിക്കും?
+     pending tests      ഏത് പരിശോധനകൾ ഇനിയും ബാക്കിയാണ്?
+     packages           ഏതൊക്കെ ഹെൽത്ത് പാക്കേജുകൾ ലഭ്യമാണ്?
+     top tests          ഏത് പരിശോധനകളാണ് ഏറ്റവും കൂടുതൽ ഓർഡർ ചെയ്തത്?
+     busiest branch     ഏത് ബ്രാഞ്ചിലാണ് ഏറ്റവും കൂടുതൽ പരിശോധനകൾ?
+     price of CBC       CBC വില എത്രയാണ്?
+     monthly statement  പ്രതിമാസ ബില്ലിംഗ് സ്റ്റേറ്റ്മെന്റ് തരാമോ?
+     unpaid invoices    ഏത് ഇൻവോയ്സുകൾ അടച്ചിട്ടില്ല?
+  -- English letters --
+     last month bills   kazhinja maasam ethra bills aayi?
+     3-month total      kazhinja 3 maasathil ente aake bill thuka ethra?
+     outstanding        ente kudishika ethra?
+     credit limit       ente credit limit ethra?
+     last payment       ente avasana payment eppol, ethra?
+     payment received   njangalude payment kittiyo, ethra?
+     available credit   ethra credit labhyamanu?
+     packages           ethokke health package labhyamanu?
+     price of CBC       CBC vila ethrayanu?
+     unpaid invoices    ethu invoicukal adachittilla?
+
+=== MARATHI (27 confirmed) ===
+  -- native script --
+     last month bills   गेल्या महिन्यात किती बिल झाली?
+     3-month total      गेल्या 3 महिन्यांत माझी एकूण बिल रक्कम किती?
+     outstanding        माझी थकबाकी किती आहे?
+     credit limit       माझी क्रेडिट लिमिट किती आहे?
+     last payment       माझे शेवटचे पेमेंट कधी आणि किती होते?
+     services           तुम्ही कोणत्या सेवा देता, काय काय आहे?
+     payment received   आमचे पेमेंट मिळाले का, किती आहे?
+     available credit   किती क्रेडिट उपलब्ध आहे?
+     agreement expiry   आमचा करार कधी संपतो?
+     packages           कोणती हेल्थ पॅकेजेस उपलब्ध आहेत?
+     top tests          कोणत्या तपासण्या सर्वाधिक मागवल्या गेल्या?
+     busiest branch     कोणत्या शाखेत सर्वाधिक तपासण्या आहेत?
+     price of CBC       CBC ची किंमत किती आहे?
+     monthly statement  मासिक बिलिंग स्टेटमेंट देऊ शकता का?
+     unpaid invoices    कोणती इनव्हॉइस न भरलेली आहेत?
+  -- English letters --
+     last month bills   gelya mahinyat kiti bills jhale?
+     3-month total      gelya 3 mahinyat majhi ekun bill rakkam kiti?
+     outstanding        majhi thakbaki kiti aahe?
+     credit limit       majhi credit limit kiti aahe?
+     last payment       majhe shevtache payment kadhi ani kiti hote, sanga?
+     services           tumhi kontya services deta, sanga?
+     payment received   amche payment milale ka, kiti aahe?
+     available credit   kiti credit uplabdh aahe?
+     agreement expiry   amcha karar kadhi sampto?
+     packages           konti health packages uplabdh aahet?
+     busiest branch     kontya shakhet sarvadhik tapasanya aahet?
+     price of CBC       CBC chi kimmat kiti aahe?
+
+=== BENGALI (29 confirmed) ===
+  -- native script --
+     last month bills   গত মাসে কয়টি বিল হয়েছে?
+     3-month total      গত 3 মাসে আমার মোট বিলের পরিমাণ কত?
+     outstanding        আমার বকেয়া কত?
+     credit limit       আমার ক্রেডিট লিমিট কত?
+     last payment       আমার শেষ পেমেন্ট কবে এবং কত ছিল?
+     services           আপনারা কী কী সেবা দেন?
+     payment received   আমাদের পেমেন্ট কি পাওয়া গেছে?
+     available credit   কত ক্রেডিট অবশিষ্ট আছে?
+     agreement expiry   আমাদের চুক্তি কবে শেষ হবে?
+     pending tests      কোন পরীক্ষাগুলো এখনও বাকি আছে?
+     packages           কোন হেলথ প্যাকেজগুলো পাওয়া যাচ্ছে?
+     top tests          কোন পরীক্ষা সবচেয়ে বেশি অর্ডার হয়েছে?
+     busiest branch     কোন শাখায় সবচেয়ে বেশি পরীক্ষা হয়?
+     price of CBC       CBC এর দাম কত?
+     monthly statement  মাসিক বিলিং স্টেটমেন্ট দিতে পারবেন?
+     unpaid invoices    কোন ইনভয়েসগুলো পরিশোধ হয়নি?
+  -- English letters --
+     last month bills   gato mashe koto bill hoyeche?
+     3-month total      gato 3 mashe amar mot biller poriman koto?
+     outstanding        amar bokeya koto?
+     credit limit       amar credit limit koto?
+     last payment       amar shesh payment kobe ar koto chhilo?
+     services           apnara ki ki service den, bolun?
+     payment received   amader payment ki peyechen, bolun?
+     available credit   koto credit obshishto ache?
+     packages           kon health packagegulo paowa jachhe?
+     top tests          kon porikkha sobcheye beshi order hoyeche?
+     busiest branch     kon shakhay sobcheye beshi porikkha hoy?
+     price of CBC       CBC er dam koto?
+     unpaid invoices    kon invoicegulo porishodh hoyni?
+
+=== GUJARATI (26 confirmed) ===
+  -- native script --
+     last month bills   ગયા મહિને કેટલા બિલ થયા?
+     3-month total      છેલ્લા 3 મહિનામાં મારી કુલ બિલ રકમ કેટલી છે?
+     outstanding        મારી બાકી રકમ કેટલી છે?
+     credit limit       મારી ક્રેડિટ લિમિટ કેટલી છે?
+     last payment       મારું છેલ્લું પેમેન્ટ ક્યારે અને કેટલું હતું?
+     services           તમે કઈ કઈ સેવાઓ આપો છો?
+     payment received   અમારું પેમેન્ટ મળ્યું?
+     available credit   કેટલું ક્રેડિટ ઉપલબ્ધ છે?
+     agreement expiry   અમારો કરાર ક્યારે પૂરો થાય છે?
+     packages           કયા હેલ્થ પેકેજ ઉપલબ્ધ છે?
+     top tests          કયા ટેસ્ટ સૌથી વધુ મંગાવ્યા?
+     busiest branch     કઈ શાખામાં સૌથી વધુ ટેસ્ટ છે?
+     price of CBC       CBC ની કિંમત કેટલી છે?
+     monthly statement  માસિક બિલિંગ સ્ટેટમેન્ટ આપી શકો?
+     unpaid invoices    કયા ઇન્વોઇસ ચૂકવાયા નથી?
+  -- English letters --
+     last month bills   pachla mahine ketla bills thaya?
+     3-month total      pachla 3 mahina ma mari kul bill rakam ketli chhe?
+     outstanding        mari baki rakam ketli chhe?
+     credit limit       mari credit limit ketli chhe?
+     last payment       maru chhelu payment kyare ane ketlu hatu, batavo?
+     services           tame shu shu services apo cho, batavo?
+     payment received   amaru payment malyu, ketlu chhe?
+     available credit   ketlu credit uplabdh chhe?
+     packages           kya health package uplabdh chhe?
+     busiest branch     kai shakhama sauthi vadhu test chhe?
+     price of CBC       CBC ni kimmat ketli chhe?
+
+=== PUNJABI (28 confirmed) ===
+  -- native script --
+     last month bills   ਪਿਛਲੇ ਮਹੀਨੇ ਕਿੰਨੇ ਬਿੱਲ ਬਣੇ?
+     3-month total      ਪਿਛਲੇ 3 ਮਹੀਨਿਆਂ ਵਿੱਚ ਮੇਰੀ ਕੁੱਲ ਬਿੱਲ ਰਕਮ ਕਿੰਨੀ ਹੈ?
+     outstanding        ਮੇਰਾ ਬਕਾਇਆ ਕਿੰਨਾ ਹੈ?
+     credit limit       ਮੇਰੀ ਕ੍ਰੈਡਿਟ ਲਿਮਿਟ ਕਿੰਨੀ ਹੈ?
+     last payment       ਮੇਰੀ ਆਖਰੀ ਅਦਾਇਗੀ ਕਦੋਂ ਅਤੇ ਕਿੰਨੀ ਸੀ?
+     services           ਤੁਸੀਂ ਕਿਹੜੀਆਂ ਸੇਵਾਵਾਂ ਦਿੰਦੇ ਹੋ?
+     payment received   ਸਾਡੀ ਅਦਾਇਗੀ ਮਿਲ ਗਈ?
+     available credit   ਕਿੰਨਾ ਕ੍ਰੈਡਿਟ ਉਪਲਬਧ ਹੈ?
+     agreement expiry   ਸਾਡਾ ਇਕਰਾਰਨਾਮਾ ਕਦੋਂ ਖਤਮ ਹੁੰਦਾ ਹੈ?
+     pending tests      ਕਿਹੜੇ ਟੈਸਟ ਹਜੇ ਬਾਕੀ ਹਨ?
+     packages           ਕਿਹੜੇ ਹੈਲਥ ਪੈਕੇਜ ਉਪਲਬਧ ਹਨ?
+     top tests          ਕਿਹੜੇ ਟੈਸਟ ਸਭ ਤੋਂ ਵੱਧ ਮੰਗਵਾਏ ਗਏ?
+     busiest branch     ਕਿਸ ਸ਼ਾਖਾ ਵਿੱਚ ਸਭ ਤੋਂ ਵੱਧ ਟੈਸਟ ਹਨ?
+     price of CBC       CBC ਦੀ ਕੀਮਤ ਕੀ ਹੈ?
+     monthly statement  ਮਹੀਨਾਵਾਰ ਬਿਲਿੰਗ ਸਟੇਟਮੈਂਟ ਦੇ ਸਕਦੇ ਹੋ?
+     unpaid invoices    ਕਿਹੜੇ ਇਨਵੌਇਸ ਅਦਾ ਨਹੀਂ ਹੋਏ?
+  -- English letters --
+     last month bills   pichle mahine kinne bills bane?
+     3-month total      pichle 3 mahine vich meri kul bill rakam kinni hai?
+     outstanding        mera bakaya kinna hai?
+     credit limit       meri credit limit kinni hai?
+     last payment       meri akhri payment kado te kinni si, dasso?
+     services           tusi ki ki services dinde ho, dasso?
+     payment received   sadi payment mil gayi, kinni hai?
+     available credit   kinna credit uplabdh hai?
+     agreement expiry   sada ikrarnama kado khatam hunda hai?
+     top tests          kihde test sabh ton vadh mangwaye gaye?
+     busiest branch     kis shakha vich sabh ton vadh test han?
+     price of CBC       CBC di keemat ki hai?
+
+=== URDU (25 confirmed) ===
+  -- native script --
+     last month bills   پچھلے مہینے کتنے بل بنے؟
+     3-month total      پچھلے 3 مہینوں میں میری کل بل رقم کتنی ہے؟
+     outstanding        میرا بقایا کتنا ہے؟
+     credit limit       میری کریڈٹ لمٹ کتنی ہے؟
+     last payment       میری آخری ادائیگی کب اور کتنی تھی؟
+     services           آپ کون سی خدمات دیتے ہیں؟
+     payment received   کیا ہماری ادائیگی مل گئی؟
+     available credit   کتنا کریڈٹ دستیاب ہے؟
+     agreement expiry   ہمارا معاہدہ کب ختم ہوتا ہے؟
+     pending tests      کون سے ٹیسٹ ابھی باقی ہیں؟
+     packages           کون سے ہیلتھ پیکجز دستیاب ہیں؟
+     top tests          کون سے ٹیسٹ سب سے زیادہ منگوائے گئے؟
+     busiest branch     کس برانچ میں سب سے زیادہ ٹیسٹ ہیں؟
+     price of CBC       CBC کی قیمت کیا ہے؟
+     monthly statement  ماہانہ بلنگ اسٹیٹمنٹ دے سکتے ہیں؟
+     unpaid invoices    کون سی انوائسز ادا نہیں ہوئیں؟
+  -- English letters --
+     available credit   kitna credit dastiyab hai?
+     agreement expiry   hamara muahida kab khatam hota hai?
+     pending tests      kaun se test abhi baqi hain?
+     packages           kaun se health package dastiyab hain?
+     top tests          kaun se test sab se zyada mangwaye gaye?
+     busiest branch     kis branch mein sab se zyada test hain?
+     price of CBC       CBC ki qeemat kya hai?
+     monthly statement  mahana billing statement de sakte hain?
+     unpaid invoices    kaun si invoices ada nahin huin?
+
+=== ODIA (20 confirmed) ===
+  -- native script --
+     last month bills   ଗତ ମାସରେ କେତୋଟି ବିଲ୍ ହୋଇଛି?
+     3-month total      ଗତ 3 ମାସରେ ମୋର ମୋଟ ବିଲ୍ ରାଶି କେତେ?
+     outstanding        ମୋର ବକେୟା କେତେ?
+     credit limit       ମୋର କ୍ରେଡିଟ୍ ଲିମିଟ୍ କେତେ?
+     last payment       ମୋର ଶେଷ ପେମେଣ୍ଟ କେବେ ଏବଂ କେତେ ଥିଲା?
+     services           ଆପଣ କେଉଁ ସେବା ଦିଅନ୍ତି?
+     payment received   ଆମର ପେମେଣ୍ଟ ମିଳିଲା କି?
+     available credit   କେତେ କ୍ରେଡିଟ୍ ଉପଲବ୍ଧ ଅଛି?
+     busiest branch     କେଉଁ ଶାଖାରେ ସବୁଠୁ ଅଧିକ ଟେଷ୍ଟ ଅଛି?
+     price of CBC       CBC ର ମୂଲ୍ୟ କେତେ?
+  -- English letters --
+     last month bills   gata masa re kete bill heichi?
+     3-month total      gata 3 masa re mora mota bill rashi kete?
+     outstanding        mora bakeya kete?
+     credit limit       mora credit limit kete?
+     last payment       mora sesh payment kebe ebam kete thila?
+     services           apana kemiti services dena, dekhantu?
+     available credit   kete credit upalabdha achhi?
+     packages           keu health package upalabdha?
+     top tests          keu test sabuthu adhika order heichhi?
+     price of CBC       CBC ra mulya kete?
+

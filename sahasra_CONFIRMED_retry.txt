@@ -1,0 +1,64 @@
+SAHASRA AI AGENT - CONFIRMED QUESTIONS (run on your server 27 Oct 2026). Only questions that returned the correct answer are listed.
+
+=== TAMIL (7 confirmed) ===
+  -- native script --
+     services           நீங்கள் என்ன சேவைகள் வழங்குகிறீர்கள்?
+     pending tests      எந்த பரிசோதனைகள் இன்னும் நிலுவையில் உள்ளன?
+  -- English letters --
+     services           neenga enna enna services tharinga?
+     pending tests      entha parisodhanaigal innum niluvaiyil irukku?
+     top tests          entha parisodhanai adhigam order pannirukku?
+     busiest branch     entha kilaiyil adhiga parisodhanai irukku?
+     monthly statement  maadhandhira billing statement thara mudiyuma?
+
+=== KANNADA (2 confirmed) ===
+  -- native script --
+     pending tests      ಯಾವ ಪರೀಕ್ಷೆಗಳು ಇನ್ನೂ ಬಾಕಿ ಇವೆ?
+  -- English letters --
+     top tests          yava parikshegalu hechchu order aagide?
+
+=== MALAYALAM (2 confirmed) ===
+  -- native script --
+     services           നിങ്ങൾ എന്തൊക്കെ സേവനങ്ങൾ നൽകുന്നു?
+  -- English letters --
+     services           ningal entokke services tharunnu?
+
+=== MARATHI (4 confirmed) ===
+  -- native script --
+     pending tests      कोणत्या तपासण्या अजून बाकी आहेत?
+  -- English letters --
+     pending tests      kontya tapasanya ajun baki aahet?
+     top tests          kontya tapasanya sarvadhik magvalya gelya?
+     unpaid invoices    konti invoice na bharleli aahet?
+
+=== BENGALI (1 confirmed) ===
+  -- native script --
+  -- English letters --
+     pending tests      kon porikkhagulo ekhono baki ache?
+
+=== GUJARATI (5 confirmed) ===
+  -- native script --
+     pending tests      કયા ટેસ્ટ હજુ બાકી છે?
+  -- English letters --
+     agreement expiry   amaro karar kyare puro thay chhe?
+     pending tests      kya test haju baki chhe?
+     top tests          kya test sauthi vadhu mangavya?
+     unpaid invoices    kya invoice chukavaya nathi?
+
+=== PUNJABI (1 confirmed) ===
+  -- native script --
+  -- English letters --
+     unpaid invoices    kihde invoice ada nahin hoye?
+
+=== ODIA (8 confirmed) ===
+  -- native script --
+     agreement expiry   ଆମର ଚୁକ୍ତି କେବେ ସରିବ?
+     pending tests      କେଉଁ ଟେଷ୍ଟ ଏବେ ବି ବାକି ଅଛି?
+     packages           କେଉଁ ହେଲ୍ଥ ପ୍ୟାକେଜ୍ ଉପଲବ୍ଧ?
+     top tests          କେଉଁ ଟେଷ୍ଟ ସବୁଠୁ ଅଧିକ ଅର୍ଡର ହୋଇଛି?
+     monthly statement  ମାସିକ ବିଲିଂ ଷ୍ଟେଟମେଣ୍ଟ ଦେଇପାରିବେ?
+     unpaid invoices    କେଉଁ ଇନଭଏସ୍ ଦିଆଯାଇ ନାହିଁ?
+  -- English letters --
+     agreement expiry   amara chukti kebe saribe?
+     unpaid invoices    keu invoice diaijai nahin?
+

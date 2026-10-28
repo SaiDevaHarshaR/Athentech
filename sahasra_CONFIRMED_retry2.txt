@@ -1,0 +1,46 @@
+SAHASRA AI AGENT - CONFIRMED QUESTIONS (run on your server 28 Oct 2026). Only questions that returned the correct answer are listed.
+
+=== KANNADA (1 confirmed) ===
+  -- native script --
+  -- English letters --
+     packages           yava health package labhyavive?
+
+=== MALAYALAM (5 confirmed) ===
+  -- native script --
+  -- English letters --
+     agreement expiry   njangalude karar eppol avasanikkum?
+     pending tests      ethu parishodhanakal iniyum baakiyanu?
+     top tests          ethu parishodhanakalanu ettavum kooduthal order cheythathu?
+     busiest branch     ethu branchilanu ettavum kooduthal parishodhanakal?
+     monthly statement  prathimasa billing statement tharamo?
+
+=== MARATHI (1 confirmed) ===
+  -- native script --
+  -- English letters --
+     monthly statement  masik billing statement deu shakta ka?
+
+=== BENGALI (2 confirmed) ===
+  -- native script --
+  -- English letters --
+     agreement expiry   amader chukti kobe shesh hobe?
+     monthly statement  masik billing statement dite parben?
+
+=== GUJARATI (1 confirmed) ===
+  -- native script --
+  -- English letters --
+     monthly statement  masik billing statement api shako?
+
+=== PUNJABI (3 confirmed) ===
+  -- native script --
+  -- English letters --
+     pending tests      kihde test haje baki han?
+     packages           kihde health package uplabdh han?
+     monthly statement  mahinawar billing statement de sakde ho?
+
+=== ODIA (3 confirmed) ===
+  -- native script --
+  -- English letters --
+     pending tests      keu test ebe bi baki achhi?
+     busiest branch     keu shakhare sabuthu adhika test achhi?
+     monthly statement  masika billing statement deiparibe?
+
