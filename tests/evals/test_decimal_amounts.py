@@ -13,11 +13,11 @@ def compare_amounts(actual, expected):
 
     # TODO 1:
     # Convert the normalized actual amount into Decimal.
-    actual_value = Decimal(actual)
+    actual_value = Decimal(normalize_amount(actual))
 
     # TODO 2:
     # Convert the normalized expected amount into Decimal.
-    expected_value = Decimal(expected)
+    expected_value = Decimal(normalize_amount(expected))
 
     # TODO 3:
     # Return True if both numerical values match.
