@@ -7,11 +7,11 @@ def evaluate_revenue_totals(actual, expected):
 
     # TODO 1:
     # Check actual OP equals expected OP.
-    scores["op_correct"] = actual.get(op) == expected.get(op)
+    scores["op_correct"] = actual.get("op") == expected.get("op")
 
     # TODO 2:
     # Check actual IP equals expected IP.
-    scores["ip_correct"] = __________
+    scores["ip_correct"] = actual.get("ip") == expected.get("ip")
 
     # TODO 3:
     # Calculate the trusted total from expected.
@@ -19,7 +19,7 @@ def evaluate_revenue_totals(actual, expected):
 
     # TODO 4:
     # Compare actual total to expected total.
-    scores["total_correct"] = __________
+    scores["total_correct"] = actual.get("total") == expected.get("total")
 
     return scores
 
