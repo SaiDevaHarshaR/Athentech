@@ -1,0 +1,219 @@
+SAHASRA AI AGENT - CONFIRMED QUESTIONS, SET B (live server). Only questions whose answer matched the English answer and came back in the user's language.
+
+=== TAMIL (23 confirmed) ===
+  -- native script --
+     bills this month   இந்த மாதம் எத்தனை பில்கள்?
+     invoices this month இந்த மாதம் எத்தனை இன்வாய்ஸ்கள்?
+     report status      என் ரிப்போர்ட்களின் நிலை என்ன?
+     reports pending    எந்த ரிப்போர்ட்கள் நிலுவையில் உள்ளன?
+     delayed orders     எந்த ஆர்டர்கள் தாமதமாகலாம்?
+     TAT percent        இந்த மாதம் எத்தனை சதவீத ரிப்போர்ட்கள் TAT-க்குள் வந்தன?
+     sample rejection   எங்கள் சாம்பிள் நிராகரிப்பு சதவீதம் என்ன?
+     compare 3 months   கடந்த மூன்று மாத இன்வாய்ஸ்களை ஒப்பிடுங்கள்.
+     CBC price+time     CBC விலை மற்றும் ரிப்போர்ட் நேரம் என்ன?
+     rejected samples   நிராகரிக்கப்பட்ட சாம்பிள்களைக் காட்டுங்கள்.
+     top 10 bills       என் சமீபத்திய 10 பில்களைக் காட்டுங்கள்.
+     billing total      இந்த மாதம் என் மொத்த பில்லிங் எவ்வளவு?
+     contract details   ஒப்பந்த விவரங்களைக் காட்டுங்கள்.
+     payment status     பணம் செலுத்தும் நிலை என்ன?
+  -- English letters --
+     bills this month   intha maadham ethanai bills?
+     invoices this month intha maadham ethanai invoices?
+     report status      en reports nilai enna?
+     reports pending    entha reports niluvaiyil irukku?
+     TAT percent        intha maadham ethanai sathaveedham reports TAT kulle vandhana?
+     sample rejection   engal sample niraakarippu sathaveedham enna?
+     compare 3 months   kadantha moondru maadha invoices oppidungal.
+     CBC price+time     CBC vilai matrum report neram enna?
+     billing total      intha maadham en mottha billing evlo?
+
+=== KANNADA (22 confirmed) ===
+  -- native script --
+     bills this month   ಈ ತಿಂಗಳು ಎಷ್ಟು ಬಿಲ್‌ಗಳಾಗಿವೆ?
+     invoices this month ಈ ತಿಂಗಳು ಎಷ್ಟು ಇನ್‌ವಾಯ್ಸ್‌ಗಳಾಗಿವೆ?
+     report status      ನನ್ನ ರಿಪೋರ್ಟ್‌ಗಳ ಸ್ಥಿತಿ ಏನು?
+     reports pending    ಯಾವ ರಿಪೋರ್ಟ್‌ಗಳು ಬಾಕಿ ಇವೆ?
+     delayed orders     ಯಾವ ಆರ್ಡರ್‌ಗಳು ತಡವಾಗುವ ಸಾಧ್ಯತೆ ಇದೆ?
+     TAT percent        ಈ ತಿಂಗಳು ಎಷ್ಟು ಶೇಕಡಾ ರಿಪೋರ್ಟ್‌ಗಳು TAT ಒಳಗೆ ಬಂದಿವೆ?
+     sample rejection   ನಮ್ಮ ಸ್ಯಾಂಪಲ್ ತಿರಸ್ಕಾರ ಶೇಕಡಾವಾರು ಎಷ್ಟು?
+     compare 3 months   ಕಳೆದ ಮೂರು ತಿಂಗಳ ಇನ್‌ವಾಯ್ಸ್‌ಗಳನ್ನು ಹೋಲಿಸಿ.
+     CBC price+time     CBC ಬೆಲೆ ಮತ್ತು ರಿಪೋರ್ಟ್ ಸಮಯ ಎಷ್ಟು?
+     rejected samples   ತಿರಸ್ಕೃತ ಸ್ಯಾಂಪಲ್‌ಗಳನ್ನು ತೋರಿಸಿ.
+     top 10 bills       ನನ್ನ ಇತ್ತೀಚಿನ 10 ಬಿಲ್‌ಗಳನ್ನು ತೋರಿಸಿ.
+     billing total      ಈ ತಿಂಗಳ ನನ್ನ ಒಟ್ಟು ಬಿಲ್ಲಿಂಗ್ ಎಷ್ಟು?
+     contract details   ಒಪ್ಪಂದದ ವಿವರಗಳನ್ನು ತೋರಿಸಿ.
+     payment status     ಪಾವತಿಯ ಸ್ಥಿತಿ ಏನು?
+  -- English letters --
+     bills this month   ee tingalu eshtu bills aagide?
+     invoices this month ee tingalu eshtu invoices aagide?
+     report status      nanna reports sthiti enu?
+     reports pending    yava reports baki ive?
+     TAT percent        ee tingalu eshtu shekada reports TAT olage bandive?
+     compare 3 months   kalede mooru tingala invoices holisi.
+     CBC price+time     CBC bele mattu report samaya eshtu?
+     billing total      ee tingala nanna ottu billing eshtu?
+
+=== MALAYALAM (23 confirmed) ===
+  -- native script --
+     bills this month   ഈ മാസം എത്ര ബില്ലുകൾ ആയി?
+     invoices this month ഈ മാസം എത്ര ഇൻവോയ്സുകൾ ആയി?
+     report status      എന്റെ റിപ്പോർട്ടുകളുടെ സ്ഥിതി എന്താണ്?
+     reports pending    ഏത് റിപ്പോർട്ടുകൾ ബാക്കിയാണ്?
+     delayed orders     ഏത് ഓർഡറുകൾ വൈകാൻ സാധ്യതയുണ്ട്?
+     TAT percent        ഈ മാസം എത്ര ശതമാനം റിപ്പോർട്ടുകൾ TAT-നുള്ളിൽ വന്നു?
+     sample rejection   ഞങ്ങളുടെ സാമ്പിൾ നിരസിക്കൽ ശതമാനം എത്ര?
+     compare 3 months   കഴിഞ്ഞ മൂന്ന് മാസത്തെ ഇൻവോയ്സുകൾ താരതമ്യം ചെയ്യൂ.
+     CBC price+time     CBC വിലയും റിപ്പോർട്ട് സമയവും എത്ര?
+     rejected samples   നിരസിച്ച സാമ്പിളുകൾ കാണിക്കൂ.
+     top 10 bills       എന്റെ ഏറ്റവും പുതിയ 10 ബില്ലുകൾ കാണിക്കൂ.
+     billing total      ഈ മാസത്തെ എന്റെ ആകെ ബില്ലിംഗ് എത്ര?
+     contract details   കരാർ വിവരങ്ങൾ കാണിക്കൂ.
+     payment status     പേയ്‌മെന്റ് സ്ഥിതി എന്താണ്?
+  -- English letters --
+     bills this month   ee maasam ethra bills aayi?
+     invoices this month ee maasam ethra invoices aayi?
+     report status      ente reportukalude sthithi enthanu?
+     TAT percent        ee maasam ethra shathamanam reportukal TAT nullil vannu?
+     sample rejection   njangalude sample nirasikkal shathamanam ethra?
+     compare 3 months   kazhinja moonnu maasathe invoicukal tharathamyam cheyyoo.
+     CBC price+time     CBC vilayum report samayavum ethra?
+     top 10 bills       ente ettavum puthiya 10 billukal kaanikkoo.
+     billing total      ee maasathe ente aake billing ethra?
+
+=== MARATHI (26 confirmed) ===
+  -- native script --
+     bills this month   या महिन्यात किती बिल झाली?
+     invoices this month या महिन्यात किती इनव्हॉइस झाले?
+     report status      माझ्या रिपोर्टची स्थिती काय आहे?
+     reports pending    कोणते रिपोर्ट बाकी आहेत?
+     delayed orders     कोणत्या ऑर्डर उशिरा होण्याची शक्यता आहे?
+     TAT percent        या महिन्यात किती टक्के रिपोर्ट TAT मध्ये आले?
+     sample rejection   आमचे सॅम्पल रिजेक्शन टक्केवारी किती आहे?
+     compare 3 months   मागील तीन महिन्यांच्या इनव्हॉइसची तुलना करा.
+     CBC price+time     CBC ची किंमत आणि रिपोर्ट वेळ किती?
+     rejected samples   नाकारलेले सॅम्पल दाखवा.
+     top 10 bills       माझी अलीकडील 10 बिले दाखवा.
+     billing total      या महिन्यातील माझे एकूण बिलिंग किती?
+     contract details   कराराचे तपशील दाखवा.
+     payment status     पेमेंटची स्थिती काय आहे?
+  -- English letters --
+     bills this month   ya mahinyat kiti bills jhale?
+     invoices this month ya mahinyat kiti invoice jhale?
+     report status      majhya reportchi sthiti kay aahe?
+     reports pending    konte report baki aahet?
+     delayed orders     kontya order ushira honyachi shakyata aahe?
+     TAT percent        ya mahinyat kiti takke report TAT madhe aale?
+     sample rejection   amche sample rejection takkevari kiti aahe?
+     CBC price+time     CBC chi kimmat ani report vel kiti?
+     rejected samples   nakarlele sample dakhva.
+     top 10 bills       majhi alikadil 10 bile dakhva.
+     billing total      ya mahinyatil majhe ekun billing kiti?
+     payment status     paymentchi sthiti kay aahe?
+
+=== BENGALI (17 confirmed) ===
+  -- native script --
+     bills this month   এই মাসে কয়টি বিল হয়েছে?
+     invoices this month এই মাসে কয়টি ইনভয়েস হয়েছে?
+     report status      আমার রিপোর্টের অবস্থা কী?
+     reports pending    কোন রিপোর্টগুলো বাকি আছে?
+     delayed orders     কোন অর্ডারগুলো দেরি হতে পারে?
+     TAT percent        এই মাসে কত শতাংশ রিপোর্ট TAT-এর মধ্যে এসেছে?
+     sample rejection   আমাদের স্যাম্পল বাতিলের শতাংশ কত?
+     compare 3 months   গত তিন মাসের ইনভয়েস তুলনা করুন।
+     CBC price+time     CBC এর দাম ও রিপোর্টের সময় কত?
+     rejected samples   বাতিল স্যাম্পলগুলো দেখান।
+     top 10 bills       আমার সাম্প্রতিক 10টি বিল দেখান।
+     billing total      এই মাসে আমার মোট বিলিং কত?
+     contract details   চুক্তির বিবরণ দেখান।
+     payment status     পেমেন্টের অবস্থা কী?
+  -- English letters --
+     report status      amar reporter obostha ki?
+     reports pending    kon reportgulo baki ache?
+     top 10 bills       amar samprotik 10ti bill dekhan.
+
+=== GUJARATI (25 confirmed) ===
+  -- native script --
+     bills this month   આ મહિને કેટલા બિલ થયા?
+     invoices this month આ મહિને કેટલા ઇન્વોઇસ થયા?
+     report status      મારા રિપોર્ટની સ્થિતિ શું છે?
+     reports pending    કયા રિપોર્ટ બાકી છે?
+     delayed orders     કયા ઓર્ડર મોડા થવાની શક્યતા છે?
+     TAT percent        આ મહિને કેટલા ટકા રિપોર્ટ TAT માં આવ્યા?
+     sample rejection   અમારા સેમ્પલ રિજેક્શનની ટકાવારી કેટલી છે?
+     compare 3 months   છેલ્લા ત્રણ મહિનાના ઇન્વોઇસની સરખામણી કરો.
+     CBC price+time     CBC ની કિંમત અને રિપોર્ટ સમય કેટલો છે?
+     rejected samples   નકારાયેલા સેમ્પલ બતાવો.
+     top 10 bills       મારા તાજેતરના 10 બિલ બતાવો.
+     billing total      આ મહિનાનું મારું કુલ બિલિંગ કેટલું છે?
+     contract details   કરારની વિગતો બતાવો.
+     payment status     પેમેન્ટની સ્થિતિ શું છે?
+  -- English letters --
+     bills this month   aa mahine ketla bills thaya?
+     invoices this month aa mahine ketla invoice thaya?
+     report status      mara reportni sthiti shu chhe?
+     reports pending    kya report baki chhe?
+     delayed orders     kya order moda thavani shakyata chhe?
+     TAT percent        aa mahine ketla taka report TAT ma aavya?
+     sample rejection   amara sample rejectionni takavari ketli chhe?
+     CBC price+time     CBC ni kimmat ane report samay ketlo chhe?
+     top 10 bills       mara tajetarna 10 bill batavo.
+     billing total      aa mahinanu maru kul billing ketlu chhe?
+     payment status     paymentni sthiti shu chhe?
+
+=== PUNJABI (15 confirmed) ===
+  -- native script --
+     bills this month   ਇਸ ਮਹੀਨੇ ਕਿੰਨੇ ਬਿੱਲ ਬਣੇ?
+     invoices this month ਇਸ ਮਹੀਨੇ ਕਿੰਨੇ ਇਨਵੌਇਸ ਬਣੇ?
+     report status      ਮੇਰੀਆਂ ਰਿਪੋਰਟਾਂ ਦੀ ਸਥਿਤੀ ਕੀ ਹੈ?
+     reports pending    ਕਿਹੜੀਆਂ ਰਿਪੋਰਟਾਂ ਬਾਕੀ ਹਨ?
+     delayed orders     ਕਿਹੜੇ ਆਰਡਰ ਲੇਟ ਹੋ ਸਕਦੇ ਹਨ?
+     TAT percent        ਇਸ ਮਹੀਨੇ ਕਿੰਨੇ ਪ੍ਰਤੀਸ਼ਤ ਰਿਪੋਰਟਾਂ TAT ਵਿੱਚ ਆਈਆਂ?
+     sample rejection   ਸਾਡੇ ਸੈਂਪਲ ਰੱਦ ਹੋਣ ਦੀ ਪ੍ਰਤੀਸ਼ਤ ਕਿੰਨੀ ਹੈ?
+     compare 3 months   ਪਿਛਲੇ ਤਿੰਨ ਮਹੀਨਿਆਂ ਦੇ ਇਨਵੌਇਸਾਂ ਦੀ ਤੁਲਨਾ ਕਰੋ।
+     CBC price+time     CBC ਦੀ ਕੀਮਤ ਅਤੇ ਰਿਪੋਰਟ ਦਾ ਸਮਾਂ ਕੀ ਹੈ?
+     rejected samples   ਰੱਦ ਕੀਤੇ ਸੈਂਪਲ ਦਿਖਾਓ।
+     top 10 bills       ਮੇਰੇ ਤਾਜ਼ਾ 10 ਬਿੱਲ ਦਿਖਾਓ।
+     billing total      ਇਸ ਮਹੀਨੇ ਮੇਰੀ ਕੁੱਲ ਬਿਲਿੰਗ ਕਿੰਨੀ ਹੈ?
+     contract details   ਇਕਰਾਰਨਾਮੇ ਦੇ ਵੇਰਵੇ ਦਿਖਾਓ।
+     payment status     ਅਦਾਇਗੀ ਦੀ ਸਥਿਤੀ ਕੀ ਹੈ?
+  -- English letters --
+     sample rejection   sade sample radd hon di pratishat kinni hai?
+
+=== URDU (14 confirmed) ===
+  -- native script --
+     bills this month   اس مہینے کتنے بل بنے؟
+     invoices this month اس مہینے کتنی انوائسز بنیں؟
+     report status      میری رپورٹس کی کیا حالت ہے؟
+     reports pending    کون سی رپورٹس باقی ہیں؟
+     delayed orders     کون سے آرڈر لیٹ ہو سکتے ہیں؟
+     TAT percent        اس مہینے کتنے فیصد رپورٹس TAT میں آئیں؟
+     sample rejection   ہمارے سیمپل مسترد ہونے کی شرح کتنی ہے؟
+     compare 3 months   پچھلے تین مہینوں کی انوائسز کا موازنہ کریں۔
+     CBC price+time     CBC کی قیمت اور رپورٹ کا وقت کیا ہے؟
+     rejected samples   مسترد شدہ سیمپل دکھائیں۔
+     top 10 bills       میرے تازہ 10 بل دکھائیں۔
+     billing total      اس مہینے میری کل بلنگ کتنی ہے؟
+     contract details   معاہدے کی تفصیلات دکھائیں۔
+     payment status     ادائیگی کی کیا حالت ہے؟
+  -- English letters --
+
+=== ODIA (16 confirmed) ===
+  -- native script --
+     bills this month   ଏହି ମାସରେ କେତୋଟି ବିଲ୍ ହୋଇଛି?
+     invoices this month ଏହି ମାସରେ କେତୋଟି ଇନଭଏସ୍ ହୋଇଛି?
+     report status      ମୋ ରିପୋର୍ଟର ସ୍ଥିତି କ'ଣ?
+     reports pending    କେଉଁ ରିପୋର୍ଟ ବାକି ଅଛି?
+     delayed orders     କେଉଁ ଅର୍ଡର ବିଳମ୍ବ ହେବାର ସମ୍ଭାବନା ଅଛି?
+     TAT percent        ଏହି ମାସରେ କେତେ ପ୍ରତିଶତ ରିପୋର୍ଟ TAT ଭିତରେ ଆସିଛି?
+     sample rejection   ଆମର ସାମ୍ପଲ୍ ପ୍ରତ୍ୟାଖ୍ୟାନ ପ୍ରତିଶତ କେତେ?
+     compare 3 months   ଗତ ତିନି ମାସର ଇନଭଏସ୍ ତୁଳନା କରନ୍ତୁ।
+     CBC price+time     CBC ର ମୂଲ୍ୟ ଓ ରିପୋର୍ଟ ସମୟ କେତେ?
+     rejected samples   ପ୍ରତ୍ୟାଖ୍ୟାତ ସାମ୍ପଲ୍ ଦେଖାନ୍ତୁ।
+     top 10 bills       ମୋର ସାମ୍ପ୍ରତିକ 10 ବିଲ୍ ଦେଖାନ୍ତୁ।
+     billing total      ଏହି ମାସରେ ମୋର ମୋଟ ବିଲିଂ କେତେ?
+     contract details   ଚୁକ୍ତିର ବିବରଣୀ ଦେଖାନ୍ତୁ।
+     payment status     ପେମେଣ୍ଟ ସ୍ଥିତି କ'ଣ?
+  -- English letters --
+     sample rejection   amara sample pratyakhyana pratisata kete?
+     top 10 bills       mora samprataka 10 bill dekhantu.
+

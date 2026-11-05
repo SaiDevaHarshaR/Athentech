@@ -1,0 +1,102 @@
+SAHASRA AI AGENT - CONFIRMED QUESTIONS, SET B (live server). Only questions whose answer matched the English answer and came back in the user's language.
+
+=== TAMIL (4 confirmed) ===
+  -- native script --
+  -- English letters --
+     rejected samples   niraakarikkappatta samples kaattungal.
+     top 10 bills       en sameepathiya 10 bills kaattungal.
+     contract details   oppanda vivarangalai kaattungal.
+     payment status     panam seluthum nilai enna?
+
+=== KANNADA (6 confirmed) ===
+  -- native script --
+  -- English letters --
+     delayed orders     yava orders tadavaaguva saadhyate ide?
+     sample rejection   namma sample tiraskara shekadavaru eshtu?
+     rejected samples   tiraskruta samples toorisi.
+     top 10 bills       nanna ittichina 10 bills toorisi.
+     contract details   oppandada vivaragalannu toorisi.
+     payment status     paavatiya sthiti enu?
+
+=== MALAYALAM (5 confirmed) ===
+  -- native script --
+  -- English letters --
+     reports pending    ethu reportukal baakiyanu?
+     delayed orders     ethu orderukal vaikan saadhyathayundu?
+     rejected samples   nirasicha samplukal kaanikkoo.
+     contract details   karar vivarangal kaanikkoo.
+     payment status     payment sthithi enthanu?
+
+=== MARATHI (2 confirmed) ===
+  -- native script --
+  -- English letters --
+     compare 3 months   maghil teen mahinyanchya invoice chi tulna kara.
+     contract details   karrache tapshil dakhva.
+
+=== BENGALI (11 confirmed) ===
+  -- native script --
+  -- English letters --
+     bills this month   ei mashe koyti bill hoyeche?
+     invoices this month ei mashe koyti invoice hoyeche?
+     delayed orders     kon ordergulo deri hote pare?
+     TAT percent        ei mashe koto shotangsho report TAT er moddhe eseche?
+     sample rejection   amader sample batiler shotangsho koto?
+     compare 3 months   gato tin masher invoice tulona korun.
+     CBC price+time     CBC er dam o reporter somoy koto?
+     rejected samples   batil samplegulo dekhan.
+     billing total      ei mashe amar mot billing koto?
+     contract details   chuktir biboron dekhan.
+     payment status     paymenter obostha ki?
+
+=== GUJARATI (3 confirmed) ===
+  -- native script --
+  -- English letters --
+     compare 3 months   chhella tran mahinana invoice ni sarkhamni karo.
+     rejected samples   nakarayela sample batavo.
+     contract details   kararni vigato batavo.
+
+=== PUNJABI (10 confirmed) ===
+  -- native script --
+  -- English letters --
+     bills this month   is mahine kinne bills bane?
+     invoices this month is mahine kinne invoice bane?
+     report status      merian reportan di sthiti ki hai?
+     reports pending    kihdian reportan baki han?
+     delayed orders     kihde order late ho sakde han?
+     TAT percent        is mahine kinne pratishat reportan TAT vich aaian?
+     compare 3 months   pichle tin mahinean de invoicean di tulna karo.
+     CBC price+time     CBC di keemat te report da samaan ki hai?
+     billing total      is mahine meri kul billing kinni hai?
+     payment status     adaigi di sthiti ki hai?
+
+=== URDU (11 confirmed) ===
+  -- native script --
+  -- English letters --
+     bills this month   is mahine kitne bill bane?
+     invoices this month is mahine kitni invoices baneen?
+     report status      meri reports ki kya halat hai?
+     reports pending    kaun si reports baqi hain?
+     delayed orders     kaun se order late ho sakte hain?
+     TAT percent        is mahine kitne feesad reports TAT mein aayin?
+     sample rejection   hamare sample mustarad hone ki sharah kitni hai?
+     compare 3 months   pichle teen mahinon ki invoices ka muazna karen.
+     CBC price+time     CBC ki qeemat aur report ka waqt kya hai?
+     billing total      is mahine meri kul billing kitni hai?
+     payment status     adaigi ki kya halat hai?
+
+=== ODIA (12 confirmed) ===
+  -- native script --
+  -- English letters --
+     bills this month   ehi masa re kete bill heichi?
+     invoices this month ehi masa re kete invoice heichi?
+     report status      mo reportara sthiti kana?
+     reports pending    keu report baki achhi?
+     delayed orders     keu order bilamba hebara sambhabana achhi?
+     TAT percent        ehi masa re kete pratisata report TAT bhitare asichhi?
+     compare 3 months   gata tini masara invoice tulana karantu.
+     CBC price+time     CBC ra mulya o report samaya kete?
+     rejected samples   pratyakhyata sample dekhantu.
+     billing total      ehi masa re mora mota billing kete?
+     contract details   chuktira bibarani dekhantu.
+     payment status     payment sthiti kana?
+

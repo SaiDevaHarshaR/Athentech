@@ -1,0 +1,120 @@
+﻿[lang] tm: translation rejected (placeholders/glitch/English left), normal path
+[lang] tm: translation rejected (placeholders/glitch/English left), normal path
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: mr -> What health-check packages are available?
+[lang] tm: translation rejected (placeholders/glitch/English left), normal path
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: mr -> What is the status of my reports?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: mr -> When does our agreement expire?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: bn -> What is my outstanding balance?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: bn -> What is our available credit limit?
+[lang] question: meaning match -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> What is my outstanding balance?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> What is my credit limit?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> How many bills did I get last month?
+[lang] question: meaning match -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: meaning match -> What is the status of my reports?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> What health-check packages are available?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> Has our payment been received?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> Which tests were ordered most frequently?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: gu -> When does our agreement expire?
+[lang] question: matched a known question (1.00)
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: intent fixed from the user's words
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: pa -> What is my credit limit?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: meaning match -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] tm: translation rejected (placeholders/glitch/English left), normal path
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: pa -> Which tests were ordered most frequently?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: hi -> What is my outstanding balance?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: unparsed reply: |What is my credit limit?
+[lang] question: intent fixed from the user's words
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> How many bills did I get last month?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: fixed from the user's words -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> Which tests are still pending?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: unparsed reply: | What is the price of CBC?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> What health-check packages are available?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: meaning match -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> Status of my reports this month
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] roman pick: hi -> Which tests were ordered most frequently?
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> When does our agreement expire?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: or -> What is our outstanding balance and credit limit
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: intent fixed from the user's words
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: or -> What is our available credit limit?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: te -> How many bills did I get this month?
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: or -> What health-check packages are available?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: meaning match -> Which tests are still pending?
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: hi -> Which tests are still pending?
+[lang] kw roman: AttributeError module 'agent.kw_intent' has no attribute 'guess_roman'
+[lang] question: groq/openai/gpt-oss-120b failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organ
+[lang] question: groq/main failed: RateLimitError Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organi
+[lang] roman pick: or -> When does our agreement expire?

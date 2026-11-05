@@ -1,0 +1,185 @@
+SAHASRA AI AGENT - HOLD-OUT TEST (everyday wording the agent was never tuned on). Questions that passed:
+
+=== TAMIL (13 confirmed) ===
+  -- native script --
+     credit limit       எங்களுக்கு எவ்வளவு கிரெடிட் லிமிட் கொடுத்திருக்கீங்க
+     last month bills   போன மாசம் எத்தன பில் போட்டிருக்கோம்
+     pending tests      எந்த டெஸ்ட் ரிசல்ட் இன்னும் வரல
+     CBC price          CBC டெஸ்ட் ரேட் எவ்வளவு
+     packages           என்னென்ன ஹெல்த் செக்கப் பேக்கேஜ் இருக்கு
+     report status      எங்க ரிப்போர்ட் எல்லாம் ரெடியா
+     payment received   நாங்க கட்டின பணம் உங்களுக்கு வந்துச்சா
+     top tests          அதிகமா எந்த டெஸ்ட் பண்ணிருக்காங்க
+     agreement expiry   எங்க அக்ரிமெண்ட் எப்ப எக்ஸ்பயர் ஆகுது
+  -- English letters --
+     credit limit       engalukku evlo credit limit koduthirukkeenga
+     packages           ennenna health checkup package irukku
+     report status      enga report ellam readya
+     agreement expiry   enga agreement eppa expire aagudhu
+
+=== KANNADA (18 confirmed) ===
+  -- native script --
+     outstanding        ಇನ್ನೂ ಎಷ್ಟು ದುಡ್ಡು ಕಟ್ಟಬೇಕು ಹೇಳಿ
+     credit limit       ನಮಗೆ ಎಷ್ಟು ಕ್ರೆಡಿಟ್ ಲಿಮಿಟ್ ಕೊಟ್ಟಿದ್ದೀರಿ
+     last month bills   ಹಿಂದಿನ ತಿಂಗಳು ಎಷ್ಟು ಬಿಲ್ ಮಾಡಿದ್ದೀರಿ
+     pending tests      ಯಾವ ಟೆಸ್ಟ್ ರಿಸಲ್ಟ್ ಇನ್ನೂ ಬಂದಿಲ್ಲ
+     CBC price          CBC ಟೆಸ್ಟ್ ರೇಟ್ ಎಷ್ಟು
+     packages           ಯಾವ ಹೆಲ್ತ್ ಚೆಕಪ್ ಪ್ಯಾಕೇಜ್ ಇದೆ
+     report status      ನಮ್ಮ ರಿಪೋರ್ಟ್ ಎಲ್ಲಾ ರೆಡಿ ಆಗಿದೆಯಾ
+     payment received   ನಾವು ಕಟ್ಟಿದ ದುಡ್ಡು ನಿಮಗೆ ಬಂತಾ
+     top tests          ಹೆಚ್ಚಾಗಿ ಯಾವ ಟೆಸ್ಟ್ ಮಾಡಿಸ್ತಾರೆ
+     agreement expiry   ನಮ್ಮ ಅಗ್ರಿಮೆಂಟ್ ಯಾವಾಗ ಎಕ್ಸ್‌ಪೈರ್ ಆಗುತ್ತೆ
+  -- English letters --
+     outstanding        innu eshtu duddu kattabeku heli
+     credit limit       namage eshtu credit limit kottiddiri
+     last month bills   hindina tingalu eshtu bill madiddiri
+     pending tests      yava test result innu bandilla
+     CBC price          CBC test rate eshtu
+     packages           yava health checkup package ide
+     report status      namma report ella ready aagideya
+     agreement expiry   namma agreement yavaga expire aagutte
+
+=== MALAYALAM (17 confirmed) ===
+  -- native script --
+     outstanding        ഇനി എത്ര രൂപ അടയ്ക്കാനുണ്ട് പറയൂ
+     credit limit       ഞങ്ങൾക്ക് എത്ര ക്രെഡിറ്റ് ലിമിറ്റ് തന്നിട്ടുണ്ട്
+     last month bills   കഴിഞ്ഞ മാസം എത്ര ബിൽ അടിച്ചു
+     pending tests      ഏത് ടെസ്റ്റ് റിസൾട്ട് ഇതുവരെ വന്നിട്ടില്ല
+     CBC price          CBC ടെസ്റ്റിന് റേറ്റ് എത്രയാ
+     packages           എന്തൊക്കെ ഹെൽത്ത് ചെക്കപ്പ് പാക്കേജ് ഉണ്ട്
+     report status      ഞങ്ങളുടെ റിപ്പോർട്ടുകൾ എല്ലാം റെഡിയായോ
+     payment received   ഞങ്ങൾ അടച്ച പൈസ നിങ്ങൾക്ക് കിട്ടിയോ
+     top tests          കൂടുതലായി ഏത് ടെസ്റ്റാണ് ചെയ്യുന്നത്
+     agreement expiry   ഞങ്ങളുടെ എഗ്രിമെന്റ് എപ്പോഴാ കഴിയുന്നത്
+  -- English letters --
+     outstanding        ini ethra roopa adaykkanundu parayoo
+     credit limit       njangalkku ethra credit limit thannittundu
+     last month bills   kazhinja maasam ethra bill adichu
+     CBC price          CBC testinu rate ethrayaa
+     packages           enthokke health checkup package undu
+     report status      njangalude reportukal ellam readyaayo
+     payment received   njangal adacha paisa ningalkku kittiyo
+
+=== MARATHI (18 confirmed) ===
+  -- native script --
+     outstanding        अजून किती पैसे भरायचे आहेत सांगा
+     credit limit       आम्हाला किती क्रेडिट लिमिट दिलंय
+     last month bills   मागच्या महिन्यात किती बिल केली
+     pending tests      कोणत्या टेस्टचा रिझल्ट अजून आला नाही
+     CBC price          CBC टेस्टचा रेट किती
+     packages           कोणती हेल्थ चेकअप पॅकेजेस आहेत
+     report status      आमचे सगळे रिपोर्ट तयार आहेत का
+     payment received   आम्ही भरलेले पैसे तुम्हाला मिळाले का
+     top tests          सगळ्यात जास्त कोणत्या टेस्ट होतात
+     agreement expiry   आमचा अॅग्रीमेंट कधी एक्सपायर होतो
+  -- English letters --
+     outstanding        ajun kiti paise bharaiche aahet sanga
+     credit limit       amhala kiti credit limit dilay
+     last month bills   maghchya mahinyat kiti bill keli
+     packages           konti health checkup packages aahet
+     report status      amche sagle report tayar aahet ka
+     payment received   aamhi bharlele paise tumhala milale ka
+     top tests          sagalyat jast kontya test hotat
+     agreement expiry   amcha agreement kadhi expire hoto
+
+=== BENGALI (16 confirmed) ===
+  -- native script --
+     outstanding        আর কত টাকা দিতে হবে বলুন
+     credit limit       আমাদের কত ক্রেডিট লিমিট দেওয়া আছে
+     last month bills   আগের মাসে কয়টা বিল করেছেন
+     pending tests      কোন টেস্টের রেজাল্ট এখনও আসেনি
+     CBC price          CBC টেস্টের রেট কত
+     packages           কী কী হেলথ চেকআপ প্যাকেজ আছে
+     report status      আমাদের সব রিপোর্ট কি রেডি
+     payment received   আমরা যে টাকা দিয়েছি সেটা কি পেয়েছেন
+     top tests          সবচেয়ে বেশি কোন টেস্ট হয়
+     agreement expiry   আমাদের অ্যাগ্রিমেন্ট কবে এক্সপায়ার হবে
+  -- English letters --
+     outstanding        ar koto taka dite hobe bolun
+     credit limit       amader koto credit limit deoa ache
+     CBC price          CBC tester rate koto
+     packages           ki ki health checkup package ache
+     top tests          sobcheye beshi kon test hoy
+     agreement expiry   amader agreement kobe expire hobe
+
+=== GUJARATI (18 confirmed) ===
+  -- native script --
+     outstanding        હજી કેટલા પૈસા ભરવાના બાકી છે
+     credit limit       અમને કેટલી ક્રેડિટ લિમિટ આપી છે
+     last month bills   ગયા મહિને કેટલા બિલ બનાવ્યા
+     pending tests      કયા ટેસ્ટનો રિઝલ્ટ હજી આવ્યો નથી
+     CBC price          CBC ટેસ્ટનો રેટ કેટલો
+     packages           કયા હેલ્થ ચેકઅપ પેકેજ છે
+     report status      અમારા બધા રિપોર્ટ તૈયાર છે
+     payment received   અમે ભરેલા પૈસા તમને મળ્યા
+     top tests          સૌથી વધારે કયો ટેસ્ટ થાય છે
+     agreement expiry   અમારો એગ્રીમેન્ટ ક્યારે એક્સપાયર થશે
+  -- English letters --
+     outstanding        haji ketla paisa bharvana baki chhe
+     credit limit       amne ketli credit limit api chhe
+     last month bills   gaya mahine ketla bill banavya
+     CBC price          CBC testno rate ketlo
+     packages           kya health checkup package chhe
+     report status      amara badha report taiyar chhe
+     top tests          sauthi vadhare kayo test thay chhe
+     agreement expiry   amaro agreement kyare expire thase
+
+=== PUNJABI (17 confirmed) ===
+  -- native script --
+     outstanding        ਹੋਰ ਕਿੰਨੇ ਪੈਸੇ ਦੇਣੇ ਨੇ ਦੱਸੋ
+     credit limit       ਸਾਨੂੰ ਕਿੰਨੀ ਕ੍ਰੈਡਿਟ ਲਿਮਿਟ ਮਿਲੀ ਹੈ
+     last month bills   ਪਿਛਲੇ ਮਹੀਨੇ ਕਿੰਨੇ ਬਿੱਲ ਕੀਤੇ
+     pending tests      ਕਿਹੜੇ ਟੈਸਟ ਦਾ ਰਿਜ਼ਲਟ ਅਜੇ ਨਹੀਂ ਆਇਆ
+     CBC price          CBC ਟੈਸਟ ਦਾ ਰੇਟ ਕਿੰਨਾ ਹੈ
+     packages           ਕਿਹੜੇ ਹੈਲਥ ਚੈੱਕਅਪ ਪੈਕੇਜ ਹਨ
+     report status      ਸਾਡੀਆਂ ਸਾਰੀਆਂ ਰਿਪੋਰਟਾਂ ਤਿਆਰ ਨੇ
+     payment received   ਜੋ ਪੈਸੇ ਅਸੀਂ ਦਿੱਤੇ ਉਹ ਤੁਹਾਨੂੰ ਮਿਲ ਗਏ
+     top tests          ਸਭ ਤੋਂ ਜ਼ਿਆਦਾ ਕਿਹੜਾ ਟੈਸਟ ਹੁੰਦਾ ਹੈ
+     agreement expiry   ਸਾਡਾ ਐਗਰੀਮੈਂਟ ਕਦੋਂ ਐਕਸਪਾਇਰ ਹੋਵੇਗਾ
+  -- English letters --
+     outstanding        hor kinne paise dene ne dasso
+     credit limit       sanu kinni credit limit mili hai
+     last month bills   pichle mahine kinne bill kite
+     CBC price          CBC test da rate kinna hai
+     report status      sadian sarian reportan tiyar ne
+     top tests          sab ton ziada kihda test hunda hai
+     agreement expiry   sada agreement kado expire hovega
+
+=== URDU (18 confirmed) ===
+  -- native script --
+     outstanding        ابھی کتنے پیسے دینے ہیں بتائیں
+     credit limit       ہمیں کتنی کریڈٹ لمٹ دی گئی ہے
+     last month bills   پچھلے مہینے کتنے بل بنائے
+     pending tests      کس ٹیسٹ کا رزلٹ ابھی تک نہیں آیا
+     CBC price          CBC ٹیسٹ کا ریٹ کیا ہے
+     packages           کون سے ہیلتھ چیک اپ پیکجز ہیں
+     report status      ہماری سب رپورٹس تیار ہیں
+     payment received   ہم نے جو پیسے دیے وہ آپ کو مل گئے
+     top tests          سب سے زیادہ کون سا ٹیسٹ ہوتا ہے
+     agreement expiry   ہمارا ایگریمنٹ کب ایکسپائر ہوگا
+  -- English letters --
+     last month bills   pichle mahine kitne bill banaye
+     pending tests      kis test ka result abhi tak nahin aaya
+     CBC price          CBC test ka rate kya hai
+     packages           kaun se health checkup packages hain
+     report status      hamari sab reports tayyar hain
+     payment received   hum ne jo paise diye woh aap ko mil gaye
+     top tests          sab se zyada kaun sa test hota hai
+     agreement expiry   hamara agreement kab expire hoga
+
+=== ODIA (12 confirmed) ===
+  -- native script --
+     credit limit       ଆମକୁ କେତେ କ୍ରେଡିଟ୍ ଲିମିଟ୍ ଦିଆଯାଇଛି
+     last month bills   ଗତ ମାସରେ କେତୋଟି ବିଲ୍ କରିଥିଲେ
+     CBC price          CBC ଟେଷ୍ଟର ରେଟ୍ କେତେ
+     packages           କେଉଁ ହେଲ୍ଥ ଚେକଅପ୍ ପ୍ୟାକେଜ୍ ଅଛି
+     report status      ଆମର ସବୁ ରିପୋର୍ଟ ତିଆରି ହେଲାକି
+     top tests          ସବୁଠାରୁ ଅଧିକ କେଉଁ ଟେଷ୍ଟ ହୁଏ
+     agreement expiry   ଆମର ଏଗ୍ରିମେଣ୍ଟ କେବେ ଏକ୍ସପାଏର ହେବ
+  -- English letters --
+     outstanding        aau kete tanka debaku hebe kuhantu
+     credit limit       amaku kete credit limit diajaichhi
+     last month bills   gata masare ketoti bill karithile
+     report status      amara sabu report tiari helaki
+     top tests          sabuthaaru adhika keu test hue
+

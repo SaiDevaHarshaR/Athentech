@@ -509,6 +509,12 @@ def api_guardian_selfcheck(code: str, admin: str = Depends(require_admin)):
             "circuit_open": guardian.circuit_open(db), "checks": checks}
 
 
+from auth.b2b_portal_sso import router as b2b_sso_router, initialize_sso
+
+app.include_router(b2b_sso_router)
+
+
+
 @app.get("/admin/client-diagnostics/{code}")
 def api_client_diagnostics(code: str, refresh: bool = False, admin: str = Depends(require_admin)):
     """Per-client schema profile + capabilities (what the agent detected for this database)."""
