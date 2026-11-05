@@ -1,15 +1,16 @@
-"""Signed partner portal SSO, bound to existing CentroMed B2B contacts.
-The portal SERVER signs the raw JSON with HMAC-SHA256. Never expose the key to JS.
+"""Read-only, stateless CentroMed portal SSO adapter.
+No DDL/DML, no persistent state, no test registration or auto-provisioning.
+A signed portal assertion is exchanged for a short-lived signed bearer token.
+Replay of an assertion within its validity window cannot be prevented without state;
+portal must authenticate every exchange, use HTTPS and keep assertions private.
 """
+import base64
 import hashlib
 import hmac
 import json
 import os
 import re
-import secrets
 import time
-from datetime import datetime, timedelta
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -19,122 +20,103 @@ class Assertion(BaseModel):
     payload: str = Field(min_length=30, max_length=4000)
     signature: str = Field(min_length=64, max_length=64)
 
-class ExchangeCode(BaseModel):
-    client: str = Field(min_length=1, max_length=50)
-    code: str = Field(min_length=30, max_length=160)
+def _settings():
+    value = os.environ.get('B2B_PORTAL_SSO_SECRET', '')
+    if len(value) < 32:
+        raise HTTPException(503, 'SSO is not configured')
+    return value.encode(), os.environ.get('B2B_PORTAL_SSO_CLIENT', 'CM').upper()
 
+def _b64(data):
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
 
-def _config():
-    key = os.environ.get('B2B_PORTAL_SSO_SECRET', '')
-    client = os.environ.get('B2B_PORTAL_SSO_CLIENT', 'CM').upper()
-    if len(key) < 32:
-        raise HTTPException(503, 'SSO not configured')
-    return key.encode(), client
-
-
-def initialize_sso():
-    from auth.b2b_portal import _admin_conn
-    db = _admin_conn()
-    try:
-        db.execute('''IF OBJECT_ID('dbo.sahasra_b2b_sso_nonce','U') IS NULL
-            CREATE TABLE dbo.sahasra_b2b_sso_nonce (
-             institution_id INT NOT NULL, nonce_hash CHAR(64) NOT NULL,
-             expires_at DATETIME2 NOT NULL,
-             CONSTRAINT PK_sahasra_b2b_sso_nonce PRIMARY KEY(institution_id,nonce_hash))''')
-        db.execute('''IF OBJECT_ID('dbo.sahasra_b2b_sso_code','U') IS NULL
-            CREATE TABLE dbo.sahasra_b2b_sso_code (
-             code_hash CHAR(64) PRIMARY KEY, institution_id INT NOT NULL,
-             contact_id INT NOT NULL, expires_at DATETIME2 NOT NULL,
-             used BIT NOT NULL DEFAULT 0)''')
-        db.commit()
-    finally:
-        db.close()
-
+def _unb64(data):
+    return base64.urlsafe_b64decode(data + '=' * (-len(data) % 4))
 
 def verify_assertion(payload, signature, key, now=None):
-    expected = hmac.new(key, payload.encode('utf-8'), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, signature.lower()):
-        raise HTTPException(401, 'Invalid SSO signature')
+    mac = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(mac, signature.lower()):
+        raise HTTPException(401, 'Invalid portal signature')
     try:
         data = json.loads(payload)
-        issued = int(data['iat'])
-        nonce = str(data['nonce'])
-        subject = str(data['sub'])
-        org = str(data['organisation_code']).upper()
         client = str(data['client']).upper()
+        org = str(data['organisation_code']).upper()
         phone = str(data['phone'])
+        sub = str(data['sub'])
+        issued = int(data['iat'])
     except (ValueError, TypeError, KeyError):
-        raise HTTPException(400, 'Malformed SSO assertion')
-    if abs(int(now if now is not None else time.time()) - issued) > 60:
-        raise HTTPException(401, 'Expired SSO assertion')
-    if not (re.fullmatch(r'[A-Za-z0-9_.-]{1,80}',org) and 16 <= len(nonce) <= 128 and 3 <= len(subject) <= 150):
-        raise HTTPException(400, 'Invalid SSO identity')
-    return client, org, phone, nonce
+        raise HTTPException(400, 'Malformed portal assertion')
+    t = int(time.time() if now is None else now)
+    if not (t - 30 <= issued <= t + 30):
+        raise HTTPException(401, 'Expired portal assertion')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,80}', org) or not 3 <= len(sub) <= 150:
+        raise HTTPException(400, 'Invalid portal identity')
+    return client, org, phone, sub
 
+def _sign_claims(claims, key):
+    data = _b64(json.dumps(claims, separators=(',', ':'), sort_keys=True).encode())
+    mac = _b64(hmac.new(key, data.encode(), hashlib.sha256).digest())
+    return 'sso1.' + data + '.' + mac
+
+def _decode_claims(token, key, now=None):
+    try:
+        version, data, signature = token.split('.')
+        if version != 'sso1' or len(token) > 3000:
+            raise ValueError('bad version')
+        expected = _b64(hmac.new(key, data.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError('invalid signature')
+        claims = json.loads(_unb64(data))
+        t = int(time.time() if now is None else now)
+        if int(claims['exp']) <= t or int(claims['iat']) > t + 30:
+            raise ValueError('expired')
+        return claims
+    except (ValueError, KeyError, TypeError, UnicodeError, json.JSONDecodeError):
+        raise HTTPException(401, 'Invalid or expired SSO session')
 
 @router.post('/integrations/b2b/sso/exchange')
 def exchange(body: Assertion):
     from auth import b2b_portal as b
-    key, allowed = _config()
-    client, org, phone, nonce = verify_assertion(body.payload, body.signature, key)
+    key, allowed = _settings()
+    client, org, phone, sub = verify_assertion(body.payload, body.signature, key)
     if client != allowed:
-        raise HTTPException(403, 'SSO client not permitted')
-    institution = b._institution_by_prefix(client)
-    if not b._b2b_enabled(institution):
-        raise HTTPException(403, 'B2B not available')
-    contact = b._contact(int(institution['id']), b._phone(phone))
+        raise HTTPException(403, 'Client not enabled for portal SSO')
+    inst = b._institution_by_prefix(client)
+    if not b._b2b_enabled(inst):
+        raise HTTPException(403, 'B2B unavailable')
+    contact = b._contact(int(inst['id']), b._phone(phone))
     if not contact or str(contact['organisation_code']).upper() != org:
-        raise HTTPException(403, 'SSO user not mapped to an authorized B2B contact')
-    if not b._org_name(institution, org):
-        raise HTTPException(403, 'Organization missing from LIS')
-    code = secrets.token_urlsafe(40)
-    db = b._admin_conn()
-    now = datetime.utcnow()
-    try:
-        db.execute('INSERT INTO dbo.sahasra_b2b_sso_nonce (institution_id, nonce_hash, expires_at) VALUES (?,?,?)',
-                   (institution['id'], hashlib.sha256((client + ':' + nonce).encode()).hexdigest(), now+timedelta(minutes=3)))
-        db.execute('INSERT INTO dbo.sahasra_b2b_sso_code (code_hash,institution_id,contact_id,expires_at) VALUES (?,?,?,?)',
-                   (hashlib.sha256(code.encode()).hexdigest(), institution['id'],contact['id'],now+timedelta(seconds=45)))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise HTTPException(409, 'SSO assertion was already used or could not be processed')
-    finally:
-        db.close()
-    return {'code':code,'expires_in':45}
+        raise HTTPException(403, 'Contact not mapped to this organisation')
+    if not b._org_name(inst, org):
+        raise HTTPException(403, 'Organisation does not exist in LIS')
+    t = int(time.time())
+    token = _sign_claims({'inst': int(inst['id']), 'client': client,
+                          'contact': int(contact['id']), 'org': org,
+                          'sub_hash': hashlib.sha256(sub.encode()).hexdigest(),
+                          'iat': t, 'exp': t + 120}, key)
+    return {'status':'success', 'access_token':token, 'expires_in':120,
+            'contact_name':contact['contact_name'], 'organisation':org}
 
-
-@router.post('/public/b2b/sso/consume')
-def consume(body: ExchangeCode):
+def verify_session(token, client):
+    """Hook called by b2b_portal._session for SSO-prefixed tokens. SELECT only."""
     from auth import b2b_portal as b
-    _, allowed = _config()
-    if body.client.upper() != allowed:
-        raise HTTPException(403, 'SSO client not permitted')
-    institution = b._institution_by_prefix(allowed)
-    if not b._b2b_enabled(institution):
-        raise HTTPException(403,'B2B not available')
-    db = b._admin_conn()
+    key, allowed = _settings()
+    claims = _decode_claims(token, key)
+    if client.upper() != allowed or claims.get('client') != allowed:
+        raise HTTPException(403, 'Wrong portal client')
+    inst = b._institution_by_prefix(client)
+    if not b._b2b_enabled(inst) or int(inst['id']) != int(claims['inst']):
+        raise HTTPException(403, 'B2B unavailable')
+    conn = b._admin_conn()
     try:
-        cur = db.cursor()
-        row = cur.execute('''UPDATE dbo.sahasra_b2b_sso_code SET used=1 OUTPUT inserted.contact_id
-            WHERE code_hash=? AND institution_id=? AND used=0 AND expires_at>SYSUTCDATETIME()''',
-            (hashlib.sha256(body.code.encode()).hexdigest(),institution['id'])).fetchone()
-        if not row:
-            db.rollback()
-            raise HTTPException(401,'Invalid or expired code')
-        contact_row = cur.execute('''SELECT TOP 1 * FROM dbo.sahasra_b2b_contacts
-            WHERE id=? AND institution_id=? AND active=1''',(row[0],institution['id'])).fetchone()
-        if not contact_row:
-            db.rollback()
-            raise HTTPException(403,'Contact disabled')
-        contact = b._dict(contact_row)
-        token = secrets.token_urlsafe(48)
-        cur.execute('''INSERT INTO dbo.sahasra_b2b_sessions
-            (token_hash,contact_id,institution_id,expires_at) VALUES (?,?,?,?)''',
-            (hashlib.sha256(token.encode()).hexdigest(),contact['id'],institution['id'],
-             datetime.utcnow()+timedelta(hours=b.SESSION_HOURS)))
-        db.commit()
+        row = conn.execute('''SELECT TOP 1 * FROM dbo.sahasra_b2b_contacts
+            WHERE id=? AND institution_id=? AND organisation_code=? AND active=1''',
+            (int(claims['contact']), int(inst['id']), claims['org'])).fetchone()
+        contact = b._dict(row)
     finally:
-        db.close()
-    return {'access_token':token,'expires_in':b.SESSION_HOURS*3600,
-            'contact_name':contact['contact_name'],'organisation':contact['organisation_code']}
+        conn.close()
+    if not contact:
+        raise HTTPException(401, 'Contact disabled or organisation changed')
+    return inst, contact
+
+def initialize_sso():
+    return None
