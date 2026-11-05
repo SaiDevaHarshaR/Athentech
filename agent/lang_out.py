@@ -81,7 +81,7 @@ def looks_roman(text):
         return True
     try:
         from agent import kw_intent as _kw
-        if _kw.kw_intent(text):
+        if _kw.kw_intent(text) and _kw.guess_roman(text):
             return True
     except Exception:
         pass
@@ -146,15 +146,59 @@ def classify_roman(text, inst_code, timeout=25.0):
     votes = _roman_lang(text)
     try:        # known question recognised from its words: no AI call needed
         from agent import kw_intent as _kw
-        _k = _kw.kw_intent(text)
+        _gl = _kw.guess_roman(text)
+        _k = _kw.kw_intent(text) if _gl else None      # plain English never takes this road
         if _k:
             _v, _n, _u = _roman_votes(text)
-            _c = (_v if (_v and _u) else None) or _kw.guess_lang(text) or votes or "hi"
+            _c = _gl or (_v if (_v and _u) else None) or votes or "hi"
             if _c not in _NAMES:
                 _c = "hi"
             return (_c, _NAMES[_c], _k)
     except Exception as _e:
         print("[lang] kw roman: %s %s" % (type(_e).__name__, str(_e)[:100]), flush=True)
+    try:        # write it in the language's own script, then use the same road as native-script questions (the strongest road)
+        _pk0 = _roman_pick(text, inst_code)
+        _c0 = (_pk0[0] if _pk0 else None)
+        _v0, _n0, _u0 = _roman_votes(text)
+        if _v0 and _u0 and (_n0 >= 2 or any(w in _STRONG for w in _WORD.findall(text.lower()))):
+            _c0 = _v0
+        try:
+            from agent import kw_intent as _kw0
+            _g0 = _kw0.guess_roman(text, allow_hi=False)
+            if _g0 and _g0 in _NAMES:
+                _c0 = _g0
+        except Exception:
+            pass
+        _c0 = _c0 or votes
+        if _c0 in ("ta", "kn", "ml", "mr", "bn", "gu", "pa", "or"):
+            _nat = _roman_to_native(text, _c0, inst_code)
+            if _nat and _in_script(_nat, _c0):
+                _en = to_english(_nat, inst_code, timeout)
+                if _en and not any(ord(ch) > 127 for ch in _en):
+                    print("[lang] roman->native: %s | %s -> %s" % (_c0, _nat[:60], _en[:80]), flush=True)
+                    return (_c0, _NAMES[_c0], _fix_period(text, _en))
+    except Exception as _e:
+        print("[lang] roman->native: %s %s" % (type(_e).__name__, str(_e)[:100]), flush=True)
+    try:        # ONE meaning-based call: language + closest known read-only question (numbered list)
+        _pk = _roman_pick(text, inst_code)
+        if _pk and _pk[1]:
+            _c = _pk[0]
+            _v, _n, _u = _roman_votes(text)
+            if _v and _u and (_n >= 2 or any(w in _STRONG for w in _WORD.findall(text.lower()))):
+                _c = _v
+            _c = _c or votes
+            try:
+                from agent import kw_intent as _kwp
+                _g = _kwp.guess_roman(text, allow_hi=False)
+                if _g and _g in _NAMES:
+                    _c = _g
+            except Exception:
+                pass
+            if _c in _NAMES:
+                print("[lang] roman pick: %s -> %s" % (_c, _pk[1]), flush=True)
+                return (_c, _NAMES[_c], _pk[1])
+    except Exception as _e:
+        print("[lang] roman pick: %s %s" % (type(_e).__name__, str(_e)[:100]), flush=True)
     r = to_english(text, inst_code, timeout, with_lang=True)
     if r:
         code, en = r
@@ -162,6 +206,13 @@ def classify_roman(text, inst_code, timeout=25.0):
         if v and unique and (n >= 2 or any(w in _STRONG for w in _WORD.findall(text.lower()))):        # two or more clear words of one language beat the AI's guess
             code = v
         code = code or votes
+        try:        # distinctive words of one language decide the reply language (the AI often guesses Telugu)
+            from agent import kw_intent as _kw2
+            _g = _kw2.guess_roman(text, allow_hi=False)
+            if _g and _g in _NAMES:
+                code = _g
+        except Exception:
+            pass
         if not code:
             return None
         return (code, _NAMES[code], _fix_period(text, en))
@@ -176,6 +227,13 @@ def classify_roman(text, inst_code, timeout=25.0):
     if not en or any(ord(c) > 127 for c in en):
         return None
     code = votes or "hi"
+    try:
+        from agent import kw_intent as _kw3
+        _g = _kw3.guess_roman(text, allow_hi=False)
+        if _g and _g in _NAMES:
+            code = _g
+    except Exception:
+        pass
     return (code, _NAMES[code], _fix_period(text, en))
 
 
@@ -328,6 +386,130 @@ _QCACHE2 = {}
 _LANGCODES = ("te", "hi", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "ur", "or")
 
 
+_SELC = {}
+_SEL_SKIP = re.compile(r"(?i)raise|request|pickup|manager|download|excel|arrange|invoice copy|speak")
+
+
+def _select_known(orig, eng, inst_code, _im):
+    """Meaning-based fallback: asks the AI to pick the closest KNOWN read-only question (by number) for what the user meant. 0 = none.
+    Never picks a ticket/request question. Cached. Any problem -> None (nothing changes)."""
+    try:
+        key = (orig or "").strip()
+        if not key or len(key) > 200:
+            return None
+        if re.search(r"[A-Z]{2,}[A-Z0-9]*\d{3,}|\b[A-Z]{2,4}\d{3,}\b|@", key):
+            return None
+        if key in _SELC:
+            return _SELC[key]
+        opts = [q for q in _im.CANON if not _SEL_SKIP.search(q)]
+        box = {}
+
+        def work():
+            try:
+                from langchain_core.messages import SystemMessage, HumanMessage
+                lst = "\n".join("%d. %s" % (i + 1, q) for i, q in enumerate(opts))
+                sysm = ("A laboratory client asked a question (any Indian language, native script or English letters). Pick the ONE numbered question below that asks for the same information. "
+                        "Answer with only the number. Answer 0 if none is clearly the same, or if the user names a specific test, package, bill number or person, or asks something else.\n" + lst)
+                txt = _ask_ai(inst_code, [SystemMessage(content=sysm), HumanMessage(content="User said: " + orig + "\nRough English: " + (eng or ""))], None, "question")
+                m = re.search(r"\d+", txt or "")
+                if m:
+                    box["n"] = int(m.group(0))
+            except Exception as e:
+                print("[lang] select: %s %s" % (type(e).__name__, str(e)[:100]), flush=True)
+        th = threading.Thread(target=work, daemon=True)
+        th.start()
+        th.join(20.0)
+        n = box.get("n")
+        r = opts[n - 1] if (n and 1 <= n <= len(opts)) else None
+        if len(_SELC) > 500:
+            _SELC.clear()
+        _SELC[key] = r
+        return r
+    except Exception:
+        return None
+
+
+
+_RPC = {}
+
+
+def _roman_pick(text, inst_code, timeout=25.0):
+    """(language code, closest known read-only question or None) for Indian-language text typed in English letters. One AI call, answer is two small tokens. Never picks a ticket/request question."""
+    key = (text or "").strip()
+    if not key or len(key) > 200 or re.search(r"[A-Z]{2,}[A-Z0-9]*\d{3,}|\b[A-Z]{2,4}\d{3,}\b|@", key):
+        return None
+    if key in _RPC:
+        return _RPC[key]
+    try:
+        from agent import intent_match as _im
+    except Exception:
+        import intent_match as _im
+    opts = [q for q in _im.CANON if not _SEL_SKIP.search(q)]
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            lst = "\n".join("%d. %s" % (i + 1, q) for i, q in enumerate(opts))
+            sysm = ("A laboratory client typed a question in an Indian language using English letters. Reply exactly as <code>|<number>. "
+                    "<code> = the language: ta Tamil, kn Kannada, ml Malayalam, mr Marathi, bn Bengali, gu Gujarati, pa Punjabi, ur Urdu, or Odia, te Telugu, hi Hindi. "
+                    "<number> = the ONE numbered question below that asks for the same information, or 0 if none is clearly the same, or if the user names a specific test, package, bill number or person, or asks something else. "
+                    "Words like which/what/how many/kon/yava/entha are question words, not names.\n" + lst)
+            txt = _ask_ai(inst_code, [SystemMessage(content=sysm), HumanMessage(content=key)], None, "question")
+            m = re.search(r"([A-Za-z]{2})\W{0,3}[|:\-]\s*(\d+)", txt or "")
+            if m:
+                box["r"] = (m.group(1).lower(), int(m.group(2)))
+        except Exception as e:
+            print("[lang] roman pick: %s %s" % (type(e).__name__, str(e)[:100]), flush=True)
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    r = box.get("r")
+    if not r:
+        return None
+    c, n = r
+    out = (c if c in _LANGCODES else None, opts[n - 1] if 1 <= n <= len(opts) else None)
+    if len(_RPC) > 500:
+        _RPC.clear()
+    _RPC[key] = out
+    return out
+
+
+
+_R2N = {}
+_LNAME = {"ta": "Tamil", "kn": "Kannada", "ml": "Malayalam", "mr": "Marathi", "bn": "Bengali", "gu": "Gujarati", "pa": "Punjabi (Gurmukhi)", "or": "Odia"}
+
+
+def _roman_to_native(text, code, inst_code, timeout=25.0):
+    """Indian-language text typed in English letters -> the same words in the language's own script (one AI call). None on any problem."""
+    key = (code, (text or "").strip())
+    if key in _R2N:
+        return _R2N[key]
+    box = {}
+
+    def work():
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            sysm = ("Rewrite the user's message, typed in English letters, in %s script. Same words, same meaning, nothing added or removed; write English loanwords "
+                    "(test, report, bill, credit limit, package, payment) in %s script too. Keep digits and codes as they are. Output only the rewritten text." % (_LNAME[code], _LNAME[code]))
+            txt = _ask_ai(inst_code, [SystemMessage(content=sysm), HumanMessage(content=key[1])], None, "question")
+            t = (txt or "").strip().strip('"').splitlines()[0].strip() if txt else ""
+            if t and len(t) <= 300:
+                box["t"] = t
+        except Exception as e:
+            print("[lang] to-native: %s %s" % (type(e).__name__, str(e)[:100]), flush=True)
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    t = box.get("t")
+    if t:
+        if len(_R2N) > 500:
+            _R2N.clear()
+        _R2N[key] = t
+    return t
+
+
+
 def to_english(text, inst_code, timeout=25.0, with_lang=False):
     """One short AI call: the question in any supported language -> a plain English question the chat already understands.
     with_lang=True returns (language code, English question) instead. None on any problem."""
@@ -437,7 +619,12 @@ def to_english(text, inst_code, timeout=25.0, with_lang=False):
                     print("[lang] question: matched a known question (%.2f)" % _sc, flush=True)
                     eng = _c
                 elif not _c:
-                    _im.log_unmatched(t, eng)
+                    _s = _select_known(t, eng, inst_code, _im)
+                    if _s:
+                        print("[lang] question: meaning match -> %s" % _s, flush=True)
+                        eng = _s
+                    else:
+                        _im.log_unmatched(t, eng)
             q = (q[0] if (with_lang and q) else None, eng) if with_lang else eng
         except Exception as _e:
             print("[lang] match: %s %s" % (type(_e).__name__, str(_e)[:100]), flush=True)

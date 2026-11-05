@@ -1001,7 +1001,6 @@ async def ask_question(req: QueryRequest, request: Request):
                 is_validate_ping_early = req.question.strip().lower() == "validate"
                 if is_validate_ping_early:
                     two_factor_method = validation.get("two_factor_method", "email")
-
                     if two_factor_method == "totp":
                         if not validation.get("totp_secret"):
                             from auth.totp_2fa import generate_totp_secret, generate_qr_code_data_uri
