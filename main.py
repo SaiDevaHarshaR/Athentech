@@ -1126,6 +1126,9 @@ async def generate_excel(req: ExcelExportRequest):
     )
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
+    # patch153: refuse PDFs without a valid activation code
+    if not validate_license(req.activation_code).get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired activation code.")
     if req.client:
         from auth.whitelabel import smart_report_allowed
         if not smart_report_allowed(req.client):
