@@ -118,6 +118,8 @@ def get_hospital_connection(
             try:
                 _c = conn.cursor()
                 _c.execute("SET DATEFORMAT ymd")
+                _c.execute("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")   # patch154: reads never wait on the lab's writes
+                _c.execute("SET DEADLOCK_PRIORITY LOW")                          # patch154: if a deadlock happens, ours is the one dropped
                 _c.close()
             except Exception as _e:
                 print(f"[get_hospital_connection] SET DATEFORMAT skipped: {_e}")

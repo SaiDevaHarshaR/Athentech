@@ -798,7 +798,9 @@ def build_router(require_admin) -> APIRouter:
         return _res
 
     def _business_chat_core(body: ChatRequest, request: Request):
+        import time as _tm157; _s0 = _tm157.time()   # patch157
         inst, contact = _auth_session(request, body.client)
+        _s1 = _tm157.time()
         _rate("chat", request.client.host if request.client else "unknown", inst["id"],
               str(contact["id"]), 90, 600)
         try:        # portal how-to (password, letterhead, downloads, indent, contact): fixed text, no data
@@ -811,7 +813,9 @@ def build_router(require_admin) -> APIRouter:
         # Stage 12: retain authenticated, organization-scoped B2B routing.
         # Never use AI-generated SQL or trust a model for authorization.
         from auth.b2b_intent_engine import parse_question
+        _s2 = _tm157.time()
         decision = parse_question(body.message)
+        _s3 = _tm157.time()
         # Legacy explicit-scope denial has additional English phrases (such as
         # "all patients") that must be preserved when adopting Stage 7B.
         if _classify_business_question(body.message) == "forbidden":
@@ -821,6 +825,8 @@ def build_router(require_admin) -> APIRouter:
             try:        # org-scoped lookups + support tickets (auth/b2b_assist.py); None = not one of its questions
                 from auth.b2b_assist import try_answer as _assist
                 _ans = _assist(inst, contact, body.message, body.period, body.chat_history)
+                _s4 = _tm157.time()
+                if _s4 - _s0 > 3: print('[stage] auth=%.1fs help=%.1fs parse=%.1fs assist=%.1fs | %s' % (_s1 - _s0, _s2 - _s1, _s3 - _s2, _s4 - _s3, str(body.message)[:50]), flush=True)
                 if _ans is not None:
                     return _ans
             except HTTPException:

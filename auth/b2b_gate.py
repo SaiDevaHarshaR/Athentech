@@ -111,7 +111,7 @@ Can I speak with the lab manager?|Download Excel|Talk to lab manager|Raise a del
 Billing statement|Payment status|Outstanding balance|Status of my reports this month|Price of CBC|Raise a special rate request|Top 10 recent bills|Show health packages|Raise a support request
 Billing total this month|When is the next payment due?|Which invoices are unpaid?|What is our outstanding balance and credit limit|Tests done this month|Contract agreement details|Which health packages are available
 What is our pending balance?|Has our NEFT payment been received?|How much credit is available?|When does our agreement expire?|Has our credit note been approved?|Can we download our ledger?|Has our monthly invoice been generated?
-What is our monthly billing total?|Which branch has the highest test volume?|How has our test volume changed this quarter?|Give me today's pending-order summary."""
+What is our monthly billing total?|Which branch has the highest test volume?|How has our test volume changed this quarter?|Give me today's pending-order summary.|What is my outstanding balance?|What is our outstanding balance?|What is my credit limit?|What is our credit limit?|What is my available credit?|Credit limit|What are my dues?|How much do we owe?|What is my balance?"""  # patch158
 _EXACT = None
 
 

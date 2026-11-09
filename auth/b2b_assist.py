@@ -1241,23 +1241,35 @@ def try_answer(inst, contact, message, period="this_month", history=None):
     def Q(sql, params=()):
         from auth.b2b_gate import check_readonly
         check_readonly(sql)
-        conn = _lis(inst)
+        import time as _t155        # patch155: timing log only
+        _a = _t155.time(); conn = _lis(inst); _b = _t155.time(); _ok = False
         try:
             cur = conn.execute(sql, params)
-            return cur.fetchall()
+            _r = cur.fetchall(); _ok = True
+            return _r
         finally:
             try:
                 conn.close()
             except Exception:
                 pass
+            try:
+                _c = _t155.time()
+                if _c - _a > 1.0:
+                    print("[slowq] connect=%.1fs run=%.1fs ok=%s | %s" % (_b - _a, _c - _b, _ok, " ".join(str(sql).split())[:110]), flush=True)
+            except Exception:
+                pass
     try:
         name = None
+        import time as _tm157; _a0 = _tm157.time()   # patch157
         try:
             name = _org_name(inst, contact.get("organisation_code"))
         except Exception:
             pass
         try:
+            _a1 = _tm157.time()
             r = _fixed_money(Q, contact, message, period) or route(Q, inst, contact, name, message, period)
+            _a2 = _tm157.time()
+            if _a2 - _a0 > 3: print('[stage2] org_name=%.1fs route=%.1fs | %s' % (_a1 - _a0, _a2 - _a1, str(message)[:50]), flush=True)
         except Exception as e1:
             try:
                 from fastapi import HTTPException
@@ -1266,13 +1278,20 @@ def try_answer(inst, contact, message, period="this_month", history=None):
             except ImportError:
                 pass
             print("[b2b assist] handler error -> AI:", type(e1).__name__, str(e1)[:200], flush=True)
+            try:        # patch156: where did it happen
+                import traceback as _tb156
+                print("[where] " + " <- ".join("%s:%s %s" % (os.path.basename(f.filename), f.lineno, f.name) for f in _tb156.extract_tb(e1.__traceback__)[-5:]) + " | q=" + str(message)[:60], flush=True)
+            except Exception:
+                pass
             r = {"_to_llm": True, "unknown": [], "error": True}
         if r is None and not _NO_PDF.search(re.sub(r"\s+", " ", (message or "").lower())):
             r = {"_to_llm": True, "unknown": []}      # no fixed handler understood it: never let the old generic intents guess
         if isinstance(r, dict) and r.get("_to_llm"):
             try:        # unknown / misspelt words: the AI (with safe, organisation-bound lookup tools) answers
                 from auth.b2b_llm import answer
+                _l0 = _tm157.time()
                 a = answer(inst, contact, message, history)
+                print('[stage2] AI answer took %.1fs | %s' % (_tm157.time() - _l0, str(message)[:50]), flush=True)
                 if a is not None:
                     return a
             except Exception as e2:

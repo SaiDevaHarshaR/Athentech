@@ -1,0 +1,171 @@
+# -*- coding: utf-8 -*-
+"""Word-based rescue for 9 Indian languages (native script + English letters): maps a question to a known English question
+when the AI translation went wrong. Needs TWO concepts together (e.g. test + pending), so it cannot fire on a normal question."""
+import re
+
+def _r(*w): return re.compile("|".join(w), re.I)
+
+TEST = _r(r"चाचण", r"parisothan", r"parikshak", r"chachan", r"\btest[a-z]*", r"parisodhan", r"pariksh", r"parishodhan", r"tapasan", r"porikkh", r"\btests?\b", r"ટેસ્ટ", r"ਟੈਸਟ", r"ଟେଷ୍ଟ", r"பரிசோதன", r"ಪರೀಕ್ಷ", r"പരിശോധന", r"तपासण", r"পরীক্ষ", r"ٹیسٹ")
+PEND = _r(r"asinahin", r"eyaan", r"aune ne", r"ithuvare", r"vannittilla", r"varala", r"varavillai", r"purnagoll", r"poorthiyaakaatha", r"poorthiyaaya", r"\bhale\b", r"pure nahi", r"\bhaje\b", r"mudiyatha", r"mudiyaadha", r"\bbaa?ki\b", r"\bbaakiy", r"\bhaju\b", r"\bajun\b", r"\bekhono\b", r"\binnum\b", r"\biniyum\b", r"\binnu\b", r"\bebe bi\b", r"\bpending\b", r"\babhi\b", r"niluvai", r"நிலுவையில்", r"இன்னும்", r"ಬಾಕಿ", r"ಇನ್ನೂ", r"ബാക്കി", r"ഇനിയും", r"बाकी", r"অজून|अजून", r"বাকি", r"এখনও", r"બાકી", r"હજુ", r"ਬਾਕੀ", r"ਹਜੇ", r"ବାକି", r"ଏବେ ବି", r"باقی", r"ابھی")
+MOST = _r(r"\bjast\b", r"vadh\b", r"jaasti", r"\bjasti\b", r"adhig", r"adhik", r"hechch?u", r"hechu", r"koo?duthal", r"kuduthal", r"sarvadhik", r"\bvadh", r"zyada", r"beshi", r"sobcheye", r"sab se", r"sabh ton", r"sabuthu", r"ettavum", r"sauthi", r"அதிக", r"ಹೆಚ್ಚು", r"കൂടുതൽ", r"ഏറ്റവും", r"सर्वाधिक", r"বেশি", r"સૌથી", r"વધુ", r"ਵੱਧ", r"ଅଧିକ", r"سب سے", r"زیادہ", r"\bmost\b")
+ORDER = _r(r"\bbook", r"booking", r"order", r"mangav", r"mangwa", r"magval", r"ordar", r"ஆர்டர்", r"ಆರ್ಡರ್", r"ഓർഡർ", r"मागवल", r"मागव", r"অর্ডার", r"મંગાવ", r"ਮੰਗਵਾ", r"ଅର୍ଡର", r"آرڈر", r"منگوا")
+BRANCH = _r(r"\bkilai", r"shakh", r"\bbranch", r"கிளை", r"ಶಾಖೆ", r"ബ്രാഞ്ച", r"शाखा", r"शाखे", r"শাখা", r"શાખા", r"ਸ਼ਾਖਾ", r"ଶାଖା", r"برانچ")
+STMT = _r(r"statement", r"அறிக்கை", r"ஸ்டேட்மென்ட்", r"ಸ್ಟೇಟ್‌?ಮೆಂಟ್", r"സ്റ്റേറ്റ്മെന്റ്", r"स्टेटमेंट", r"স্টেটমেন্ট", r"સ્ટેટમેન્ટ", r"ਸਟੇਟਮੈਂਟ", r"ଷ୍ଟେଟମେଣ୍ଟ", r"اسٹیٹمنٹ")
+BILLING = _r(r"billing", r"பில்லிங்", r"ಬಿಲ್ಲಿಂಗ್", r"ബില്ലിംഗ്", r"बिलिंग", r"বিলিং", r"બિલિંગ", r"ਬਿਲਿੰਗ", r"ବିଲିଂ", r"بلنگ")
+AGREE = _r(r"karaar", r"chukti", r"karaar", r"samjhaut", r"karrach", r"karar", r"chukti", r"ikrar", r"muahid", r"oppand", r"agreement", r"contract", r"ଚୁକ୍ତି", r"ஒப்பந்த", r"ಒಪ್ಪಂದ", r"കരാർ", r"करार", r"চুক্তি", r"કરાર", r"ਇਕਰਾਰ", r"معاہدہ")
+END = _r(r"mudat", r"miyad", r"meyad", r"mulat", r"avasaan", r"\bsesh", r"sesha", r"\bkhatam\b", r"mugi", r"samp", r"shesh", r"puro", r"khatam", r"avasan", r"\bsari", r"mudiy", r"expir", r"\bend", r"ସରିବ", r"ଶେଷ", r"முடி", r"ಮುಗಿ", r"അവസാന", r"संपत", r"শেষ", r"પૂરો", r"ਖਤਮ", r"ختم")
+INVOICE = _r(r"invoic", r"இன்வாய்ஸ்", r"ಇನ್‌?ವಾಯ್ಸ್", r"വോയ്സ്", r"इनव्हॉइस", r"ইনভয়েস", r"ઇન્વોઇસ", r"ਇਨਵੌਇਸ", r"ଇନଭଏସ", r"انوائس")
+UNPAID = _r(r"unpaid", r"not paid", r"bharleli", r"\bnathi\b", r"chukavaya", r"ada nah", r"diaijai", r"seluthappada", r"pavatiyagilla", r"adachittilla", r"porishodh hoyni", r"hoyni", r"ନାହିଁ", r"ਨਹੀਂ", r"نہیں", r"செலுத்தப்படவில்லை", r"ಪಾವತಿಯಾಗಿಲ್ಲ", r"അടച്ചിട്ടില്ല", r"न भरलेली", r"পরিশোধ হয়নি", r"ચૂકવાયા નથી")
+COPY = _r(r"\bcopy\b", r"\bgst\b", r"excel", r"download")
+PACKAGE = _r(r"packag", r"package", r"பேக்கேஜ்", r"ಪ್ಯಾಕೇಜ್", r"പാക്കേജ", r"पॅकेज", r"पैकेज", r"প্যাকেজ", r"પેકેજ", r"ਪੈਕੇਜ", r"ପ୍ୟାକେଜ", r"پیکج")
+AVAIL = _r(r"\bmile\b", r"miltat", r"\bmilte\b", r"kidaikk", r"galive", r"mildey", r"mildi", r"milde", r"miltey", r"labhyam", r"\bpaoa\b", r"\bpawa\b", r"talika", r"\blist\b", r"dekhan", r"dikhao", r"dikhayen", r"dakhva", r"batavo", r"torisi", r"kaattunga", r"kaanikk", r"fehrist", r"\byadi\b", r"labhya", r"uplabdh", r"upalabdh", r"available", r"irukku", r"\bive\b", r"paowa", r"dastiyab", r"உள்ளன", r"ಲಭ್ಯ", r"ലഭ്യ", r"उपलब्ध", r"পাওয়া", r"ઉપલબ્ધ", r"ਉਪਲਬਧ", r"ଉପଲବ୍ଧ", r"دستیاب")
+PRICE = _r(r"\bfees?\b", r"\bfis\b", r"shulka", r"kattanam", r"\bcharges?\b", r"\bphi\b", r"price", r"vilai", r"\bvila", r"vilayum", r"qeemat", r"\bbele\b", r"kimmat", r"keemat", r"\bdam\b", r"mulya", r"\brate\b", r"cost", r"how much", r"விலை", r"ಬೆಲೆ", r"വില", r"किंमत", r"दाम", r"দাম", r"કિંમત", r"ਕੀਮਤ", r"ମୂଲ୍ୟ", r"قیمت")
+
+DELAY = _r(r"thamadham", r"tamadham", r"tadav", r"vaikan", r"vaikuk", r"\bderi\b", r"\bmoda\b", r"\blate\b", r"ushir", r"bilamb", r"\bdelay")
+REJ = _r(r"niraakar", r"nirakar", r"tiraskar", r"tiraskruta", r"nirasik", r"nirasich", r"nakar", r"\bbatil", r"\bradd\b", r"mustarad", r"pratyakhyan", r"pratyakhyat", r"reject")
+SAMPLE = _r(r"sampl", r"sampal")
+PCT = _r(r"sathaveed", r"shekada", r"shathaman", r"takke", r"takkevari", r"takavari", r"\btaka\b", r"shotangsho", r"pratishat", r"pratisata", r"feesad", r"sharah", r"percent", r"%")
+RECENT = _r(r"sameepath", r"ittichin", r"puthiya", r"alikadil", r"samprotik", r"samprataka", r"tajetar", r"\btaza\b", r"recent", r"latest")
+BILL = _r(r"\bbills?\b", r"billukal", r"bile\b")
+DETAIL = _r(r"vivar", r"tapshil", r"biboron", r"bibarani", r"vigato", r"\bvere\b", r"tafseel", r"details?")
+PAY = _r(r"paymen", r"adaig", r"paavati", r"panam seluth")
+STATUSW = _r(r"nilai\b", r"sthiti", r"sthithi", r"obostha", r"halat", r"\bstatus\b")
+COMPARE = _r(r"oppid", r"holis", r"tharathamy", r"tuln", r"tulon", r"tulan", r"sarkham", r"muazna", r"compare")
+THREE = _r(r"moondru", r"mooru", r"moonnu", r"\bteen\b", r"\btin\b", r"\btran\b", r"\btini\b", r"three", r"\b3\b")
+REPORT = _r(r"arikkai", r"ahaval", r"ଅହବାଲ", r"\breports?\b", r"reportukal", r"reportan", r"reportgulo", r"reportchi", r"reportni", r"reportara", r"reporter", r"\breport\b")
+TIMEW = _r(r"neram", r"samaya", r"samay\b", r"samayavum", r"\bvel\b", r"waqt", r"somoy", r"samaan", r"\btime\b")
+CBC = _r(r"\bcbc\b")
+ORDERW = _r(r"\borders?\b", r"orderukal", r"ordergulo")
+SKIP = _r(r"complain", r"shikayat", r"raise", r"ticket", r"request", r"escalat", r"urgent", r"manager", r"pickup", r"renewal", r"recollect")
+PEND2 = _r(r"\bbaqi\b")
+PAYM = _r(r"\bthuka\b", r"\brakkam\b", r"\bjamma\b", r"\bjama\b", r"ଟଙ୍କା", r"ଜମା", r"\bhana\b", r"\brakam\b", r"\btanka\b", r"\braqam\b", r"\bpanam\b", r"\btaka\b", r"\bpaise\b", r"\bpaisa\b", r"\bpanam\b", r"\bkaasu\b", r"\bduddu\b", r"\brupaye\b")   # patch160
+RECV = _r(r"varavu", r"milali", r"pahunch", r"ମିଳିଲା", r"ମିଳିଛି", r"serndh", r"sernd", r"talup", r"pouch", r"mali gai", r"milila", r"\bmili\b", r"mil gayi", r"peyechen", r"peyechi", r"peyeche", r"mil gay[eia]", r"mil gai", r"milale", r"milyu", r"malyu", r"kittiyo", r"kitti\b", r"kidaich", r"kidaitha", r"bandide", r"milichhi", r"milila", r"paunchi", r"pohoch")
+
+def kw_intent_a(t):
+    """Return the exact English question for t, or None."""
+    t = (t or "").strip()
+    if not t or len(t) > 160 or re.search(r"@|\d{4,}|[A-Za-z]{2,}\d{3,}", t) or SKIP.search(t):
+        return None
+    if STMT.search(t) and BILLING.search(t):
+        return "Can you provide the monthly billing statement?"
+    if AGREE.search(t) and END.search(t):
+        return "When does our agreement expire?"
+    if INVOICE.search(t) and UNPAID.search(t) and not COPY.search(t):
+        return "Which invoices are unpaid?"
+    if INVOICE.search(t) and COMPARE.search(t) and THREE.search(t):
+        return "Compare our last three months' invoices."
+    if BRANCH.search(t) and MOST.search(t):
+        return "Which branch has the highest test volume?"
+    if TEST.search(t) and MOST.search(t) and ORDER.search(t):
+        return "Which tests were ordered most frequently?"
+    if ORDERW.search(t) and DELAY.search(t):
+        return "Which orders are likely to be delayed?"
+    if SAMPLE.search(t) and REJ.search(t):
+        return "What is our sample rejection percentage?" if PCT.search(t) else "Show rejected samples"
+    if BILL.search(t) and RECENT.search(t) and re.search(r"(?<!\d)10(?!\d)", t):
+        return "Top 10 recent bills"
+    if AGREE.search(t) and DETAIL.search(t):
+        return "Contract agreement details"
+    if (PAY.search(t) or PAYM.search(t)) and RECV.search(t) and not PEND.search(t) and not INVOICE.search(t):
+        return "Has our payment been received?"
+    if PAY.search(t) and STATUSW.search(t) and not PEND.search(t):
+        return "Payment status"
+    if CBC.search(t) and PRICE.search(t) and not TIMEW.search(t) and not PACKAGE.search(t):   # patch161
+        return "What is the price of CBC?"
+    if CBC.search(t) and TIMEW.search(t) and PRICE.search(t):
+        return "What is the price and report time for CBC?"
+    if REPORT.search(t) and (PEND.search(t) or PEND2.search(t)) and not TEST.search(t):
+        return "Which of my reports are pending?"
+    if REPORT.search(t) and STATUSW.search(t) and not PEND.search(t) and not PAY.search(t):
+        return "What is the status of my reports?"
+    if TEST.search(t) and PEND.search(t) and not INVOICE.search(t) and not PACKAGE.search(t):
+        return "Which tests are still pending?"
+    if PACKAGE.search(t) and AVAIL.search(t) and not PRICE.search(t):
+        return "What health-check packages are available?"
+    return None
+
+# patch162 -------------------------------------------------------------
+CREDITW = _r(r"credit", r"க்ரெடிட்|கிரெடிட்", r"ಕ್ರೆಡಿಟ್", r"ക്രെഡിറ്റ്", r"क्रेडिट", r"ক্রেডিট", r"ક્રેડિટ", r"ਕ੍ਰੈਡਿਟ", r"କ୍ରେଡିଟ୍?", r"کریڈٹ")
+LIMITW = _r(r"\blimi?t", r"lim[ie]t", r"\bhadd?\b", r"\bsima\b", r"\bseema\b", r"maryada", r"mithi", r"paridhi", r"லிமிட்", r"ಮಿತಿ", r"പരിധി", r"मर्यादा", r"সীমা", r"મર્યાદા", r"ਹੱਦ", r"ସୀମା", r"\bحد\b")
+MONTHW = _r(r"\bmonth", r"maas", r"mahin", r"\bmashe\b", r"\bmasa", r"tingal", r"\bmaah\b", r"மாத", r"ತಿಂಗ", r"മാസ", r"महिन", r"মাস", r"માસ|મહિન", r"ਮਹੀਨ", r"ମାସ", r"ماہ")
+LASTW = _r(r"\bpurba\b", r"\bpuruba\b", r"gelya", r"gelelya", r"\blast\b", r"previous", r"\bpona\b", r"\bpichh?le\b", r"hindina", r"kazhinja", r"maagchya", r"magchya", r"\bager\b", r"\bgaya\b", r"\bgata\b", r"போன", r"முந்தைய", r"ಹಿಂದಿನ", r"കഴിഞ്ഞ", r"मागच्या", r"আগের", r"ગયા", r"ਪਿਛਲੇ", r"ଗତ", r"گزشتہ", r"پچھلے", r"guzishta")
+BILL2 = _r(r"\bbills?\b", r"billukal", r"billgal", r"\bbile\b", r"பில்", r"ಬಿಲ್", r"ബിൽ", r"बिल", r"বিল", r"બિલ", r"ਬਿੱਲ", r"ବିଲ୍", r"بل")
+DUEW = _r(r"baa?kk?i\b", r"\bbakaya\b", r"\bbaqi\b", r"bokeya", r"thakbaki", r"\bdues?\b", r"outstanding", r"zimme", r"adakkaan", r"debaku", r"பாக்கி", r"ಕಟ್ಟಬೇಕ", r"അടയ്ക്കാന", r"थकबाकी", r"বকেয়া", r"બાકી", r"ਬਾਕੀ", r"ବାକି", r"باقی")
+MONEYW = _r(r"\bhana\b", r"\brakam\b", r"\brakkam\b", r"\btanka\b", r"\btaka\b", r"\bpaise\b", r"\bthuka\b", r"\braqam\b", r"\bpanam\b", r"\bamount\b", r"\bmoney\b", r"பணம்", r"ಹಣ", r"തുക", r"रक्कम", r"টাকা", r"રકમ", r"ਪੈਸੇ", r"ଟଙ୍କା", r"رقم|پیسے")
+
+READYW = _r(r"thayaar", r"\btayar", r"taiyar", r"\btiyar", r"\bready\b", r"தயார", r"തയ്യാർ|തയ്യാറ", r"तयार", r"তৈরি", r"તૈયાર", r"ਤਿਆਰ", r"ପ୍ରସ୍ତୁତ", r"تیار")
+DATEW = _r(r"tarikh", r"tareekh", r"theeyathi", r"thedhi", r"dinank", r"\bdate\b", r"தேதி", r"തീയതി", r"तारीख", r"তারিখ", r"તારીખ", r"ਤਾਰੀਖ", r"ତାରିଖ", r"تاریخ")
+
+def kw_intent2(t):
+    t = (t or "").strip()
+    if not t or len(t) > 160 or re.search(r"@|\d{4,}|[A-Za-z]{2,}\d{3,}", t) or SKIP.search(t):
+        return None
+    # patch163
+    if TEST.search(t) and MOST.search(t) and not PRICE.search(t) and not PEND.search(t) and not BRANCH.search(t) and not INVOICE.search(t) and not REPORT.search(t) and not re.search(r"(?i)expensive|costly|cheap|price|rate|cost", t):
+        return "Which tests were ordered most frequently?"
+    if REPORT.search(t) and READYW.search(t) and not PEND.search(t) and not TEST.search(t) and not PAY.search(t):
+        return "What is the status of my reports?"
+    if AGREE.search(t) and DATEW.search(t) and not DETAIL.search(t) and not re.search(r"(?i)start|from|shuru|suru", t):
+        return "When does our agreement expire?"
+    if CREDITW.search(t) and LIMITW.search(t) and not PRICE.search(t) and not TEST.search(t) and not PACKAGE.search(t):
+        return "What is my credit limit?"
+    if BILL2.search(t) and LASTW.search(t) and MONTHW.search(t) and not THREE.search(t) and not INVOICE.search(t) and not UNPAID.search(t) and not (RECENT.search(t) and re.search(r"(?<!\d)10(?!\d)", t)):
+        return "How many bills did I get last month?"
+    if DUEW.search(t) and MONEYW.search(t) and not TEST.search(t) and not REPORT.search(t) and not RECV.search(t) and not INVOICE.search(t) and not PACKAGE.search(t) and not BILL2.search(t) and not ORDERW.search(t):
+        return "What is my outstanding balance?"
+    return None
+
+_LANGW = {
+ "ta": r"evlo|ethanai|irukku|maadham|\bintha\b|engal|kadantha|thamadham|sameepath|kaattungal|seluth|niluvai|vilai|matrum|neram|sathaveed|oppidungal|moondru|niraakar|vandhana|thogai|mudiyu|eppodhu|kidaith|ennenna|neenga|tharinga|thara\b|oppanda|\bpanam\b|\benna\b|\bnilai\b",
+ "kn": r"yava\b|\binnu\b|\bive\b|aagide|eshtu|tingal|hechchu|\bnamma\b|\bnanna\b|toorisi|holisi|mooru|\bbele\b|mattu|\bsthiti enu|\bide\b|olage|bandive|tadav|tiraskar|paavatiya|labhyavi|kodabahude|ittichin|shekada|yavaga|oppanda|\bkone\b",
+ "ml": r"\bethu\b|ethra|\bente\b|njangal|maasam|aayi\b|kazhinja|kaanikk|tharamo|sthithi|enthanu|vaikan|orderukal|reportukal|billukal|invoicukal|nirasich|ettavum|kooduthal|avasan|shathaman|tharathamy|moonnu|\bvila\b|vilayum|kittiyo|baakiy|iniyum|kudishika|\bkarar\b|puthiya|labhyam",
+ "mr": r"\bkiti\b|aahe|aahet|majhi|majhya|mahinyat|kontya|\bkonte\b|\bkonti\b|jhale|maghil|\bteen\b|dakhva|nakarl|ushira|shakyata|takke|takkevari|tapasanya|amche|amcha|\bsanga\b|kay aahe|thakbaki|alikadil|tapshil|\bdeta\b|\bbile\b|shakta ka",
+ "bn": r"\bkoto\b|\bache\b|\bamar\b|amader|hoyeche|\bei mashe|\bgato\b|\bmashe\b|\\bdekhan\\b|korun|tulona|\bbatil|hote pare|shotangsho|somoy|obostha|\bapnara\b|bokeya|koyti|ekhono|samprotik|biboron|chukti|\bhobe\b|peyechen|parben|\bdite\b|biller|sobcheye|beshi",
+ "gu": r"\bketla\b|\bketli\b|\bketlu\b|\bketlo\b|\bchhe\b|\bhatu\b|\bthaya\b|\bmara\b|\bmari\b|\bmaru\b|batavo|sarkham|nakaray|\bmoda\b|\btaka\b|tajetar|vigato|kararni|sthiti shu|aavya|\btran\b|sauthi|vadhu|mangavya|\bhaju\b|pachla|chhella|apo cho|\bshako\b|\bsamay ketlo|ketla bills",
+ "pa": r"\bkinne\b|\bkinna\b|\bkinni\b|\bkihde\b|\bkihdi|\bvich\b|\bsade\b|\bsadi\b|\bmerian\b|dikhao|\bradd\b|\bsakde\b|pratishat|mahinean|ikrar|\bvere\b|adaig|\bhaje\b|keemat te|\bdasso\b|\bkado\b|\bsamaan\b|aaian|\bda\b|\bdi\b|\bhan\b",
+ "or": r"\bkete\b|achhi|\bebe\b|\bmora\b|\bmo\b|apana|upalabdha|sabuthu|adhika|deiparibe|diaijai|heichi|saribe|\bgata\b|ehi masa|\bmasa re\b|dekhantu|karantu|bilamba|sambhabana|pratisata|pratyakhyat|bibarani|\bkana\b|\bsesh\b|mulya o",
+}
+_LANGW_X = {'ta': 'evai|mudiyatha|mudiyaadha', 'kn': 'purnagoll|jaasti|yavuvu|aagutte', 'ml': 'eppol|avasaan|poorthiyaakaatha|varunnathu|ethokke|karaar', 'mr': '\\bkadhi\\b|sampto|sampat', 'bn': '\\bdekhan\\b|\\bshesh hoyni|hoyni', 'pa': '\\bkadon\\b|hovega|samjhaut|\\bhale\\b|\\bhoe\\b|pure nahi', 'or': '\\bkebe\\b|\\bhebe\\b|\\bsesha\\b', 'gu': '\\bkyare\\b'}   # patch159
+for _k, _v in {'ta': r'\badhigam\b|\bpanra\b|\bpona\b|mottham|\bethana\b|pottirukk|kidaikk|serndh|vandhu', 'kn': r'galive|talup|\bhana\b|nimage', 'ml': r'labhyam|packagukal|cheyyappedunna', 'bn': r'pouch|\bjoma\b|\bkache\b', 'gu': r'thashe|\bmali gai\b|\bbhareli\b|\btamne\b', 'pa': r'mildey|\bmiyad\b|\bkado tak\b|\bhon wala\b', 'or': r'milila|\btanka\b|apananku|heuthiba|karithiba|\bkeunti\b'}.items():   # patch161
+    _LANGW_X[_k] = _LANGW_X.get(_k, '') + '|' + _v
+for _k, _v in {'ta': r'\bentha\b|\binnum\b|varala|varavillai|kidaich|kidaitha', 'ml': r'ithuvare|vannittilla|kittiyo', 'bn': r'\btaka\b|diyechi|peyechi|peyeche', 'pa': r'\basin\b|tuhanu|\bditte\b'}.items():   # patch160
+    _LANGW_X[_k] = _LANGW_X.get(_k, '') + '|' + _v
+for _k, _v in {'ta': r'arikkai|thayaar|parisothan|varaadha|mudivu|seyyapp|\bedhu\b', 'ml': r'theeyathi|vareyaan|aalukal|cheyyunna', 'mr': r'\bhote\b|\bjast\b|miltat|\bkonte\b|ahaval', 'or': r'\bkeun\b|\bhebe\b|shesha|tarikhare|masare|asinahin|eyaan|\bpurba\b|keteta|katagala|\bhelani\b|parikshara'}.items():   # patch163
+    _LANGW_X[_k] = _LANGW_X.get(_k, '') + '|' + _v
+_LANGW["te"] = r'\bentha\b|\bmaa\b|\bmaaku\b|\bmemu\b|\bmanam\b|\benni\b|\bemiti\b|\benti\b|\bela\b|\bekkada\b|\bevaru\b|unnayi|unnara|\bundi\b|\bunnam\b|\bledu\b|cheppandi|chupinchandi|ivvandi|\bkavali\b|\bmee\b|\bmeeru\b|\bnaa\b|ayyayi|\bayindi\b|\bayyinda\b|\bekkuva\b|ekkuvaga|\binka\b|pampina|chellinchina|\bandinda\b|\bpadinda\b|mugustundi|avutundi|\bgata\b nela|\bnelalo\b|billulu|\bdaggara\b|\bpoina\b|\bvesaru\b|\braani\b|\bdabbu\b|\bichina\b'   # patch167
+_LANGW_X['ta'] = _LANGW_X.get('ta', '') + '|adhigama|pannirukk|thedhiyil|mudigir|aaguthu|\boppandham\b'   # patch167
+_LANGW = {k: re.compile(v + (('|' + _LANGW_X[k]) if k in _LANGW_X else ''), re.I) for k, v in _LANGW.items()}
+
+def guess_lang(t):
+    """Language code of a question typed in English letters, from distinctive words; None when unclear or tied."""
+    sc = sorted(((len(rx.findall(t or "")), k) for k, rx in _LANGW.items()), reverse=True)
+    if not sc or sc[0][0] == 0:
+        return None
+    if len(sc) > 1 and sc[1][0] == sc[0][0]:
+        return None
+    return sc[0][1]
+
+_UR = re.compile(r"\bhamen\b|raqam|karwayi|zimme|guzishta|\bhad di\b|teston|\bkin teston|dikhayen|mustarad|tafseel|muahid|muazna|qeemat|feesad|sharah|mahinon|\bhamare\b|\bhamari\b|\bhamara\b", re.I)
+_HI = re.compile(r"\bkitn[aei]\b|\bmer[aei]\b|\bhain?\b|\bkya\b|\bkaun\b|\bkab\b|dikha|\bmujhe\b|\baap\b|\bpichle\b|\bbakaya\b", re.I)
+
+def guess_hindustani(t):
+    """'ur' for typical Urdu words, 'hi' for general Hindi/Urdu words, None when it does not look like Hindi/Urdu at all."""
+    if _UR.search(t or ""):
+        return "ur"
+    if _HI.search(t or ""):
+        return "hi"
+    return None
+
+def guess_roman(t, allow_hi=True):
+    """Language code for a question in English letters: Urdu-only words first, then the 8 other languages, then general Hindi/Urdu."""
+    if _UR.search(t or ""):
+        return "ur"
+    g = guess_lang(t)
+    if g:
+        return g
+    h = guess_hindustani(t)
+    return h if (h and (allow_hi or h != "hi")) else None
+
+
+def kw_intent(t):   # patch162
+    return kw_intent_a(t) or kw_intent2(t)
