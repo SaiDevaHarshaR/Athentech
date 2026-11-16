@@ -98,8 +98,8 @@ pip install -r requirements.txt
 ```
 .env needs at least:
 
-
-TextGROQ_API_KEY=...
+```Text
+GROQ_API_KEY=...
 # optional: TAVILY_API_KEY, OPENAI_API_KEY, etc.
 # MSSQL_* for a default hospital connection
 ```
