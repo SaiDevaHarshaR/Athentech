@@ -55,30 +55,18 @@ Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories.
 ## Architecture (honest version)
 
 Widget / Admin UI
-
 |
-
 v
-
 FastAPI (main.py)
-
 |
-
-+-- /ask                     agent tool loop
-
-+-- /athentech-info          public product answers
-
-+-- /athentech-demo-request  lead form -> SMTP
-
-+-- /admin/*                 licenses, roles, audit
-
-+-- /health
-
++--> /ask                     agent tool loop
++--> /athentech-info          public product answers
++--> /athentech-demo-request  lead form -> SMTP
++--> /admin/*                 licenses, roles, audit
++--> /health
 |
-
-+-- licenses.db              institutions, encrypted creds, settings
-
-+-- Hospital MSSQL           per-institution server/db/user
++--> licenses.db              institutions, encrypted creds, settings
++--> Hospital MSSQL           per-institution server/db/user
 
 
 Premium path: validate code -> decrypt connection -> bind role -> tool loop -> grounded answer.  
