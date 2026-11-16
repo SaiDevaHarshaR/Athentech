@@ -1,2 +1,0 @@
-# Optional integration; install only when Stage 5 enabled.
-langfuse>=4.7,<5

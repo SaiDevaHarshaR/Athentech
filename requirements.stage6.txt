@@ -1,3 +1,0 @@
-# Hosted HF uses existing langchain-openai and requests dependencies.
-# Local HF uses existing langchain-openai against an OpenAI-compatible vLLM gateway.
-# No new Python packages required for the FastAPI application.
