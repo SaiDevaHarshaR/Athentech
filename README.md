@@ -31,10 +31,10 @@ Public / AthenTech-only mode answers product questions and can open a demo-booki
 
 ## Modes
 
-| Mode | Trigger | Data |
-|------|---------|------|
-| Public / AthenTech | No code | Product info, intents, demo capture |
-| Premium | Valid activation code | That hospital’s MSSQL only, role-scoped |
+| Mode               | Trigger               | Data                                    |
+|------              |---------              |------                                   |
+| Public / AthenTech | No code               | Product info, intents, demo capture     |
+| Premium            | Valid activation code | That hospital’s MSSQL only, role-scoped |
 
 Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories. Reception does not get lab result tables. Admin panel can change the matrix without a redeploy.
 
@@ -55,13 +55,9 @@ Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories.
 ## Architecture (honest version)
 
 Widget / Admin UI
-
 │
-
 ▼
-
 FastAPI (main.py)
-
 │
 ├── /ask              -> agent tool loop
 ├── /athentech-info   -> public product answers
@@ -71,3 +67,39 @@ FastAPI (main.py)
 │
 ├── licenses.db       (institutions, encrypted creds, settings)
 └── Hospital MSSQL    (per-institution server/db/user)
+
+
+
+Premium path: validate code -> decrypt connection -> bind role -> tool loop -> grounded answer.  
+History is truncated. Tool rounds are capped. Budget is real wall-clock, not hope.
+
+---
+
+## The hard parts (why this isn’t a weekend demo)
+
+- **Schema hallucination** - models invent column names. Fixed with mandatory describe + pre-exec validation + closest-column hints.
+- **Date filters** - equality on datetime columns is poison on MSSQL. Forced range patterns + `SET DATEFORMAT ymd`.
+- **Multi-tenancy** - credentials and results must never cross hospitals. Connection params come only from the validated license row.
+- **Latency** - free-form multi-table questions were 30–60s+. Curated intents + answer cache for the hot path.
+- **Provider limits** - shared keys exhaust. BYOK path never touches AthenTech quota; ContextVars keep the chains separate.
+- **Windows deploy** - single NSSM service, ARR, static widget under `/widget`. Partial deploys will pause the service; treat that as a first-class failure mode.
+
+---
+
+## Run it locally
+
+```bash
+git clone https://github.com/SaiDevaHarshaR/Athentech.git
+cd Athentech
+python -m venv venv
+# Windows: venv\Scripts\activate
+source venv/bin/activate
+pip install -r requirements.txt
+```
+.env needs at least:
+
+
+TextGROQ_API_KEY=...
+# optional: TAVILY_API_KEY, OPENAI_API_KEY, etc.
+# MSSQL_* for a default hospital connection
+```
