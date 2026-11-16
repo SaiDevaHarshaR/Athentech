@@ -55,19 +55,30 @@ Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories.
 ## Architecture (honest version)
 
 Widget / Admin UI
-│
-▼
-FastAPI (main.py)
-│
-├── /ask              -> agent tool loop
-├── /athentech-info   -> public product answers
-├── /athentech-demo-request -> lead form -> SMTP
-├── /admin/*          -> licenses, roles, audit
-└── /health
-│
-├── licenses.db       (institutions, encrypted creds, settings)
-└── Hospital MSSQL    (per-institution server/db/user)
 
+|
+
+v
+
+FastAPI (main.py)
+
+|
+
++-- /ask                     agent tool loop
+
++-- /athentech-info          public product answers
+
++-- /athentech-demo-request  lead form -> SMTP
+
++-- /admin/*                 licenses, roles, audit
+
++-- /health
+
+|
+
++-- licenses.db              institutions, encrypted creds, settings
+
++-- Hospital MSSQL           per-institution server/db/user
 
 
 Premium path: validate code -> decrypt connection -> bind role -> tool loop -> grounded answer.  
@@ -111,3 +122,24 @@ Open the widget under widget_files/ or hit /health.
 
 Production notes live in deployment/ and DEPLOYMENT.md.
 ODBC Driver 17 or 18 for SQL Server is required for premium mode.
+
+## Repo map
+
+agent/          tool loop, guards, intents, confidence, heal
+auth/           licenses, roles, table access, BYOK, AthenTech intents
+database/       hospital connections + license store
+reports/        PDF / Excel generators
+observability/  tracing, metrics, alerts
+widget_files/   embeddable chat UI
+admin/          static admin panel
+tests/          a lot of “this used to lie about revenue” coverage
+
+
+## Status
+
+Production for AthenTech hospital clients.
+
+Public widget for athentech.co.in product questions + demo booking.
+
+Not a research prototype. The scars are in the commit history.
+If you’re evaluating this as a portfolio piece: look at agent/tools.py, agent/guard_hooks.py, the role matrix, and how provider isolation is enforced under concurrent load. That’s the work.
