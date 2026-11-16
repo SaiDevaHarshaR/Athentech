@@ -43,7 +43,7 @@ Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories.
 ## Stack that survived production
 
 - **API:** FastAPI + Uvicorn (Windows service via NSSM, IIS reverse proxy)
-- **Agent:** LangChain tool loop — `describe_table`, `run_sql_query`, department/TAT/collection tools
+- **Agent:** LangChain tool loop- `describe_table`, `run_sql_query`, department/TAT/collection tools
 - **LLMs:** Groq default, multi-provider chain + per-institution BYOK, exhaustion-aware fallback
 - **DB:** Per-hospital MSSQL (pyodbc), licenses/settings in SQLite
 - **Guards:** SELECT-only, banned keywords, schema validation, output redaction, wall-clock + tool-round budgets
@@ -53,3 +53,21 @@ Roles (Doctor, Nurse, Lab Tech, Reception, Viewer, …) map to table categories.
 ---
 
 ## Architecture (honest version)
+
+Widget / Admin UI
+
+│
+
+▼
+
+FastAPI (main.py)
+
+│
+├── /ask              -> agent tool loop
+├── /athentech-info   -> public product answers
+├── /athentech-demo-request -> lead form -> SMTP
+├── /admin/*          -> licenses, roles, audit
+└── /health
+│
+├── licenses.db       (institutions, encrypted creds, settings)
+└── Hospital MSSQL    (per-institution server/db/user)
