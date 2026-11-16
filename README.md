@@ -80,7 +80,7 @@ History is truncated. Tool rounds are capped. Budget is real wall-clock, not hop
 - **Schema hallucination** - models invent column names. Fixed with mandatory describe + pre-exec validation + closest-column hints.
 - **Date filters** - equality on datetime columns is poison on MSSQL. Forced range patterns + `SET DATEFORMAT ymd`.
 - **Multi-tenancy** - credentials and results must never cross hospitals. Connection params come only from the validated license row.
-- **Latency** - free-form multi-table questions were 30–60s+. Curated intents + answer cache for the hot path.
+- **Latency** - free-form multi-table questions were 30-60s+. Curated intents + answer cache for the hot path.
 - **Provider limits** - shared keys exhaust. BYOK path never touches AthenTech quota; ContextVars keep the chains separate.
 - **Windows deploy** - single NSSM service, ARR, static widget under `/widget`. Partial deploys will pause the service; treat that as a first-class failure mode.
 
@@ -103,3 +103,11 @@ GROQ_API_KEY=...
 # optional: TAVILY_API_KEY, OPENAI_API_KEY, etc.
 # MSSQL_* for a default hospital connection
 ```
+
+```Bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+Open the widget under widget_files/ or hit /health.
+
+Production notes live in deployment/ and DEPLOYMENT.md.
+ODBC Driver 17 or 18 for SQL Server is required for premium mode.
