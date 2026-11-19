@@ -8,3 +8,21 @@ licenses.db*
 audit/*.log
 exports/
 usage_limits.db*
+# SQL Server database backups
+*.bak
+*.BAK
+*.bak-*
+*.backup
+*.bacpac
+
+# Database files
+*.mdf
+*.ldf
+
+# Logs and secrets
+*.log
+logs/
+.env
+.env.*
+!.env.example
+!.env.*.example
